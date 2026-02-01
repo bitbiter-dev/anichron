@@ -1,0 +1,65 @@
+services:
+  anichron-db:
+    image: postgres:17-alpine
+    container_name: anichron-db
+    restart: always
+    environment:
+      POSTGRES_USER: anichron_admin
+      POSTGRES_PASSWORD: your_secure_password
+      POSTGRES_DB: anichron
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anichron_admin -d anichron"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  anichron-api:
+    image: yourregistry.azurecr.io/anichron-api:latest # Pulls from ACR
+    container_name: anichron-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Maps to POSTGRES_CONNECTION section in your C# code
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_admin
+      - POSTGRES_CONNECTION__PASSWORD=your_secure_password
+      # Optional: Use this if you implement Docker Secrets later
+      # - POSTGRES_CONNECTION__PASSWORD_FILE=/run/secrets/db_password
+    volumes:
+      - /path/to/your/nas:/data/originals:ro # NAS Mount (Read-Only)
+      - proxy_cache:/data/proxies:ro         # Proxy Cache (Read-Only)
+    depends_on:
+      anichron-db:
+        condition: service_healthy
+
+  anichron-worker:
+    image: yourregistry.azurecr.io/anichron-worker:latest # Pulls from ACR
+    container_name: anichron-worker
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri # Intel GPU Passthrough for QuickSync
+    environment:
+      # Maps to POSTGRES_CONNECTION section in your C# code
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_admin
+      - POSTGRES_CONNECTION__PASSWORD=your_secure_password
+      # Optional: Use this if you implement Docker Secrets later
+      # - POSTGRES_CONNECTION__PASSWORD_FILE=/run/secrets/db_password
+    volumes:
+      - /path/to/your/nas:/data/originals:ro # NAS Mount (Read-Only)
+      - proxy_cache:/data/proxies:rw         # Proxy Cache (Read-Write)
+    depends_on:
+      anichron-db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  proxy_cache:

@@ -1,0 +1,62 @@
+name: 0.0.$(Rev:r)
+
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+- group: 'Anichron-Release' 
+- name: DOCKER_BUILDKIT
+  value: "1"
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: BuildAndPush
+  displayName: Build and Push Images
+  jobs:
+
+  - job: SetBuildNumber
+    displayName: 'Set Build Number and Tag'
+    steps:
+    - script: |
+        if [ "$(Build.SourceBranchName)" = "main" ]; then
+          echo "##vso[task.setvariable variable=additionalTag;isOutput=true]latest"
+        else
+          echo "##vso[build.updatebuildnumber]$(Build.BuildNumber)-dev"
+          echo "##vso[task.setvariable variable=additionalTag;isOutput=true]"
+        fi
+      displayName: 'Evaluate BuildNumber and Tag'
+      name: SetBuildNumberStep
+
+  - job: BuildDockerImages
+    displayName: Build and Push Image
+    dependsOn: SetBuildNumber
+    variables:
+      additionalTag: $[ dependencies.SetBuildNumber.outputs['SetBuildNumberStep.additionalTag'] ]
+    strategy:
+      matrix:
+        Anichron.API:
+          RepositoryName: '$(DockerHubUser)/$(ApiRepository)'
+          DockerfilePath: '$(Build.SourcesDirectory)/src/Anichron.API/Dockerfile'
+        Anichron.Worker:
+          RepositoryName: '$(DockerHubUser)/$(WorkerRepository)'
+          DockerfilePath: '$(Build.SourcesDirectory)/src/Anichron.Worker/Dockerfile'
+    
+    steps:
+
+    - script: |
+         echo "AdditionalTag: $(additionalTag)"
+      displayName: Print additional tag
+
+    - template: templates/docker-build.yml
+      parameters:
+        containerRegistry: 'DockerHubConnection'
+        repositoryName: $(RepositoryName)
+        buildContext: $(Build.SourcesDirectory)
+        dockerfilePath: $(DockerfilePath)
+        imageTag: $(Build.BuildNumber)
+        additionalTag: $(additionalTag)

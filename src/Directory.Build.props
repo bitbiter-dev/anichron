@@ -1,0 +1,42 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+	<GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+  </PropertyGroup>
+  
+  <PropertyGroup>
+    <RepositoryRootDirectory>$(MSBuildThisFileDirectory)</RepositoryRootDirectory>
+    <ArtifactsPath>$(RepositoryRootDirectory).artifacts</ArtifactsPath>
+  </PropertyGroup>
+  
+   <PropertyGroup Condition="'$(OptOutAnalyzers)' != 'True'">
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+	<AnalysisMode>Recommended</AnalysisMode>
+    <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+    <RunAnalyzersDuringLiveAnalysis>true</RunAnalyzersDuringLiveAnalysis>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+  
+  <PropertyGroup Label="Project Properties Evaluation">
+    <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">True</IsTestProject>
+  </PropertyGroup>
+  
+  <ItemGroup Condition="'$(IsTestProject)' == 'True'">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+	<PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  
+  <ItemGroup Condition="'$(IsTestProject)' != 'True'"> 
+	<InternalsVisibleTo Include="*.Tests.Unit" /> 
+	<InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+</Project>

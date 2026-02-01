@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <UserSecretsId>dotnet-Anichorn.Worker-ab9bb9c5-f108-4a29-898c-618bb13eaec7</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Anichron.Core\Anichron.Core.csproj" />
+    <ProjectReference Include="..\Anichron.Infrastructure\Anichron.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
