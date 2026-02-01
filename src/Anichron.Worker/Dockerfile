@@ -1,5 +1,5 @@
 # 1. Final Runtime Stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0-bookworm-slim AS base
+FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS base
 WORKDIR /app
 
 # Install system dependencies for Media Processing
@@ -17,6 +17,8 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 # Copy both projects (Worker depends on Core)
+COPY ["Directory.Packages.props", "."]
+COPY ["Directory.Build.props", "."]
 COPY ["Anichron.Worker/Anichron.Worker.csproj", "Anichron.Worker/"]
 COPY ["Anichron.Core/Anichron.Core.csproj", "Anichron.Core/"]
 COPY ["Anichron.Infrastructure/Anichron.Infrastructure.csproj", "Anichron.Infrastructure/"]
@@ -35,8 +37,5 @@ RUN dotnet publish "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/pu
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-
-# Verify Intel GPU access (useful for logs)
-RUN vainfo
 
 ENTRYPOINT ["dotnet", "Anichron.Worker.dll"]

@@ -9,6 +9,8 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 # Copy projects to handle shared dependencies
+COPY ["Directory.Packages.props", "."]
+COPY ["Directory.Build.props", "."]
 COPY ["Anichron.API/Anichron.API.csproj", "Anichron.API/"]
 COPY ["Anichron.Core/Anichron.Core.csproj", "Anichron.Core/"]
 COPY ["Anichron.Infrastructure/Anichron.Infrastructure.csproj", "Anichron.Infrastructure/"]

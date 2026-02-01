@@ -17,6 +17,10 @@ parameters:
 - name: additionalTag
   displayName: Additional tag for the Container
   type: string
+- name: pushToRegistry
+  displayName: Push to container registry
+  type: boolean
+  default: false
 
 steps:
   - task: Docker@2
@@ -30,7 +34,7 @@ steps:
           ${{ parameters.imageTag }}
           ${{ parameters.additionalTag }}
       addPipelineData: true
-      arguments: '--cache-from ${{ parameters.repositoryName }}:latest --progress=plain | tee $(Agent.TempDirectory)/docker_build.log'
+      arguments: '--cache-from ${{ parameters.repositoryName }}:latest --progress=plain'
     name: DockerBuild
 
   - task: Bash@3
@@ -38,20 +42,21 @@ steps:
     inputs:
       targetType: 'inline'
       script: |
-        LOG_FILE="$(Agent.TempDirectory)/docker_build.log"
-        echo "Reading Docker build output from: $LOG_FILE"
-        if [ -f "$LOG_FILE" ]; then
+        echo "Reading Docker build output from: $(DockerBuild.DockerOutput)"
+        if [ -f "$(DockerBuild.DockerOutput)" ]; then
           while IFS= read -r line; do
+            # If the line contains "warning" (case-insensitive), log it as an ADO warning.
             if echo "$line" | grep -qi "warning"; then
               echo "##vso[task.logissue type=warning]$line"
+            else
+              echo "$line"
             fi
-            echo "$line"
-          done < "$LOG_FILE"
+          done < "$(DockerBuild.DockerOutput)"
         else
-          echo "Docker build output file not found: $LOG_FILE"
+          echo "Docker build output file not found: $(DockerBuild.DockerOutput)"
         fi
       
-  - task: BuildQualityChecks@9
+  - task: BuildQualityChecks@10
     displayName: 'Check build quality'
     inputs:
       runTitle: 'Build Warnings'
@@ -64,6 +69,7 @@ steps:
     condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
 
   - task: Docker@2
+    condition: eq(${{ parameters.pushToRegistry }}, true)
     displayName: Push Container
     inputs:
       containerRegistry: '${{ parameters.containerRegistry }}'
