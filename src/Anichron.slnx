@@ -2,8 +2,8 @@
   <Folder Name="/Solution Items/">
     <File Path="docker-compose.yml" />
   </Folder>
-  <Project Path="Anichorn.Worker/Anichron.Worker.csproj" />
   <Project Path="Anichron.API/Anichron.API.csproj" />
   <Project Path="Anichron.Core/Anichron.Core.csproj" />
   <Project Path="Anichron.Infrastructure/Anichron.Infrastructure.csproj" Id="17caffc9-74a4-403e-b1e7-7f78a6d4b9eb" />
+  <Project Path="Anichron.Worker/Anichron.Worker.csproj" />
 </Solution>

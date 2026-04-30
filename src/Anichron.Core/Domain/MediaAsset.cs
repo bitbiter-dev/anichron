@@ -1,5 +1,4 @@
 ﻿using Anichron.Core.Common;
-using NodaTime;
 
 namespace Anichron.Core.Domain;
 
@@ -15,9 +14,9 @@ public class MediaAsset
     public Guid? LivePhotoPairId { get; set; }
 
     // File Information
-    public string FilePath { get; set; } = null!; // Relative to StorageConfig Root
-    public string FileName { get; set; } = null!;
-    public string ContentHash { get; set; } = null!; // XXHash64 for move tracking
+    public string FilePath { get; set; } = string.Empty; // Relative to StorageConfig Root
+    public string FileName { get; set; } = string.Empty;
+    public string ContentHash { get; set; } = string.Empty; // XXHash64 for move tracking
 
     // Temporal Data (Optimized for "On This Day")
     public LocalDateTime DateCaptured { get; set; }

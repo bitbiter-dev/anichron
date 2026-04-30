@@ -1,5 +1,4 @@
 ﻿using Anichron.Core.Common;
-using NodaTime;
 
 namespace Anichron.Core.Domain;
 
@@ -9,7 +8,7 @@ public class ProxyFile
 
     public Guid AssetId { get; set; }
 
-    public string ProxyPath { get; set; } = null!;
+    public string ProxyPath { get; set; } = string.Empty;
 
     // Categorization: e.g., "Thumbnail", "StoryVideo", "BlurHash"
     public ProxyType ProxyType { get; set; }

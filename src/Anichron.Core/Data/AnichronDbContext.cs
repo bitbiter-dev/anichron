@@ -20,15 +20,17 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         modelBuilder.Entity<AssetInteraction>(entity =>
         {
             entity.HasIndex(i => new { i.UserId, i.AssetId }).IsUnique();
+            entity.HasQueryFilter(i => !i.Asset.IsSoftDeleted);
         });
 
         modelBuilder.Entity<Burst>(entity =>
         {
             // Primary Asset reference (1:1 style lookup)
             entity.HasOne(b => b.PrimaryAsset)
-                  .WithMany()
-                  .HasForeignKey(b => b.PrimaryAssetId)
-                  .OnDelete(DeleteBehavior.Restrict);
+                .WithMany()
+                .HasForeignKey(b => b.PrimaryAssetId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(b => !b.PrimaryAsset.IsSoftDeleted);
         });
 
         modelBuilder.Entity<MediaAsset>(entity =>
@@ -65,6 +67,11 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .WithOne(i => i.Asset)
                   .HasForeignKey(i => i.AssetId);
 
+            // Partial index covering only active (non-deleted) assets
+            entity.HasIndex(m => m.IsSoftDeleted)
+                  .HasFilter(@"""IsSoftDeleted"" = false")
+                  .HasDatabaseName("IX_MediaAssets_Active");
+
             // Global Query Filter: Hide soft-deleted files by default
             entity.HasQueryFilter(m => !m.IsSoftDeleted);
 
@@ -81,12 +88,14 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .WithOne(a => a.Metadata)
                   .HasForeignKey<Metadata>(m => m.AssetId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(e => !e.Asset.IsSoftDeleted);
         });
 
         modelBuilder.Entity<ProxyFile>(entity =>
         {
             entity.HasIndex(p => p.AssetId);
             entity.Property(p => p.ProxyType).HasConversion<string>();
+            entity.HasQueryFilter(e => !e.Asset.IsSoftDeleted);
         });
 
         modelBuilder.Entity<User>(entity =>

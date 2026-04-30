@@ -1,6 +1,4 @@
-﻿using NodaTime;
-
-namespace Anichron.Core.Domain;
+﻿namespace Anichron.Core.Domain;
 
 public class AssetInteraction
 {

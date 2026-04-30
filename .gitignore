@@ -420,9 +420,22 @@ FodyWeavers.xsd
 # Built Visual Studio Code Extensions
 *.vsix
 
+# Local dev config (contains credentials, never commit)
+appsettings.Development.json
+
 # Windows Installer files from build outputs
 *.cab
 *.msi
 *.msix
 *.msm
 *.msp
+**/appsettings.Development.json
+
+# macOS
+.DS_Store
+
+# AI agent
+.claude/
+
+# JetBrains IDEs
+**/.idea/

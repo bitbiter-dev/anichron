@@ -5,7 +5,7 @@ public class UserStorageConfig
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
 
-    public string RootPath { get; set; } = null!;
+    public string RootPath { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 
     // Navigation Properties

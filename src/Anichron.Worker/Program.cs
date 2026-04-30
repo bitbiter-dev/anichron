@@ -19,4 +19,11 @@ builder.Services.AddDbContext<AnichronDbContext>(options =>
     options.UseNpgsql(databaseConnection, o => o.UseNodaTime()));
 
 var host = builder.Build();
-host.Run();
+
+using (var scope = host.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
+    await db.Database.MigrateAsync();
+}
+
+await host.RunAsync();

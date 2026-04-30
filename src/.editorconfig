@@ -293,3 +293,7 @@ dotnet_diagnostic.CA1860.severity = silent
 dotnet_diagnostic.CA1848.severity = silent
 dotnet_diagnostic.CA1859.severity = silent
 dotnet_diagnostic.CS1591.severity = silent
+
+# EF Core generated migration files — suppress all analyzers
+[**/Migrations/*.cs]
+generated_code = true
