@@ -103,7 +103,7 @@ Multiple users can share the same NAS paths (shared family library). Each user h
 
 - Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine) specifically for FFmpeg + Intel QuickSync GPU support
 - API Dockerfile uses Alpine (no GPU/FFmpeg needed)
-- CI/CD runs on Azure Pipelines (`build/azure-pipelines.yml`); API and Worker images built in parallel, tagged with build revision number
+- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel, tagged with `0.0.<run_number>` (and `latest` on master)
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
 
 ## Development Roadmap
