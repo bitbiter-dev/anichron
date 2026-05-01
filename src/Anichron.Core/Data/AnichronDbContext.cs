@@ -12,6 +12,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<ProxyFile> ProxyFiles => Set<ProxyFile>();
     public DbSet<Burst> Bursts => Set<Burst>();
     public DbSet<AssetInteraction> Interactions => Set<AssetInteraction>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -96,6 +97,17 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.HasIndex(p => p.AssetId);
             entity.Property(p => p.ProxyType).HasConversion<string>();
             entity.HasQueryFilter(e => !e.Asset.IsSoftDeleted);
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasIndex(r => r.TokenHash).IsUnique();
+            entity.HasIndex(r => new { r.UserId, r.ExpiresAt });
+
+            entity.HasOne(r => r.User)
+                  .WithMany(u => u.RefreshTokens)
+                  .HasForeignKey(r => r.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<User>(entity =>
