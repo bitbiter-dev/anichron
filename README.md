@@ -28,4 +28,3 @@ The **[wiki](https://github.com/bitbiter-dev/anichron/wiki)** covers features, a
 ## License
 
 [AGPL-3.0](LICENSE)
-s
