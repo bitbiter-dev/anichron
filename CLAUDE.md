@@ -76,13 +76,23 @@ Seven entities — all EF Core config via **Fluent API only**, no data annotatio
 /data/proxies/     ← Local SSD (Worker writes; API reads for serving)
 ```
 
+Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{type}` (e.g., `f3/a1b2c4.../thumbnail.jpg`). `ProxyFile.FilePath` stores the path relative to `/data/proxies/`.
+
 ### Worker Media Processing
 
-- Crawls NAS → extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `content_hash` → writes `MediaAsset` + `Metadata`
-- Generates proxy types: thumbnail, preview image, 720p H.264 video, blurhash string
-- FFmpeg transcodes video with Intel QuickSync GPU acceleration via `/dev/dri` passthrough
+- Crawls NAS on a configurable interval (`Worker:CrawlIntervalHours`, default 4 h; immediate crawl on startup)
+- Extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `content_hash` → writes `MediaAsset` + `Metadata`
+- Generates proxy types: `thumbnail`, `preview`, `video_720p`, `blurhash`
+- FFmpeg transcodes video with runtime GPU detection: QuickSync (`h264_qsv`) → NVENC (`h264_nvenc`) → AMF (`h264_amf`) → software (`libx264`)
 - Burst detection: groups rapid-fire sequences, assigns `primary_asset_id` cover
 - Reconciliation: periodic NAS scan; soft-deletes missing files (preserves user interactions); hash match re-links moved files
+
+### Flashback Interaction Rules
+
+`AssetInteraction` state affects flashback queries (Epic 5+):
+- `hidden = true` → excluded from all flashback queries (global filter, same layer as soft-delete)
+- `starred = true` → always included; sorted first within its year group
+- `liked = true` → sets `DisplayWeight = 2.0`; used for candidate weighting when a date has many assets across years
 
 ## Conventions
 
@@ -101,10 +111,11 @@ Multiple users can share the same NAS paths (shared family library). Each user h
 
 ## Infrastructure
 
-- Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine) specifically for FFmpeg + Intel QuickSync GPU support
+- Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver` installed on `amd64` only; GPU fallback handles its absence at runtime.
 - API Dockerfile uses Alpine (no GPU/FFmpeg needed)
-- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel, tagged with `0.0.<run_number>` (and `latest` on master)
+- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel. See the [Versioning and Releases](../anichron-wiki/Versioning-and-Releases.md) wiki page for the tagging scheme.
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
+- CORS allowed origins configured via `CORS__ALLOWED_ORIGINS` env var (comma-separated). Leave empty for same-origin / reverse proxy deployments.
 
 ## Development Roadmap
 
