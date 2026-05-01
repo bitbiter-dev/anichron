@@ -3,9 +3,8 @@ FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS base
 WORKDIR /app
 ARG TARGETARCH
 
-# Install system dependencies for media processing.
-# intel-media-va-driver-non-free and vainfo are amd64-only (QuickSync / VA-API);
-# arm64 falls back to software encoding at runtime.
+# intel-media-va-driver-non-free does not exist in arm64 apt repos; skip it there.
+# TARGETARCH is injected automatically by BuildKit.
 RUN apt-get update && apt-get install -y \
         ffmpeg \
         libexif12 \
@@ -15,7 +14,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Build Stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# $BUILDPLATFORM = CI runner arch (amd64). dotnet publish produces arch-neutral IL,
+# so compiling natively avoids QEMU emulation overhead without affecting the output.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
