@@ -1,14 +1,17 @@
 # 1. Final Runtime Stage
 FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS base
 WORKDIR /app
+ARG TARGETARCH
 
-# Install system dependencies for Media Processing
-# intel-media-va-driver-non-free enables QuickSync hardware acceleration
+# Install system dependencies for media processing.
+# intel-media-va-driver-non-free and vainfo are amd64-only (QuickSync / VA-API);
+# arm64 falls back to software encoding at runtime.
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libexif12 \
-    intel-media-va-driver-non-free \
-    vainfo \
+        ffmpeg \
+        libexif12 \
+    && if [ "$TARGETARCH" = "amd64" ]; then \
+         apt-get install -y intel-media-va-driver-non-free vainfo; \
+       fi \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Build Stage
