@@ -41,7 +41,7 @@ Four projects with strict separation of concerns:
 |---------|------|
 | `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects. |
 | `Anichron.Infrastructure` | DI wiring; reads DB connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets |
-| `Anichron.API` | ASP.NET Core Minimal APIs — read-only queries, DTO mapping, proxy file serving, originals on demand |
+| `Anichron.API` | ASP.NET Core Minimal APIs — read-only queries, DTO mapping, proxy file serving, originals on demand. All routes prefixed `/api/v1/`. |
 | `Anichron.Worker` | `BackgroundService` — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, reconciliation |
 
 **Worker is the only database writer.** All inserts, reconciliation, burst detection, and soft-deletes happen here. The API is read-only.
@@ -109,6 +109,10 @@ Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{ty
 
 Multiple users can share the same NAS paths (shared family library). Each user has private `AssetInteraction` state — never shared. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. Multiple worker instances can each monitor a separate config.
 
+### Worker Processing Model
+
+Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `content_hash`) are skipped.
+
 ## Infrastructure
 
 - Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver` installed on `amd64` only; GPU fallback handles its absence at runtime.
@@ -116,6 +120,9 @@ Multiple users can share the same NAS paths (shared family library). Each user h
 - CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel. See the [Versioning and Releases](../anichron-wiki/Versioning-and-Releases.md) wiki page for the tagging scheme.
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
 - CORS allowed origins configured via `CORS__ALLOWED_ORIGINS` env var (comma-separated). Leave empty for same-origin / reverse proxy deployments.
+- Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.
+- Observability: structured JSON logging in production; `GET /api/v1/healthz` health endpoint; OpenTelemetry instrumented but no exporter configured by default (`OTEL_EXPORTER_OTLP_ENDPOINT` to enable).
+- License: AGPL-3.0.
 
 ## Development Roadmap
 
