@@ -32,7 +32,7 @@ jobs:
         run: dotnet build src/
 
       - name: Test
-        run: dotnet test src/ --no-build
+        run: dotnet test src/ --no-build --collect:"XPlat Code Coverage"
 
       - name: Check formatting
         run: dotnet format --verify-no-changes src/

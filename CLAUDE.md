@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## First-time setup
+
+```bash
+# Install local tools (Husky) and wire up the pre-commit hook
+dotnet tool restore
+dotnet husky install
+```
+
 ## Build & Run
 
 ```bash
