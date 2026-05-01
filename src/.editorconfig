@@ -283,6 +283,12 @@ dotnet_diagnostic.IDE0058.severity = none
 dotnet_diagnostic.IDE0061.severity = none
 dotnet_diagnostic.IDE0290.severity = suggestion
 dotnet_diagnostic.IDE0305.severity = suggestion
+# RCS1181: Comments that act as section dividers (e.g. "// Navigation Properties") are intentional
+dotnet_diagnostic.RCS1181.severity = none
+# RCS1201: EF Core fluent config benefits from separate statements over method chaining
+dotnet_diagnostic.RCS1201.severity = none
+# VSTHRD111: ConfigureAwait(false) is only needed in library code, not in application services
+dotnet_diagnostic.VSTHRD111.severity = none
 # CA1707: Identifiers should not contain underscores
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1711.severity = silent
