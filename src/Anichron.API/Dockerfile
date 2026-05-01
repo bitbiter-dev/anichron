@@ -4,7 +4,9 @@ WORKDIR /app
 EXPOSE 8080
 
 # 2. Build Stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+# $BUILDPLATFORM = CI runner arch (amd64). dotnet publish produces arch-neutral IL,
+# so compiling natively avoids QEMU emulation overhead without affecting the output.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 

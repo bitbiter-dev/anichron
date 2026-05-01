@@ -1,18 +1,22 @@
 # 1. Final Runtime Stage
 FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS base
 WORKDIR /app
+ARG TARGETARCH
 
-# Install system dependencies for Media Processing
-# intel-media-va-driver-non-free enables QuickSync hardware acceleration
+# intel-media-va-driver-non-free does not exist in arm64 apt repos; skip it there.
+# TARGETARCH is injected automatically by BuildKit.
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libexif12 \
-    intel-media-va-driver-non-free \
-    vainfo \
+        ffmpeg \
+        libexif12 \
+    && if [ "$TARGETARCH" = "amd64" ]; then \
+         apt-get install -y intel-media-va-driver-non-free vainfo; \
+       fi \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Build Stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# $BUILDPLATFORM = CI runner arch (amd64). dotnet publish produces arch-neutral IL,
+# so compiling natively avoids QEMU emulation overhead without affecting the output.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
