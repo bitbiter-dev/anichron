@@ -14,28 +14,45 @@
     <ArtifactsPath>$(RepositoryRootDirectory).artifacts</ArtifactsPath>
   </PropertyGroup>
   
-   <PropertyGroup Condition="'$(OptOutAnalyzers)' != 'True'">
+  <PropertyGroup Condition="'$(OptOutAnalyzers)' != 'True'">
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
-	<AnalysisMode>Recommended</AnalysisMode>
+    <AnalysisMode>Recommended</AnalysisMode>
     <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
     <RunAnalyzersDuringLiveAnalysis>true</RunAnalyzersDuringLiveAnalysis>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Label="NuGet vulnerability audit">
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+    <NuGetAuditMode>all</NuGetAuditMode>
   </PropertyGroup>
   
   <PropertyGroup Label="Project Properties Evaluation">
     <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">True</IsTestProject>
   </PropertyGroup>
   
+  <ItemGroup>
+    <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(IsTestProject)' == 'True'">
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Moq" />
     <PackageReference Include="xunit" />
-	<PackageReference Include="xunit.runner.visualstudio">
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
-  
+
   <ItemGroup Condition="'$(IsTestProject)' != 'True'">
     <InternalsVisibleTo Include="$(MSBuildProjectName).Tests.Unit" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
