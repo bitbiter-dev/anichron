@@ -4,6 +4,9 @@ root = true
 # C# files
 [*.cs]
 
+## Resharper specific settings
+resharper_missing_xml_doc_highlighting = none
+
 #### Core EditorConfig Options ####
 
 # Indentation and spacing

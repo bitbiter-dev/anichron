@@ -1,4 +1,4 @@
-using Anichron.Core.Services;
+using Anichron.API.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Anichron.API.Endpoints;

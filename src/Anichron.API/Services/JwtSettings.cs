@@ -1,4 +1,4 @@
-namespace Anichron.Core.Services;
+namespace Anichron.API.Services;
 
 public sealed record JwtSettings
 {

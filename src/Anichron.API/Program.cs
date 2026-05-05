@@ -1,11 +1,10 @@
 using Anichron.API.Endpoints;
+using Anichron.API.Services;
 using Anichron.Core.Data;
-using Anichron.Core.Services;
 using Anichron.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using NodaTime;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
