@@ -4,10 +4,10 @@ public sealed record AuthTokens(string AccessToken, string RefreshToken);
 
 public enum AuthError
 {
-    UsernameTaken,
-    EmailTaken,
-    InvalidCredentials,
-    TokenInvalid,
+    UsernameTaken = 0,
+    EmailTaken = 1,
+    InvalidCredentials = 2,
+    TokenInvalid = 3,
 }
 
 public sealed record AuthResult<T>

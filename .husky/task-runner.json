@@ -1,0 +1,17 @@
+{
+  "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
+  "tasks": [
+    {
+      "name": "format-check",
+      "group": "pre-commit",
+      "command": "dotnet",
+      "args": ["format", "--verify-no-changes", "src/"]
+    },
+    {
+      "name": "build",
+      "group": "pre-commit",
+      "command": "dotnet",
+      "args": ["build", "src/", "--no-incremental", "-v", "q"]
+    }
+  ]
+}

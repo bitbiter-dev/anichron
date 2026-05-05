@@ -1,6 +1,3 @@
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Konscious.Security.Cryptography;
@@ -8,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Anichron.Core.Services;
 
@@ -60,7 +60,10 @@ public sealed class AuthService(AnichronDbContext db, IOptions<JwtSettings> opti
             .Include(r => r.User)
             .FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
 
-        if (stored is null || stored.RevokedAt.HasValue || stored.ExpiresAt <= now)
+        if (stored is null)
+            return AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid);
+
+        if (stored.RevokedAt.HasValue || stored.ExpiresAt <= now)
             return AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid);
 
         // Rotate: revoke old token
@@ -76,7 +79,10 @@ public sealed class AuthService(AnichronDbContext db, IOptions<JwtSettings> opti
     {
         var tokenHash = HashToken(rawToken);
         var stored = await db.RefreshTokens.FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
-        if (stored is null || stored.RevokedAt.HasValue)
+        if (stored is null)
+            return;
+
+        if (stored.RevokedAt.HasValue)
             return;
 
         stored.RevokedAt = clock.GetCurrentInstant();

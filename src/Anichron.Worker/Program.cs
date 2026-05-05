@@ -1,7 +1,7 @@
-using Anichron.Worker;
 using Anichron.Core.Data;
-using Microsoft.EntityFrameworkCore;
 using Anichron.Infrastructure.Configuration;
+using Anichron.Worker;
+using Microsoft.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
 

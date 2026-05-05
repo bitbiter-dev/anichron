@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## First-time setup
+
+```bash
+# Install local tools (Husky) and wire up the pre-commit hook
+dotnet tool restore
+dotnet husky install
+```
+
 ## Build & Run
 
 ```bash
@@ -117,7 +125,7 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 
 - Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver` installed on `amd64` only; GPU fallback handles its absence at runtime.
 - API Dockerfile uses Alpine (no GPU/FFmpeg needed)
-- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel. See the [Versioning and Releases](../anichron-wiki/Versioning-and-Releases.md) wiki page for the tagging scheme.
+- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel; tagged `sha-<hash>` on every build, `edge` on master, SemVer tags on releases
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
 - CORS allowed origins configured via `CORS__ALLOWED_ORIGINS` env var (comma-separated). Leave empty for same-origin / reverse proxy deployments.
 - Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.

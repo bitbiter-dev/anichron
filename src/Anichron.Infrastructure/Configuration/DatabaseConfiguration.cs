@@ -5,7 +5,7 @@ namespace Anichron.Infrastructure.Configuration;
 
 public static class DatabaseConfiguration
 {
-    private static readonly int DefaultPort = 5432;
+    private const int DefaultPort = 5432;
 
     public static string GetConnectionString(IConfiguration configuration)
     {

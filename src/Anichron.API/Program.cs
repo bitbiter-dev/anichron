@@ -1,4 +1,3 @@
-using System.Text;
 using Anichron.API.Endpoints;
 using Anichron.Core.Data;
 using Anichron.Core.Services;
@@ -7,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NodaTime;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,4 +56,4 @@ app.UseAuthorization();
 var api = app.MapGroup("/api/v1");
 api.MapAuthEndpoints();
 
-app.Run();
+await app.RunAsync();
