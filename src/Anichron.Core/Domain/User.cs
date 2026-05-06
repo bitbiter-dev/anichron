@@ -7,6 +7,10 @@ public class User
     public string Email { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public bool IsAdmin { get; set; }
+    public bool IsDisabled { get; set; }
+    public bool MustChangePassword { get; set; }
+    public int FailedLoginAttempts { get; set; }
+    public Instant? LockedUntil { get; set; }
 
     // Navigation Properties
     public virtual ICollection<UserStorageConfig> StorageConfigs { get; set; } = [];

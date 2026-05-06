@@ -1,13 +1,9 @@
+using Anichron.API.Security;
+using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
-using Konscious.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
+using Npgsql;
 
 namespace Anichron.API.Services;
 
@@ -15,10 +11,18 @@ public sealed record AuthTokens(string AccessToken, string RefreshToken);
 
 public enum AuthError
 {
-    UsernameTaken = 0,
-    EmailTaken = 1,
-    InvalidCredentials = 2,
-    TokenInvalid = 3,
+    None = 0,
+    UsernameTaken = 1,
+    EmailTaken = 2,
+    InvalidCredentials = 3,
+    TokenInvalid = 4,
+    InvalidUsername = 5,
+    InvalidEmail = 6,
+    PasswordTooShort = 7,
+    PasswordTooLong = 8,
+    PasswordPwned = 9,
+    AccountDisabled = 10,
+    AccountTemporarilyLocked = 11,
 }
 
 public sealed record AuthResult<T>
@@ -26,178 +30,143 @@ public sealed record AuthResult<T>
     public T? Value { get; init; }
     public AuthError? Error { get; init; }
     public bool IsSuccess => Error is null;
+    public int? RetryAfterSeconds { get; init; }
 }
 
 public static class AuthResult
 {
     public static AuthResult<T> Ok<T>(T value) => new() { Value = value };
     public static AuthResult<T> Fail<T>(AuthError error) => new() { Error = error };
+    public static AuthResult<T> Locked<T>(int retryAfterSeconds) => new()
+    {
+        Error = AuthError.AccountTemporarilyLocked,
+        RetryAfterSeconds = retryAfterSeconds,
+    };
 }
 
 public interface IAuthService
 {
-    Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, CancellationToken ct = default);
-    Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct = default);
-    Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct = default);
-    Task RevokeAsync(string rawToken, CancellationToken ct = default);
+    Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, CancellationToken ct);
+    Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct);
+    Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct);
+    Task RevokeAsync(string rawToken, CancellationToken ct);
 }
 
-public sealed class AuthService(AnichronDbContext db, IOptions<JwtSettings> options, IClock clock) : IAuthService
+public sealed class AuthService(
+    AnichronDbContext db,
+    IClock clock,
+    IPasswordHasher passwordHasher,
+    IRegistrationValidator validator,
+    ITokenService tokenService)
+    : IAuthService
 {
-    private readonly JwtSettings _settings = options.Value;
+    private readonly string _dummyPasswordHash = passwordHasher.Hash(Guid.NewGuid().ToString());
 
-    public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, CancellationToken ct = default)
+    public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, CancellationToken ct)
     {
-        if (await db.Users.AnyAsync(u => u.Username == username, ct))
+        ArgumentNullException.ThrowIfNull(username);
+        ArgumentNullException.ThrowIfNull(email);
+        ArgumentNullException.ThrowIfNull(password);
+
+        var normalizedUsername = username.Trim().ToLowerInvariant();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        var error = await validator.ValidateAsync(normalizedUsername, normalizedEmail, password, ct);
+        if (error is not null)
+            return AuthResult.Fail<AuthTokens>(error.Value);
+
+        if (await db.Users.AnyAsync(u => u.Username == normalizedUsername, ct))
             return AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken);
 
-        if (await db.Users.AnyAsync(u => u.Email == email, ct))
+        if (await db.Users.AnyAsync(u => u.Email == normalizedEmail, ct))
             return AuthResult.Fail<AuthTokens>(AuthError.EmailTaken);
-
-        var isFirstUser = !await db.Users.AnyAsync(ct);
 
         var user = new User
         {
             Id = Guid.NewGuid(),
-            Username = username,
-            Email = email,
-            PasswordHash = HashPassword(password),
-            IsAdmin = isFirstUser,
+            Username = normalizedUsername,
+            Email = normalizedEmail,
+            PasswordHash = passwordHasher.Hash(password),
         };
 
         db.Users.Add(user);
-        await db.SaveChangesAsync(ct);
 
-        return AuthResult.Ok(await IssueTokensAsync(user, ct));
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
+        {
+            return pg.ConstraintName?.Contains("Email", StringComparison.OrdinalIgnoreCase) == true
+                ? AuthResult.Fail<AuthTokens>(AuthError.EmailTaken)
+                : AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken);
+        }
+
+        return AuthResult.Ok(await tokenService.IssueAsync(user, ct));
     }
 
-    public async Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct = default)
+    public async Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct)
     {
-        var user = await db.Users
-            .FirstOrDefaultAsync(u => u.Username == usernameOrEmail || u.Email == usernameOrEmail, ct);
+        ArgumentNullException.ThrowIfNull(usernameOrEmail);
+        ArgumentNullException.ThrowIfNull(password);
 
-        if (user is null || !VerifyPassword(password, user.PasswordHash))
+        var normalized = usernameOrEmail.Trim().ToLowerInvariant();
+        var user = await db.Users
+            .FirstOrDefaultAsync(u => u.Username == normalized || u.Email == normalized, ct);
+
+        // Prevent timing attack: Use dummy hash for non-existing accounts
+        var passwordValid = passwordHasher.Verify(password, user?.PasswordHash ?? _dummyPasswordHash);
+
+        var now = clock.GetCurrentInstant();
+
+        // Record failed attempt only if not already locked
+        // Prevents counter growth and redundant DB writes during an active lockout.
+        if (user is not null && !passwordValid && (user.LockedUntil is null || user.LockedUntil <= now))
+            await RecordFailedLoginAttemptAsync(user, now, ct);
+
+        if (user is null || !passwordValid)
             return AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials);
 
-        return AuthResult.Ok(await IssueTokensAsync(user, ct));
-    }
+        if (user.IsDisabled)
+            return AuthResult.Fail<AuthTokens>(AuthError.AccountDisabled);
 
-    public async Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct = default)
-    {
-        var tokenHash = HashToken(rawToken);
-        var now = clock.GetCurrentInstant();
+        if (user.LockedUntil is { } lockedUntil && lockedUntil > now)
+        {
+            var secondsRemaining = (int)Math.Ceiling((lockedUntil - now).TotalSeconds);
+            return AuthResult.Locked<AuthTokens>(Math.Max(1, secondsRemaining));
+        }
 
-        var stored = await db.RefreshTokens
-            .Include(r => r.User)
-            .FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
-
-        if (stored is null)
-            return AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid);
-
-        if (stored.RevokedAt.HasValue || stored.ExpiresAt <= now)
-            return AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid);
-
-        // Rotate: revoke old token
-        stored.RevokedAt = now;
-
-        var tokens = await IssueTokensAsync(stored.User, ct);
+        // Successful login — clear brute-force counters and persist.
+        user.FailedLoginAttempts = 0;
+        user.LockedUntil = null;
         await db.SaveChangesAsync(ct);
 
-        return AuthResult.Ok(tokens);
+        return AuthResult.Ok(await tokenService.IssueAsync(user, ct));
     }
 
-    public async Task RevokeAsync(string rawToken, CancellationToken ct = default)
+    public Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct)
+        => tokenService.RefreshAsync(rawToken, ct);
+
+    public Task RevokeAsync(string rawToken, CancellationToken ct)
+        => tokenService.RevokeAsync(rawToken, ct);
+
+    private async Task RecordFailedLoginAttemptAsync(User user, Instant now, CancellationToken ct)
     {
-        var tokenHash = HashToken(rawToken);
-        var stored = await db.RefreshTokens.FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
-        if (stored is null)
-            return;
-
-        if (stored.RevokedAt.HasValue)
-            return;
-
-        stored.RevokedAt = clock.GetCurrentInstant();
+        user.FailedLoginAttempts++;
+        var backoff = ComputeBackoffSeconds(user.FailedLoginAttempts);
+        user.LockedUntil = now.Plus(Duration.FromSeconds(backoff));
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task<AuthTokens> IssueTokensAsync(User user, CancellationToken ct)
+    private const int AllowedAttempts = AppDefaults.Lockout.AllowedAttempts;
+    private const int MaxAttempts = AppDefaults.Lockout.MaxAttempts;
+    private const int MaxLockoutSeconds = AppDefaults.Lockout.MaxSeconds;
+    private const int BackoffBase = AppDefaults.Lockout.BackoffBase;
+
+    private static int ComputeBackoffSeconds(int failedAttempts) => failedAttempts switch
     {
-        var rawToken = GenerateRefreshToken();
-        var now = clock.GetCurrentInstant();
-
-        var refresh = new RefreshToken
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            TokenHash = HashToken(rawToken),
-            CreatedAt = now,
-            ExpiresAt = now.Plus(Duration.FromDays(_settings.RefreshTokenDays)),
-        };
-
-        db.RefreshTokens.Add(refresh);
-        await db.SaveChangesAsync(ct);
-
-        return new AuthTokens(CreateJwt(user), rawToken);
-    }
-
-    private string CreateJwt(User user)
-    {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var claims = new[]
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim("is_admin", user.IsAdmin ? "true" : "false"),
-        };
-
-        var token = new JwtSecurityToken(
-            issuer: _settings.Issuer,
-            audience: _settings.Audience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_settings.AccessTokenMinutes),
-            signingCredentials: creds);
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
-
-    private static string HashPassword(string password)
-    {
-        var salt = RandomNumberGenerator.GetBytes(16);
-        var hash = RunArgon2id(Encoding.UTF8.GetBytes(password), salt);
-
-        var combined = new byte[salt.Length + hash.Length];
-        salt.CopyTo(combined, 0);
-        hash.CopyTo(combined, salt.Length);
-        return Convert.ToBase64String(combined);
-    }
-
-    private static bool VerifyPassword(string password, string storedHash)
-    {
-        var combined = Convert.FromBase64String(storedHash);
-        var salt = combined[..16];
-        var expected = combined[16..];
-        var actual = RunArgon2id(Encoding.UTF8.GetBytes(password), salt);
-        return CryptographicOperations.FixedTimeEquals(actual, expected);
-    }
-
-    private static byte[] RunArgon2id(byte[] password, byte[] salt)
-    {
-        using var argon2 = new Argon2id(password)
-        {
-            Salt = salt,
-            DegreeOfParallelism = 4,
-            Iterations = 3,
-            MemorySize = 65536,
-        };
-        return argon2.GetBytes(32);
-    }
-
-    private static string GenerateRefreshToken()
-        => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
-
-    private static string HashToken(string rawToken)
-        => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
+        <= AllowedAttempts => 0,
+        >= MaxAttempts => MaxLockoutSeconds,
+        _ => (int)Math.Pow(BackoffBase, failedAttempts - AllowedAttempts),
+    };
 }
