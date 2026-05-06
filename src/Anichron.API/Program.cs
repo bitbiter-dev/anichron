@@ -26,5 +26,5 @@ app.UseAuthorization();
 
 app.MapApiEndpoints();
 
-await app.MigrateAndSeedDatabaseAsync();
+await app.MigrateAndSeedDatabaseAsync(app.Lifetime.ApplicationStopping);
 await app.RunAsync();

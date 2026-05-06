@@ -55,12 +55,13 @@ public interface IAuthService
 public sealed class AuthService(
     AnichronDbContext db,
     IClock clock,
+    IGuidFactory guidFactory,
     IPasswordHasher passwordHasher,
     IRegistrationValidator validator,
     ITokenService tokenService)
     : IAuthService
 {
-    private readonly string _dummyPasswordHash = passwordHasher.Hash(Guid.NewGuid().ToString());
+    private readonly string _dummyPasswordHash = passwordHasher.Hash(guidFactory.NewGuid().ToString());
 
     public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, CancellationToken ct)
     {
@@ -83,7 +84,7 @@ public sealed class AuthService(
 
         var user = new User
         {
-            Id = Guid.NewGuid(),
+            Id = guidFactory.NewGuid(),
             Username = normalizedUsername,
             Email = normalizedEmail,
             PasswordHash = passwordHasher.Hash(password),

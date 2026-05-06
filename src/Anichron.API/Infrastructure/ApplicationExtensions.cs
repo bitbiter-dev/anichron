@@ -17,7 +17,7 @@ public static class ApplicationExtensions
             return app;
         }
 
-        public async Task MigrateAndSeedDatabaseAsync()
+        public async Task MigrateAndSeedDatabaseAsync(CancellationToken ct)
         {
             const int maxAttempts = AppDefaults.Startup.MaxDbRetryAttempts;
             const int retryDelaySeconds = AppDefaults.Startup.DbRetryDelaySeconds;
@@ -30,11 +30,14 @@ public static class ApplicationExtensions
                     var db = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
                     var logger = scope.ServiceProvider.GetRequiredService<ILogger<AnichronDbContext>>();
 
-                    await db.Database.MigrateAsync();
+                    await db.Database.MigrateAsync(ct);
                     logger.LogInformation("Database migration applied successfully.");
 
-                    var seeder = scope.ServiceProvider.GetRequiredService<IAdminSeeder>();
-                    await seeder.SeedAsync();
+                    var bootstrapSeeder = scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>();
+                    await bootstrapSeeder.SeedAsync(ct);
+
+                    var adminResetService = scope.ServiceProvider.GetRequiredService<IAdminResetService>();
+                    await adminResetService.ResetIfRequestedAsync(ct);
                     return;
                 }
                 catch (Exception ex) when (attempt < maxAttempts)
@@ -42,7 +45,7 @@ public static class ApplicationExtensions
                     app.Logger.LogWarning(ex,
                         "Database not ready (attempt {Attempt}/{Max}). Retrying in {Delay}s.",
                         attempt, maxAttempts, retryDelaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds));
+                    await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds), ct);
                 }
                 catch (Exception ex)
                 {
