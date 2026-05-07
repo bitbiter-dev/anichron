@@ -49,7 +49,7 @@ Four projects with strict separation of concerns:
 |---------|------|
 | `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects. |
 | `Anichron.Infrastructure` | DI wiring; reads DB connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets |
-| `Anichron.API` | ASP.NET Core Minimal APIs — read-only queries, DTO mapping, proxy file serving, originals on demand |
+| `Anichron.API` | ASP.NET Core Minimal APIs — read-only queries, DTO mapping, proxy file serving, originals on demand. All routes prefixed `/api/v1/`. |
 | `Anichron.Worker` | `BackgroundService` — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, reconciliation |
 
 **Worker is the only database writer.** All inserts, reconciliation, burst detection, and soft-deletes happen here. The API is read-only.
@@ -84,13 +84,23 @@ Seven entities — all EF Core config via **Fluent API only**, no data annotatio
 /data/proxies/     ← Local SSD (Worker writes; API reads for serving)
 ```
 
+Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{type}` (e.g., `f3/a1b2c4.../thumbnail.jpg`). `ProxyFile.FilePath` stores the path relative to `/data/proxies/`.
+
 ### Worker Media Processing
 
-- Crawls NAS → extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `content_hash` → writes `MediaAsset` + `Metadata`
-- Generates proxy types: thumbnail, preview image, 720p H.264 video, blurhash string
-- FFmpeg transcodes video with Intel QuickSync GPU acceleration via `/dev/dri` passthrough
+- Crawls NAS on a configurable interval (`Worker:CrawlIntervalHours`, default 4 h; immediate crawl on startup)
+- Extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `content_hash` → writes `MediaAsset` + `Metadata`
+- Generates proxy types: `thumbnail`, `preview`, `video_720p`, `blurhash`
+- FFmpeg transcodes video with runtime GPU detection: QuickSync (`h264_qsv`) → NVENC (`h264_nvenc`) → AMF (`h264_amf`) → software (`libx264`)
 - Burst detection: groups rapid-fire sequences, assigns `primary_asset_id` cover
 - Reconciliation: periodic NAS scan; soft-deletes missing files (preserves user interactions); hash match re-links moved files
+
+### Flashback Interaction Rules
+
+`AssetInteraction` state affects flashback queries (Epic 5+):
+- `hidden = true` → excluded from all flashback queries (global filter, same layer as soft-delete)
+- `starred = true` → always included; sorted first within its year group
+- `liked = true` → sets `DisplayWeight = 2.0`; used for candidate weighting when a date has many assets across years
 
 ## Conventions
 
@@ -107,12 +117,20 @@ Seven entities — all EF Core config via **Fluent API only**, no data annotatio
 
 Multiple users can share the same NAS paths (shared family library). Each user has private `AssetInteraction` state — never shared. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. Multiple worker instances can each monitor a separate config.
 
+### Worker Processing Model
+
+Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `content_hash`) are skipped.
+
 ## Infrastructure
 
-- Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine) specifically for FFmpeg + Intel QuickSync GPU support
+- Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver` installed on `amd64` only; GPU fallback handles its absence at runtime.
 - API Dockerfile uses Alpine (no GPU/FFmpeg needed)
 - CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel; tagged `sha-<hash>` on every build, `edge` on master, SemVer tags on releases
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
+- CORS allowed origins configured via `CORS__ALLOWED_ORIGINS` env var (comma-separated). Leave empty for same-origin / reverse proxy deployments.
+- Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.
+- Observability: structured JSON logging in production; `GET /api/v1/healthz` health endpoint; OpenTelemetry instrumented but no exporter configured by default (`OTEL_EXPORTER_OTLP_ENDPOINT` to enable).
+- License: AGPL-3.0.
 
 ## Development Roadmap
 

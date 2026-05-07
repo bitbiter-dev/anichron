@@ -4,7 +4,6 @@ using Anichron.Worker;
 using Microsoft.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddHostedService<Worker>();
 
 builder.Configuration
     .SetBasePath(Directory.GetCurrentDirectory())
@@ -13,8 +12,18 @@ builder.Configuration
     .AddJsonFile("appsettings.local.json", optional: true)
     .AddEnvironmentVariables();
 
-var databaseConnection = DatabaseConfiguration.GetConnectionString(builder.Configuration);
+// Validate required configuration before starting
+var workerUser = builder.Configuration["Worker:User"]
+    ?? throw new InvalidOperationException(
+        "WORKER__USER is required. Set it to the email or username of the user this Worker belongs to.");
 
+if (string.IsNullOrWhiteSpace(workerUser))
+    throw new InvalidOperationException("WORKER__USER must not be empty.");
+
+builder.Services.Configure<WorkerSettings>(builder.Configuration.GetSection("Worker"));
+builder.Services.AddHostedService<Worker>();
+
+var databaseConnection = DatabaseConfiguration.GetConnectionString(builder.Configuration);
 builder.Services.AddDbContext<AnichronDbContext>(options =>
     options.UseNpgsql(databaseConnection, o => o.UseNodaTime()));
 

@@ -1,32 +1,30 @@
-using Anichron.Core.Data;
-using Anichron.Infrastructure.Configuration;
-using Microsoft.EntityFrameworkCore;
+using Anichron.API.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddAppConfiguration();
 
-// Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
-var databaseConnection = DatabaseConfiguration.GetConnectionString(builder.Configuration);
-
-builder.Services.AddDbContext<AnichronDbContext>(options =>
-    options.UseNpgsql(databaseConnection, o => o.UseNodaTime()));
+builder.Services
+    .AddOpenApi()
+    .AddDatabase(builder.Configuration)
+    .AddForwardedHeadersSupport()
+    .AddAuthServices(builder.Configuration)
+    .AddAuthorization()
+    .AddRateLimiting()
+    .AddCorsPolicy(builder.Configuration);
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
-{
     app.MapOpenApi();
-}
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
-
+app.UseCors();
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapApiEndpoints();
 
+await app.MigrateAndSeedDatabaseAsync(app.Lifetime.ApplicationStopping);
 await app.RunAsync();

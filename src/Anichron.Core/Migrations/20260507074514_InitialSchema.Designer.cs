@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Anichron.Core.Migrations
 {
     [DbContext(typeof(AnichronDbContext))]
-    [Migration("20260430115130_FixQueryFiltersAndAddSoftDeleteIndex")]
-    partial class FixQueryFiltersAndAddSoftDeleteIndex
+    [Migration("20260507074514_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -219,6 +219,38 @@ namespace Anichron.Core.Migrations
                     b.ToTable("ProxyFiles");
                 });
 
+            modelBuilder.Entity("Anichron.Core.Domain.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Instant>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Instant?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "ExpiresAt");
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("Anichron.Core.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -228,6 +260,21 @@ namespace Anichron.Core.Migrations
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("FailedLoginAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDisabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Instant?>("LockedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -348,6 +395,17 @@ namespace Anichron.Core.Migrations
                     b.Navigation("Asset");
                 });
 
+            modelBuilder.Entity("Anichron.Core.Domain.RefreshToken", b =>
+                {
+                    b.HasOne("Anichron.Core.Domain.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Anichron.Core.Domain.UserStorageConfig", b =>
                 {
                     b.HasOne("Anichron.Core.Domain.User", "User")
@@ -376,6 +434,8 @@ namespace Anichron.Core.Migrations
             modelBuilder.Entity("Anichron.Core.Domain.User", b =>
                 {
                     b.Navigation("Interactions");
+
+                    b.Navigation("RefreshTokens");
 
                     b.Navigation("StorageConfigs");
                 });

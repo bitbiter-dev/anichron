@@ -1,3 +1,14 @@
+# ============================================================
+# Anichron — Docker Compose
+#
+# Copy .env.example to .env and fill in your values before
+# running: docker-compose up -d
+#
+# Multi-user setup: duplicate the anichron-worker block and
+# give each copy a unique container_name, WORKER__USER, and
+# volume mount pointing to that user's NAS folder.
+# ============================================================
+
 services:
   anichron-db:
     image: postgres:17-alpine
@@ -16,7 +27,7 @@ services:
       retries: 5
 
   anichron-api:
-    image: yourregistry.azurecr.io/anichron-api:latest
+    image: ${DOCKERHUB_USERNAME}/anichron-api:latest
     container_name: anichron-api
     restart: unless-stopped
     ports:
@@ -28,32 +39,48 @@ services:
       - POSTGRES_CONNECTION__PORT=5432
       - POSTGRES_CONNECTION__USER=anichron_admin
       - POSTGRES_CONNECTION__PASSWORD=${DB_PW}
-      # Optional: Use this if you implement Docker Secrets later
-      # - POSTGRES_CONNECTION__PASSWORD_FILE=/run/secrets/db_password
+      - Jwt__Secret=${JWT_SECRET}
+      - Jwt__Issuer=anichron
+      - Jwt__Audience=anichron
+      # Uncomment and set to your UI's origin if not using a reverse proxy:
+      # - CORS__ALLOWED_ORIGINS=http://localhost:3000
     volumes:
-      - /path/to/your/nas:/data/originals:ro # NAS Mount (Read-Only)
-      - ${BASE_PATH}/anichron/proxy_cache:/data/proxies # Proxy Cache (Read-Only)
+      - /path/to/your/nas:/data/originals:ro
+      - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:ro
     depends_on:
       anichron-db:
         condition: service_healthy
 
+  # One worker per user.
+  # - Set WORKER__USER to the email or username of the user.
+  # - Mount that user's NAS folder to /data/originals inside the container.
+  # - Remove the `devices` block if you have no Intel GPU.
+  # - For multiple NAS folders for one user, mount them as subdirectories:
+  #     - /nas/photos:/data/originals/photos:ro
+  #     - /nas/videos:/data/originals/videos:ro
   anichron-worker:
-    image: yourregistry.azurecr.io/anichron-worker:latest
+    image: ${DOCKERHUB_USERNAME}/anichron-worker:latest
     container_name: anichron-worker
     restart: unless-stopped
     devices:
-      - /dev/dri:/dev/dri
+      - /dev/dri:/dev/dri  # Intel QuickSync passthrough — remove if no Intel GPU
     environment:
       - POSTGRES_CONNECTION__HOST=anichron-db
       - POSTGRES_CONNECTION__DBNAME=anichron
       - POSTGRES_CONNECTION__PORT=5432
       - POSTGRES_CONNECTION__USER=anichron_admin
       - POSTGRES_CONNECTION__PASSWORD=${DB_PW}
-      # Optional: Use this if you implement Docker Secrets later
-      # - POSTGRES_CONNECTION__PASSWORD_FILE=/run/secrets/db_password
+      - WORKER__USER=${WORKER_USER}  # Email or username of the user this worker processes
+      # Optional overrides (defaults shown):
+      # - WORKER__ROOT=/data/originals
+      # - WORKER__CRAWL_INTERVAL_HOURS=4
+      # - WORKER__MAX_CONCURRENT_FILES=4
     volumes:
-      - /path/to/your/nas:/data/originals:ro
+      - /path/to/your/nas:/data/originals:ro  # ← replace with this user's NAS folder
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:rw
     depends_on:
       anichron-db:
         condition: service_healthy
+
+volumes:
+  postgres_data:
