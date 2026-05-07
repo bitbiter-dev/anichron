@@ -113,6 +113,10 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IJwtFactory, JwtFactory>();
             services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
+            services.AddScoped<IUserRepository, EfUserRepository>();
+            services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
+            // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork
+            services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IRegistrationValidator, RegistrationValidator>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();

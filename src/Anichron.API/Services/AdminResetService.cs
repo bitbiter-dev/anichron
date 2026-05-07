@@ -1,7 +1,6 @@
 using Anichron.API.Security;
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
-using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.API.Services;
 
@@ -11,7 +10,8 @@ public interface IAdminResetService
 }
 
 public sealed class AdminResetService(
-    AnichronDbContext db,
+    IUserRepository users,
+    IUnitOfWork unitOfWork,
     IPasswordHasher passwordHasher,
     IConfiguration configuration,
     ILogger<AdminResetService> logger) : IAdminResetService
@@ -27,7 +27,7 @@ public sealed class AdminResetService(
 
         if (!string.IsNullOrEmpty(targetUsername))
         {
-            admin = await db.Users.FirstOrDefaultAsync(u => u.IsAdmin && u.Username == targetUsername, ct);
+            admin = await users.FindAdminByUsernameAsync(targetUsername, ct);
             if (admin is null)
             {
                 logger.LogError(
@@ -38,7 +38,7 @@ public sealed class AdminResetService(
         }
         else
         {
-            var admins = await db.Users.Where(u => u.IsAdmin).Take(2).ToListAsync(ct);
+            var admins = await users.FindAdminsAsync(take: 2, ct);
             switch (admins.Count)
             {
                 case 0:
@@ -57,7 +57,7 @@ public sealed class AdminResetService(
 
         admin.PasswordHash = passwordHasher.Hash(resetPassword);
         admin.MustChangePassword = true;
-        await db.SaveChangesAsync(ct);
+        await unitOfWork.SaveChangesAsync(ct);
         logger.LogWarning(
             "Admin password has been reset for '{Username}'. Remove ADMIN_RESET_PASSWORD after logging in.",
             admin.Username);
