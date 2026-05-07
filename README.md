@@ -4,6 +4,9 @@ A self-hosted media flashback system. Crawls your a folder and surfaces your pho
 
 ## Status
 
+![CI](https://github.com/bitbiter-dev/anichron/actions/workflows/ci.yml/badge.svg?branch=master)
+![Coverage](.github/badges/coverage.svg)
+
 Early development — Follow progress in [Issues](https://github.com/bitbiter-dev/anichron/issues) and [Milestones](https://github.com/bitbiter-dev/anichron/milestones).
 
 ## Highlights

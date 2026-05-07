@@ -12,6 +12,12 @@
       "group": "pre-commit",
       "command": "dotnet",
       "args": ["build", "src/", "--no-incremental", "-v", "q"]
+    },
+    {
+      "name": "test",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": ["test", "src/", "-v", "q", "--no-build"]
     }
   ]
 }
