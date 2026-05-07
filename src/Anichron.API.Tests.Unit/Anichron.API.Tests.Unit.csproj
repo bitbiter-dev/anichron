@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Anichron.API\Anichron.API.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Added for WebApplicationFactory scaffolding; not configured yet -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+</Project>
