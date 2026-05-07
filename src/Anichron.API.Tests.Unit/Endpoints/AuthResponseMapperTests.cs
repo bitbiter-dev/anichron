@@ -237,6 +237,96 @@ public sealed class AuthResponseMapperTests
         });
     }
 
+    [Fact]
+    public async Task GetLoginResult_AccountTemporarilyLockedForOneSecond_ReturnsSingularSecondMessage()
+    {
+        var http = NewHttp();
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetLoginResult(AuthResult.Locked<AuthTokens>(1), http, setCookie: false);
+        await result.ExecuteAsync(http);
+        var body = await ReadBodyAsync(http.Response);
+
+        Assert.Multiple(() =>
+        {
+            http.Response.StatusCode.Should().Be(429);
+            body.Should().Contain("1 second");
+            body.Should().NotContain("seconds");
+        });
+    }
+
+    [Fact]
+    public void GetRegistrationResult_UnexpectedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetRegistrationResult(
+            AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials),
+            NewHttp(), new PasswordPolicy(), new UsernamePolicy());
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetRegistrationResult_UnknownAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetRegistrationResult(
+            AuthResult.Fail<AuthTokens>((AuthError)999),
+            NewHttp(), new PasswordPolicy(), new UsernamePolicy());
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetLoginResult_UnexpectedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetLoginResult(
+            AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken),
+            NewHttp(), setCookie: false);
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetLoginResult_UnknownAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetLoginResult(
+            AuthResult.Fail<AuthTokens>((AuthError)999),
+            NewHttp(), setCookie: false);
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetRefreshResult_UnexpectedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetRefreshResult(
+            AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken),
+            NewHttp(), setCookie: false);
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetRefreshResult_UnknownAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetRefreshResult(
+            AuthResult.Fail<AuthTokens>((AuthError)999),
+            NewHttp(), setCookie: false);
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
     // ==========================================================================
     // ClearRefreshCookie
     // ==========================================================================

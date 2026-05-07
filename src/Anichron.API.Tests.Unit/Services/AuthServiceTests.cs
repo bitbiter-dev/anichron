@@ -238,6 +238,22 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_ConcurrentViolationWithNullConstraintName_ReturnsUsernameTaken()
+    {
+        var fixture = new TestFixture()
+            .WithSaveChangesThrows(new DbUpdateException("dup", UniqueViolation(null)));
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Be(AuthError.UsernameTaken);
+        });
+    }
+
+    [Fact]
     public async Task RegisterAsync_InputNormalization_NormalizesBeforeChecking()
     {
         // AnyByUsernameAsync only returns true for the exact normalized form.
@@ -384,6 +400,44 @@ public sealed class AuthServiceTests
             user.FailedLoginAttempts.Should().Be(4);
             user.LockedUntil.Should().Be(Instant.FromUtc(2026, 1, 1, 12, 0, 0) + Duration.FromSeconds(2));
         });
+    }
+
+    [Fact]
+    public async Task LoginAsync_WrongPasswordWithExpiredLockout_IncrementsCounter()
+    {
+        // LockedUntil is in the past — lockout has expired; counter must still be incremented.
+        var user = new User
+        {
+            PasswordHash = "hashed_value",
+            FailedLoginAttempts = 3,
+            LockedUntil = Instant.FromUtc(2026, 1, 1, 11, 59, 0), // 60 s before fixed clock
+        };
+        var fixture = new TestFixture()
+            .WithUser(user);
+        var testee = fixture.CreateTestee();
+
+        await testee.LoginAsync("alice", "wrong", CancellationToken.None);
+
+        user.FailedLoginAttempts.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ValidCredentialsWithExpiredLockout_ReturnsOk()
+    {
+        // LockedUntil is set but in the past — should NOT return AccountTemporarilyLocked.
+        var user = new User
+        {
+            PasswordHash = "hashed_value",
+            LockedUntil = Instant.FromUtc(2026, 1, 1, 11, 59, 0), // 60 s before fixed clock
+        };
+        var fixture = new TestFixture()
+            .WithPasswordValid()
+            .WithUser(user);
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.LoginAsync("alice", "password", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
     }
 
     [Fact]
