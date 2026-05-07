@@ -4,7 +4,7 @@
     <UserSecretsId>b2a7bade-1045-44c7-8e34-53600807009b</UserSecretsId>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+  <PropertyGroup>
     <NoWarn>1701;1702;1591</NoWarn>
   </PropertyGroup>
 

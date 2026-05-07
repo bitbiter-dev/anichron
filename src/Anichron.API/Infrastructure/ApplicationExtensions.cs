@@ -52,7 +52,9 @@ public static class ApplicationExtensions
                     app.Logger.LogError(ex,
                         "Database unavailable after {Max} attempts. Aborting.",
                         AppDefaults.Startup.MaxDbRetryAttempts);
-                    throw new InvalidOperationException("Database unavailable after {Max} attempts. Aborting.", ex);
+                    throw new InvalidOperationException(
+                        $"Database unavailable after {AppDefaults.Startup.MaxDbRetryAttempts} attempts. Aborting.",
+                        ex);
                 }
             }
         }

@@ -137,12 +137,17 @@ public sealed class AuthService(
             return AuthResult.Locked<AuthTokens>(Math.Max(1, secondsRemaining));
         }
 
-        // Successful login — clear brute-force counters and persist.
+        // Counter reset and token issuance share one transaction — if IssueAsync fails,
+        // the counter is not persisted so the user's lockout state is preserved correctly.
         user.FailedLoginAttempts = 0;
         user.LockedUntil = null;
-        await db.SaveChangesAsync(ct);
 
-        return AuthResult.Ok(await tokenService.IssueAsync(user, ct));
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.SaveChangesAsync(ct);
+        var tokens = await tokenService.IssueAsync(user, ct);
+        await tx.CommitAsync(ct);
+
+        return AuthResult.Ok(tokens);
     }
 
     public Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct)

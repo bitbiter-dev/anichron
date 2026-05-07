@@ -176,6 +176,7 @@ public static class AuthEndpoints
         return Results.NoContent();
     }
 
+    // Not yet implemented — planned for Epic 8 (email notifications with deep links).
     private static IResult PasswordResetRequest() => Results.StatusCode(StatusCodes.Status501NotImplemented);
 
     private static IResult PasswordResetConfirm() => Results.StatusCode(StatusCodes.Status501NotImplemented);
