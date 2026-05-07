@@ -26,8 +26,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.EmailTaken => Results.Conflict(new { error = AuthMessages.EmailTaken }),
                 AuthError.InvalidUsername => Results.UnprocessableEntity(new { error = usernamePolicy.InvalidFormatMessage }),
                 AuthError.InvalidEmail => Results.UnprocessableEntity(new { error = AuthMessages.InvalidEmail }),
-                AuthError.PasswordTooShort => Results.UnprocessableEntity(
-                    new { error = passwordPolicy.TooShortMessage }),
+                AuthError.PasswordTooShort => Results.UnprocessableEntity(new { error = passwordPolicy.TooShortMessage }),
                 AuthError.PasswordTooLong => Results.UnprocessableEntity(new { error = passwordPolicy.TooLongMessage }),
                 AuthError.PasswordPwned => Results.UnprocessableEntity(new { error = AuthMessages.PasswordPwned }),
                 // Not reachable from RegisterAsync; signals a logic bug if reached.
@@ -43,7 +42,6 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
 
         SetRefreshCookie(http, result.Value!.RefreshToken);
         return Results.Ok(new { result.Value.AccessToken });
-
     }
 
     public IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie)
@@ -54,9 +52,11 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             {
                 AuthError.AccountTemporarilyLocked => LockedResult(http, result.RetryAfterSeconds!.Value),
                 AuthError.AccountDisabled => Results.Json(
-                    new { error = AuthMessages.AccountDisabled }, statusCode: StatusCodes.Status401Unauthorized),
+                    data: new { error = AuthMessages.AccountDisabled },
+                    statusCode: StatusCodes.Status401Unauthorized),
                 AuthError.InvalidCredentials => Results.Json(
-                    new { error = AuthMessages.InvalidCredentials }, statusCode: StatusCodes.Status401Unauthorized),
+                    data: new { error = AuthMessages.InvalidCredentials },
+                    statusCode: StatusCodes.Status401Unauthorized),
                 // Not reachable from LoginAsync; signals a logic bug if reached.
                 AuthError.None or
                 AuthError.UsernameTaken or
