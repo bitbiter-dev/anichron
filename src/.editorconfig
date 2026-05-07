@@ -1,6 +1,9 @@
 # Remove the line below if you want to inherit .editorconfig settings from higher directories
 root = true
 
+[*]
+end_of_line = lf
+
 # C# files
 [*.cs]
 
@@ -15,7 +18,6 @@ indent_style = space
 tab_width = 4
 
 # New line preferences
-end_of_line = crlf
 insert_final_newline = true
 
 #### .NET Code Actions ####
