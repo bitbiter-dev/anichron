@@ -62,6 +62,17 @@ public sealed class PasswordHasherTests
     }
 
     [Fact]
+    public void Hash_SamePassword_ProducesDifferentHashes()
+    {
+        var testee = new Argon2PasswordHasher();
+
+        var hash1 = testee.Hash("password");
+        var hash2 = testee.Hash("password");
+
+        hash1.Should().NotBe(hash2);
+    }
+
+    [Fact]
     public void Verify_TamperedStoredHash_ReturnsFalse()
     {
         var testee = new Argon2PasswordHasher();

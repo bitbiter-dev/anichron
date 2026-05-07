@@ -143,7 +143,7 @@ public sealed class RegistrationValidatorTests
         var fixture = new TestFixture();
         fixture.PwnedClient
             .IsPwnedAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns<bool>(_ => throw new HttpRequestException("Network error"));
+            .Returns(Task.FromException<bool>(new HttpRequestException("Network error")));
         var testee = fixture.CreateTestee();
 
         var act = async () => await testee.ValidateAsync(ValidUsername, ValidEmail, ValidPassword, CancellationToken.None);

@@ -64,6 +64,18 @@ public sealed class DatabaseConfigurationTests
     }
 
     [Fact]
+    public void GetConnectionString_PortNonNumeric_DefaultsTo5432()
+    {
+        var entries = BaseConfig();
+        entries["POSTGRES_CONNECTION:PORT"] = "xyz";
+        var config = BuildConfig(entries);
+
+        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config));
+
+        parsed.Port.Should().Be(5432);
+    }
+
+    [Fact]
     public void GetConnectionString_MissingHost_ThrowsInvalidOperationException()
     {
         var entries = BaseConfig();

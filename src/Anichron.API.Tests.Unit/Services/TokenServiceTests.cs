@@ -4,6 +4,7 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
 
 namespace Anichron.API.Tests.Unit.Services;
 
@@ -95,6 +96,20 @@ public sealed class TokenServiceTests
             captured.CreatedAt.Should().Be(FixedNow);
             captured.ExpiresAt.Should().Be(FixedNow + Duration.FromDays(30));
         });
+    }
+
+    [Fact]
+    public async Task IssueAsync_ValidUser_StoredHashMatchesSha256OfRawToken()
+    {
+        RefreshToken? captured = null;
+        var user = new User();
+        var fixture = new TestFixture().CaptureAddedToken(t => captured = t);
+        var testee = fixture.CreateTestee();
+
+        var tokens = await testee.IssueAsync(user, CancellationToken.None);
+
+        var expectedHash = Convert.ToBase64String(SHA256.HashData(Convert.FromBase64String(tokens.RefreshToken)));
+        captured!.TokenHash.Should().Be(expectedHash);
     }
 
     [Fact]

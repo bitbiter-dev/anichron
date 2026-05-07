@@ -103,6 +103,23 @@ public sealed class AppIniInitializerTests
     }
 
     [Fact]
+    public void EnsureExists_FileDoesNotExist_GeneratedSecretIsValidBase64WithSufficientLength()
+    {
+        var fs = new MockFileSystem();
+        var testee = new AppIniInitializer(fs);
+
+        testee.EnsureExists(IniPath);
+        var secret = ExtractSecret(fs.File.ReadAllText(IniPath));
+        var decoded = Convert.FromBase64String(secret);
+
+        Assert.Multiple(() =>
+        {
+            secret.Should().NotBeEmpty();
+            decoded.Length.Should().BeGreaterThanOrEqualTo(32);
+        });
+    }
+
+    [Fact]
     public void EnsureExists_EachCall_GeneratesUniqueSecret()
     {
         var fs1 = new MockFileSystem();

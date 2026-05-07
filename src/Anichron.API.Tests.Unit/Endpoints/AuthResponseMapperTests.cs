@@ -256,7 +256,7 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetRegistrationResult_UnexpectedAuthError_ThrowsUnreachableException()
+    public void GetRegistrationResult_ErrorFromOtherContext_ThrowsUnreachableException()
     {
         var testee = new TestFixture().CreateTestee();
 
@@ -268,7 +268,7 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetRegistrationResult_UnknownAuthError_ThrowsUnreachableException()
+    public void GetRegistrationResult_UndefinedAuthError_ThrowsUnreachableException()
     {
         var testee = new TestFixture().CreateTestee();
 
@@ -280,7 +280,7 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetLoginResult_UnexpectedAuthError_ThrowsUnreachableException()
+    public void GetLoginResult_ErrorFromOtherContext_ThrowsUnreachableException()
     {
         var testee = new TestFixture().CreateTestee();
 
@@ -292,7 +292,7 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetLoginResult_UnknownAuthError_ThrowsUnreachableException()
+    public void GetLoginResult_UndefinedAuthError_ThrowsUnreachableException()
     {
         var testee = new TestFixture().CreateTestee();
 
@@ -304,7 +304,7 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetRefreshResult_UnexpectedAuthError_ThrowsUnreachableException()
+    public void GetRefreshResult_ErrorFromOtherContext_ThrowsUnreachableException()
     {
         var testee = new TestFixture().CreateTestee();
 
@@ -316,7 +316,7 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetRefreshResult_UnknownAuthError_ThrowsUnreachableException()
+    public void GetRefreshResult_UndefinedAuthError_ThrowsUnreachableException()
     {
         var testee = new TestFixture().CreateTestee();
 
