@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Anichron.Core.Migrations
 {
     [DbContext(typeof(AnichronDbContext))]
-    [Migration("20260506071449_AddLoginAttemptTracking")]
-    partial class AddLoginAttemptTracking
+    [Migration("20260507074514_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

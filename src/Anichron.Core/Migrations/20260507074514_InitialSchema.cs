@@ -7,7 +7,7 @@ using NodaTime;
 namespace Anichron.Core.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -19,11 +19,38 @@ namespace Anichron.Core.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Username = table.Column<string>(type: "text", nullable: false),
                     Email = table.Column<string>(type: "text", nullable: false),
-                    PasswordHash = table.Column<string>(type: "text", nullable: false)
+                    PasswordHash = table.Column<string>(type: "text", nullable: false),
+                    IsAdmin = table.Column<bool>(type: "boolean", nullable: false),
+                    IsDisabled = table.Column<bool>(type: "boolean", nullable: false),
+                    MustChangePassword = table.Column<bool>(type: "boolean", nullable: false),
+                    FailedLoginAttempts = table.Column<int>(type: "integer", nullable: false),
+                    LockedUntil = table.Column<Instant>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RefreshTokens",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    TokenHash = table.Column<string>(type: "text", nullable: false),
+                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    ExpiresAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    RevokedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RefreshTokens", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RefreshTokens_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -201,6 +228,12 @@ namespace Anichron.Core.Migrations
                 columns: new[] { "Month", "Day" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_MediaAssets_Active",
+                table: "MediaAssets",
+                column: "IsSoftDeleted",
+                filter: "\"IsSoftDeleted\" = false");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MediaAssets_BurstId",
                 table: "MediaAssets",
                 column: "BurstId");
@@ -225,6 +258,17 @@ namespace Anichron.Core.Migrations
                 name: "IX_ProxyFiles_AssetId",
                 table: "ProxyFiles",
                 column: "AssetId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefreshTokens_TokenHash",
+                table: "RefreshTokens",
+                column: "TokenHash",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefreshTokens_UserId_ExpiresAt",
+                table: "RefreshTokens",
+                columns: new[] { "UserId", "ExpiresAt" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_StorageConfigs_UserId",
@@ -267,6 +311,9 @@ namespace Anichron.Core.Migrations
 
             migrationBuilder.DropTable(
                 name: "ProxyFiles");
+
+            migrationBuilder.DropTable(
+                name: "RefreshTokens");
 
             migrationBuilder.DropTable(
                 name: "MediaAssets");
