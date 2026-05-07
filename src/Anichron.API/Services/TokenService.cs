@@ -2,7 +2,6 @@ using Anichron.API.Security;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 
@@ -16,7 +15,8 @@ public interface ITokenService
 }
 
 public sealed class TokenService(
-    AnichronDbContext db,
+    IRefreshTokenRepository tokens,
+    IUnitOfWork unitOfWork,
     IClock clock,
     IGuidFactory guidFactory,
     IOptions<JwtSettings> options,
@@ -29,7 +29,7 @@ public sealed class TokenService(
         var rawToken = GenerateRefreshToken();
         var now = clock.GetCurrentInstant();
 
-        db.RefreshTokens.Add(new RefreshToken
+        tokens.Add(new RefreshToken
         {
             Id = guidFactory.NewGuid(),
             UserId = user.Id,
@@ -38,7 +38,7 @@ public sealed class TokenService(
             ExpiresAt = now.Plus(Duration.FromDays(_settings.RefreshTokenDays)),
         });
 
-        await db.SaveChangesAsync(ct);
+        await unitOfWork.SaveChangesAsync(ct);
 
         return new AuthTokens(jwtFactory.Create(user), rawToken);
     }
@@ -48,9 +48,7 @@ public sealed class TokenService(
         var tokenHash = HashToken(rawToken);
         var now = clock.GetCurrentInstant();
 
-        var stored = await db.RefreshTokens
-            .Include(r => r.User)
-            .FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
+        var stored = await tokens.FindByHashWithUserAsync(tokenHash, ct);
 
         if (stored is null)
             return AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid);
@@ -58,9 +56,7 @@ public sealed class TokenService(
         if (stored.RevokedAt.HasValue)
         {
             // Revoked token replayed — possible theft, wipe all sessions
-            await db.RefreshTokens
-                .Where(t => t.UserId == stored.UserId && t.RevokedAt == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+            await tokens.RevokeAllActiveByUserIdAsync(stored.UserId, now, ct);
             return AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid);
         }
 
@@ -85,14 +81,14 @@ public sealed class TokenService(
     public async Task RevokeAsync(string rawToken, CancellationToken ct)
     {
         var tokenHash = HashToken(rawToken);
-        var stored = await db.RefreshTokens.FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
+        var stored = await tokens.FindByHashAsync(tokenHash, ct);
         if (stored is null)
             return;
         if (stored.RevokedAt.HasValue)
             return;
 
         stored.RevokedAt = clock.GetCurrentInstant();
-        await db.SaveChangesAsync(ct);
+        await unitOfWork.SaveChangesAsync(ct);
     }
 
     private static string GenerateRefreshToken()

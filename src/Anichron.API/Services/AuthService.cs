@@ -53,7 +53,8 @@ public interface IAuthService
 }
 
 public sealed class AuthService(
-    AnichronDbContext db,
+    IUserRepository users,
+    IUnitOfWork unitOfWork,
     IClock clock,
     IGuidFactory guidFactory,
     IPasswordHasher passwordHasher,
@@ -76,10 +77,10 @@ public sealed class AuthService(
         if (error is not null)
             return AuthResult.Fail<AuthTokens>(error.Value);
 
-        if (await db.Users.AnyAsync(u => u.Username == normalizedUsername, ct))
+        if (await users.AnyByUsernameAsync(normalizedUsername, ct))
             return AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken);
 
-        if (await db.Users.AnyAsync(u => u.Email == normalizedEmail, ct))
+        if (await users.AnyByEmailAsync(normalizedEmail, ct))
             return AuthResult.Fail<AuthTokens>(AuthError.EmailTaken);
 
         var user = new User
@@ -90,11 +91,11 @@ public sealed class AuthService(
             PasswordHash = passwordHasher.Hash(password),
         };
 
-        db.Users.Add(user);
+        users.Add(user);
 
         try
         {
-            await db.SaveChangesAsync(ct);
+            await unitOfWork.SaveChangesAsync(ct);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
         {
@@ -112,8 +113,7 @@ public sealed class AuthService(
         ArgumentNullException.ThrowIfNull(password);
 
         var normalized = usernameOrEmail.Trim().ToLowerInvariant();
-        var user = await db.Users
-            .FirstOrDefaultAsync(u => u.Username == normalized || u.Email == normalized, ct);
+        var user = await users.FindByCredentialAsync(normalized, ct);
 
         // Prevent timing attack: Use dummy hash for non-existing accounts
         var passwordValid = passwordHasher.Verify(password, user?.PasswordHash ?? _dummyPasswordHash);
@@ -142,10 +142,11 @@ public sealed class AuthService(
         user.FailedLoginAttempts = 0;
         user.LockedUntil = null;
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await db.SaveChangesAsync(ct);
-        var tokens = await tokenService.IssueAsync(user, ct);
-        await tx.CommitAsync(ct);
+        var tokens = await unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await unitOfWork.SaveChangesAsync(ct);
+            return await tokenService.IssueAsync(user, ct);
+        }, ct);
 
         return AuthResult.Ok(tokens);
     }
@@ -161,7 +162,7 @@ public sealed class AuthService(
         user.FailedLoginAttempts++;
         var backoff = ComputeBackoffSeconds(user.FailedLoginAttempts);
         user.LockedUntil = now.Plus(Duration.FromSeconds(backoff));
-        await db.SaveChangesAsync(ct);
+        await unitOfWork.SaveChangesAsync(ct);
     }
 
     private const int AllowedAttempts = AppDefaults.Lockout.AllowedAttempts;

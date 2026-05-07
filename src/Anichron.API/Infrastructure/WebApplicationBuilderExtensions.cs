@@ -1,3 +1,5 @@
+using System.IO.Abstractions;
+
 namespace Anichron.API.Infrastructure;
 
 public static class WebApplicationBuilderExtensions
@@ -7,7 +9,7 @@ public static class WebApplicationBuilderExtensions
         public WebApplicationBuilder AddAppConfiguration()
         {
             var iniPath = Path.Combine(builder.Environment.ContentRootPath, "configuration", "app.ini");
-            AppIniInitializer.EnsureExists(iniPath);
+            new AppIniInitializer(new FileSystem()).EnsureExists(iniPath);
             builder.Configuration.AddIniFile(iniPath, optional: false, reloadOnChange: false);
             builder.Configuration.AddEnvironmentVariables();
             return builder;

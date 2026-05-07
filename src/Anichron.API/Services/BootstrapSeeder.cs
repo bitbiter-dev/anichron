@@ -13,7 +13,8 @@ public interface IBootstrapSeeder
 }
 
 public sealed class BootstrapSeeder(
-    AnichronDbContext db,
+    IUserRepository users,
+    IUnitOfWork unitOfWork,
     IGuidFactory guidFactory,
     IPasswordHasher passwordHasher,
     IConfiguration configuration,
@@ -21,7 +22,7 @@ public sealed class BootstrapSeeder(
 {
     public async Task SeedAsync(CancellationToken ct)
     {
-        if (await db.Users.AnyAsync(ct))
+        if (await users.AnyAsync(ct))
             return;
 
         var username = configuration["BOOTSTRAP_ADMIN_USERNAME"] ?? AppDefaults.Startup.AdminDefaultUsername;
@@ -39,10 +40,10 @@ public sealed class BootstrapSeeder(
             MustChangePassword = true,
         };
 
-        db.Users.Add(user);
+        users.Add(user);
         try
         {
-            await db.SaveChangesAsync(ct);
+            await unitOfWork.SaveChangesAsync(ct);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {

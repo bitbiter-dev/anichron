@@ -1,12 +1,13 @@
+using System.IO.Abstractions;
 using System.Security.Cryptography;
 
 namespace Anichron.API.Infrastructure;
 
-internal static class AppIniInitializer
+internal sealed class AppIniInitializer(IFileSystem fileSystem)
 {
-    internal static void EnsureExists(string iniPath)
+    internal void EnsureExists(string iniPath)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(iniPath)!);
+        fileSystem.Directory.CreateDirectory(fileSystem.Path.GetDirectoryName(iniPath)!);
 
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
         var content = $"""
@@ -23,7 +24,7 @@ internal static class AppIniInitializer
         try
         {
             // FileMode.CreateNew is O_CREAT|O_EXCL — atomic exclusive creation. If two instances race, only one succeeds.
-            using var stream = new FileStream(iniPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            using var stream = fileSystem.FileStream.New(iniPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             using var writer = new StreamWriter(stream);
             writer.Write(content);
         }

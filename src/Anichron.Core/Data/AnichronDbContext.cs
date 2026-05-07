@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Data;
 
-public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : DbContext(options)
+public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : DbContext(options), IUnitOfWork
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<UserStorageConfig> StorageConfigs => Set<UserStorageConfig>();
@@ -13,6 +13,14 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<Burst> Bursts => Set<Burst>();
     public DbSet<AssetInteraction> Interactions => Set<AssetInteraction>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken ct = default)
+    {
+        await using var tx = await Database.BeginTransactionAsync(ct);
+        var result = await action();
+        await tx.CommitAsync(ct);
+        return result;
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
