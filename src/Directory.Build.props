@@ -33,7 +33,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' == 'True'">
-    <NoWarn>1701;1702;1591</NoWarn>
+    <NoWarn>1701;1702;1591;IDE1006</NoWarn>
   </PropertyGroup>
   
   <ItemGroup>

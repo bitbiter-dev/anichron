@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.IO.Abstractions;
 using System.Text;
 using System.Threading.RateLimiting;
 using static System.Globalization.CultureInfo;
@@ -20,7 +21,7 @@ public static class ServiceCollectionExtensions
     {
         public IServiceCollection AddDatabase(IConfiguration configuration)
         {
-            var connectionString = DatabaseConfiguration.GetConnectionString(configuration);
+            var connectionString = DatabaseConfiguration.GetConnectionString(configuration, new FileSystem());
             return services.AddDbContext<AnichronDbContext>(options =>
                 options.UseNpgsql(connectionString, o => o.UseNodaTime()));
         }

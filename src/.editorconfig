@@ -305,6 +305,10 @@ dotnet_diagnostic.CA1848.severity = silent
 dotnet_diagnostic.CA1859.severity = silent
 dotnet_diagnostic.CS1591.severity = silent
 
+# Test projects — underscore-separated method names (MethodName_State_Expected) are intentional
+[**/*.Tests.Unit/**/*.cs]
+dotnet_diagnostic.IDE1006.severity = none
+
 # EF Core generated migration files — suppress all analyzers
 [**/Migrations/*.cs]
 generated_code = true

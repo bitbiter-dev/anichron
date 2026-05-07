@@ -54,7 +54,7 @@ public sealed class RegistrationValidator(
             var addr = new MailAddress(email.Trim());
             return addr.Address.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase);
         }
-        catch (FormatException)
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
         {
             return false;
         }
