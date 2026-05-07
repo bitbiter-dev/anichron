@@ -48,6 +48,9 @@ jobs:
         if: always()
         run: cat coverage/report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
+      - name: Check formatting
+        run: dotnet format --verify-no-changes src/
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -68,9 +71,6 @@ jobs:
           git add coverage.svg
           git diff --staged --quiet || git commit -m "chore: update coverage badge"
           git push --force origin badges
-
-      - name: Check formatting
-        run: dotnet format --verify-no-changes src/
 
   docker:
     name: Docker — ${{ matrix.name }}
