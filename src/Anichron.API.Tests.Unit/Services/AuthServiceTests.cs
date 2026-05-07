@@ -18,7 +18,6 @@ public sealed class AuthServiceTests
         private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
         private readonly IRegistrationValidator _validator = Substitute.For<IRegistrationValidator>();
 
-        // Exposed for interaction-only assertions (RevokeAsync delegation).
         internal readonly ITokenService TokenService = Substitute.For<ITokenService>();
 
         public TestFixture()
@@ -94,12 +93,12 @@ public sealed class AuthServiceTests
             _users, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService);
     }
 
-    // Creates a 23505 PostgresException with the given constraint name via the full constructor —
-    // ConstraintName has no setter in Npgsql 10.
-    private static PostgresException UniqueViolation(string? constraintName)
-        => new("duplicate key", "ERROR", "ERROR", "23505",
+    // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
+    private static DbUpdateException UniqueViolation(string? constraintName = null)
+        => new("duplicate key", new PostgresException(
+            "duplicate key", "ERROR", "ERROR", "23505",
             null, null, 0, 0, null, null, null, null, null, null,
-            constraintName, null, null, null);
+            constraintName, null, null, null));
 
     // ==========================================================================
     // RegisterAsync
@@ -209,7 +208,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentEmailUniqueViolation_ReturnsEmailTaken()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(new DbUpdateException("dup", UniqueViolation("ix_users_email_unique")));
+            .WithSaveChangesThrows(UniqueViolation("ix_users_email_unique"));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
@@ -225,7 +224,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentUsernameUniqueViolation_ReturnsUsernameTaken()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(new DbUpdateException("dup", UniqueViolation("ix_users_username_unique")));
+            .WithSaveChangesThrows(UniqueViolation("ix_users_username_unique"));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
@@ -241,7 +240,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentViolationWithNullConstraintName_ReturnsUsernameTaken()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(new DbUpdateException("dup", UniqueViolation(null)));
+            .WithSaveChangesThrows(UniqueViolation(null));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);

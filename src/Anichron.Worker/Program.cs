@@ -2,6 +2,7 @@ using Anichron.Core.Data;
 using Anichron.Infrastructure.Configuration;
 using Anichron.Worker;
 using Microsoft.EntityFrameworkCore;
+using System.IO.Abstractions;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -23,7 +24,7 @@ if (string.IsNullOrWhiteSpace(workerUser))
 builder.Services.Configure<WorkerSettings>(builder.Configuration.GetSection("Worker"));
 builder.Services.AddHostedService<Worker>();
 
-var databaseConnection = DatabaseConfiguration.GetConnectionString(builder.Configuration);
+var databaseConnection = DatabaseConfiguration.GetConnectionString(builder.Configuration, new FileSystem());
 builder.Services.AddDbContext<AnichronDbContext>(options =>
     options.UseNpgsql(databaseConnection, o => o.UseNodaTime()));
 

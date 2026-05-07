@@ -27,7 +27,7 @@ public sealed class DatabaseConfigurationTests
     {
         var config = BuildConfig(BaseConfig());
 
-        var result = DatabaseConfiguration.GetConnectionString(config);
+        var result = DatabaseConfiguration.GetConnectionString(config, new MockFileSystem());
         var parsed = new NpgsqlConnectionStringBuilder(result);
 
         Assert.Multiple(() =>
@@ -46,7 +46,7 @@ public sealed class DatabaseConfigurationTests
     {
         var config = BuildConfig(BaseConfig());
 
-        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config));
+        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config, new MockFileSystem()));
 
         parsed.Port.Should().Be(5432);
     }
@@ -58,7 +58,7 @@ public sealed class DatabaseConfigurationTests
         entries["POSTGRES_CONNECTION:PORT"] = "5433";
         var config = BuildConfig(entries);
 
-        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config));
+        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config, new MockFileSystem()));
 
         parsed.Port.Should().Be(5433);
     }
@@ -70,7 +70,7 @@ public sealed class DatabaseConfigurationTests
         entries["POSTGRES_CONNECTION:PORT"] = "xyz";
         var config = BuildConfig(entries);
 
-        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config));
+        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config, new MockFileSystem()));
 
         parsed.Port.Should().Be(5432);
     }
@@ -82,7 +82,7 @@ public sealed class DatabaseConfigurationTests
         entries.Remove("POSTGRES_CONNECTION:HOST");
         var config = BuildConfig(entries);
 
-        var act = () => DatabaseConfiguration.GetConnectionString(config);
+        var act = () => DatabaseConfiguration.GetConnectionString(config, new MockFileSystem());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*Host*");
     }
@@ -94,7 +94,7 @@ public sealed class DatabaseConfigurationTests
         entries.Remove("POSTGRES_CONNECTION:DBNAME");
         var config = BuildConfig(entries);
 
-        var act = () => DatabaseConfiguration.GetConnectionString(config);
+        var act = () => DatabaseConfiguration.GetConnectionString(config, new MockFileSystem());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*Database*");
     }
@@ -106,7 +106,7 @@ public sealed class DatabaseConfigurationTests
         entries.Remove("POSTGRES_CONNECTION:USER");
         var config = BuildConfig(entries);
 
-        var act = () => DatabaseConfiguration.GetConnectionString(config);
+        var act = () => DatabaseConfiguration.GetConnectionString(config, new MockFileSystem());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*USER*");
     }

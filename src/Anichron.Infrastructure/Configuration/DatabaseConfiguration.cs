@@ -8,9 +8,8 @@ public static class DatabaseConfiguration
 {
     private const int DefaultPort = 5432;
 
-    public static string GetConnectionString(IConfiguration configuration, IFileSystem? fileSystem = null)
+    public static string GetConnectionString(IConfiguration configuration, IFileSystem fileSystem)
     {
-        fileSystem ??= new FileSystem();
         const string sectionName = "POSTGRES_CONNECTION";
         var section = configuration.GetSection(sectionName);
 

@@ -17,7 +17,7 @@
       "name": "test",
       "group": "pre-push",
       "command": "dotnet",
-      "args": ["test", "src/", "-v", "q", "--no-build"]
+      "args": ["test", "src/", "-v", "q"]
     }
   ]
 }
