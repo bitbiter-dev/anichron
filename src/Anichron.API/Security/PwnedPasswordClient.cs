@@ -8,7 +8,7 @@ public interface IPwnedPasswordClient
     Task<bool> IsPwnedAsync(string password, CancellationToken ct);
 }
 
-public sealed class PwnedPasswordClient(HttpClient http, ILogger<PwnedPasswordClient> logger) : IPwnedPasswordClient
+public sealed partial class PwnedPasswordClient(HttpClient http, ILogger<PwnedPasswordClient> logger) : IPwnedPasswordClient
 {
     public async Task<bool> IsPwnedAsync(string password, CancellationToken ct)
     {
@@ -27,12 +27,18 @@ public sealed class PwnedPasswordClient(HttpClient http, ILogger<PwnedPasswordCl
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Pwned Passwords check unavailable ({Type}); failing open", ex.GetType().Name);
+            Log.PwnedCheckUnavailable(logger, ex, ex.GetType().Name);
             return false;
         }
         finally
         {
             CryptographicOperations.ZeroMemory(passwordBytes);
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Pwned Passwords check unavailable ({ExceptionType}); failing open.")]
+        public static partial void PwnedCheckUnavailable(ILogger logger, Exception ex, string exceptionType);
     }
 }

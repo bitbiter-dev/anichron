@@ -2,11 +2,11 @@ using Anichron.API.Endpoints;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
-using Microsoft.EntityFrameworkCore;
+using Anichron.Infrastructure.Configuration;
 
 namespace Anichron.API.Infrastructure;
 
-public static class ApplicationExtensions
+public static partial class ApplicationExtensions
 {
     extension(WebApplication app)
     {
@@ -30,8 +30,8 @@ public static class ApplicationExtensions
                     var db = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
                     var logger = scope.ServiceProvider.GetRequiredService<ILogger<AnichronDbContext>>();
 
-                    await db.Database.MigrateAsync(ct);
-                    logger.LogInformation("Database migration applied successfully.");
+                    await db.Database.MigrateWithAdvisoryLockAsync(ct);
+                    Log.MigrationApplied(logger);
 
                     var bootstrapSeeder = scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>();
                     await bootstrapSeeder.SeedAsync(ct);
@@ -42,21 +42,29 @@ public static class ApplicationExtensions
                 }
                 catch (Exception ex) when (attempt < maxAttempts)
                 {
-                    app.Logger.LogWarning(ex,
-                        "Database not ready (attempt {Attempt}/{Max}). Retrying in {Delay}s.",
-                        attempt, maxAttempts, retryDelaySeconds);
+                    Log.DatabaseNotReady(app.Logger, ex, attempt, maxAttempts, retryDelaySeconds);
                     await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds), ct);
                 }
                 catch (Exception ex)
                 {
-                    app.Logger.LogError(ex,
-                        "Database unavailable after {Max} attempts. Aborting.",
-                        AppDefaults.Startup.MaxDbRetryAttempts);
+                    Log.DatabaseUnavailable(app.Logger, ex, AppDefaults.Startup.MaxDbRetryAttempts);
                     throw new InvalidOperationException(
                         $"Database unavailable after {AppDefaults.Startup.MaxDbRetryAttempts} attempts. Aborting.",
                         ex);
                 }
             }
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Information, Message = "Database migration applied successfully.")]
+        public static partial void MigrationApplied(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Database not ready (attempt {Attempt}/{Max}). Retrying in {Delay}s.")]
+        public static partial void DatabaseNotReady(ILogger logger, Exception ex, int attempt, int max, int delay);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Database unavailable after {Max} attempts. Aborting.")]
+        public static partial void DatabaseUnavailable(ILogger logger, Exception ex, int max);
     }
 }

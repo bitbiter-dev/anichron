@@ -1,6 +1,7 @@
 using Anichron.API.Security;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -12,7 +13,7 @@ public interface IBootstrapSeeder
     Task SeedAsync(CancellationToken ct);
 }
 
-public sealed class BootstrapSeeder(
+public sealed partial class BootstrapSeeder(
     IUserRepository users,
     IUnitOfWork unitOfWork,
     IGuidFactory guidFactory,
@@ -28,7 +29,7 @@ public sealed class BootstrapSeeder(
         var username = configuration["BOOTSTRAP_ADMIN_USERNAME"] ?? AppDefaults.Startup.AdminDefaultUsername;
         var password = configuration["BOOTSTRAP_ADMIN_PASSWORD"] ?? AppDefaults.Startup.AdminDefaultPassword;
 
-        logger.LogWarning("No users exist. Creating bootstrap admin.");
+        Log.CreatingBootstrapAdmin(logger);
 
         var user = new User
         {
@@ -47,7 +48,16 @@ public sealed class BootstrapSeeder(
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {
-            logger.LogInformation(ex, "Bootstrap admin already exists (concurrent seed). Skipping.");
+            Log.BootstrapAdminAlreadyExists(logger, ex);
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Warning, Message = "No users exist. Creating bootstrap admin.")]
+        public static partial void CreatingBootstrapAdmin(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Bootstrap admin already exists (concurrent seed). Skipping.")]
+        public static partial void BootstrapAdminAlreadyExists(ILogger logger, Exception ex);
     }
 }

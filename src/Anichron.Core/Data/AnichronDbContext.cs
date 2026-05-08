@@ -137,6 +137,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         modelBuilder.Entity<UserStorageConfig>(entity =>
         {
             entity.HasIndex(s => s.UserId);
+            entity.HasIndex(s => s.RootPath).IsUnique();
 
             // 1:N with MediaAsset
             entity.HasMany(s => s.Assets)

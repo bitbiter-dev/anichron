@@ -1,7 +1,7 @@
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 
-namespace Anichron.Core.Data;
+namespace Anichron.Core.Data.Repository;
 
 public interface IUserRepository
 {

@@ -2,6 +2,7 @@ using Anichron.API.Security;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;

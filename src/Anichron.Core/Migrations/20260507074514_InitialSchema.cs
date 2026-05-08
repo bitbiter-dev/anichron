@@ -271,6 +271,12 @@ namespace Anichron.Core.Migrations
                 columns: new[] { "UserId", "ExpiresAt" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_StorageConfigs_RootPath",
+                table: "StorageConfigs",
+                column: "RootPath",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_StorageConfigs_UserId",
                 table: "StorageConfigs",
                 column: "UserId");
@@ -320,6 +326,10 @@ namespace Anichron.Core.Migrations
 
             migrationBuilder.DropTable(
                 name: "Bursts");
+
+            migrationBuilder.DropIndex(
+                name: "IX_StorageConfigs_RootPath",
+                table: "StorageConfigs");
 
             migrationBuilder.DropTable(
                 name: "StorageConfigs");
