@@ -44,7 +44,6 @@ public sealed partial class Worker(
     {
         ct.ThrowIfCancellationRequested();
         Log.CrawlingPath(logger, config.RootPath, config.UserId);
-        // Epic 3: file enumeration, hashing, EXIF, proxy generation
         return Task.CompletedTask;
     }
 

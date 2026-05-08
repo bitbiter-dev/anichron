@@ -2,7 +2,7 @@ using Anichron.API.Endpoints;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
-using Anichron.Infrastructure.Configuration;
+using Anichron.Infrastructure.Data;
 
 namespace Anichron.API.Infrastructure;
 

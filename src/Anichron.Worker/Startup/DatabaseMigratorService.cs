@@ -1,5 +1,5 @@
 using Anichron.Core.Data;
-using Anichron.Infrastructure.Configuration;
+using Anichron.Infrastructure.Data;
 
 namespace Anichron.Worker.Startup;
 

@@ -69,6 +69,8 @@ public sealed class AppIniInitializer(IFileSystem fileSystem)
                 sb.AppendLine(CultureInfo.InvariantCulture, $"{entry.Key} = {entry.DefaultValue()}");
         }
 
+        // Not atomic: two processes racing here can both append the same entries.
+        // The INI provider tolerates duplicate keys (last value wins), so behavior is correct.
         fileSystem.File.AppendAllText(iniPath, sb.ToString());
         Console.Error.WriteLine($"[INFO] Added missing configuration entries to {iniPath}.");
     }

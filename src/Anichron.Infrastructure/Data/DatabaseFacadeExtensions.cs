@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
-namespace Anichron.Infrastructure.Configuration;
+namespace Anichron.Infrastructure.Data;
 
 public static class DatabaseFacadeExtensions
 {

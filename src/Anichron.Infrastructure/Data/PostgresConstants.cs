@@ -1,4 +1,4 @@
-namespace Anichron.Infrastructure.Configuration;
+namespace Anichron.Infrastructure.Data;
 
 public static class PostgresConstants
 {
