@@ -11,6 +11,7 @@ public interface IAuthResponseMapper
     IResult GetRegistrationResult(AuthResult<AuthTokens> result, HttpContext http, PasswordPolicy passwordPolicy, UsernamePolicy usernamePolicy);
     IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
     IResult GetRefreshResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
+    IResult GetChangePasswordResult(AuthResult result, PasswordPolicy passwordPolicy);
     void ClearRefreshCookie(HttpContext http);
 }
 
@@ -104,6 +105,39 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         }
 
         return BuildTokenResponse(result.Value!, http, setCookie);
+    }
+
+    public IResult GetChangePasswordResult(AuthResult result, PasswordPolicy passwordPolicy)
+    {
+        if (result.IsSuccess)
+            return Results.NoContent();
+
+        return result.Error switch
+        {
+            AuthError.InvalidCredentials => Results.Json(
+                data: new { error = AuthMessages.InvalidCredentials },
+                statusCode: StatusCodes.Status400BadRequest),
+            AuthError.PasswordTooShort => Results.Json(
+                data: new { error = passwordPolicy.TooShortMessage },
+                statusCode: StatusCodes.Status422UnprocessableEntity),
+            AuthError.PasswordTooLong => Results.Json(
+                data: new { error = passwordPolicy.TooLongMessage },
+                statusCode: StatusCodes.Status422UnprocessableEntity),
+            AuthError.PasswordPwned => Results.Json(
+                data: new { error = AuthMessages.PasswordPwned },
+                statusCode: StatusCodes.Status422UnprocessableEntity),
+            // Not reachable from ChangePasswordAsync; signals a logic bug if reached.
+            AuthError.None or
+            AuthError.UsernameTaken or
+            AuthError.EmailTaken or
+            AuthError.TokenInvalid or
+            AuthError.InvalidUsername or
+            AuthError.InvalidEmail or
+            AuthError.AccountDisabled or
+            AuthError.AccountTemporarilyLocked
+                => throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
+            _ => throw new UnreachableException($"Unhandled AuthError in ChangePassword: {result.Error}"),
+        };
     }
 
     public void ClearRefreshCookie(HttpContext http)

@@ -14,6 +14,7 @@ public static partial class ApplicationExtensions
         {
             var api = app.MapGroup("/api/v1");
             api.MapAuthEndpoints();
+            api.MapUserEndpoints();
             return app;
         }
 

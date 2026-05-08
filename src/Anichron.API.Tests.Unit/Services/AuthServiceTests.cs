@@ -31,6 +31,9 @@ public sealed class AuthServiceTests
             _unitOfWork
                 .ExecuteInTransactionAsync(Arg.Any<Func<Task<AuthTokens>>>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo => callInfo.Arg<Func<Task<AuthTokens>>>()());
+            _unitOfWork
+                .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
+                .Returns(callInfo => callInfo.Arg<Func<Task>>()());
         }
 
         public TestFixture WithPasswordValid()
@@ -87,6 +90,20 @@ public sealed class AuthServiceTests
         public TestFixture WithTokenRefresh(string rawToken, AuthResult<AuthTokens> result)
         {
             TokenService.RefreshAsync(rawToken, Arg.Any<CancellationToken>()).Returns(result);
+            return this;
+        }
+
+        public TestFixture WithUserById(Guid id, User? user)
+        {
+            _users.FindByIdAsync(id, Arg.Any<CancellationToken>()).Returns(user);
+            return this;
+        }
+
+        public TestFixture WithPasswordValidationError(AuthError error)
+        {
+            _validator
+                .ValidatePasswordAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns((AuthError?)error);
             return this;
         }
 
@@ -537,5 +554,135 @@ public sealed class AuthServiceTests
         await testee.RevokeAsync("raw_token", CancellationToken.None);
 
         await fixture.TokenService.Received(1).RevokeAsync("raw_token", Arg.Any<CancellationToken>());
+    }
+
+    // ==========================================================================
+    // ChangePasswordAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task ChangePasswordAsync_NullCurrentPassword_ThrowsArgumentNullException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = async () => await testee.ChangePasswordAsync(Guid.Empty, null!, "new_password", CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("currentPassword");
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_NullNewPassword_ThrowsArgumentNullException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = async () => await testee.ChangePasswordAsync(Guid.Empty, "current_password", null!, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("newPassword");
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_UserNotFound_ReturnsInvalidCredentials()
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var fixture = new TestFixture().WithUserById(userId, null);
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.ChangePasswordAsync(userId, "current_password", "new_password", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Be(AuthError.InvalidCredentials);
+        });
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WrongCurrentPassword_ReturnsInvalidCredentials()
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var user = new User { Id = userId, PasswordHash = "stored_hash" };
+        var fixture = new TestFixture().WithUserById(userId, user);
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.ChangePasswordAsync(userId, "wrong_password", "new_password", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Be(AuthError.InvalidCredentials);
+        });
+    }
+
+    [Theory]
+    [InlineData(AuthError.PasswordTooShort)]
+    [InlineData(AuthError.PasswordTooLong)]
+    [InlineData(AuthError.PasswordPwned)]
+    public async Task ChangePasswordAsync_NewPasswordFailsValidation_ReturnsValidationError(AuthError validationError)
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var user = new User { Id = userId, PasswordHash = "stored_hash" };
+        var fixture = new TestFixture()
+            .WithUserById(userId, user)
+            .WithPasswordValid()
+            .WithPasswordValidationError(validationError);
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.ChangePasswordAsync(userId, "current_password", "weak", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Be(validationError);
+        });
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ValidPasswords_ReturnsOk()
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var user = new User { Id = userId, PasswordHash = "stored_hash" };
+        var fixture = new TestFixture()
+            .WithUserById(userId, user)
+            .WithPasswordValid();
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.ChangePasswordAsync(userId, "current_password", "new_password", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ValidPasswords_UpdatesPasswordHashAndClearsMustChangePassword()
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var user = new User { Id = userId, PasswordHash = "stored_hash", MustChangePassword = true };
+        var fixture = new TestFixture()
+            .WithUserById(userId, user)
+            .WithPasswordValid();
+        var testee = fixture.CreateTestee();
+
+        await testee.ChangePasswordAsync(userId, "current_password", "new_password", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            user.PasswordHash.Should().Be("hashed_value");
+            user.MustChangePassword.Should().BeFalse();
+        });
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ValidPasswords_RevokesAllSessions()
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var user = new User { Id = userId, PasswordHash = "stored_hash" };
+        var fixture = new TestFixture()
+            .WithUserById(userId, user)
+            .WithPasswordValid();
+        var testee = fixture.CreateTestee();
+
+        await testee.ChangePasswordAsync(userId, "current_password", "new_password", CancellationToken.None);
+
+        await fixture.TokenService.Received(1)
+            .MarkAllSessionsRevokedAsync(userId, Arg.Any<Instant>(), Arg.Any<CancellationToken>());
     }
 }

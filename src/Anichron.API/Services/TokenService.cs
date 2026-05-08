@@ -13,6 +13,7 @@ public interface ITokenService
     Task<AuthTokens> IssueAsync(User user, CancellationToken ct);
     Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct);
     Task RevokeAsync(string rawToken, CancellationToken ct);
+    Task MarkAllSessionsRevokedAsync(Guid userId, Instant revokedAt, CancellationToken ct);
 }
 
 public sealed class TokenService(
@@ -91,6 +92,9 @@ public sealed class TokenService(
         stored.RevokedAt = clock.GetCurrentInstant();
         await unitOfWork.SaveChangesAsync(ct);
     }
+
+    public Task MarkAllSessionsRevokedAsync(Guid userId, Instant revokedAt, CancellationToken ct)
+        => tokens.RevokeAllActiveByUserIdAsync(userId, revokedAt, ct);
 
     private static string GenerateRefreshToken()
         => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
