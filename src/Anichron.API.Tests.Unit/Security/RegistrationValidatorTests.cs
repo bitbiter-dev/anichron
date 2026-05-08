@@ -151,6 +151,97 @@ public sealed class RegistrationValidatorTests
         await act.Should().ThrowAsync<HttpRequestException>();
     }
 
+    // ==========================================================================
+    // ValidatePasswordAsync
+    // ==========================================================================
+
+    [Theory]
+    [InlineData("short1234")] // 9 chars — below MinLength (12)
+    [InlineData("")]          // 0 chars — below MinLength (12)
+    public async Task ValidatePasswordAsync_PasswordTooShort_ReturnsPasswordTooShort(string password)
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = await testee.ValidatePasswordAsync(password, CancellationToken.None);
+
+        result.Should().Be(AuthError.PasswordTooShort);
+    }
+
+    [Fact]
+    public async Task ValidatePasswordAsync_PasswordTooLong_ReturnsPasswordTooLong()
+    {
+        var testee = new TestFixture()
+            .WithPasswordPolicy(new PasswordPolicy { MaxLength = 10 })
+            .CreateTestee();
+
+        var result = await testee.ValidatePasswordAsync("12characters", CancellationToken.None);
+
+        result.Should().Be(AuthError.PasswordTooLong);
+    }
+
+    [Fact]
+    public async Task ValidatePasswordAsync_PasswordIsPwned_ReturnsPasswordPwned()
+    {
+        var testee = new TestFixture()
+            .WithPwnedPassword(isPwned: true)
+            .CreateTestee();
+
+        var result = await testee.ValidatePasswordAsync(ValidPassword, CancellationToken.None);
+
+        result.Should().Be(AuthError.PasswordPwned);
+    }
+
+    [Fact]
+    public async Task ValidatePasswordAsync_PwnedCheckDisabledAndPasswordPwned_ReturnsNull()
+    {
+        var testee = new TestFixture()
+            .WithPwnedPassword(isPwned: true)
+            .WithPasswordPolicy(new PasswordPolicy { CheckPwnedPasswords = false })
+            .CreateTestee();
+
+        var result = await testee.ValidatePasswordAsync(ValidPassword, CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ValidatePasswordAsync_ValidPassword_ReturnsNull()
+    {
+        var testee = new TestFixture()
+            .WithPwnedPassword(isPwned: false)
+            .CreateTestee();
+
+        var result = await testee.ValidatePasswordAsync(ValidPassword, CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ValidatePasswordAsync_ValidPasswordAtMinLengthBoundary_ReturnsNull()
+    {
+        var testee = new TestFixture()
+            .WithPwnedPassword(isPwned: false)
+            .CreateTestee();
+
+        var result = await testee.ValidatePasswordAsync("123456789012", CancellationToken.None); // exactly 12 chars
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ValidatePasswordAsync_PwnedClientThrows_PropagatesException()
+    {
+        var fixture = new TestFixture();
+        fixture.PwnedClient
+            .IsPwnedAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(new HttpRequestException("Network error")));
+        var testee = fixture.CreateTestee();
+
+        var act = async () => await testee.ValidatePasswordAsync(ValidPassword, CancellationToken.None);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
     private sealed class TestFixture
     {
         private PasswordPolicy _passwordPolicy = new();

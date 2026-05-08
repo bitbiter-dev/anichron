@@ -288,4 +288,21 @@ public sealed class TokenServiceTests
         token.RevokedAt.Should().Be(FixedNow);
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
+
+    // ==========================================================================
+    // MarkAllSessionsRevokedAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task MarkAllSessionsRevokedAsync_CallsRevokeAllActiveByUserIdWithoutSaving()
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var fixture = new TestFixture();
+        var testee = fixture.CreateTestee();
+
+        await testee.MarkAllSessionsRevokedAsync(userId, FixedNow, CancellationToken.None);
+
+        await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(userId, FixedNow, Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
 }

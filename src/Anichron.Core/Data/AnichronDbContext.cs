@@ -22,6 +22,13 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         return result;
     }
 
+    public async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken ct = default)
+    {
+        await using var tx = await Database.BeginTransactionAsync(ct);
+        await action();
+        await tx.CommitAsync(ct);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

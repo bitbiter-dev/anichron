@@ -341,4 +341,110 @@ public sealed class AuthResponseMapperTests
 
         http.Response.Headers.SetCookie.ToString().Should().Contain(AuthMessages.RefreshTokenCookieName);
     }
+
+    // ==========================================================================
+    // GetChangePasswordResult
+    // ==========================================================================
+
+    [Fact]
+    public async Task GetChangePasswordResult_Success_Returns204NoContent()
+    {
+        var http = NewHttp();
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetChangePasswordResult(AuthResult.Ok(), new PasswordPolicy());
+        await result.ExecuteAsync(http);
+
+        http.Response.StatusCode.Should().Be(204);
+    }
+
+    [Fact]
+    public async Task GetChangePasswordResult_InvalidCredentials_Returns400WithMessage()
+    {
+        var http = NewHttp();
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetChangePasswordResult(AuthResult.Fail(AuthError.InvalidCredentials), new PasswordPolicy());
+        await result.ExecuteAsync(http);
+        var body = await ReadBodyAsync(http.Response);
+
+        Assert.Multiple(() =>
+        {
+            http.Response.StatusCode.Should().Be(400);
+            body.Should().Contain(AuthMessages.InvalidCredentials);
+        });
+    }
+
+    [Fact]
+    public async Task GetChangePasswordResult_PasswordTooShort_Returns422WithPolicyTooShortMessage()
+    {
+        var http = NewHttp();
+        var testee = new TestFixture().CreateTestee();
+        var policy = new PasswordPolicy { MinLength = 16 };
+
+        var result = testee.GetChangePasswordResult(AuthResult.Fail(AuthError.PasswordTooShort), policy);
+        await result.ExecuteAsync(http);
+        var body = await ReadBodyAsync(http.Response);
+
+        Assert.Multiple(() =>
+        {
+            http.Response.StatusCode.Should().Be(422);
+            body.Should().Contain(policy.TooShortMessage);
+        });
+    }
+
+    [Fact]
+    public async Task GetChangePasswordResult_PasswordTooLong_Returns422WithPolicyTooLongMessage()
+    {
+        var http = NewHttp();
+        var testee = new TestFixture().CreateTestee();
+        var policy = new PasswordPolicy { MaxLength = 64 };
+
+        var result = testee.GetChangePasswordResult(AuthResult.Fail(AuthError.PasswordTooLong), policy);
+        await result.ExecuteAsync(http);
+        var body = await ReadBodyAsync(http.Response);
+
+        Assert.Multiple(() =>
+        {
+            http.Response.StatusCode.Should().Be(422);
+            body.Should().Contain(policy.TooLongMessage);
+        });
+    }
+
+    [Fact]
+    public async Task GetChangePasswordResult_PasswordPwned_Returns422WithPwnedMessage()
+    {
+        var http = NewHttp();
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetChangePasswordResult(AuthResult.Fail(AuthError.PasswordPwned), new PasswordPolicy());
+        await result.ExecuteAsync(http);
+        var body = await ReadBodyAsync(http.Response);
+
+        Assert.Multiple(() =>
+        {
+            http.Response.StatusCode.Should().Be(422);
+            body.Should().Contain(AuthMessages.PasswordPwned);
+        });
+    }
+
+    [Fact]
+    public void GetChangePasswordResult_ErrorFromOtherContext_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetChangePasswordResult(AuthResult.Fail(AuthError.UsernameTaken), new PasswordPolicy());
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetChangePasswordResult_UndefinedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetChangePasswordResult(AuthResult.Fail((AuthError)999), new PasswordPolicy());
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
 }

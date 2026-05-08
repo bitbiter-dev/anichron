@@ -34,10 +34,18 @@ public sealed record AuthResult<T>
     public int? RetryAfterSeconds { get; init; }
 }
 
-public static class AuthResult
+public sealed record AuthResult
 {
+    public AuthError? Error { get; init; }
+    public bool IsSuccess => Error is null;
+    public int? RetryAfterSeconds { get; init; }
+
+    public static AuthResult Ok() => new();
     public static AuthResult<T> Ok<T>(T value) => new() { Value = value };
+
+    public static AuthResult Fail(AuthError error) => new() { Error = error };
     public static AuthResult<T> Fail<T>(AuthError error) => new() { Error = error };
+
     public static AuthResult<T> Locked<T>(int retryAfterSeconds) => new()
     {
         Error = AuthError.AccountTemporarilyLocked,
@@ -51,6 +59,7 @@ public interface IAuthService
     Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct);
     Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct);
     Task RevokeAsync(string rawToken, CancellationToken ct);
+    Task<AuthResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct);
 }
 
 public sealed class AuthService(
@@ -157,6 +166,31 @@ public sealed class AuthService(
 
     public Task RevokeAsync(string rawToken, CancellationToken ct)
         => tokenService.RevokeAsync(rawToken, ct);
+
+    public async Task<AuthResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(currentPassword);
+        ArgumentNullException.ThrowIfNull(newPassword);
+
+        var user = await users.FindByIdAsync(userId, ct);
+        if (user is null || !passwordHasher.Verify(currentPassword, user.PasswordHash))
+            return AuthResult.Fail(AuthError.InvalidCredentials);
+
+        var error = await validator.ValidatePasswordAsync(newPassword, ct);
+        if (error is not null)
+            return AuthResult.Fail(error.Value);
+
+        await unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            user.PasswordHash = passwordHasher.Hash(newPassword);
+            user.MustChangePassword = false;
+            var now = clock.GetCurrentInstant();
+            await tokenService.MarkAllSessionsRevokedAsync(userId, now, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+        }, ct);
+
+        return AuthResult.Ok();
+    }
 
     private async Task RecordFailedLoginAttemptAsync(User user, Instant now, CancellationToken ct)
     {
