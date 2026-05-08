@@ -26,8 +26,10 @@ public sealed partial class BootstrapSeeder(
         if (await users.AnyAsync(ct))
             return;
 
-        var username = configuration["BOOTSTRAP_ADMIN_USERNAME"] ?? AppDefaults.Startup.AdminDefaultUsername;
-        var password = configuration["BOOTSTRAP_ADMIN_PASSWORD"] ?? AppDefaults.Startup.AdminDefaultPassword;
+        var rawUsername = configuration["BOOTSTRAP_ADMIN_USERNAME"];
+        var username = string.IsNullOrWhiteSpace(rawUsername) ? AppDefaults.Startup.AdminDefaultUsername : rawUsername;
+        var rawPassword = configuration["BOOTSTRAP_ADMIN_PASSWORD"];
+        var password = string.IsNullOrWhiteSpace(rawPassword) ? AppDefaults.Startup.AdminDefaultPassword : rawPassword;
 
         Log.CreatingBootstrapAdmin(logger);
 

@@ -233,6 +233,21 @@ public sealed class TokenServiceTests
         });
     }
 
+    [Fact]
+    public async Task RefreshAsync_SaveChangesThrows_PropagatesException()
+    {
+        var user = new User();
+        var token = ActiveToken(user);
+        var fixture = new TestFixture().WithToken(token);
+        fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<int>(new InvalidOperationException("DB error")));
+        var testee = fixture.CreateTestee();
+
+        var act = async () => await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
     // ==========================================================================
     // RevokeAsync
     // ==========================================================================

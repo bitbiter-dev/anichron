@@ -312,6 +312,16 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task LoginAsync_WhitespaceCredential_ReturnsInvalidCredentials()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = await testee.LoginAsync("   ", "password", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.InvalidCredentials);
+    }
+
+    [Fact]
     public async Task LoginAsync_UnknownUser_ReturnsInvalidCredentials()
     {
         var testee = new TestFixture().CreateTestee();

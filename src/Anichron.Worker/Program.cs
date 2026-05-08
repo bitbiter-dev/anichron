@@ -15,6 +15,7 @@ builder.Services.Configure<WorkerSettings>(builder.Configuration.GetSection("Wor
 builder.Services.AddSingleton<WorkerState>();
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
+builder.Services.AddScoped<IDatabaseMigrator, EfDatabaseMigrator>();
 
 var databaseConnection = DatabaseConfiguration.GetConnectionString(builder.Configuration, new FileSystem());
 builder.Services.AddDbContext<AnichronDbContext>(options =>

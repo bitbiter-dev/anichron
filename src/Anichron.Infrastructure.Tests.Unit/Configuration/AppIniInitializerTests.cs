@@ -1,4 +1,5 @@
 using Anichron.Infrastructure.Configuration;
+using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Infrastructure.Tests.Unit.Configuration;
@@ -272,6 +273,87 @@ public sealed class AppIniInitializerTests
         {
             secret.Should().NotBeEmpty();
             decoded.Length.Should().BeGreaterThanOrEqualTo(32);
+        });
+    }
+
+    // ==========================================================================
+    // Race condition: concurrent file creation
+    // ==========================================================================
+
+    [Fact]
+    public void EnsureUpToDate_ConcurrentFileCreationRace_NoExceptionThrown()
+    {
+        // WriteNew uses FileMode.CreateNew (O_CREAT|O_EXCL). If a second instance races
+        // and creates the file first, IOException is caught and the call returns silently.
+        var directory = Substitute.For<IDirectory>();
+        var file = Substitute.For<IFile>();
+        var path = Substitute.For<IPath>();
+        var fileStreamFactory = Substitute.For<IFileStreamFactory>();
+        var fs = Substitute.For<IFileSystem>();
+
+        fs.Directory.Returns(directory);
+        fs.File.Returns(file);
+        fs.Path.Returns(path);
+        fs.FileStream.Returns(fileStreamFactory);
+
+        path.GetDirectoryName(IniPath).Returns("/app/config");
+        file.Exists(IniPath).Returns(false);
+        fileStreamFactory
+            .New(IniPath, FileMode.CreateNew, FileAccess.Write, FileShare.None)
+            .Returns(_ => throw new IOException("The file already exists."));
+
+        var testee = new AppIniInitializer(fs);
+        var act = () => testee.EnsureUpToDate(IniPath, DefaultEntries);
+
+        act.Should().NotThrow();
+    }
+
+    // ==========================================================================
+    // Non-IOException from WriteNew propagates
+    // ==========================================================================
+
+    [Fact]
+    public void EnsureUpToDate_WritePermissionDenied_PropagatesUnauthorizedAccessException()
+    {
+        var directory = Substitute.For<IDirectory>();
+        var file = Substitute.For<IFile>();
+        var path = Substitute.For<IPath>();
+        var fileStreamFactory = Substitute.For<IFileStreamFactory>();
+        var fs = Substitute.For<IFileSystem>();
+
+        fs.Directory.Returns(directory);
+        fs.File.Returns(file);
+        fs.Path.Returns(path);
+        fs.FileStream.Returns(fileStreamFactory);
+
+        path.GetDirectoryName(IniPath).Returns("/app/config");
+        file.Exists(IniPath).Returns(false);
+        fileStreamFactory
+            .New(IniPath, FileMode.CreateNew, FileAccess.Write, FileShare.None)
+            .Returns(_ => throw new UnauthorizedAccessException());
+
+        var testee = new AppIniInitializer(fs);
+        var act = () => testee.EnsureUpToDate(IniPath, DefaultEntries);
+
+        act.Should().ThrowExactly<UnauthorizedAccessException>();
+    }
+
+    // ==========================================================================
+    // Empty entries list
+    // ==========================================================================
+
+    [Fact]
+    public void EnsureUpToDate_EmptyEntriesList_CreatesEmptyFile()
+    {
+        var fs = new MockFileSystem();
+        var testee = new AppIniInitializer(fs);
+
+        testee.EnsureUpToDate(IniPath, []);
+
+        Assert.Multiple(() =>
+        {
+            fs.FileExists(IniPath).Should().BeTrue();
+            fs.File.ReadAllText(IniPath).Should().BeEmpty();
         });
     }
 

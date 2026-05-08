@@ -1,14 +1,11 @@
-using Anichron.Core.Data;
-using Anichron.Infrastructure.Data;
-
 namespace Anichron.Worker.Startup;
 
 public sealed partial class DatabaseMigratorService(
     IServiceScopeFactory scopeFactory,
     ILogger<DatabaseMigratorService> logger) : IHostedService
 {
-    private const int MaxAttempts = 10;
-    private const int RetryDelaySeconds = 5;
+    internal const int MaxAttempts = 10;
+    internal TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(5);
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -17,15 +14,15 @@ public sealed partial class DatabaseMigratorService(
             try
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
-                var db = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
-                await db.Database.MigrateWithAdvisoryLockAsync(cancellationToken);
+                var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
+                await migrator.MigrateAsync(cancellationToken);
                 Log.MigrationApplied(logger);
                 return;
             }
             catch (Exception ex) when (attempt < MaxAttempts)
             {
-                Log.DatabaseNotReady(logger, ex, attempt, MaxAttempts, RetryDelaySeconds);
-                await Task.Delay(TimeSpan.FromSeconds(RetryDelaySeconds), cancellationToken);
+                Log.DatabaseNotReady(logger, ex, attempt, MaxAttempts, (int)RetryDelay.TotalSeconds);
+                await Task.Delay(RetryDelay, cancellationToken);
             }
             catch (Exception ex)
             {
