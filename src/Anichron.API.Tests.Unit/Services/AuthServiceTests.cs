@@ -1,6 +1,7 @@
 using Anichron.API.Security;
 using Anichron.API.Services;
 using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -308,6 +309,16 @@ public sealed class AuthServiceTests
         var act = async () => await testee.LoginAsync("alice", null!, CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("password");
+    }
+
+    [Fact]
+    public async Task LoginAsync_WhitespaceCredential_ReturnsInvalidCredentials()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = await testee.LoginAsync("   ", "password", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.InvalidCredentials);
     }
 
     [Fact]

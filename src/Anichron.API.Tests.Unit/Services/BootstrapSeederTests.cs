@@ -2,6 +2,7 @@ using Anichron.API.Security;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -25,8 +26,6 @@ public sealed class BootstrapSeederTests
         {
             _guidFactory.NewGuid().Returns(Guid.Parse("00000000-0000-0000-0000-000000000001"));
             _passwordHasher.Hash(Arg.Any<string>()).Returns("hashed_password");
-            // NSubstitute returns "" for unstubbed string members; force null so the service's
-            // null-coalescing fallback to AppDefaults works correctly.
             _configuration[Arg.Any<string>()].Returns((string?)null);
         }
 
@@ -160,6 +159,34 @@ public sealed class BootstrapSeederTests
             captured.IsAdmin.Should().BeTrue();
             captured.MustChangePassword.Should().BeTrue();
         });
+    }
+
+    [Fact]
+    public async Task SeedAsync_EmptyStringUsernameConfig_UsesDefaultUsername()
+    {
+        User? captured = null;
+        var fixture = new TestFixture()
+            .WithConfig("BOOTSTRAP_ADMIN_USERNAME", string.Empty)
+            .CaptureAddedUser(u => captured = u);
+        var testee = fixture.CreateTestee();
+
+        await testee.SeedAsync(CancellationToken.None);
+
+        captured!.Username.Should().Be(AppDefaults.Startup.AdminDefaultUsername);
+    }
+
+    [Fact]
+    public async Task SeedAsync_WhitespaceUsernameConfig_UsesDefaultUsername()
+    {
+        User? captured = null;
+        var fixture = new TestFixture()
+            .WithConfig("BOOTSTRAP_ADMIN_USERNAME", "   ")
+            .CaptureAddedUser(u => captured = u);
+        var testee = fixture.CreateTestee();
+
+        await testee.SeedAsync(CancellationToken.None);
+
+        captured!.Username.Should().Be(AppDefaults.Startup.AdminDefaultUsername);
     }
 
     [Fact]

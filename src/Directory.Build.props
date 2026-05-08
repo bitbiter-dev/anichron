@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <UseArtifactsOutput>true</UseArtifactsOutput>
-	<GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
   
@@ -32,8 +32,11 @@
     <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">True</IsTestProject>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <NoWarn>1701;1702;1591</NoWarn>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(IsTestProject)' == 'True'">
-    <NoWarn>1701;1702;1591;IDE1006</NoWarn>
+    <NoWarn>IDE1006</NoWarn>
   </PropertyGroup>
   
   <ItemGroup>

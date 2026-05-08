@@ -310,6 +310,9 @@ namespace Anichron.Core.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("RootPath")
+                        .IsUnique();
+
                     b.HasIndex("UserId");
 
                     b.ToTable("StorageConfigs");
