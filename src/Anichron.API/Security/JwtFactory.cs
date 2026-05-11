@@ -1,3 +1,4 @@
+using Anichron.API.Infrastructure;
 using Anichron.API.Settings;
 using Anichron.Core.Domain;
 using Microsoft.Extensions.Options;
@@ -41,7 +42,7 @@ public sealed class JwtFactory : IJwtFactory
         };
 
         if (user.MustChangePassword)
-            claims.Add(new Claim("must_change_password", "true"));
+            claims.Add(new Claim(AppClaimTypes.MustChangePassword, "true"));
 
         var token = new JwtSecurityToken(
             issuer: _settings.Issuer,

@@ -10,8 +10,8 @@ public static class UserEndpoints
 {
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("users").WithTags("Users");
-        group.MapPost("/me/password", ChangePasswordAsync)
+        var group = app.MapGroup(ApiPaths.Users.Group).WithTags("Users");
+        group.MapPost(ApiPaths.Users.ChangePassword, ChangePasswordAsync)
              .RequireAuthorization()
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
         return app;

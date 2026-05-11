@@ -12,7 +12,7 @@ public static partial class ApplicationExtensions
     {
         public WebApplication MapApiEndpoints()
         {
-            var api = app.MapGroup("/api/v1");
+            var api = app.MapGroup(ApiPaths.Base);
             api.MapAuthEndpoints();
             api.MapUserEndpoints();
             return app;
