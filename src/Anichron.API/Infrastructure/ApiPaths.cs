@@ -19,6 +19,7 @@ internal static class ApiPaths
     internal static class Users
     {
         internal const string Group = "users";
-        internal const string ChangePassword = "/me/password";
+        internal const string Me = "/me";
+        internal const string ChangePassword = $"{Me}/password";
     }
 }
