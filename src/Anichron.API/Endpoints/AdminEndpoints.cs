@@ -8,7 +8,7 @@ public static class AdminEndpoints
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup(ApiPaths.Users.Group).WithTags("Users");
-        group.MapPost("/", CreateUserAsync)
+        group.MapPost(string.Empty, CreateUserAsync)
              .RequireAuthorization(AuthPolicies.Admin);
         return app;
     }

@@ -739,6 +739,23 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task AdminCreateUserAsync_Success_PasswordIsHashedBeforeStorage()
+    {
+        User? capturedUser = null;
+        var fixture = new TestFixture();
+        fixture.Users.When(r => r.Add(Arg.Any<User>())).Do(c => capturedUser = c.Arg<User>());
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            capturedUser!.PasswordHash.Should().Be("hashed_value");
+            capturedUser.PasswordHash.Should().NotBe(result.Value!.TemporaryPassword);
+        });
+    }
+
+    [Fact]
     public async Task AdminCreateUserAsync_Success_NormalizesUsernameAndEmail()
     {
         var testee = new TestFixture().CreateTestee();
