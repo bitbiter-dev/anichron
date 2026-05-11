@@ -155,6 +155,29 @@ public sealed class JwtFactoryTests
     }
 
     [Fact]
+    public void Create_AdminUser_IncludesIsAdminClaim()
+    {
+        var user = new User { Id = Guid.NewGuid(), Username = "alice", IsAdmin = true };
+        var testee = new TestFixture().CreateTestee();
+
+        var jwt = Decode(testee.Create(user));
+
+        jwt.Claims.FirstOrDefault(c => c.Type == "is_admin")?.Value
+            .Should().Be("true");
+    }
+
+    [Fact]
+    public void Create_NonAdminUser_DoesNotIncludeIsAdminClaim()
+    {
+        var user = new User { Id = Guid.NewGuid(), Username = "alice", IsAdmin = false };
+        var testee = new TestFixture().CreateTestee();
+
+        var jwt = Decode(testee.Create(user));
+
+        jwt.Claims.Should().NotContain(c => c.Type == "is_admin");
+    }
+
+    [Fact]
     public void Create_ValidUser_TokenSignatureValidatesWithConfiguredSecret()
     {
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };

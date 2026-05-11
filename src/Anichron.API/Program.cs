@@ -9,6 +9,7 @@ builder.Services
     .AddForwardedHeadersSupport()
     .AddAuthServices(builder.Configuration)
     .AddAuthorization()
+    .AddAuthorizationPolicies()
     .AddRateLimiting()
     .AddCorsPolicy(builder.Configuration);
 

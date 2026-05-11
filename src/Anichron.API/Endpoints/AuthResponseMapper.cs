@@ -12,6 +12,7 @@ public interface IAuthResponseMapper
     IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
     IResult GetRefreshResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
     IResult GetChangePasswordResult(AuthResult result, PasswordPolicy passwordPolicy);
+    IResult GetAdminCreateUserResult(AuthResult<AdminCreatedUser> result);
     void ClearRefreshCookie(HttpContext http);
 }
 
@@ -138,6 +139,36 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 => throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
             _ => throw new UnreachableException($"Unhandled AuthError in ChangePassword: {result.Error}"),
         };
+    }
+
+    public IResult GetAdminCreateUserResult(AuthResult<AdminCreatedUser> result)
+    {
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                AuthError.UsernameTaken => Results.Conflict(new { error = AuthMessages.UsernameTaken }),
+                AuthError.EmailTaken => Results.Conflict(new { error = AuthMessages.EmailTaken }),
+                // Not reachable from AdminCreateUserAsync; signals a logic bug if reached.
+                AuthError.None or
+                AuthError.InvalidCredentials or
+                AuthError.TokenInvalid or
+                AuthError.InvalidUsername or
+                AuthError.InvalidEmail or
+                AuthError.PasswordTooShort or
+                AuthError.PasswordTooLong or
+                AuthError.PasswordPwned or
+                AuthError.AccountDisabled or
+                AuthError.AccountTemporarilyLocked
+                    => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
+                _ => throw new UnreachableException($"Unhandled AuthError in AdminCreateUser: {result.Error}"),
+            };
+        }
+
+        var created = result.Value!;
+        var location = $"{ApiPaths.Base}/{ApiPaths.Users.Group}/{created.Id}";
+        return Results.Created(location, new AdminCreatedUserResponse(
+            created.Id, created.Username, created.Email, created.TemporaryPassword));
     }
 
     public void ClearRefreshCookie(HttpContext http)

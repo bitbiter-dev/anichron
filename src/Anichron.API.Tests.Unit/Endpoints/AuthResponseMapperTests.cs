@@ -447,4 +447,57 @@ public sealed class AuthResponseMapperTests
 
         act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
+
+    // ==========================================================================
+    // GetAdminCreateUserResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminCreateUserResult_Success_Returns201WithLocationAndBody()
+    {
+        var userId = Guid.NewGuid();
+        var created = new AdminCreatedUser(userId, "alice", "alice@example.com", "TempPass==");
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminCreateUserResult(AuthResult.Ok(created));
+
+        var ok = result.Should()
+            .BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<AdminCreatedUserResponse>>().Subject;
+        ok.StatusCode.Should().Be(201);
+        ok.Location.Should().Contain(userId.ToString());
+        ok.Value.Should().Be(new AdminCreatedUserResponse(userId, "alice", "alice@example.com", "TempPass=="));
+    }
+
+    [Theory]
+    [InlineData(AuthError.UsernameTaken, 409)]
+    [InlineData(AuthError.EmailTaken, 409)]
+    public void GetAdminCreateUserResult_Failure_ReturnsExpectedStatusCode(AuthError error, int expectedStatus)
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminCreateUserResult(AuthResult.Fail<AdminCreatedUser>(error));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
+            .Which.StatusCode.Should().Be(expectedStatus);
+    }
+
+    [Fact]
+    public void GetAdminCreateUserResult_ErrorFromOtherContext_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminCreateUserResult(AuthResult.Fail<AdminCreatedUser>(AuthError.InvalidCredentials));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetAdminCreateUserResult_UndefinedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminCreateUserResult(AuthResult.Fail<AdminCreatedUser>((AuthError)999));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
 }

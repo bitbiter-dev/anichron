@@ -5,10 +5,12 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Security.Cryptography;
 
 namespace Anichron.API.Services;
 
 public sealed record AuthTokens(string AccessToken, string RefreshToken);
+public sealed record AdminCreatedUser(Guid Id, string Username, string Email, string TemporaryPassword);
 
 public enum AuthError
 {
@@ -60,6 +62,7 @@ public interface IAuthService
     Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct);
     Task RevokeAsync(string rawToken, CancellationToken ct);
     Task<AuthResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct);
+    Task<AuthResult<AdminCreatedUser>> AdminCreateUserAsync(string username, string email, CancellationToken ct);
 }
 
 public sealed class AuthService(
@@ -190,6 +193,47 @@ public sealed class AuthService(
         }, ct);
 
         return AuthResult.Ok();
+    }
+
+    public async Task<AuthResult<AdminCreatedUser>> AdminCreateUserAsync(string username, string email, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(username);
+        ArgumentNullException.ThrowIfNull(email);
+
+        var normalizedUsername = username.Trim().ToLowerInvariant();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        if (await users.AnyByUsernameAsync(normalizedUsername, ct))
+            return AuthResult.Fail<AdminCreatedUser>(AuthError.UsernameTaken);
+
+        if (await users.AnyByEmailAsync(normalizedEmail, ct))
+            return AuthResult.Fail<AdminCreatedUser>(AuthError.EmailTaken);
+
+        var temporaryPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(12));
+
+        var user = new User
+        {
+            Id = guidFactory.NewGuid(),
+            Username = normalizedUsername,
+            Email = normalizedEmail,
+            PasswordHash = passwordHasher.Hash(temporaryPassword),
+            MustChangePassword = true,
+        };
+
+        users.Add(user);
+
+        try
+        {
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
+        {
+            return pg.ConstraintName?.Contains("Email", StringComparison.OrdinalIgnoreCase) == true
+                ? AuthResult.Fail<AdminCreatedUser>(AuthError.EmailTaken)
+                : AuthResult.Fail<AdminCreatedUser>(AuthError.UsernameTaken);
+        }
+
+        return AuthResult.Ok(new AdminCreatedUser(user.Id, user.Username, user.Email, temporaryPassword));
     }
 
     private async Task RecordFailedLoginAttemptAsync(User user, Instant now, CancellationToken ct)
