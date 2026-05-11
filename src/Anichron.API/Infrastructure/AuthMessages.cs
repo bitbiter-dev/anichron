@@ -8,6 +8,7 @@ internal static class AuthMessages
     internal const string PasswordPwned = "This password has appeared in a known data breach. Please choose a different one.";
     internal const string InvalidCredentials = "The username, email, or password is incorrect.";
     internal const string AccountDisabled = "This account has been disabled. Please contact an administrator.";
+    internal const string MustChangePassword = "Password change required before continuing.";
 
     internal static string AccountTemporarilyLocked(int secondsRemaining) => $"Too many failed login attempts. Please try again in {secondsRemaining} second{(secondsRemaining == 1 ? string.Empty : "s")}.";
     internal const string RefreshTokenRequired = "Refresh token is required.";

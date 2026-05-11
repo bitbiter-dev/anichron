@@ -10,15 +10,15 @@ public static class AuthEndpoints
 {
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("auth").WithTags("Auth");
+        var group = app.MapGroup(ApiPaths.Auth.Group).WithTags("Auth");
 
-        group.MapPost("/register", RegisterAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost("/login", LoginWebAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost("/login/mobile", LoginMobileAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost("/refresh", RefreshAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Refresh);
-        group.MapPost("/logout", LogoutAsync).RequireAuthorization();
-        group.MapPost("/password-reset/request", PasswordResetRequest).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost("/password-reset/confirm", PasswordResetConfirm).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapPost(ApiPaths.Auth.Register, RegisterAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapPost(ApiPaths.Auth.Login, LoginWebAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapPost(ApiPaths.Auth.LoginMobile, LoginMobileAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapPost(ApiPaths.Auth.Refresh, RefreshAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Refresh);
+        group.MapPost(ApiPaths.Auth.Logout, LogoutAsync).RequireAuthorization();
+        group.MapPost(ApiPaths.Auth.PasswordResetRequest, PasswordResetRequest).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapPost(ApiPaths.Auth.PasswordResetConfirm, PasswordResetConfirm).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
 
         return app;
     }
