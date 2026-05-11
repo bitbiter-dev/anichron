@@ -38,7 +38,7 @@ public static partial class ApplicationExtensions
                     var bootstrapSeeder = scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>();
                     await bootstrapSeeder.SeedAsync(ct);
 
-                    var adminResetService = scope.ServiceProvider.GetRequiredService<IAdminResetService>();
+                    var adminResetService = scope.ServiceProvider.GetRequiredService<IBootstrapResetService>();
                     await adminResetService.ResetIfRequestedAsync(ct);
                     return;
                 }

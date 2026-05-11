@@ -79,6 +79,43 @@ namespace Anichron.Core.Migrations
                     b.ToTable("Bursts");
                 });
 
+            modelBuilder.Entity("Anichron.Core.Domain.Invite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Instant?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UsedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UsedByUserId");
+
+                    b.ToTable("Invites");
+                });
+
             modelBuilder.Entity("Anichron.Core.Domain.MediaAsset", b =>
                 {
                     b.Property<Guid>("Id")
@@ -346,6 +383,24 @@ namespace Anichron.Core.Migrations
                         .IsRequired();
 
                     b.Navigation("PrimaryAsset");
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.Invite", b =>
+                {
+                    b.HasOne("Anichron.Core.Domain.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Anichron.Core.Domain.User", "UsedBy")
+                        .WithMany()
+                        .HasForeignKey("UsedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("UsedBy");
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.MediaAsset", b =>

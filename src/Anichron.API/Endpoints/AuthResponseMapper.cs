@@ -13,6 +13,7 @@ public interface IAuthResponseMapper
     IResult GetRefreshResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
     IResult GetChangePasswordResult(AuthResult result, PasswordPolicy passwordPolicy);
     IResult GetAdminCreateUserResult(AuthResult<AdminCreatedUser> result);
+    IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result);
     void ClearRefreshCookie(HttpContext http);
 }
 
@@ -31,6 +32,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.PasswordTooShort => Results.UnprocessableEntity(new { error = passwordPolicy.TooShortMessage }),
                 AuthError.PasswordTooLong => Results.UnprocessableEntity(new { error = passwordPolicy.TooLongMessage }),
                 AuthError.PasswordPwned => Results.UnprocessableEntity(new { error = AuthMessages.PasswordPwned }),
+                AuthError.InviteTokenInvalid => Results.UnprocessableEntity(new { error = AuthMessages.InviteTokenInvalid }),
                 // Not reachable from RegisterAsync; signals a logic bug if reached.
                 AuthError.None or
                 AuthError.InvalidCredentials or
@@ -68,7 +70,8 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.InvalidEmail or
                 AuthError.PasswordTooShort or
                 AuthError.PasswordTooLong or
-                AuthError.PasswordPwned
+                AuthError.PasswordPwned or
+                AuthError.InviteTokenInvalid
                     => throw new UnreachableException($"Unexpected AuthError in Login: {result.Error}"),
                 _ => throw new UnreachableException($"Unhandled AuthError in Login: {result.Error}"),
             };
@@ -99,7 +102,8 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.InvalidEmail or
                 AuthError.PasswordTooShort or
                 AuthError.PasswordTooLong or
-                AuthError.PasswordPwned
+                AuthError.PasswordPwned or
+                AuthError.InviteTokenInvalid
                     => throw new UnreachableException($"Unexpected AuthError in Refresh: {result.Error}"),
                 _ => throw new UnreachableException($"Unhandled AuthError in Refresh: {result.Error}"),
             };
@@ -135,7 +139,8 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             AuthError.InvalidUsername or
             AuthError.InvalidEmail or
             AuthError.AccountDisabled or
-            AuthError.AccountTemporarilyLocked
+            AuthError.AccountTemporarilyLocked or
+            AuthError.InviteTokenInvalid
                 => throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
             _ => throw new UnreachableException($"Unhandled AuthError in ChangePassword: {result.Error}"),
         };
@@ -159,7 +164,8 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.PasswordTooLong or
                 AuthError.PasswordPwned or
                 AuthError.AccountDisabled or
-                AuthError.AccountTemporarilyLocked
+                AuthError.AccountTemporarilyLocked or
+                AuthError.InviteTokenInvalid
                     => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
                 _ => throw new UnreachableException($"Unhandled AuthError in AdminCreateUser: {result.Error}"),
             };
@@ -170,6 +176,11 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         return Results.Created(location, new AdminCreatedUserResponse(
             created.Id, created.Username, created.Email, created.TemporaryPassword));
     }
+
+    public IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result)
+        => result is null
+            ? Results.NotFound()
+            : Results.Ok(new { result.TemporaryPassword });
 
     public void ClearRefreshCookie(HttpContext http)
         => http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);

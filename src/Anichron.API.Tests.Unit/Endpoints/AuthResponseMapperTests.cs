@@ -80,6 +80,7 @@ public sealed class AuthResponseMapperTests
     [InlineData(AuthError.PasswordTooShort, 422)]
     [InlineData(AuthError.PasswordTooLong, 422)]
     [InlineData(AuthError.PasswordPwned, 422)]
+    [InlineData(AuthError.InviteTokenInvalid, 422)]
     public async Task GetRegistrationResult_Failure_ReturnsExpectedStatusCode(AuthError error, int expectedStatus)
     {
         var http = NewHttp();
@@ -499,5 +500,32 @@ public sealed class AuthResponseMapperTests
         var act = () => testee.GetAdminCreateUserResult(AuthResult.Fail<AdminCreatedUser>((AuthError)999));
 
         act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    // ==========================================================================
+    // GetAdminResetPasswordResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminResetPasswordResult_NullResult_Returns404()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminResetPasswordResult(null);
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
+            .Which.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public void GetAdminResetPasswordResult_Success_Returns200WithTemporaryPassword()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminResetPasswordResult(new AdminUserPasswordReset("TempPass=="));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(200);
+        result.Should().BeAssignableTo<IValueHttpResult>()
+            .Which.Value.Should().BeEquivalentTo(new { TemporaryPassword = "TempPass==" });
     }
 }

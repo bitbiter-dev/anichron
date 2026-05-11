@@ -15,6 +15,7 @@ internal static class AuthMessages
     internal const string RefreshTokenInvalid = "Refresh token is invalid or has expired.";
     internal const string TooManyRequests = "Too many requests. Please try again later.";
     internal const string RefreshTokenCookieName = "refresh_token";
+    internal const string InviteTokenInvalid = "The invite token is invalid, expired, or has already been used.";
 }
 
 internal static class AuthRateLimitPolicies

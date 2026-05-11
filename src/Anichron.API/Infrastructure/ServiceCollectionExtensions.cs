@@ -119,6 +119,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IAuthResponseMapper, AuthResponseMapper>();
             services.AddScoped<IUserRepository, EfUserRepository>();
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
+            services.AddScoped<IInviteRepository, EfInviteRepository>();
             // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IRegistrationValidator, RegistrationValidator>();
@@ -126,6 +127,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddTransient<IBootstrapSeeder, BootstrapSeeder>();
             services.AddTransient<IAdminResetService, AdminResetService>();
+            services.AddTransient<IBootstrapResetService, BootstrapResetService>();
 
             // SameSite=None is required when the UI and API are on different origins so browsers
             // send the cookie on cross-origin requests. SameSite=Strict is safer for same-origin.

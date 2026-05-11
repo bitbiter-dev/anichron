@@ -45,4 +45,26 @@ public sealed class AdminEndpointsTests
         await auth.Received(1).AdminCreateUserAsync(
             ValidRequest.Username, ValidRequest.Email, Arg.Any<CancellationToken>());
     }
+
+    // ==========================================================================
+    // ResetUserPasswordAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task ResetUserPasswordAsync_CallsServiceWithUserIdAndPassesResultToMapper()
+    {
+        var userId = Guid.NewGuid();
+        var serviceResult = new AdminUserPasswordReset("TempPass==");
+        var expectedResult = Results.Ok(new { temporaryPassword = "TempPass==" });
+        var adminReset = Substitute.For<IAdminResetService>();
+        var mapper = Substitute.For<IAuthResponseMapper>();
+        adminReset.ResetUserPasswordAsync(userId, Arg.Any<CancellationToken>()).Returns(serviceResult);
+        mapper.GetAdminResetPasswordResult(serviceResult).Returns(expectedResult);
+
+        var result = await AdminEndpoints.ResetUserPasswordAsync(userId, adminReset, mapper, CancellationToken.None);
+
+        result.Should().BeSameAs(expectedResult);
+        await adminReset.Received(1).ResetUserPasswordAsync(userId, Arg.Any<CancellationToken>());
+        mapper.Received(1).GetAdminResetPasswordResult(serviceResult);
+    }
 }
