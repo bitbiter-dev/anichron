@@ -63,6 +63,21 @@ public sealed class MustChangePasswordMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_AuthenticatedWithClaimValueFalse_CallsNext()
+    {
+        var context = BuildContext(
+            Authenticated(new Claim(AppClaimTypes.MustChangePassword, "false")),
+            HttpMethods.Get, "/api/v1/some/endpoint");
+        var nextCalled = false;
+        var middleware = new MustChangePasswordMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeTrue();
+        context.Response.StatusCode.Should().Be(200);
+    }
+
+    [Fact]
     public async Task InvokeAsync_AuthenticatedWithClaim_PostChangePasswordPath_CallsNext()
     {
         var context = BuildContext(Authenticated(MustChangeClaim()), HttpMethods.Post, ChangePasswordPath);
