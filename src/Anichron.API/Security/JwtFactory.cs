@@ -44,6 +44,9 @@ public sealed class JwtFactory : IJwtFactory
         if (user.MustChangePassword)
             claims.Add(new Claim(AppClaimTypes.MustChangePassword, "true"));
 
+        if (user.IsAdmin)
+            claims.Add(new Claim(AppClaimTypes.IsAdmin, "true"));
+
         var token = new JwtSecurityToken(
             issuer: _settings.Issuer,
             audience: _settings.Audience,

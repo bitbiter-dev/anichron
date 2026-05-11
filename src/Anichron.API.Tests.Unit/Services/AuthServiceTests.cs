@@ -12,7 +12,7 @@ public sealed class AuthServiceTests
 {
     private sealed class TestFixture
     {
-        private readonly IUserRepository _users = Substitute.For<IUserRepository>();
+        internal readonly IUserRepository Users = Substitute.For<IUserRepository>();
         private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
         private readonly IClock _clock = Substitute.For<IClock>();
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
@@ -44,25 +44,25 @@ public sealed class AuthServiceTests
 
         public TestFixture WithUser(User user)
         {
-            _users.FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
+            Users.FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
             return this;
         }
 
         public TestFixture WithUsernameExists()
         {
-            _users.AnyByUsernameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+            Users.AnyByUsernameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
             return this;
         }
 
         public TestFixture WithEmailExists()
         {
-            _users.AnyByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+            Users.AnyByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
             return this;
         }
 
         public TestFixture WithNormalizedUsernameExists(string normalizedUsername)
         {
-            _users.AnyByUsernameAsync(normalizedUsername, Arg.Any<CancellationToken>()).Returns(true);
+            Users.AnyByUsernameAsync(normalizedUsername, Arg.Any<CancellationToken>()).Returns(true);
             return this;
         }
 
@@ -95,7 +95,7 @@ public sealed class AuthServiceTests
 
         public TestFixture WithUserById(Guid id, User? user)
         {
-            _users.FindByIdAsync(id, Arg.Any<CancellationToken>()).Returns(user);
+            Users.FindByIdAsync(id, Arg.Any<CancellationToken>()).Returns(user);
             return this;
         }
 
@@ -108,7 +108,7 @@ public sealed class AuthServiceTests
         }
 
         public AuthService CreateTestee() => new(
-            _users, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService);
+            Users, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService);
     }
 
     // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
@@ -684,5 +684,115 @@ public sealed class AuthServiceTests
 
         await fixture.TokenService.Received(1)
             .MarkAllSessionsRevokedAsync(userId, Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    // ==========================================================================
+    // AdminCreateUserAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task AdminCreateUserAsync_UsernameTaken_ReturnsUsernameTakenError()
+    {
+        var testee = new TestFixture().WithUsernameExists().CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.UsernameTaken);
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_EmailTaken_ReturnsEmailTakenError()
+    {
+        var testee = new TestFixture().WithEmailExists().CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.EmailTaken);
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_Success_IsSuccessAndTemporaryPasswordNonEmpty()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            result.IsSuccess.Should().BeTrue();
+            result.Value!.TemporaryPassword.Should().NotBeNullOrEmpty();
+        });
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_Success_UserAddedWithMustChangePasswordTrue()
+    {
+        User? capturedUser = null;
+        var fixture = new TestFixture();
+        fixture.Users.When(r => r.Add(Arg.Any<User>())).Do(c => capturedUser = c.Arg<User>());
+        var testee = fixture.CreateTestee();
+
+        await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        capturedUser.Should().NotBeNull();
+        capturedUser.MustChangePassword.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_Success_NormalizesUsernameAndEmail()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("  Alice  ", "  Alice@Example.COM  ", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            result.Value!.Username.Should().Be("alice");
+            result.Value.Email.Should().Be("alice@example.com");
+        });
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_DbUniqueViolationOnEmail_ReturnsEmailTakenError()
+    {
+        var testee = new TestFixture()
+            .WithSaveChangesThrows(UniqueViolation("ix_users_email"))
+            .CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.EmailTaken);
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_DbUniqueViolationOnUsername_ReturnsUsernameTakenError()
+    {
+        var testee = new TestFixture()
+            .WithSaveChangesThrows(UniqueViolation("ix_users_username"))
+            .CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.UsernameTaken);
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_NullUsername_ThrowsArgumentNullException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = async () => await testee.AdminCreateUserAsync(null!, "alice@example.com", CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("username");
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_NullEmail_ThrowsArgumentNullException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = async () => await testee.AdminCreateUserAsync("alice", null!, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("email");
     }
 }

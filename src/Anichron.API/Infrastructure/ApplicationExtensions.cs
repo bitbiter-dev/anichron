@@ -15,6 +15,7 @@ public static partial class ApplicationExtensions
             var api = app.MapGroup(ApiPaths.Base);
             api.MapAuthEndpoints();
             api.MapUserEndpoints();
+            api.MapAdminEndpoints();
             return app;
         }
 

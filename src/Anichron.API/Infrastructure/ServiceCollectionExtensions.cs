@@ -171,5 +171,12 @@ public static class ServiceCollectionExtensions
 
             return services;
         }
+
+        public IServiceCollection AddAuthorizationPolicies()
+        {
+            return services.AddAuthorization(options =>
+                options.AddPolicy(AuthPolicies.Admin,
+                    policy => policy.RequireClaim(AppClaimTypes.IsAdmin, "true")));
+        }
     }
 }
