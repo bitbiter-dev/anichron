@@ -6,7 +6,7 @@ internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
         new($"{ApiPaths.Base}/{ApiPaths.Users.Group}{ApiPaths.Users.ChangePassword}");
 
     private static readonly PathString LogoutPath =
-        new($"{ApiPaths.Base}/{ApiPaths.Users.Group}{ApiPaths.Auth.Logout}");
+        new($"{ApiPaths.Base}/{ApiPaths.Auth.Group}{ApiPaths.Auth.Logout}");
 
     public async Task InvokeAsync(HttpContext context)
     {
