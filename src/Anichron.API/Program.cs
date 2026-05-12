@@ -11,7 +11,8 @@ builder.Services
     .AddAuthorization()
     .AddAuthorizationPolicies()
     .AddRateLimiting()
-    .AddCorsPolicy(builder.Configuration);
+    .AddCorsPolicy(builder.Configuration)
+    .AddApiHealthChecks();
 
 var app = builder.Build();
 

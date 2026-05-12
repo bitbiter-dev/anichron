@@ -3,6 +3,7 @@ namespace Anichron.API.Infrastructure;
 internal static class ApiPaths
 {
     internal const string Base = "/api/v1";
+    internal const string Healthz = $"{Base}/healthz";
 
     internal static class Auth
     {
