@@ -644,13 +644,13 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetAdminPatchUserResult_CannotModifySelf_Returns400()
+    public void GetAdminPatchUserResult_CannotModifySelf_Returns403()
     {
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetAdminPatchUserResult(AuthResult.Fail<Core.Domain.User>(AuthError.CannotModifySelf));
 
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(400);
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(403);
     }
 
     [Fact]
@@ -698,13 +698,13 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetAdminDeleteUserResult_CannotModifySelf_Returns400()
+    public void GetAdminDeleteUserResult_CannotModifySelf_Returns403()
     {
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetAdminDeleteUserResult(AuthResult.Fail(AuthError.CannotModifySelf));
 
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(400);
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(403);
     }
 
     [Fact]

@@ -207,7 +207,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         => result.Error switch
         {
             AuthError.UserNotFound => Results.NotFound(),
-            AuthError.CannotModifySelf => Results.BadRequest(new { error = AuthMessages.CannotModifySelf }),
+            AuthError.CannotModifySelf => Results.Json(new { error = AuthMessages.CannotModifySelf }, statusCode: StatusCodes.Status403Forbidden),
             null => Results.Ok(ToAdminUserResponse(result.Value!)),
             AuthError.None or
             AuthError.UsernameTaken or
@@ -230,7 +230,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         => result.Error switch
         {
             AuthError.UserNotFound => Results.NotFound(),
-            AuthError.CannotModifySelf => Results.BadRequest(new { error = AuthMessages.CannotModifySelf }),
+            AuthError.CannotModifySelf => Results.Json(new { error = AuthMessages.CannotModifySelf }, statusCode: StatusCodes.Status403Forbidden),
             null => Results.NoContent(),
             AuthError.None or
             AuthError.UsernameTaken or
