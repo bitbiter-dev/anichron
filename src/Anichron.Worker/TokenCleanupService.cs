@@ -15,10 +15,8 @@ public sealed partial class TokenCleanupService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await RunCleanupAsync(stoppingToken);
-
         using var timer = new PeriodicTimer(TimeSpan.FromHours(_settings.TokenCleanupIntervalHours));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        do
         {
             try
             {
@@ -29,6 +27,7 @@ public sealed partial class TokenCleanupService(
                 Log.CleanupFailed(logger, ex);
             }
         }
+        while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
     internal async Task RunCleanupAsync(CancellationToken ct)

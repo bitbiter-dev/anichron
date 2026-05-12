@@ -10,5 +10,5 @@ public sealed record WorkerSettings
 
     public int MaxConcurrentFiles { get; init; } = 4;
 
-    public int TokenCleanupIntervalHours { get; init; } = 24;
+    public double TokenCleanupIntervalHours { get; init; } = 24;
 }

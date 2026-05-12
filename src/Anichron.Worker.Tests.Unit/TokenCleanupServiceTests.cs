@@ -15,7 +15,7 @@ public sealed class TokenCleanupServiceTests
         public IClock Clock { get; } = Substitute.For<IClock>();
         public Instant Now { get; }
 
-        private readonly IServiceScopeFactory _scopeFactory;
+        public IServiceScopeFactory ScopeFactory { get; }
 
         public TestFixture()
         {
@@ -26,16 +26,16 @@ public sealed class TokenCleanupServiceTests
             var scope = Substitute.For<IServiceScope>();
             scope.ServiceProvider.Returns(serviceProvider);
 
-            _scopeFactory = Substitute.For<IServiceScopeFactory>();
-            _scopeFactory.CreateScope().Returns(scope);
+            ScopeFactory = Substitute.For<IServiceScopeFactory>();
+            ScopeFactory.CreateScope().Returns(scope);
 
             serviceProvider.GetService(typeof(IRefreshTokenRepository)).Returns(Repository);
         }
 
-        public TokenCleanupService Build(int intervalHours = 24)
+        public TokenCleanupService Build(double intervalHours = 24)
         {
             var settings = Options.Create(new WorkerSettings { TokenCleanupIntervalHours = intervalHours });
-            return new TokenCleanupService(_scopeFactory, Clock, settings, Substitute.For<ILogger<TokenCleanupService>>());
+            return new TokenCleanupService(ScopeFactory, Clock, settings, Substitute.For<ILogger<TokenCleanupService>>());
         }
     }
 
@@ -54,28 +54,21 @@ public sealed class TokenCleanupServiceTests
         await fx.Repository.Received(1).DeleteExpiredAsync(fx.Now, Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task RunCleanupAsync_ZeroDeleted_CompletesWithoutException()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(42)]
+    public async Task RunCleanupAsync_LogsDeletedCountAtInformation(int deletedCount)
     {
         var fx = new TestFixture();
-        fx.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(0);
-        var sut = fx.Build();
+        fx.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(deletedCount);
+        var logger = new CapturingLogger();
+        var sut = new TokenCleanupService(fx.ScopeFactory, fx.Clock, Options.Create(new WorkerSettings()), logger);
 
-        var act = async () => await sut.RunCleanupAsync(CancellationToken.None);
+        await sut.RunCleanupAsync(CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
-    }
-
-    [Fact]
-    public async Task RunCleanupAsync_MultipleExpired_CompletesWithoutException()
-    {
-        var fx = new TestFixture();
-        fx.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(42);
-        var sut = fx.Build();
-
-        var act = async () => await sut.RunCleanupAsync(CancellationToken.None);
-
-        await act.Should().NotThrowAsync();
+        logger.Entries.Should().ContainSingle()
+            .Which.Should().Match<(LogLevel Level, string Message)>(
+                e => e.Level == LogLevel.Information && e.Message.Contains(deletedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     [Fact]
@@ -89,5 +82,17 @@ public sealed class TokenCleanupServiceTests
         var act = async () => await sut.RunCleanupAsync(CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB error");
+    }
+
+    private sealed class CapturingLogger : ILogger<TokenCleanupService>
+    {
+        private readonly List<(LogLevel Level, string Message)> _entries = [];
+        public IReadOnlyList<(LogLevel Level, string Message)> Entries => _entries;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => _entries.Add((logLevel, formatter(state, exception)));
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 }
