@@ -15,10 +15,19 @@ public sealed partial class TokenCleanupService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        await RunCleanupAsync(stoppingToken);
+
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(_settings.TokenCleanupIntervalHours));
+        while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await RunCleanupAsync(stoppingToken);
-            await Task.Delay(TimeSpan.FromHours(_settings.TokenCleanupIntervalHours), stoppingToken);
+            try
+            {
+                await RunCleanupAsync(stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.CleanupFailed(logger, ex);
+            }
         }
     }
 
@@ -35,5 +44,8 @@ public sealed partial class TokenCleanupService(
     {
         [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Count} expired refresh token(s).")]
         public static partial void TokensDeleted(ILogger logger, int count);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Token cleanup failed; will retry on next tick.")]
+        public static partial void CleanupFailed(ILogger logger, Exception ex);
     }
 }
