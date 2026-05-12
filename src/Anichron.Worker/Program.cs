@@ -1,8 +1,9 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Infrastructure.Configuration;
-using Anichron.Worker;
+using Anichron.Worker.Crawling;
 using Anichron.Worker.Infrastructure;
+using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Microsoft.EntityFrameworkCore;

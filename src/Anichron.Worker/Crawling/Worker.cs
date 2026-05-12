@@ -3,7 +3,7 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 
-namespace Anichron.Worker;
+namespace Anichron.Worker.Crawling;
 
 public sealed partial class Worker(
     IServiceScopeFactory scopeFactory,
