@@ -119,7 +119,15 @@ public sealed class AuthService(
 
         try
         {
-            await unitOfWork.SaveChangesAsync(ct);
+            return AuthResult.Ok(await unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                await unitOfWork.SaveChangesAsync(ct);
+                return await tokenService.IssueAsync(user, ct);
+            }, ct));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
         {
@@ -127,8 +135,6 @@ public sealed class AuthService(
                 ? AuthResult.Fail<AuthTokens>(AuthError.EmailTaken)
                 : AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken);
         }
-
-        return AuthResult.Ok(await tokenService.IssueAsync(user, ct));
     }
 
     internal static string HashInviteToken(string rawToken)

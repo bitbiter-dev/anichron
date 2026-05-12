@@ -351,8 +351,32 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             invite.UsedAt.Should().NotBeNull();
-            invite.UsedByUserId.Should().NotBeNull();
+            // GuidFactory mock returns Guid.Empty — verifies the FK points to the registered user.
+            invite.UsedByUserId.Should().Be(Guid.Empty);
         });
+    }
+
+    [Fact]
+    public async Task RegisterAsync_EmptyInviteToken_ReturnsInviteTokenInvalid()
+    {
+        var testee = new TestFixture().WithNoValidInvite().CreateTestee();
+
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", string.Empty, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.InviteTokenInvalid);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ConcurrentInviteRace_ReturnsInviteTokenInvalid()
+    {
+        // Simulates xmin concurrency conflict: two requests race to consume the same invite.
+        var fixture = new TestFixture()
+            .WithSaveChangesThrows(new DbUpdateConcurrencyException("concurrency conflict", (Exception?)null));
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.InviteTokenInvalid);
     }
 
     // ==========================================================================

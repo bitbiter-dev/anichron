@@ -20,6 +20,9 @@ public sealed class AdminResetServiceTests
         {
             _passwordHasher.Hash(Arg.Any<string>()).Returns("hashed_new_password");
             _clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 1, 1, 12, 0, 0));
+            UnitOfWork
+                .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
+                .Returns(callInfo => callInfo.Arg<Func<Task>>()());
         }
 
         public AdminResetService CreateTestee() => new(
@@ -96,5 +99,25 @@ public sealed class AdminResetServiceTests
         await testee.ResetUserPasswordAsync(user.Id, CancellationToken.None);
 
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ResetUserPasswordAsync_UserFound_RevokesTokensBeforeSavingChanges()
+    {
+        var user = new User { Id = Guid.NewGuid() };
+        var fixture = new TestFixture();
+        fixture.Users.FindByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var callOrder = new List<string>();
+        fixture.TokenService
+            .When(t => t.MarkAllSessionsRevokedAsync(Arg.Any<Guid>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
+            .Do(_ => callOrder.Add("revoke"));
+        fixture.UnitOfWork
+            .When(u => u.SaveChangesAsync(Arg.Any<CancellationToken>()))
+            .Do(_ => callOrder.Add("save"));
+        var testee = fixture.CreateTestee();
+
+        await testee.ResetUserPasswordAsync(user.Id, CancellationToken.None);
+
+        callOrder.Should().Equal("revoke", "save");
     }
 }

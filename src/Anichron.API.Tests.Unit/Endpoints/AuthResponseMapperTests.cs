@@ -524,8 +524,9 @@ public sealed class AuthResponseMapperTests
 
         var result = testee.GetAdminResetPasswordResult(new AdminUserPasswordReset("TempPass=="));
 
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(200);
-        result.Should().BeAssignableTo<IValueHttpResult>()
-            .Which.Value.Should().BeEquivalentTo(new { TemporaryPassword = "TempPass==" });
+        var ok = result.Should()
+            .BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<AdminPasswordResetResponse>>().Subject;
+        ok.StatusCode.Should().Be(200);
+        ok.Value.Should().Be(new AdminPasswordResetResponse("TempPass=="));
     }
 }

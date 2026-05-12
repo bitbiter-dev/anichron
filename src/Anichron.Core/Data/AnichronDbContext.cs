@@ -129,6 +129,14 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         modelBuilder.Entity<Invite>(entity =>
         {
             entity.HasIndex(i => i.TokenHash).IsUnique();
+            entity.Property(i => i.TokenHash).HasMaxLength(44);
+
+            // xmin is a Postgres system column incremented on every UPDATE.
+            // Npgsql recognises the "xmin" column name and excludes it from migrations.
+            entity.Property<uint>("xmin")
+                  .HasColumnName("xmin")
+                  .ValueGeneratedOnAddOrUpdate()
+                  .IsConcurrencyToken();
 
             entity.HasOne(i => i.CreatedBy)
                   .WithMany()
