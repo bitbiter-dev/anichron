@@ -528,4 +528,202 @@ public sealed class AuthResponseMapperTests
         ok.StatusCode.Should().Be(200);
         ok.Value.Should().Be(new AdminPasswordResetResponse("TempPass=="));
     }
+
+    // ==========================================================================
+    // GetAdminGetUsersResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminGetUsersResult_EmptyList_Returns200WithEmptyCollection()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminGetUsersResult([]);
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(200);
+    }
+
+    [Fact]
+    public void GetAdminGetUsersResult_WithUsers_Returns200WithMappedResponses()
+    {
+        var testee = new TestFixture().CreateTestee();
+        var userId = new Guid("11111111-0000-0000-0000-000000000001");
+        var user = new Core.Domain.User
+        {
+            Id = userId,
+            Username = "alice",
+            Email = "alice@example.com",
+            IsAdmin = true,
+            IsDisabled = false,
+            StorageConfigs = [new() { Id = Guid.NewGuid() }, new() { Id = Guid.NewGuid() }],
+        };
+
+        var ok = testee.GetAdminGetUsersResult([user])
+            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<List<AdminUserResponse>>>().Subject;
+
+        ok.StatusCode.Should().Be(200);
+        ok.Value.Should().ContainSingle(r =>
+            r.Id == userId &&
+            r.Username == "alice" &&
+            r.Email == "alice@example.com" &&
+            r.IsAdmin &&
+            !r.IsDisabled &&
+            r.StorageConfigCount == 2);
+    }
+
+    // ==========================================================================
+    // GetAdminGetUserResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminGetUserResult_NullUser_Returns404()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminGetUserResult(null);
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public void GetAdminGetUserResult_UserFound_Returns200WithMappedResponse()
+    {
+        var testee = new TestFixture().CreateTestee();
+        var userId = new Guid("22222222-0000-0000-0000-000000000002");
+        var user = new Core.Domain.User
+        {
+            Id = userId,
+            Username = "bob",
+            Email = "bob@example.com",
+            IsAdmin = false,
+            IsDisabled = true,
+            StorageConfigs = [new() { Id = Guid.NewGuid() }],
+        };
+
+        var ok = testee.GetAdminGetUserResult(user)
+            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<AdminUserResponse>>().Subject;
+
+        ok.StatusCode.Should().Be(200);
+        ok.Value.Should().Be(new AdminUserResponse(userId, "bob", "bob@example.com", false, true, 1));
+    }
+
+    // ==========================================================================
+    // GetAdminPatchUserResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminPatchUserResult_Success_Returns200WithMappedUser()
+    {
+        var testee = new TestFixture().CreateTestee();
+        var userId = new Guid("33333333-0000-0000-0000-000000000003");
+        var user = new Core.Domain.User
+        {
+            Id = userId,
+            Username = "carol",
+            Email = "carol@example.com",
+            IsAdmin = true,
+            IsDisabled = false,
+            StorageConfigs = [],
+        };
+
+        var ok = testee.GetAdminPatchUserResult(AuthResult.Ok(user))
+            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<AdminUserResponse>>().Subject;
+
+        ok.StatusCode.Should().Be(200);
+        ok.Value.Should().Be(new AdminUserResponse(userId, "carol", "carol@example.com", true, false, 0));
+    }
+
+    [Fact]
+    public void GetAdminPatchUserResult_UserNotFound_Returns404()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminPatchUserResult(AuthResult.Fail<Core.Domain.User>(AuthError.UserNotFound));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public void GetAdminPatchUserResult_CannotModifySelf_Returns403()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminPatchUserResult(AuthResult.Fail<Core.Domain.User>(AuthError.CannotModifySelf));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public void GetAdminPatchUserResult_ErrorFromOtherContext_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminPatchUserResult(AuthResult.Fail<Core.Domain.User>(AuthError.InvalidCredentials));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetAdminPatchUserResult_UndefinedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminPatchUserResult(AuthResult.Fail<Core.Domain.User>((AuthError)999));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    // ==========================================================================
+    // GetAdminDeleteUserResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminDeleteUserResult_Success_Returns204()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminDeleteUserResult(AuthResult.Ok());
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
+    }
+
+    [Fact]
+    public void GetAdminDeleteUserResult_UserNotFound_Returns404()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminDeleteUserResult(AuthResult.Fail(AuthError.UserNotFound));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public void GetAdminDeleteUserResult_CannotModifySelf_Returns403()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminDeleteUserResult(AuthResult.Fail(AuthError.CannotModifySelf));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public void GetAdminDeleteUserResult_ErrorFromOtherContext_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminDeleteUserResult(AuthResult.Fail(AuthError.InvalidCredentials));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetAdminDeleteUserResult_UndefinedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminDeleteUserResult(AuthResult.Fail((AuthError)999));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
 }

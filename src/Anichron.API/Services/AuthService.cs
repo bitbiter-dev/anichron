@@ -28,6 +28,8 @@ public enum AuthError
     AccountDisabled = 10,
     AccountTemporarilyLocked = 11,
     InviteTokenInvalid = 12,
+    CannotModifySelf = 13,
+    UserNotFound = 14,
 }
 
 public sealed record AuthResult<T>

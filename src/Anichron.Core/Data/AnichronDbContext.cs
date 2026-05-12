@@ -141,7 +141,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.HasOne(i => i.CreatedBy)
                   .WithMany()
                   .HasForeignKey(i => i.CreatedByUserId)
-                  .OnDelete(DeleteBehavior.Restrict);
+                  .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(i => i.UsedBy)
                   .WithMany()

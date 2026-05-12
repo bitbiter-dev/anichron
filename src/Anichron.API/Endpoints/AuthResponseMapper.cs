@@ -1,6 +1,7 @@
 using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.API.Settings;
+using Anichron.Core.Domain;
 using System.Diagnostics;
 using static System.Globalization.CultureInfo;
 
@@ -14,6 +15,10 @@ public interface IAuthResponseMapper
     IResult GetChangePasswordResult(AuthResult result, PasswordPolicy passwordPolicy);
     IResult GetAdminCreateUserResult(AuthResult<AdminCreatedUser> result);
     IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result);
+    IResult GetAdminGetUsersResult(List<User> users);
+    IResult GetAdminGetUserResult(User? user);
+    IResult GetAdminPatchUserResult(AuthResult<User> result);
+    IResult GetAdminDeleteUserResult(AuthResult result);
     void ClearRefreshCookie(HttpContext http);
 }
 
@@ -38,7 +43,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.InvalidCredentials or
                 AuthError.TokenInvalid or
                 AuthError.AccountDisabled or
-                AuthError.AccountTemporarilyLocked
+                AuthError.AccountTemporarilyLocked or
+                AuthError.CannotModifySelf or
+                AuthError.UserNotFound
                     => throw new UnreachableException($"Unexpected AuthError in Register: {result.Error}"),
                 _ => throw new UnreachableException($"Unhandled AuthError in Register: {result.Error}"),
             };
@@ -71,7 +78,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.PasswordTooShort or
                 AuthError.PasswordTooLong or
                 AuthError.PasswordPwned or
-                AuthError.InviteTokenInvalid
+                AuthError.InviteTokenInvalid or
+                AuthError.CannotModifySelf or
+                AuthError.UserNotFound
                     => throw new UnreachableException($"Unexpected AuthError in Login: {result.Error}"),
                 _ => throw new UnreachableException($"Unhandled AuthError in Login: {result.Error}"),
             };
@@ -103,7 +112,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.PasswordTooShort or
                 AuthError.PasswordTooLong or
                 AuthError.PasswordPwned or
-                AuthError.InviteTokenInvalid
+                AuthError.InviteTokenInvalid or
+                AuthError.CannotModifySelf or
+                AuthError.UserNotFound
                     => throw new UnreachableException($"Unexpected AuthError in Refresh: {result.Error}"),
                 _ => throw new UnreachableException($"Unhandled AuthError in Refresh: {result.Error}"),
             };
@@ -140,7 +151,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             AuthError.InvalidEmail or
             AuthError.AccountDisabled or
             AuthError.AccountTemporarilyLocked or
-            AuthError.InviteTokenInvalid
+            AuthError.InviteTokenInvalid or
+            AuthError.CannotModifySelf or
+            AuthError.UserNotFound
                 => throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
             _ => throw new UnreachableException($"Unhandled AuthError in ChangePassword: {result.Error}"),
         };
@@ -165,7 +178,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.PasswordPwned or
                 AuthError.AccountDisabled or
                 AuthError.AccountTemporarilyLocked or
-                AuthError.InviteTokenInvalid
+                AuthError.InviteTokenInvalid or
+                AuthError.CannotModifySelf or
+                AuthError.UserNotFound
                     => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
                 _ => throw new UnreachableException($"Unhandled AuthError in AdminCreateUser: {result.Error}"),
             };
@@ -182,8 +197,63 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             ? Results.NotFound()
             : Results.Ok(new AdminPasswordResetResponse(result.TemporaryPassword));
 
+    public IResult GetAdminGetUsersResult(List<User> users)
+        => Results.Ok(users.ConvertAll(ToAdminUserResponse));
+
+    public IResult GetAdminGetUserResult(User? user)
+        => user is null ? Results.NotFound() : Results.Ok(ToAdminUserResponse(user));
+
+    public IResult GetAdminPatchUserResult(AuthResult<User> result)
+        => result.Error switch
+        {
+            AuthError.UserNotFound => Results.NotFound(),
+            AuthError.CannotModifySelf => Results.Json(new { error = AuthMessages.CannotModifySelf }, statusCode: StatusCodes.Status403Forbidden),
+            null => Results.Ok(ToAdminUserResponse(result.Value!)),
+            AuthError.None or
+            AuthError.UsernameTaken or
+            AuthError.EmailTaken or
+            AuthError.InvalidCredentials or
+            AuthError.TokenInvalid or
+            AuthError.InvalidUsername or
+            AuthError.InvalidEmail or
+            AuthError.PasswordTooShort or
+            AuthError.PasswordTooLong or
+            AuthError.PasswordPwned or
+            AuthError.AccountDisabled or
+            AuthError.AccountTemporarilyLocked or
+            AuthError.InviteTokenInvalid
+                => throw new UnreachableException($"Unexpected AuthError in AdminPatchUser: {result.Error}"),
+            _ => throw new UnreachableException($"Unhandled AuthError in AdminPatchUser: {result.Error}"),
+        };
+
+    public IResult GetAdminDeleteUserResult(AuthResult result)
+        => result.Error switch
+        {
+            AuthError.UserNotFound => Results.NotFound(),
+            AuthError.CannotModifySelf => Results.Json(new { error = AuthMessages.CannotModifySelf }, statusCode: StatusCodes.Status403Forbidden),
+            null => Results.NoContent(),
+            AuthError.None or
+            AuthError.UsernameTaken or
+            AuthError.EmailTaken or
+            AuthError.InvalidCredentials or
+            AuthError.TokenInvalid or
+            AuthError.InvalidUsername or
+            AuthError.InvalidEmail or
+            AuthError.PasswordTooShort or
+            AuthError.PasswordTooLong or
+            AuthError.PasswordPwned or
+            AuthError.AccountDisabled or
+            AuthError.AccountTemporarilyLocked or
+            AuthError.InviteTokenInvalid
+                => throw new UnreachableException($"Unexpected AuthError in AdminDeleteUser: {result.Error}"),
+            _ => throw new UnreachableException($"Unhandled AuthError in AdminDeleteUser: {result.Error}"),
+        };
+
     public void ClearRefreshCookie(HttpContext http)
         => http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);
+
+    private static AdminUserResponse ToAdminUserResponse(User user)
+        => new(user.Id, user.Username, user.Email, user.IsAdmin, user.IsDisabled, user.StorageConfigs.Count);
 
     private IResult BuildTokenResponse(AuthTokens tokens, HttpContext http, bool setCookie)
     {

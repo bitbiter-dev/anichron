@@ -40,7 +40,7 @@ namespace Anichron.Core.Migrations
                     CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
                     ExpiresAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
                     UsedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
-                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: true),
                     UsedByUserId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
@@ -51,7 +51,7 @@ namespace Anichron.Core.Migrations
                         column: x => x.CreatedByUserId,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_Invites_Users_UsedByUserId",
                         column: x => x.UsedByUserId,
