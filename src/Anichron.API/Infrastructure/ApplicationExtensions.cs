@@ -3,6 +3,7 @@ using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Infrastructure.Data;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 namespace Anichron.API.Infrastructure;
 
@@ -12,6 +13,11 @@ public static partial class ApplicationExtensions
     {
         public WebApplication MapApiEndpoints()
         {
+            app.MapHealthChecks(ApiPaths.Healthz, new HealthCheckOptions
+            {
+                ResponseWriter = HealthCheckResponseWriter.WriteResponseAsync
+            }).AllowAnonymous();
+
             var api = app.MapGroup(ApiPaths.Base);
             api.MapAuthEndpoints();
             api.MapUserEndpoints();

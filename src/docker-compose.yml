@@ -47,6 +47,12 @@ services:
     volumes:
       - /path/to/your/nas:/data/originals:ro
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       anichron-db:
         condition: service_healthy

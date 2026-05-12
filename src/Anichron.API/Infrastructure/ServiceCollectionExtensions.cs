@@ -180,5 +180,14 @@ public static class ServiceCollectionExtensions
                 options.AddPolicy(AuthPolicies.Admin,
                     policy => policy.RequireClaim(AppClaimTypes.IsAdmin, "true")));
         }
+
+        public IServiceCollection AddApiHealthChecks()
+        {
+            services.AddSingleton<IFileSystem, FileSystem>();
+            services.AddHealthChecks()
+                    .AddDbContextCheck<AnichronDbContext>("database")
+                    .AddCheck<ProxyStorageHealthCheck>("proxyStorage");
+            return services;
+        }
     }
 }

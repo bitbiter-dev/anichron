@@ -69,6 +69,11 @@ internal static class AppDefaults
         internal const int BackoffBase = 2;
     }
 
+    internal static class Storage
+    {
+        internal const string ProxyPath = "/data/proxies";
+    }
+
     internal static class Startup
     {
         internal const int MaxDbRetryAttempts = 10;
