@@ -16,6 +16,7 @@ public static class HostApplicationBuilderExtensions
                 new IniEntry("Worker", "RootPath", () => "/data/originals"),
                 new IniEntry("Worker", "CrawlIntervalHours", () => "4"),
                 new IniEntry("Worker", "MaxConcurrentFiles", () => "4"),
+                new IniEntry("Worker", "TokenCleanupIntervalHours", () => "24"),
             ]);
             builder.Configuration.AddIniFile(iniPath, optional: false, reloadOnChange: false);
             builder.Configuration.AddEnvironmentVariables();

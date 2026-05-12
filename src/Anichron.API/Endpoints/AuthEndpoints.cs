@@ -23,7 +23,7 @@ public static class AuthEndpoints
         return app;
     }
 
-    private static async Task<IResult> RegisterAsync(
+    internal static async Task<IResult> RegisterAsync(
         RegisterRequest req,
         IAuthService auth,
         IAuthResponseMapper mapper,
@@ -36,11 +36,11 @@ public static class AuthEndpoints
         return mapper.GetRegistrationResult(result, http, passwordPolicy.Value, usernamePolicy.Value);
     }
 
-    private static Task<IResult> LoginWebAsync(
+    internal static Task<IResult> LoginWebAsync(
         LoginRequest req, IAuthService auth, IAuthResponseMapper mapper, HttpContext http, CancellationToken ct)
         => HandleLoginAsync(req, auth, mapper, http, setCookie: true, ct);
 
-    private static Task<IResult> LoginMobileAsync(
+    internal static Task<IResult> LoginMobileAsync(
         LoginRequest req, IAuthService auth, IAuthResponseMapper mapper, HttpContext http, CancellationToken ct)
         => HandleLoginAsync(req, auth, mapper, http, setCookie: false, ct);
 
@@ -51,7 +51,7 @@ public static class AuthEndpoints
         return mapper.GetLoginResult(result, http, setCookie);
     }
 
-    private static async Task<IResult> RefreshAsync(
+    internal static async Task<IResult> RefreshAsync(
         HttpContext http,
         IAuthService auth,
         IAuthResponseMapper mapper,
@@ -73,7 +73,7 @@ public static class AuthEndpoints
         return mapper.GetRefreshResult(result, http, setCookie);
     }
 
-    private static async Task<IResult> LogoutAsync(
+    internal static async Task<IResult> LogoutAsync(
         HttpContext http, IAuthService auth, IAuthResponseMapper mapper, [FromBody] RefreshRequest? req, CancellationToken ct)
     {
         var rawToken = http.Request.Cookies[AuthMessages.RefreshTokenCookieName] ?? req?.RefreshToken;

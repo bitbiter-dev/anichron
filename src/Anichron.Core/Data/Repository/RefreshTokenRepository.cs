@@ -9,6 +9,7 @@ public interface IRefreshTokenRepository
     Task<RefreshToken?> FindByHashAsync(string tokenHash, CancellationToken ct);
     void Add(RefreshToken token);
     Task RevokeAllActiveByUserIdAsync(Guid userId, Instant revokedAt, CancellationToken ct);
+    Task<int> DeleteExpiredAsync(Instant before, CancellationToken ct);
 }
 
 public sealed class EfRefreshTokenRepository(AnichronDbContext db) : IRefreshTokenRepository
@@ -26,4 +27,7 @@ public sealed class EfRefreshTokenRepository(AnichronDbContext db) : IRefreshTok
         => db.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, revokedAt), ct);
+
+    public Task<int> DeleteExpiredAsync(Instant before, CancellationToken ct)
+        => db.RefreshTokens.Where(t => t.ExpiresAt < before).ExecuteDeleteAsync(ct);
 }

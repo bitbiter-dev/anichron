@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Microsoft.Extensions.DependencyInjection;
