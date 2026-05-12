@@ -1,5 +1,4 @@
 using Anichron.API.Endpoints;
-using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Microsoft.AspNetCore.Http;
@@ -340,7 +339,7 @@ public sealed class AuthResponseMapperTests
 
         testee.ClearRefreshCookie(http);
 
-        http.Response.Headers.SetCookie.ToString().Should().Contain(AuthMessages.RefreshTokenCookieName);
+        http.Response.Headers.SetCookie.ToString().Should().Contain("refresh_token");
     }
 
     // ==========================================================================
@@ -372,7 +371,7 @@ public sealed class AuthResponseMapperTests
         Assert.Multiple(() =>
         {
             http.Response.StatusCode.Should().Be(400);
-            body.Should().Contain(AuthMessages.InvalidCredentials);
+            body.Should().Contain("The username, email, or password is incorrect.");
         });
     }
 
@@ -425,7 +424,7 @@ public sealed class AuthResponseMapperTests
         Assert.Multiple(() =>
         {
             http.Response.StatusCode.Should().Be(422);
-            body.Should().Contain(AuthMessages.PasswordPwned);
+            body.Should().Contain("This password has appeared in a known data breach. Please choose a different one.");
         });
     }
 

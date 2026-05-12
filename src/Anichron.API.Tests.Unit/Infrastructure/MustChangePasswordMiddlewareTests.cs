@@ -24,7 +24,7 @@ public sealed class MustChangePasswordMiddlewareTests
     private static ClaimsPrincipal Unauthenticated()
         => new(new ClaimsIdentity());
 
-    private static Claim MustChangeClaim() => new(AppClaimTypes.MustChangePassword, "true");
+    private static Claim MustChangeClaim() => new("must_change_password", "true");
 
     private static async Task<string> ReadBodyAsync(HttpResponse response)
     {
@@ -66,7 +66,7 @@ public sealed class MustChangePasswordMiddlewareTests
     public async Task InvokeAsync_AuthenticatedWithClaimValueFalse_CallsNext()
     {
         var context = BuildContext(
-            Authenticated(new Claim(AppClaimTypes.MustChangePassword, "false")),
+            Authenticated(new Claim("must_change_password", "false")),
             HttpMethods.Get, "/api/v1/some/endpoint");
         var nextCalled = false;
         var middleware = new MustChangePasswordMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });

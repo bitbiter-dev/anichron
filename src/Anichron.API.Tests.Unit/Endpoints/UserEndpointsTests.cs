@@ -1,5 +1,4 @@
 using Anichron.API.Endpoints;
-using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data.Repository;
@@ -188,7 +187,7 @@ public sealed class UserEndpointsTests
         var policy = new PasswordPolicy();
         var options = Options.Create(policy);
         var failureResult = AuthResult.Fail(AuthError.InvalidCredentials);
-        var expectedResult = Results.Json(new { error = AuthMessages.InvalidCredentials }, statusCode: 400);
+        var expectedResult = Results.Json(new { error = "The username, email, or password is incorrect." }, statusCode: 400);
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(failureResult);
         mapper.GetChangePasswordResult(failureResult, policy)
