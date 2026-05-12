@@ -91,7 +91,7 @@ namespace Anichron.Core.Migrations
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("CreatedByUserId")
+                    b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uuid");
 
                     b.Property<Instant>("ExpiresAt")
@@ -400,8 +400,7 @@ namespace Anichron.Core.Migrations
                     b.HasOne("Anichron.Core.Domain.User", "CreatedBy")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Anichron.Core.Domain.User", "UsedBy")
                         .WithMany()

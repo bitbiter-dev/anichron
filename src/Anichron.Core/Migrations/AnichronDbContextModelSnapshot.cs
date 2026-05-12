@@ -57,7 +57,7 @@ namespace Anichron.Core.Migrations
                     b.HasIndex("UserId", "AssetId")
                         .IsUnique();
 
-                    b.ToTable("Interactions");
+                    b.ToTable("Interactions", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.Burst", b =>
@@ -76,7 +76,7 @@ namespace Anichron.Core.Migrations
 
                     b.HasIndex("PrimaryAssetId");
 
-                    b.ToTable("Bursts");
+                    b.ToTable("Bursts", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.Invite", b =>
@@ -88,7 +88,7 @@ namespace Anichron.Core.Migrations
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("CreatedByUserId")
+                    b.Property<Guid?>("CreatedByUserId")
                         .HasColumnType("uuid");
 
                     b.Property<Instant>("ExpiresAt")
@@ -120,7 +120,7 @@ namespace Anichron.Core.Migrations
 
                     b.HasIndex("UsedByUserId");
 
-                    b.ToTable("Invites");
+                    b.ToTable("Invites", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.MediaAsset", b =>
@@ -190,7 +190,7 @@ namespace Anichron.Core.Migrations
                     b.HasIndex("StorageConfigId", "FilePath")
                         .IsUnique();
 
-                    b.ToTable("MediaAssets");
+                    b.ToTable("MediaAssets", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.Metadata", b =>
@@ -227,7 +227,7 @@ namespace Anichron.Core.Migrations
 
                     b.HasKey("AssetId");
 
-                    b.ToTable("Metadata");
+                    b.ToTable("Metadata", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.ProxyFile", b =>
@@ -257,7 +257,7 @@ namespace Anichron.Core.Migrations
 
                     b.HasIndex("AssetId");
 
-                    b.ToTable("ProxyFiles");
+                    b.ToTable("ProxyFiles", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.RefreshToken", b =>
@@ -289,7 +289,7 @@ namespace Anichron.Core.Migrations
 
                     b.HasIndex("UserId", "ExpiresAt");
 
-                    b.ToTable("RefreshTokens");
+                    b.ToTable("RefreshTokens", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.User", b =>
@@ -333,7 +333,7 @@ namespace Anichron.Core.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.UserStorageConfig", b =>
@@ -359,7 +359,7 @@ namespace Anichron.Core.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("StorageConfigs");
+                    b.ToTable("StorageConfigs", (string)null);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.AssetInteraction", b =>
@@ -397,8 +397,7 @@ namespace Anichron.Core.Migrations
                     b.HasOne("Anichron.Core.Domain.User", "CreatedBy")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Anichron.Core.Domain.User", "UsedBy")
                         .WithMany()

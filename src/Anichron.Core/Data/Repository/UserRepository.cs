@@ -12,7 +12,10 @@ public interface IUserRepository
     Task<User?> FindByCredentialAsync(string normalizedCredential, CancellationToken ct);
     Task<User?> FindAdminByUsernameAsync(string username, CancellationToken ct);
     Task<List<User>> FindAdminsAsync(int take, CancellationToken ct);
+    Task<List<User>> GetAllAsync(CancellationToken ct);
+    Task<User?> FindByIdWithConfigsAsync(Guid id, CancellationToken ct);
     void Add(User user);
+    void Remove(User user);
 }
 
 public sealed class EfUserRepository(AnichronDbContext db) : IUserRepository
@@ -39,6 +42,15 @@ public sealed class EfUserRepository(AnichronDbContext db) : IUserRepository
     public Task<List<User>> FindAdminsAsync(int take, CancellationToken ct)
         => db.Users.Where(u => u.IsAdmin).Take(take).ToListAsync(ct);
 
+    public Task<List<User>> GetAllAsync(CancellationToken ct)
+        => db.Users.Include(u => u.StorageConfigs).ToListAsync(ct);
+
+    public Task<User?> FindByIdWithConfigsAsync(Guid id, CancellationToken ct)
+        => db.Users.Include(u => u.StorageConfigs).FirstOrDefaultAsync(u => u.Id == id, ct);
+
     public void Add(User user)
         => db.Users.Add(user);
+
+    public void Remove(User user)
+        => db.Users.Remove(user);
 }
