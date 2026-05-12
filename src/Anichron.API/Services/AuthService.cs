@@ -6,6 +6,7 @@ using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Anichron.API.Services;
 
@@ -26,6 +27,7 @@ public enum AuthError
     PasswordPwned = 9,
     AccountDisabled = 10,
     AccountTemporarilyLocked = 11,
+    InviteTokenInvalid = 12,
 }
 
 public sealed record AuthResult<T>
@@ -57,7 +59,7 @@ public sealed record AuthResult
 
 public interface IAuthService
 {
-    Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, CancellationToken ct);
+    Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct);
     Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct);
     Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct);
     Task RevokeAsync(string rawToken, CancellationToken ct);
@@ -67,6 +69,7 @@ public interface IAuthService
 
 public sealed class AuthService(
     IUserRepository users,
+    IInviteRepository invites,
     IUnitOfWork unitOfWork,
     IClock clock,
     IGuidFactory guidFactory,
@@ -77,11 +80,17 @@ public sealed class AuthService(
 {
     private readonly string _dummyPasswordHash = passwordHasher.Hash(guidFactory.NewGuid().ToString());
 
-    public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, CancellationToken ct)
+    public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(username);
         ArgumentNullException.ThrowIfNull(email);
         ArgumentNullException.ThrowIfNull(password);
+        ArgumentNullException.ThrowIfNull(inviteToken);
+
+        var now = clock.GetCurrentInstant();
+        var invite = await invites.FindValidByHashAsync(HashInviteToken(inviteToken), now, ct);
+        if (invite is null)
+            return AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid);
 
         var normalizedUsername = username.Trim().ToLowerInvariant();
         var normalizedEmail = email.Trim().ToLowerInvariant();
@@ -105,10 +114,20 @@ public sealed class AuthService(
         };
 
         users.Add(user);
+        invite.UsedAt = now;
+        invite.UsedByUserId = user.Id;
 
         try
         {
-            await unitOfWork.SaveChangesAsync(ct);
+            return AuthResult.Ok(await unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                await unitOfWork.SaveChangesAsync(ct);
+                return await tokenService.IssueAsync(user, ct);
+            }, ct));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
         {
@@ -116,9 +135,10 @@ public sealed class AuthService(
                 ? AuthResult.Fail<AuthTokens>(AuthError.EmailTaken)
                 : AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken);
         }
-
-        return AuthResult.Ok(await tokenService.IssueAsync(user, ct));
     }
+
+    internal static string HashInviteToken(string rawToken)
+        => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 
     public async Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct)
     {

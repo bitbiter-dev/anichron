@@ -3,8 +3,6 @@ using Anichron.API.Services;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace Anichron.API.Tests.Unit.Services;
 
@@ -14,152 +12,112 @@ public sealed class AdminResetServiceTests
     {
         public IUserRepository Users { get; } = Substitute.For<IUserRepository>();
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
+        private readonly IClock _clock = Substitute.For<IClock>();
         private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
-        private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
-        private readonly ILogger<AdminResetService> _logger = Substitute.For<ILogger<AdminResetService>>();
+        internal readonly ITokenService TokenService = Substitute.For<ITokenService>();
 
         public TestFixture()
         {
-            _configuration[Arg.Any<string>()].Returns((string?)null);
             _passwordHasher.Hash(Arg.Any<string>()).Returns("hashed_new_password");
-        }
-
-        public TestFixture WithResetPassword(string password)
-        {
-            _configuration["ADMIN_RESET_PASSWORD"].Returns(password);
-            return this;
-        }
-
-        public TestFixture WithTargetUsername(string username)
-        {
-            _configuration["ADMIN_RESET_USERNAME"].Returns(username);
-            return this;
-        }
-
-        public TestFixture WithAdminByUsername(string username, User? admin)
-        {
-            Users.FindAdminByUsernameAsync(username, Arg.Any<CancellationToken>()).Returns(admin);
-            return this;
-        }
-
-        public TestFixture WithAdmins(List<User> admins)
-        {
-            Users.FindAdminsAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(admins);
-            return this;
+            _clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 1, 1, 12, 0, 0));
+            UnitOfWork
+                .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
+                .Returns(callInfo => callInfo.Arg<Func<Task>>()());
         }
 
         public AdminResetService CreateTestee() => new(
-            Users, UnitOfWork, _passwordHasher, _configuration, _logger);
+            Users, UnitOfWork, _clock, _passwordHasher, TokenService);
     }
 
-    // ==========================================================================
-    // ResetIfRequestedAsync
-    // ==========================================================================
-
     [Fact]
-    public async Task ResetIfRequestedAsync_NoResetPasswordConfigured_ReturnsWithoutAnyDbCalls()
+    public async Task ResetUserPasswordAsync_UserNotFound_ReturnsNull()
     {
+        var userId = Guid.NewGuid();
         var fixture = new TestFixture();
+        fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns((User?)null);
         var testee = fixture.CreateTestee();
 
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
+        var result = await testee.ResetUserPasswordAsync(userId, CancellationToken.None);
 
-        fixture.Users.DidNotReceive().Add(Arg.Any<User>());
-        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        result.Should().BeNull();
     }
 
     [Fact]
-    public async Task ResetIfRequestedAsync_TargetUsernameSet_AdminFound_ResetsPasswordAndSaves()
+    public async Task ResetUserPasswordAsync_UserFound_ReturnsNonEmptyTemporaryPassword()
     {
-        var admin = new User { Username = "alice", MustChangePassword = false };
-        var fixture = new TestFixture()
-            .WithResetPassword("new_password")
-            .WithTargetUsername("alice")
-            .WithAdminByUsername("alice", admin);
+        var user = new User { Id = Guid.NewGuid() };
+        var fixture = new TestFixture();
+        fixture.Users.FindByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var testee = fixture.CreateTestee();
 
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
+        var result = await testee.ResetUserPasswordAsync(user.Id, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result.TemporaryPassword.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task ResetUserPasswordAsync_UserFound_SetsMustChangePasswordAndHashesPassword()
+    {
+        var user = new User { Id = Guid.NewGuid(), MustChangePassword = false };
+        var fixture = new TestFixture();
+        fixture.Users.FindByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.ResetUserPasswordAsync(user.Id, CancellationToken.None);
 
         Assert.Multiple(() =>
         {
-            admin.PasswordHash.Should().Be("hashed_new_password");
-            admin.MustChangePassword.Should().BeTrue();
+            user.MustChangePassword.Should().BeTrue();
+            user.PasswordHash.Should().Be("hashed_new_password");
+            user.PasswordHash.Should().NotBe(result!.TemporaryPassword);
         });
+    }
+
+    [Fact]
+    public async Task ResetUserPasswordAsync_UserFound_RevokesAllTokens()
+    {
+        var user = new User { Id = Guid.NewGuid() };
+        var fixture = new TestFixture();
+        fixture.Users.FindByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var testee = fixture.CreateTestee();
+
+        await testee.ResetUserPasswordAsync(user.Id, CancellationToken.None);
+
+        await fixture.TokenService.Received(1)
+            .MarkAllSessionsRevokedAsync(user.Id, Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ResetUserPasswordAsync_UserFound_SavesChanges()
+    {
+        var user = new User { Id = Guid.NewGuid() };
+        var fixture = new TestFixture();
+        fixture.Users.FindByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var testee = fixture.CreateTestee();
+
+        await testee.ResetUserPasswordAsync(user.Id, CancellationToken.None);
+
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ResetIfRequestedAsync_TargetUsernameSet_AdminNotFound_DoesNotSave()
+    public async Task ResetUserPasswordAsync_UserFound_RevokesTokensBeforeSavingChanges()
     {
-        var fixture = new TestFixture()
-            .WithResetPassword("new_password")
-            .WithTargetUsername("ghost")
-            .WithAdminByUsername("ghost", null);
+        var user = new User { Id = Guid.NewGuid() };
+        var fixture = new TestFixture();
+        fixture.Users.FindByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var callOrder = new List<string>();
+        fixture.TokenService
+            .When(t => t.MarkAllSessionsRevokedAsync(Arg.Any<Guid>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
+            .Do(_ => callOrder.Add("revoke"));
+        fixture.UnitOfWork
+            .When(u => u.SaveChangesAsync(Arg.Any<CancellationToken>()))
+            .Do(_ => callOrder.Add("save"));
         var testee = fixture.CreateTestee();
 
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
+        await testee.ResetUserPasswordAsync(user.Id, CancellationToken.None);
 
-        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ResetIfRequestedAsync_TargetUsernameSet_NormalizesBeforeLookup()
-    {
-        var admin = new User { Username = "alice" };
-        var fixture = new TestFixture()
-            .WithResetPassword("new_password")
-            .WithTargetUsername("  ALICE  ")
-            .WithAdminByUsername("alice", admin);
-        var testee = fixture.CreateTestee();
-
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
-
-        await fixture.Users.Received(1)
-            .FindAdminByUsernameAsync("alice", Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ResetIfRequestedAsync_NoTargetUsername_NoAdmins_DoesNotSave()
-    {
-        var fixture = new TestFixture()
-            .WithResetPassword("new_password")
-            .WithAdmins([]);
-        var testee = fixture.CreateTestee();
-
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
-
-        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ResetIfRequestedAsync_NoTargetUsername_MultipleAdmins_DoesNotSave()
-    {
-        var fixture = new TestFixture()
-            .WithResetPassword("new_password")
-            .WithAdmins([new User(), new User()]);
-        var testee = fixture.CreateTestee();
-
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
-
-        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ResetIfRequestedAsync_NoTargetUsername_SingleAdmin_ResetsPasswordAndSaves()
-    {
-        var admin = new User { Username = "admin", MustChangePassword = false };
-        var fixture = new TestFixture()
-            .WithResetPassword("new_password")
-            .WithAdmins([admin]);
-        var testee = fixture.CreateTestee();
-
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
-
-        Assert.Multiple(() =>
-        {
-            admin.PasswordHash.Should().Be("hashed_new_password");
-            admin.MustChangePassword.Should().BeTrue();
-        });
-        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        callOrder.Should().Equal("revoke", "save");
     }
 }

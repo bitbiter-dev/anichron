@@ -32,7 +32,7 @@ public static class AuthEndpoints
         IOptions<UsernamePolicy> usernamePolicy,
         CancellationToken ct)
     {
-        var result = await auth.RegisterAsync(req.Username, req.Email, req.Password, ct);
+        var result = await auth.RegisterAsync(req.Username, req.Email, req.Password, req.InviteToken, ct);
         return mapper.GetRegistrationResult(result, http, passwordPolicy.Value, usernamePolicy.Value);
     }
 
@@ -89,6 +89,6 @@ public static class AuthEndpoints
     private static IResult PasswordResetConfirm() => Results.StatusCode(StatusCodes.Status501NotImplemented);
 }
 
-public sealed record RegisterRequest(string Username, string Email, string Password);
+public sealed record RegisterRequest(string Username, string Email, string Password, string InviteToken);
 public sealed record LoginRequest(string UsernameOrEmail, string Password);
 public sealed record RefreshRequest(string RefreshToken);

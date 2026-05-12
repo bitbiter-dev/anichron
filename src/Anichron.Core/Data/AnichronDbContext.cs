@@ -13,6 +13,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<Burst> Bursts => Set<Burst>();
     public DbSet<AssetInteraction> Interactions => Set<AssetInteraction>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Invite> Invites => Set<Invite>();
 
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken ct = default)
     {
@@ -123,6 +124,29 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .WithMany(u => u.RefreshTokens)
                   .HasForeignKey(r => r.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Invite>(entity =>
+        {
+            entity.HasIndex(i => i.TokenHash).IsUnique();
+            entity.Property(i => i.TokenHash).HasMaxLength(44);
+
+            // xmin is a Postgres system column incremented on every UPDATE.
+            // Npgsql recognises the "xmin" column name and excludes it from migrations.
+            entity.Property<uint>("xmin")
+                  .HasColumnName("xmin")
+                  .ValueGeneratedOnAddOrUpdate()
+                  .IsConcurrencyToken();
+
+            entity.HasOne(i => i.CreatedBy)
+                  .WithMany()
+                  .HasForeignKey(i => i.CreatedByUserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(i => i.UsedBy)
+                  .WithMany()
+                  .HasForeignKey(i => i.UsedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<User>(entity =>

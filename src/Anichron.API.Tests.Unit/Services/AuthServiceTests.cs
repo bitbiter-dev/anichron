@@ -13,6 +13,7 @@ public sealed class AuthServiceTests
     private sealed class TestFixture
     {
         internal readonly IUserRepository Users = Substitute.For<IUserRepository>();
+        private readonly IInviteRepository _invites = Substitute.For<IInviteRepository>();
         private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
         private readonly IClock _clock = Substitute.For<IClock>();
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
@@ -34,6 +35,23 @@ public sealed class AuthServiceTests
             _unitOfWork
                 .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo => callInfo.Arg<Func<Task>>()());
+            // Default: return a valid invite so existing register tests are unaffected
+            _invites.FindValidByHashAsync(Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+                .Returns(new Invite { Id = Guid.NewGuid(), CreatedByUserId = Guid.NewGuid() });
+        }
+
+        public TestFixture WithNoValidInvite()
+        {
+            _invites.FindValidByHashAsync(Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+                .Returns((Invite?)null);
+            return this;
+        }
+
+        public TestFixture WithValidInvite(Invite invite)
+        {
+            _invites.FindValidByHashAsync(Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+                .Returns(invite);
+            return this;
         }
 
         public TestFixture WithPasswordValid()
@@ -108,7 +126,7 @@ public sealed class AuthServiceTests
         }
 
         public AuthService CreateTestee() => new(
-            Users, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService);
+            Users, _invites, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService);
     }
 
     // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
@@ -129,7 +147,7 @@ public sealed class AuthServiceTests
             .WithTokenIssued(new AuthTokens("acc", "ref"));
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -144,7 +162,7 @@ public sealed class AuthServiceTests
     {
         var testee = new TestFixture().CreateTestee();
 
-        var act = async () => await testee.RegisterAsync(null!, "alice@example.com", "password", CancellationToken.None);
+        var act = async () => await testee.RegisterAsync(null!, "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("username");
     }
@@ -154,7 +172,7 @@ public sealed class AuthServiceTests
     {
         var testee = new TestFixture().CreateTestee();
 
-        var act = async () => await testee.RegisterAsync("alice", null!, "password", CancellationToken.None);
+        var act = async () => await testee.RegisterAsync("alice", null!, "password", "invite_token", CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("email");
     }
@@ -164,7 +182,7 @@ public sealed class AuthServiceTests
     {
         var testee = new TestFixture().CreateTestee();
 
-        var act = async () => await testee.RegisterAsync("alice", "alice@example.com", null!, CancellationToken.None);
+        var act = async () => await testee.RegisterAsync("alice", "alice@example.com", null!, "invite_token", CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("password");
     }
@@ -181,7 +199,7 @@ public sealed class AuthServiceTests
             .WithValidationError(validationError);
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -197,7 +215,7 @@ public sealed class AuthServiceTests
             .WithUsernameExists();
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -213,7 +231,7 @@ public sealed class AuthServiceTests
             .WithEmailExists();
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -229,7 +247,7 @@ public sealed class AuthServiceTests
             .WithSaveChangesThrows(UniqueViolation("ix_users_email_unique"));
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -245,7 +263,7 @@ public sealed class AuthServiceTests
             .WithSaveChangesThrows(UniqueViolation("ix_users_username_unique"));
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -261,7 +279,7 @@ public sealed class AuthServiceTests
             .WithSaveChangesThrows(UniqueViolation(null));
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -279,9 +297,86 @@ public sealed class AuthServiceTests
             .WithNormalizedUsernameExists("alice");
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("  ALICE  ", "alice@example.com", "password", CancellationToken.None);
+        var result = await testee.RegisterAsync("  ALICE  ", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
         result.Error.Should().Be(AuthError.UsernameTaken);
+    }
+
+    [Fact]
+    public void HashInviteToken_SameInput_ProducesSameHash()
+    {
+        var hash1 = AuthService.HashInviteToken("my-token");
+        var hash2 = AuthService.HashInviteToken("my-token");
+
+        hash1.Should().Be(hash2);
+    }
+
+    [Fact]
+    public void HashInviteToken_DifferentInputs_ProduceDifferentHashes()
+    {
+        var hash1 = AuthService.HashInviteToken("token-a");
+        var hash2 = AuthService.HashInviteToken("token-b");
+
+        hash1.Should().NotBe(hash2);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_InvalidInviteToken_ReturnsInviteTokenInvalid()
+    {
+        var testee = new TestFixture().WithNoValidInvite().CreateTestee();
+
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "bad_token", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.InviteTokenInvalid);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_NullInviteToken_ThrowsArgumentNullException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = async () => await testee.RegisterAsync("alice", "alice@example.com", "password", null!, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("inviteToken");
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ValidInviteToken_MarksInviteAsUsed()
+    {
+        var invite = new Invite { Id = Guid.NewGuid(), CreatedByUserId = Guid.NewGuid() };
+        var testee = new TestFixture().WithValidInvite(invite).CreateTestee();
+
+        await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            invite.UsedAt.Should().NotBeNull();
+            // GuidFactory mock returns Guid.Empty — verifies the FK points to the registered user.
+            invite.UsedByUserId.Should().Be(Guid.Empty);
+        });
+    }
+
+    [Fact]
+    public async Task RegisterAsync_EmptyInviteToken_ReturnsInviteTokenInvalid()
+    {
+        var testee = new TestFixture().WithNoValidInvite().CreateTestee();
+
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", string.Empty, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.InviteTokenInvalid);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ConcurrentInviteRace_ReturnsInviteTokenInvalid()
+    {
+        // Simulates xmin concurrency conflict: two requests race to consume the same invite.
+        var fixture = new TestFixture()
+            .WithSaveChangesThrows(new DbUpdateConcurrencyException("concurrency conflict", (Exception?)null));
+        var testee = fixture.CreateTestee();
+
+        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.InviteTokenInvalid);
     }
 
     // ==========================================================================
