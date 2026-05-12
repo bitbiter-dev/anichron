@@ -36,7 +36,7 @@ namespace Anichron.Core.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TokenHash = table.Column<string>(type: "text", nullable: false),
+                    TokenHash = table.Column<string>(type: "character varying(44)", maxLength: 44, nullable: false),
                     CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
                     ExpiresAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
                     UsedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
@@ -234,6 +234,14 @@ namespace Anichron.Core.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.AddColumn<uint>(
+                name: "xmin",
+                table: "Invites",
+                type: "xid",
+                rowVersion: true,
+                nullable: false,
+                defaultValue: 0u);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Bursts_PrimaryAssetId",

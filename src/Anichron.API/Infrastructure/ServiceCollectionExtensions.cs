@@ -126,7 +126,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddTransient<IBootstrapSeeder, BootstrapSeeder>();
-            services.AddTransient<IAdminResetService, AdminResetService>();
+            services.AddScoped<IAdminResetService, AdminResetService>();
             services.AddTransient<IBootstrapResetService, BootstrapResetService>();
 
             // SameSite=None is required when the UI and API are on different origins so browsers

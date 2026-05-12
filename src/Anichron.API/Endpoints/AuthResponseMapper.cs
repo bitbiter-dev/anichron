@@ -180,7 +180,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     public IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result)
         => result is null
             ? Results.NotFound()
-            : Results.Ok(new { result.TemporaryPassword });
+            : Results.Ok(new AdminPasswordResetResponse(result.TemporaryPassword));
 
     public void ClearRefreshCookie(HttpContext http)
         => http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);

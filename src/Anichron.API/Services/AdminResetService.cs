@@ -29,8 +29,12 @@ public sealed class AdminResetService(
         user.PasswordHash = passwordHasher.Hash(temporaryPassword);
         user.MustChangePassword = true;
         var now = clock.GetCurrentInstant();
-        await tokenService.MarkAllSessionsRevokedAsync(userId, now, ct);
-        await unitOfWork.SaveChangesAsync(ct);
+
+        await unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await tokenService.MarkAllSessionsRevokedAsync(userId, now, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+        }, ct);
 
         return new AdminUserPasswordReset(temporaryPassword);
     }

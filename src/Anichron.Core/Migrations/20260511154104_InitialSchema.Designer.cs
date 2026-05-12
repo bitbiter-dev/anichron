@@ -99,13 +99,20 @@ namespace Anichron.Core.Migrations
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(44)
+                        .HasColumnType("character varying(44)");
 
                     b.Property<Instant?>("UsedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("UsedByUserId")
                         .HasColumnType("uuid");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 
