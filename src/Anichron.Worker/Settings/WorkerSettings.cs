@@ -9,4 +9,6 @@ public sealed record WorkerSettings
     public int CrawlIntervalHours { get; init; } = 4;
 
     public int MaxConcurrentFiles { get; init; } = 4;
+
+    public int TokenCleanupIntervalHours { get; init; } = 24;
 }
