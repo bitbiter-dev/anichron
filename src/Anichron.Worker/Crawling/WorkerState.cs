@@ -1,4 +1,4 @@
-namespace Anichron.Worker;
+namespace Anichron.Worker.Crawling;
 
 public sealed class WorkerState
 {

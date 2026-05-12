@@ -1,11 +1,12 @@
 using Anichron.Core.Data.Repository;
+using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
 
-namespace Anichron.Worker.Tests.Unit;
+namespace Anichron.Worker.Tests.Unit.Maintenance;
 
 public sealed class TokenCleanupServiceTests
 {

@@ -3,7 +3,7 @@ using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 using NodaTime;
 
-namespace Anichron.Worker;
+namespace Anichron.Worker.Maintenance;
 
 public sealed partial class TokenCleanupService(
     IServiceScopeFactory scopeFactory,
