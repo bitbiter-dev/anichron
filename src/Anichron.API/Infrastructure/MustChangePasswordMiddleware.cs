@@ -2,17 +2,18 @@ namespace Anichron.API.Infrastructure;
 
 internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
 {
-    private static readonly PathString ChangePasswordPath =
-        new($"{ApiPaths.Base}/{ApiPaths.Users.Group}{ApiPaths.Users.ChangePassword}");
-
-    private static readonly PathString LogoutPath =
-        new($"{ApiPaths.Base}/{ApiPaths.Auth.Group}{ApiPaths.Auth.Logout}");
+    private static readonly (string Method, PathString Path)[] ExemptRoutes =
+    [
+        (HttpMethods.Get,  new($"{ApiPaths.Base}/{ApiPaths.Users.Group}{ApiPaths.Users.Me}")),
+        (HttpMethods.Post, new($"{ApiPaths.Base}/{ApiPaths.Users.Group}{ApiPaths.Users.ChangePassword}")),
+        (HttpMethods.Post, new($"{ApiPaths.Base}/{ApiPaths.Auth.Group}{ApiPaths.Auth.Logout}")),
+    ];
 
     public async Task InvokeAsync(HttpContext context)
     {
         if (context.User.Identity?.IsAuthenticated == true
             && context.User.HasClaim(AppClaimTypes.MustChangePassword, "true")
-            && !IsExemptPostRequest(context.Request))
+            && !IsExemptRequest(context.Request))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsJsonAsync(new { error = AuthMessages.MustChangePassword });
@@ -22,9 +23,6 @@ internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
         await next(context);
     }
 
-    private static bool IsExemptPostRequest(HttpRequest request)
-    {
-        return request.Method == HttpMethods.Post
-            && (request.Path == ChangePasswordPath || request.Path == LogoutPath);
-    }
+    private static bool IsExemptRequest(HttpRequest request)
+        => ExemptRoutes.Any(e => e.Method == request.Method && e.Path == request.Path);
 }

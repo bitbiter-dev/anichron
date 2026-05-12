@@ -1,5 +1,4 @@
 using Anichron.API.Endpoints;
-using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Microsoft.AspNetCore.Http;
@@ -151,7 +150,7 @@ public sealed class AuthEndpointsTests
     {
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var http = NewHttpWithCookie(AuthMessages.RefreshTokenCookieName, "cookie_tok");
+        var http = NewHttpWithCookie("refresh_token", "cookie_tok");
         auth.RefreshAsync("cookie_tok", Arg.Any<CancellationToken>())
             .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
 
@@ -197,7 +196,7 @@ public sealed class AuthEndpointsTests
     {
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var http = NewHttpWithCookie(AuthMessages.RefreshTokenCookieName, "cookie_tok");
+        var http = NewHttpWithCookie("refresh_token", "cookie_tok");
 
         var result = await AuthEndpoints.LogoutAsync(http, auth, mapper, req: null, CancellationToken.None);
 
