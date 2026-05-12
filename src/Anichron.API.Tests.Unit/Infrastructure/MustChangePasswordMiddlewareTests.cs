@@ -103,6 +103,19 @@ public sealed class MustChangePasswordMiddlewareTests
         context.Response.StatusCode.Should().Be(200);
     }
 
+    [Fact]
+    public async Task InvokeAsync_AuthenticatedWithClaim_GetMePath_CallsNext()
+    {
+        var context = BuildContext(Authenticated(MustChangeClaim()), HttpMethods.Get, "/api/v1/users/me");
+        var nextCalled = false;
+        var middleware = new MustChangePasswordMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeTrue();
+        context.Response.StatusCode.Should().Be(200);
+    }
+
     // ==========================================================================
     // Returns 403
     // ==========================================================================
