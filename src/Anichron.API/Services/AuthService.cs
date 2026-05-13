@@ -30,6 +30,8 @@ public enum AuthError
     InviteTokenInvalid = 12,
     CannotModifySelf = 13,
     UserNotFound = 14,
+    PathAlreadyAssigned = 15,
+    StorageConfigNotFound = 16,
 }
 
 public sealed record AuthResult<T>
@@ -266,15 +268,10 @@ public sealed class AuthService(
         await unitOfWork.SaveChangesAsync(ct);
     }
 
-    private const int AllowedAttempts = AppDefaults.Lockout.AllowedAttempts;
-    private const int MaxAttempts = AppDefaults.Lockout.MaxAttempts;
-    private const int MaxLockoutSeconds = AppDefaults.Lockout.MaxSeconds;
-    private const int BackoffBase = AppDefaults.Lockout.BackoffBase;
-
     private static int ComputeBackoffSeconds(int failedAttempts) => failedAttempts switch
     {
-        <= AllowedAttempts => 0,
-        >= MaxAttempts => MaxLockoutSeconds,
-        _ => (int)Math.Pow(BackoffBase, failedAttempts - AllowedAttempts),
+        <= AppDefaults.Lockout.AllowedAttempts => 0,
+        >= AppDefaults.Lockout.MaxAttempts => AppDefaults.Lockout.MaxSeconds,
+        _ => (int)Math.Pow(AppDefaults.Lockout.BackoffBase, failedAttempts - AppDefaults.Lockout.AllowedAttempts),
     };
 }

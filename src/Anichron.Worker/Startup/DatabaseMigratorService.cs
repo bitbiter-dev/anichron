@@ -1,15 +1,16 @@
+using Anichron.Worker.Settings;
+
 namespace Anichron.Worker.Startup;
 
 public sealed partial class DatabaseMigratorService(
     IServiceScopeFactory scopeFactory,
     ILogger<DatabaseMigratorService> logger) : IHostedService
 {
-    internal const int MaxAttempts = 10;
-    internal TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(5);
+    internal TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(WorkerDefaults.Migrator.RetryDelaySeconds);
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        for (var attempt = 1; attempt <= WorkerDefaults.Migrator.MaxAttempts; attempt++)
         {
             try
             {
@@ -19,16 +20,16 @@ public sealed partial class DatabaseMigratorService(
                 Log.MigrationApplied(logger);
                 return;
             }
-            catch (Exception ex) when (attempt < MaxAttempts)
+            catch (Exception ex) when (attempt < WorkerDefaults.Migrator.MaxAttempts)
             {
-                Log.DatabaseNotReady(logger, ex, attempt, MaxAttempts, (int)RetryDelay.TotalSeconds);
+                Log.DatabaseNotReady(logger, ex, attempt, WorkerDefaults.Migrator.MaxAttempts, (int)RetryDelay.TotalSeconds);
                 await Task.Delay(RetryDelay, cancellationToken);
             }
             catch (Exception ex)
             {
-                Log.DatabaseUnavailable(logger, ex, MaxAttempts);
+                Log.DatabaseUnavailable(logger, ex, WorkerDefaults.Migrator.MaxAttempts);
                 throw new InvalidOperationException(
-                    $"Database unavailable after {MaxAttempts} attempts. Aborting.",
+                    $"Database unavailable after {WorkerDefaults.Migrator.MaxAttempts} attempts. Aborting.",
                     ex);
             }
         }

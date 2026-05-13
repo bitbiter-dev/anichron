@@ -162,4 +162,96 @@ public sealed class UserStorageConfigRepositoryTests
         found.Should().NotBeNull();
         found.Id.Should().Be(config.Id);
     }
+
+    // ==========================================================================
+    // FindByIdAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task FindByIdAsync_MatchingId_ReturnsConfig()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var config = MakeConfig(Guid.NewGuid(), "/nas/photos");
+        db.StorageConfigs.Add(config);
+        await db.SaveChangesAsync(ct);
+        var repo = new EfUserStorageConfigRepository(db);
+
+        var result = await repo.FindByIdAsync(config.Id, ct);
+
+        result.Should().NotBeNull();
+        result.Id.Should().Be(config.Id);
+    }
+
+    [Fact]
+    public async Task FindByIdAsync_NoMatch_ReturnsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/nas/photos"));
+        await db.SaveChangesAsync(ct);
+        var repo = new EfUserStorageConfigRepository(db);
+
+        var result = await repo.FindByIdAsync(Guid.NewGuid(), ct);
+
+        result.Should().BeNull();
+    }
+
+    // ==========================================================================
+    // GetByUserIdAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task GetByUserIdAsync_ReturnsAllConfigsForUser_IncludingInactive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var userId = Guid.NewGuid();
+        var active = MakeConfig(userId, "/active", isActive: true);
+        var inactive = MakeConfig(userId, "/inactive", isActive: false);
+        var otherUser = MakeConfig(Guid.NewGuid(), "/other", isActive: true);
+        await db.AddRangeAsync(active, inactive, otherUser);
+        await db.SaveChangesAsync(ct);
+        var repo = new EfUserStorageConfigRepository(db);
+
+        var result = await repo.GetByUserIdAsync(userId, ct);
+
+        result.Should().HaveCount(2);
+        result.Should().Contain(c => c.Id == active.Id);
+        result.Should().Contain(c => c.Id == inactive.Id);
+        result.Should().NotContain(c => c.Id == otherUser.Id);
+    }
+
+    [Fact]
+    public async Task GetByUserIdAsync_NoConfigs_ReturnsEmpty()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var repo = new EfUserStorageConfigRepository(db);
+
+        var result = await repo.GetByUserIdAsync(Guid.NewGuid(), ct);
+
+        result.Should().BeEmpty();
+    }
+
+    // ==========================================================================
+    // Remove
+    // ==========================================================================
+
+    [Fact]
+    public async Task Remove_Config_DisappearsFromSubsequentQuery()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var config = MakeConfig(Guid.NewGuid(), "/to-remove");
+        db.StorageConfigs.Add(config);
+        await db.SaveChangesAsync(ct);
+        var repo = new EfUserStorageConfigRepository(db);
+
+        repo.Remove(config);
+        await db.SaveChangesAsync(ct);
+
+        var found = await repo.FindByIdAsync(config.Id, ct);
+        found.Should().BeNull();
+    }
 }

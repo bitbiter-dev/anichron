@@ -2,6 +2,8 @@ namespace Anichron.Infrastructure.Data;
 
 public static class PostgresConstants
 {
+    public const int DefaultPort = 5432;
+
     /// <summary>
     /// Advisory lock key used to coordinate database migrations across all services.
     /// Any service that calls <c>MigrateWithAdvisoryLockAsync</c> competes for this lock,
