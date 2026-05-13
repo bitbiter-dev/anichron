@@ -26,6 +26,7 @@ public sealed class AdminStorageConfigEndpointsTests
 
         result.Should().BeSameAs(expected);
         await service.Received(1).GetByUserIdAsync(userId, Arg.Any<CancellationToken>());
+        mapper.Received(1).GetAdminGetStorageConfigsResult(serviceResult);
     }
 
     // ==========================================================================
@@ -49,6 +50,7 @@ public sealed class AdminStorageConfigEndpointsTests
 
         result.Should().BeSameAs(expected);
         await service.Received(1).AddAsync(userId, "/nas/photos", Arg.Any<CancellationToken>());
+        mapper.Received(1).GetAdminCreateStorageConfigResult(serviceResult);
     }
 
     // ==========================================================================
@@ -71,5 +73,6 @@ public sealed class AdminStorageConfigEndpointsTests
 
         result.Should().BeSameAs(expected);
         await service.Received(1).DeleteAsync(userId, configId, Arg.Any<CancellationToken>());
+        mapper.Received(1).GetAdminDeleteStorageConfigResult(serviceResult);
     }
 }
