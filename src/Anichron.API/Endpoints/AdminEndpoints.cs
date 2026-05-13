@@ -20,6 +20,11 @@ public static class AdminEndpoints
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
         group.MapDelete("{userId:guid}", DeleteUserAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapGet("{userId:guid}/storage-configs", GetStorageConfigsAsync);
+        group.MapPost("{userId:guid}/storage-configs", CreateStorageConfigAsync)
+             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapDelete("{userId:guid}/storage-configs/{configId:guid}", DeleteStorageConfigAsync)
+             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
         return app;
     }
 
@@ -90,6 +95,38 @@ public static class AdminEndpoints
         var result = await adminUsers.DeleteAsync(callerId, userId, ct);
         return mapper.GetAdminDeleteUserResult(result);
     }
+
+    internal static async Task<IResult> GetStorageConfigsAsync(
+        Guid userId,
+        IAdminStorageConfigService adminStorageConfigs,
+        IAuthResponseMapper mapper,
+        CancellationToken ct)
+    {
+        var result = await adminStorageConfigs.GetByUserIdAsync(userId, ct);
+        return mapper.GetAdminGetStorageConfigsResult(result);
+    }
+
+    internal static async Task<IResult> CreateStorageConfigAsync(
+        Guid userId,
+        CreateStorageConfigRequest req,
+        IAdminStorageConfigService adminStorageConfigs,
+        IAuthResponseMapper mapper,
+        CancellationToken ct)
+    {
+        var result = await adminStorageConfigs.AddAsync(userId, req.RootPath, ct);
+        return mapper.GetAdminCreateStorageConfigResult(result);
+    }
+
+    internal static async Task<IResult> DeleteStorageConfigAsync(
+        Guid userId,
+        Guid configId,
+        IAdminStorageConfigService adminStorageConfigs,
+        IAuthResponseMapper mapper,
+        CancellationToken ct)
+    {
+        var result = await adminStorageConfigs.DeleteAsync(userId, configId, ct);
+        return mapper.GetAdminDeleteStorageConfigResult(result);
+    }
 }
 
 public sealed record CreateAdminUserRequest(string Username, string Email);
@@ -97,3 +134,5 @@ public sealed record AdminCreatedUserResponse(Guid Id, string Username, string E
 public sealed record AdminPasswordResetResponse(string TemporaryPassword);
 public sealed record AdminUserResponse(Guid Id, string Username, string Email, bool IsAdmin, bool IsDisabled, int StorageConfigCount);
 public sealed record PatchAdminUserRequest(bool? IsAdmin, bool? IsDisabled);
+public sealed record CreateStorageConfigRequest(string RootPath);
+public sealed record AdminStorageConfigResponse(Guid Id, Guid UserId, string RootPath, bool IsActive);

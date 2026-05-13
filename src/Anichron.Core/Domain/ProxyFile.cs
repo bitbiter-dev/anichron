@@ -1,6 +1,4 @@
-﻿using Anichron.Core.Common;
-
-namespace Anichron.Core.Domain;
+﻿namespace Anichron.Core.Domain;
 
 public class ProxyFile
 {

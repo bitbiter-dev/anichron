@@ -84,7 +84,7 @@ public sealed class DatabaseMigratorServiceTests
         var act = async () => await sut.StartAsync(ct);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"*{DatabaseMigratorService.MaxAttempts} attempts*");
+            .WithMessage("*10 attempts*");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class DatabaseMigratorServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.StartAsync(ct));
 
-        await fx.Migrator.Received(DatabaseMigratorService.MaxAttempts).MigrateAsync(Arg.Any<CancellationToken>());
+        await fx.Migrator.Received(10).MigrateAsync(Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================

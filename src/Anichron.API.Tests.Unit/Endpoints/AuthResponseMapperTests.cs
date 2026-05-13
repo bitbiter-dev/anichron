@@ -726,4 +726,151 @@ public sealed class AuthResponseMapperTests
 
         act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
+
+    // ==========================================================================
+    // GetAdminGetStorageConfigsResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminGetStorageConfigsResult_Success_ReturnsMappedList()
+    {
+        var testee = new TestFixture().CreateTestee();
+        var userId = new Guid("aaaaaaaa-0000-0000-0000-000000000001");
+        var configId = new Guid("bbbbbbbb-0000-0000-0000-000000000001");
+        var configs = new List<Core.Domain.UserStorageConfig>
+        {
+            new() { Id = configId, UserId = userId, RootPath = "/nas/photos", IsActive = true },
+        };
+
+        var ok = testee.GetAdminGetStorageConfigsResult(AuthResult.Ok(configs))
+            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<List<AdminStorageConfigResponse>>>().Subject;
+
+        ok.StatusCode.Should().Be(200);
+        ok.Value.Should().ContainSingle(c => c == new AdminStorageConfigResponse(configId, userId, "/nas/photos", true));
+    }
+
+    [Fact]
+    public void GetAdminGetStorageConfigsResult_UserNotFound_Returns404()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminGetStorageConfigsResult(
+            AuthResult.Fail<List<Core.Domain.UserStorageConfig>>(AuthError.UserNotFound));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public void GetAdminGetStorageConfigsResult_ErrorFromOtherContext_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminGetStorageConfigsResult(
+            AuthResult.Fail<List<Core.Domain.UserStorageConfig>>(AuthError.InvalidCredentials));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    // ==========================================================================
+    // GetAdminCreateStorageConfigResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminCreateStorageConfigResult_Success_Returns201WithLocationAndMappedBody()
+    {
+        var testee = new TestFixture().CreateTestee();
+        var userId = new Guid("aaaaaaaa-0000-0000-0000-000000000002");
+        var configId = new Guid("bbbbbbbb-0000-0000-0000-000000000002");
+        var config = new Core.Domain.UserStorageConfig
+        {
+            Id = configId,
+            UserId = userId,
+            RootPath = "/nas/photos",
+            IsActive = true,
+        };
+
+        var created = testee.GetAdminCreateStorageConfigResult(AuthResult.Ok(config))
+            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<AdminStorageConfigResponse>>().Subject;
+
+        created.StatusCode.Should().Be(201);
+        created.Location.Should().Be($"/api/v1/users/{userId}/storage-configs/{configId}");
+        created.Value.Should().Be(new AdminStorageConfigResponse(configId, userId, "/nas/photos", true));
+    }
+
+    [Fact]
+    public void GetAdminCreateStorageConfigResult_UserNotFound_Returns404()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminCreateStorageConfigResult(
+            AuthResult.Fail<Core.Domain.UserStorageConfig>(AuthError.UserNotFound));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public void GetAdminCreateStorageConfigResult_PathAlreadyAssigned_Returns409()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminCreateStorageConfigResult(
+            AuthResult.Fail<Core.Domain.UserStorageConfig>(AuthError.PathAlreadyAssigned));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public void GetAdminCreateStorageConfigResult_ErrorFromOtherContext_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminCreateStorageConfigResult(
+            AuthResult.Fail<Core.Domain.UserStorageConfig>(AuthError.InvalidCredentials));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    // ==========================================================================
+    // GetAdminDeleteStorageConfigResult
+    // ==========================================================================
+
+    [Fact]
+    public void GetAdminDeleteStorageConfigResult_Success_Returns204()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminDeleteStorageConfigResult(AuthResult.Ok());
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
+    }
+
+    [Fact]
+    public void GetAdminDeleteStorageConfigResult_StorageConfigNotFound_Returns404()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminDeleteStorageConfigResult(AuthResult.Fail(AuthError.StorageConfigNotFound));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public void GetAdminDeleteStorageConfigResult_ErrorFromOtherContext_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminDeleteStorageConfigResult(AuthResult.Fail(AuthError.InvalidCredentials));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
+
+    [Fact]
+    public void GetAdminDeleteStorageConfigResult_UndefinedAuthError_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var act = () => testee.GetAdminDeleteStorageConfigResult(AuthResult.Fail((AuthError)999));
+
+        act.Should().Throw<System.Diagnostics.UnreachableException>();
+    }
 }

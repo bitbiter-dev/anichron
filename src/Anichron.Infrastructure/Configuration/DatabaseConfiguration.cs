@@ -1,3 +1,4 @@
+using Anichron.Infrastructure.Data;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using System.IO.Abstractions;
@@ -6,8 +7,6 @@ namespace Anichron.Infrastructure.Configuration;
 
 public static class DatabaseConfiguration
 {
-    private const int DefaultPort = 5432;
-
     public static string GetConnectionString(IConfiguration configuration, IFileSystem fileSystem)
     {
         const string sectionName = "POSTGRES_CONNECTION";
@@ -17,7 +16,7 @@ public static class DatabaseConfiguration
         {
             Host = section["HOST"] ?? throw new InvalidOperationException("Postgres Host missing"),
             Database = section["DBNAME"] ?? throw new InvalidOperationException("Postgres Database name missing"),
-            Port = int.TryParse(section["PORT"], out var p) ? p : DefaultPort,
+            Port = int.TryParse(section["PORT"], out var p) ? p : PostgresConstants.DefaultPort,
             Username = GetSecretOrConfig(section, "USER_FILE", "USER", fileSystem),
             Password = GetSecretOrConfig(section, "PASSWORD_FILE", "PASSWORD", fileSystem),
             Pooling = true,

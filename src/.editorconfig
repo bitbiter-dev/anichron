@@ -286,6 +286,8 @@ dotnet_diagnostic.IDE0045.severity = suggestion
 dotnet_diagnostic.IDE0046.severity = suggestion
 dotnet_diagnostic.IDE0058.severity = none
 dotnet_diagnostic.IDE0061.severity = none
+# IDE0072: Populate switch — mapper methods intentionally handle only the AuthErrors reachable from their service call
+dotnet_diagnostic.IDE0072.severity = none
 dotnet_diagnostic.IDE0290.severity = suggestion
 dotnet_diagnostic.IDE0305.severity = suggestion
 # RCS1181: Comments that act as section dividers (e.g. "// Navigation Properties") are intentional

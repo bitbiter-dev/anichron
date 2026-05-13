@@ -1,8 +1,8 @@
-using Anichron.API.Security;
+using Anichron.API.Services;
 using Microsoft.Extensions.Logging;
 using System.Net;
 
-namespace Anichron.API.Tests.Unit.Security;
+namespace Anichron.API.Tests.Unit.Services;
 
 public sealed class PwnedPasswordClientTests
 {

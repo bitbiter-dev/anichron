@@ -65,7 +65,7 @@ Seven entities — all EF Core config via **Fluent API only**, no data annotatio
 - `ProxyFile` — generated web-optimized assets (thumbnail, preview, 720p H.264, blurhash string); stored on local SSD
 - `Burst` — groups rapid-fire photos with a `primary_asset_id` cover; prevents duplicate memories in flashbacks
 - `AssetInteraction` — per-user state (starred, liked, hidden, view count, last viewed); unique on `(user_id, asset_id)`
-- `UserStorageConfig` — NAS root paths per user; unique on `(storage_config_id, file_path)`
+- `UserStorageConfig` — NAS root paths per user; `root_path` is **globally unique** — a path cannot be assigned to more than one storage config across all users
 - `User` — owns storage configs and interactions
 
 ### Key EF Core / Database Decisions
@@ -112,10 +112,11 @@ Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{ty
 - **Indentation**: 4 spaces, CRLF line endings
 - **Analyzers**: Run at `Recommended` severity during build — fix warnings, don't suppress
 - **NuGet versions**: Centralized in `Directory.Packages.props` — never specify a version in individual `.csproj` files
+- **XML doc comments**: Do not add `/// <summary>` unless it meaningfully adds information beyond what the name already communicates. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) do not need them. Override the global rule requiring docs on every public member.
 
 ## Multi-User Design
 
-Multiple users can share the same NAS paths (shared family library). Each user has private `AssetInteraction` state — never shared. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. Multiple worker instances can each monitor a separate config.
+Each user has a private set of `UserStorageConfig` entries pointing to NAS roots. `root_path` is globally unique — a path cannot be assigned to more than one storage config across all users. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. Multiple worker instances can each monitor a separate config. Each user has private `AssetInteraction` state — never shared.
 
 ### Worker Processing Model
 

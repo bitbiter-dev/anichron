@@ -13,25 +13,6 @@ namespace Anichron.API.Services;
 public sealed record AuthTokens(string AccessToken, string RefreshToken);
 public sealed record AdminCreatedUser(Guid Id, string Username, string Email, string TemporaryPassword);
 
-public enum AuthError
-{
-    None = 0,
-    UsernameTaken = 1,
-    EmailTaken = 2,
-    InvalidCredentials = 3,
-    TokenInvalid = 4,
-    InvalidUsername = 5,
-    InvalidEmail = 6,
-    PasswordTooShort = 7,
-    PasswordTooLong = 8,
-    PasswordPwned = 9,
-    AccountDisabled = 10,
-    AccountTemporarilyLocked = 11,
-    InviteTokenInvalid = 12,
-    CannotModifySelf = 13,
-    UserNotFound = 14,
-}
-
 public sealed record AuthResult<T>
 {
     public T? Value { get; init; }
@@ -266,15 +247,10 @@ public sealed class AuthService(
         await unitOfWork.SaveChangesAsync(ct);
     }
 
-    private const int AllowedAttempts = AppDefaults.Lockout.AllowedAttempts;
-    private const int MaxAttempts = AppDefaults.Lockout.MaxAttempts;
-    private const int MaxLockoutSeconds = AppDefaults.Lockout.MaxSeconds;
-    private const int BackoffBase = AppDefaults.Lockout.BackoffBase;
-
     private static int ComputeBackoffSeconds(int failedAttempts) => failedAttempts switch
     {
-        <= AllowedAttempts => 0,
-        >= MaxAttempts => MaxLockoutSeconds,
-        _ => (int)Math.Pow(BackoffBase, failedAttempts - AllowedAttempts),
+        <= AppDefaults.Lockout.AllowedAttempts => 0,
+        >= AppDefaults.Lockout.MaxAttempts => AppDefaults.Lockout.MaxSeconds,
+        _ => (int)Math.Pow(AppDefaults.Lockout.BackoffBase, failedAttempts - AppDefaults.Lockout.AllowedAttempts),
     };
 }

@@ -1,3 +1,5 @@
+using Anichron.API.Security;
+
 namespace Anichron.API.Infrastructure;
 
 internal sealed class MustChangePasswordMiddleware(RequestDelegate next)

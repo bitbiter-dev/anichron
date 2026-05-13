@@ -19,6 +19,9 @@ public interface IAuthResponseMapper
     IResult GetAdminGetUserResult(User? user);
     IResult GetAdminPatchUserResult(AuthResult<User> result);
     IResult GetAdminDeleteUserResult(AuthResult result);
+    IResult GetAdminGetStorageConfigsResult(AuthResult<List<UserStorageConfig>> result);
+    IResult GetAdminCreateStorageConfigResult(AuthResult<UserStorageConfig> result);
+    IResult GetAdminDeleteStorageConfigResult(AuthResult result);
     void ClearRefreshCookie(HttpContext http);
 }
 
@@ -38,16 +41,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.PasswordTooLong => Results.UnprocessableEntity(new { error = passwordPolicy.TooLongMessage }),
                 AuthError.PasswordPwned => Results.UnprocessableEntity(new { error = AuthMessages.PasswordPwned }),
                 AuthError.InviteTokenInvalid => Results.UnprocessableEntity(new { error = AuthMessages.InviteTokenInvalid }),
-                // Not reachable from RegisterAsync; signals a logic bug if reached.
-                AuthError.None or
-                AuthError.InvalidCredentials or
-                AuthError.TokenInvalid or
-                AuthError.AccountDisabled or
-                AuthError.AccountTemporarilyLocked or
-                AuthError.CannotModifySelf or
-                AuthError.UserNotFound
-                    => throw new UnreachableException($"Unexpected AuthError in Register: {result.Error}"),
-                _ => throw new UnreachableException($"Unhandled AuthError in Register: {result.Error}"),
+                _ => throw new UnreachableException($"Unexpected AuthError in Register: {result.Error}"),
             };
         }
 
@@ -68,21 +62,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.InvalidCredentials => Results.Json(
                     data: new { error = AuthMessages.InvalidCredentials },
                     statusCode: StatusCodes.Status401Unauthorized),
-                // Not reachable from LoginAsync; signals a logic bug if reached.
-                AuthError.None or
-                AuthError.UsernameTaken or
-                AuthError.EmailTaken or
-                AuthError.TokenInvalid or
-                AuthError.InvalidUsername or
-                AuthError.InvalidEmail or
-                AuthError.PasswordTooShort or
-                AuthError.PasswordTooLong or
-                AuthError.PasswordPwned or
-                AuthError.InviteTokenInvalid or
-                AuthError.CannotModifySelf or
-                AuthError.UserNotFound
-                    => throw new UnreachableException($"Unexpected AuthError in Login: {result.Error}"),
-                _ => throw new UnreachableException($"Unhandled AuthError in Login: {result.Error}"),
+                _ => throw new UnreachableException($"Unexpected AuthError in Login: {result.Error}"),
             };
         }
 
@@ -102,21 +82,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                     data: new { error = AuthMessages.AccountDisabled },
                     statusCode: StatusCodes.Status401Unauthorized),
                 AuthError.AccountTemporarilyLocked => LockedResult(http, result.RetryAfterSeconds!.Value),
-                // Not reachable from RefreshAsync; signals a logic bug if reached.
-                AuthError.None or
-                AuthError.UsernameTaken or
-                AuthError.EmailTaken or
-                AuthError.InvalidCredentials or
-                AuthError.InvalidUsername or
-                AuthError.InvalidEmail or
-                AuthError.PasswordTooShort or
-                AuthError.PasswordTooLong or
-                AuthError.PasswordPwned or
-                AuthError.InviteTokenInvalid or
-                AuthError.CannotModifySelf or
-                AuthError.UserNotFound
-                    => throw new UnreachableException($"Unexpected AuthError in Refresh: {result.Error}"),
-                _ => throw new UnreachableException($"Unhandled AuthError in Refresh: {result.Error}"),
+                _ => throw new UnreachableException($"Unexpected AuthError in Refresh: {result.Error}"),
             };
         }
 
@@ -142,20 +108,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             AuthError.PasswordPwned => Results.Json(
                 data: new { error = AuthMessages.PasswordPwned },
                 statusCode: StatusCodes.Status422UnprocessableEntity),
-            // Not reachable from ChangePasswordAsync; signals a logic bug if reached.
-            AuthError.None or
-            AuthError.UsernameTaken or
-            AuthError.EmailTaken or
-            AuthError.TokenInvalid or
-            AuthError.InvalidUsername or
-            AuthError.InvalidEmail or
-            AuthError.AccountDisabled or
-            AuthError.AccountTemporarilyLocked or
-            AuthError.InviteTokenInvalid or
-            AuthError.CannotModifySelf or
-            AuthError.UserNotFound
-                => throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
-            _ => throw new UnreachableException($"Unhandled AuthError in ChangePassword: {result.Error}"),
+            _ => throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
         };
     }
 
@@ -167,22 +120,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             {
                 AuthError.UsernameTaken => Results.Conflict(new { error = AuthMessages.UsernameTaken }),
                 AuthError.EmailTaken => Results.Conflict(new { error = AuthMessages.EmailTaken }),
-                // Not reachable from AdminCreateUserAsync; signals a logic bug if reached.
-                AuthError.None or
-                AuthError.InvalidCredentials or
-                AuthError.TokenInvalid or
-                AuthError.InvalidUsername or
-                AuthError.InvalidEmail or
-                AuthError.PasswordTooShort or
-                AuthError.PasswordTooLong or
-                AuthError.PasswordPwned or
-                AuthError.AccountDisabled or
-                AuthError.AccountTemporarilyLocked or
-                AuthError.InviteTokenInvalid or
-                AuthError.CannotModifySelf or
-                AuthError.UserNotFound
-                    => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
-                _ => throw new UnreachableException($"Unhandled AuthError in AdminCreateUser: {result.Error}"),
+                _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
             };
         }
 
@@ -209,21 +147,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             AuthError.UserNotFound => Results.NotFound(),
             AuthError.CannotModifySelf => Results.Json(new { error = AuthMessages.CannotModifySelf }, statusCode: StatusCodes.Status403Forbidden),
             null => Results.Ok(ToAdminUserResponse(result.Value!)),
-            AuthError.None or
-            AuthError.UsernameTaken or
-            AuthError.EmailTaken or
-            AuthError.InvalidCredentials or
-            AuthError.TokenInvalid or
-            AuthError.InvalidUsername or
-            AuthError.InvalidEmail or
-            AuthError.PasswordTooShort or
-            AuthError.PasswordTooLong or
-            AuthError.PasswordPwned or
-            AuthError.AccountDisabled or
-            AuthError.AccountTemporarilyLocked or
-            AuthError.InviteTokenInvalid
-                => throw new UnreachableException($"Unexpected AuthError in AdminPatchUser: {result.Error}"),
-            _ => throw new UnreachableException($"Unhandled AuthError in AdminPatchUser: {result.Error}"),
+            _ => throw new UnreachableException($"Unexpected AuthError in AdminPatchUser: {result.Error}"),
         };
 
     public IResult GetAdminDeleteUserResult(AuthResult result)
@@ -232,21 +156,40 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             AuthError.UserNotFound => Results.NotFound(),
             AuthError.CannotModifySelf => Results.Json(new { error = AuthMessages.CannotModifySelf }, statusCode: StatusCodes.Status403Forbidden),
             null => Results.NoContent(),
-            AuthError.None or
-            AuthError.UsernameTaken or
-            AuthError.EmailTaken or
-            AuthError.InvalidCredentials or
-            AuthError.TokenInvalid or
-            AuthError.InvalidUsername or
-            AuthError.InvalidEmail or
-            AuthError.PasswordTooShort or
-            AuthError.PasswordTooLong or
-            AuthError.PasswordPwned or
-            AuthError.AccountDisabled or
-            AuthError.AccountTemporarilyLocked or
-            AuthError.InviteTokenInvalid
-                => throw new UnreachableException($"Unexpected AuthError in AdminDeleteUser: {result.Error}"),
-            _ => throw new UnreachableException($"Unhandled AuthError in AdminDeleteUser: {result.Error}"),
+            _ => throw new UnreachableException($"Unexpected AuthError in AdminDeleteUser: {result.Error}"),
+        };
+
+    public IResult GetAdminGetStorageConfigsResult(AuthResult<List<UserStorageConfig>> result)
+        => result.Error switch
+        {
+            AuthError.UserNotFound => Results.NotFound(),
+            null => Results.Ok(result.Value!.ConvertAll(ToAdminStorageConfigResponse)),
+            _ => throw new UnreachableException($"Unexpected AuthError in AdminGetStorageConfigs: {result.Error}"),
+        };
+
+    public IResult GetAdminCreateStorageConfigResult(AuthResult<UserStorageConfig> result)
+    {
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                AuthError.UserNotFound => Results.NotFound(),
+                AuthError.PathAlreadyAssigned => Results.Conflict(new { error = AuthMessages.PathAlreadyAssigned }),
+                _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateStorageConfig: {result.Error}"),
+            };
+        }
+
+        var config = result.Value!;
+        var location = $"{ApiPaths.Base}/{ApiPaths.Users.Group}/{config.UserId}/storage-configs/{config.Id}";
+        return Results.Created(location, ToAdminStorageConfigResponse(config));
+    }
+
+    public IResult GetAdminDeleteStorageConfigResult(AuthResult result)
+        => result.Error switch
+        {
+            AuthError.StorageConfigNotFound => Results.NotFound(),
+            null => Results.NoContent(),
+            _ => throw new UnreachableException($"Unexpected AuthError in AdminDeleteStorageConfig: {result.Error}"),
         };
 
     public void ClearRefreshCookie(HttpContext http)
@@ -254,6 +197,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
 
     private static AdminUserResponse ToAdminUserResponse(User user)
         => new(user.Id, user.Username, user.Email, user.IsAdmin, user.IsDisabled, user.StorageConfigs.Count);
+
+    private static AdminStorageConfigResponse ToAdminStorageConfigResponse(UserStorageConfig config)
+        => new(config.Id, config.UserId, config.RootPath, config.IsActive);
 
     private IResult BuildTokenResponse(AuthTokens tokens, HttpContext http, bool setCookie)
     {

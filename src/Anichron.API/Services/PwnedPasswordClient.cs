@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Anichron.API.Security;
+namespace Anichron.API.Services;
 
 public interface IPwnedPasswordClient
 {
