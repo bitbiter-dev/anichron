@@ -1,9 +1,8 @@
-using Anichron.API.Services;
 using Anichron.API.Settings;
 using Microsoft.Extensions.Options;
 using System.Net.Mail;
 
-namespace Anichron.API.Security;
+namespace Anichron.API.Services;
 
 public interface IRegistrationValidator
 {

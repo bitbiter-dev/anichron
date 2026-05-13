@@ -120,6 +120,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IUserRepository, EfUserRepository>();
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IInviteRepository, EfInviteRepository>();
+            services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IRegistrationValidator, RegistrationValidator>();
@@ -127,7 +128,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddTransient<IBootstrapSeeder, BootstrapSeeder>();
             services.AddScoped<IAdminResetService, AdminResetService>();
-            services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             services.AddScoped<IAdminUserService, AdminUserService>();
             services.AddScoped<IAdminStorageConfigService, AdminStorageConfigService>();
             services.AddTransient<IBootstrapResetService, BootstrapResetService>();

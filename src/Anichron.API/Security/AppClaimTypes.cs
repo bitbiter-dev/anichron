@@ -1,4 +1,4 @@
-namespace Anichron.API.Infrastructure;
+namespace Anichron.API.Security;
 
 internal static class AppClaimTypes
 {

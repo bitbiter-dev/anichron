@@ -1,9 +1,8 @@
-using Anichron.API.Security;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Microsoft.Extensions.Options;
 
-namespace Anichron.API.Tests.Unit.Security;
+namespace Anichron.API.Tests.Unit.Services;
 
 public sealed class RegistrationValidatorTests
 {

@@ -1,4 +1,4 @@
-﻿namespace Anichron.Core.Common;
+namespace Anichron.Core.Domain;
 
 public enum MediaType
 {

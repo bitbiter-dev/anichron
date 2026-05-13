@@ -732,14 +732,21 @@ public sealed class AuthResponseMapperTests
     // ==========================================================================
 
     [Fact]
-    public void GetAdminGetStorageConfigsResult_Success_Returns200WithList()
+    public void GetAdminGetStorageConfigsResult_Success_ReturnsMappedList()
     {
         var testee = new TestFixture().CreateTestee();
-        var configs = new List<Core.Domain.UserStorageConfig>();
+        var userId = new Guid("aaaaaaaa-0000-0000-0000-000000000001");
+        var configId = new Guid("bbbbbbbb-0000-0000-0000-000000000001");
+        var configs = new List<Core.Domain.UserStorageConfig>
+        {
+            new() { Id = configId, UserId = userId, RootPath = "/nas/photos", IsActive = true },
+        };
 
-        var result = testee.GetAdminGetStorageConfigsResult(AuthResult.Ok(configs));
+        var ok = testee.GetAdminGetStorageConfigsResult(AuthResult.Ok(configs))
+            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<List<AdminStorageConfigResponse>>>().Subject;
 
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(200);
+        ok.StatusCode.Should().Be(200);
+        ok.Value.Should().ContainSingle(c => c == new AdminStorageConfigResponse(configId, userId, "/nas/photos", true));
     }
 
     [Fact]
@@ -769,11 +776,11 @@ public sealed class AuthResponseMapperTests
     // ==========================================================================
 
     [Fact]
-    public void GetAdminCreateStorageConfigResult_Success_Returns201WithLocation()
+    public void GetAdminCreateStorageConfigResult_Success_Returns201WithLocationAndMappedBody()
     {
         var testee = new TestFixture().CreateTestee();
-        var userId = Guid.NewGuid();
-        var configId = Guid.NewGuid();
+        var userId = new Guid("aaaaaaaa-0000-0000-0000-000000000002");
+        var configId = new Guid("bbbbbbbb-0000-0000-0000-000000000002");
         var config = new Core.Domain.UserStorageConfig
         {
             Id = configId,
@@ -782,9 +789,12 @@ public sealed class AuthResponseMapperTests
             IsActive = true,
         };
 
-        var result = testee.GetAdminCreateStorageConfigResult(AuthResult.Ok(config));
+        var created = testee.GetAdminCreateStorageConfigResult(AuthResult.Ok(config))
+            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<AdminStorageConfigResponse>>().Subject;
 
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(201);
+        created.StatusCode.Should().Be(201);
+        created.Location.Should().Be($"/api/v1/users/{userId}/storage-configs/{configId}");
+        created.Value.Should().Be(new AdminStorageConfigResponse(configId, userId, "/nas/photos", true));
     }
 
     [Fact]
