@@ -124,6 +124,7 @@ public static class ServiceCollectionExtensions
             // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IRegistrationValidator, RegistrationValidator>();
+            services.AddScoped<ILockoutService, LockoutService>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddTransient<IBootstrapSeeder, BootstrapSeeder>();

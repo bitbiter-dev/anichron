@@ -35,10 +35,10 @@ public static partial class ApplicationExtensions
                 try
                 {
                     await using var scope = app.Services.CreateAsyncScope();
-                    var db = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
                     var logger = scope.ServiceProvider.GetRequiredService<ILogger<AnichronDbContext>>();
 
-                    await db.Database.MigrateWithAdvisoryLockAsync(ct);
+                    await dbContext.Database.MigrateWithAdvisoryLockAsync(ct);
                     Log.MigrationApplied(logger);
 
                     var bootstrapSeeder = scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>();
@@ -48,17 +48,17 @@ public static partial class ApplicationExtensions
                     await adminResetService.ResetIfRequestedAsync(ct);
                     return;
                 }
-                catch (Exception ex) when (attempt < maxAttempts)
+                catch (Exception exception) when (attempt < maxAttempts)
                 {
-                    Log.DatabaseNotReady(app.Logger, ex, attempt, maxAttempts, retryDelaySeconds);
+                    Log.DatabaseNotReady(app.Logger, exception, attempt, maxAttempts, retryDelaySeconds);
                     await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds), ct);
                 }
-                catch (Exception ex)
+                catch (Exception exception)
                 {
-                    Log.DatabaseUnavailable(app.Logger, ex, AppDefaults.Startup.MaxDbRetryAttempts);
+                    Log.DatabaseUnavailable(app.Logger, exception, AppDefaults.Startup.MaxDbRetryAttempts);
                     throw new InvalidOperationException(
                         $"Database unavailable after {AppDefaults.Startup.MaxDbRetryAttempts} attempts. Aborting.",
-                        ex);
+                        exception);
                 }
             }
         }
@@ -70,9 +70,9 @@ public static partial class ApplicationExtensions
         public static partial void MigrationApplied(ILogger logger);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Database not ready (attempt {Attempt}/{Max}). Retrying in {Delay}s.")]
-        public static partial void DatabaseNotReady(ILogger logger, Exception ex, int attempt, int max, int delay);
+        public static partial void DatabaseNotReady(ILogger logger, Exception exception, int attempt, int max, int delay);
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Database unavailable after {Max} attempts. Aborting.")]
-        public static partial void DatabaseUnavailable(ILogger logger, Exception ex, int max);
+        public static partial void DatabaseUnavailable(ILogger logger, Exception exception, int max);
     }
 }

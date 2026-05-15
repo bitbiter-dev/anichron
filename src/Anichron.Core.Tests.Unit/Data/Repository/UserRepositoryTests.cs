@@ -33,9 +33,9 @@ public sealed class UserRepositoryTests
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = CreateDb();
-        var repo = new EfUserRepository(db);
+        var repository = new EfUserRepository(db);
 
-        var result = await repo.GetAllAsync(ct);
+        var result = await repository.GetAllAsync(ct);
 
         result.Should().BeEmpty();
     }
@@ -49,9 +49,9 @@ public sealed class UserRepositoryTests
         var user2 = MakeUser("bob", "bob@example.com");
         await db.AddRangeAsync(user1, user2);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserRepository(db);
+        var repository = new EfUserRepository(db);
 
-        var result = await repo.GetAllAsync(ct);
+        var result = await repository.GetAllAsync(ct);
 
         result.Should().HaveCount(2);
         result.Should().Contain(u => u.Id == user1.Id);
@@ -69,9 +69,9 @@ public sealed class UserRepositoryTests
         var config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/nas" };
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserRepository(db);
+        var repository = new EfUserRepository(db);
 
-        var result = await repo.GetAllAsync(ct);
+        var result = await repository.GetAllAsync(ct);
 
         result.Should().ContainSingle().Which.StorageConfigs.Should().ContainSingle(c => c.Id == config.Id);
     }
@@ -88,9 +88,9 @@ public sealed class UserRepositoryTests
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserRepository(db);
+        var repository = new EfUserRepository(db);
 
-        var result = await repo.FindByIdWithConfigsAsync(user.Id, ct);
+        var result = await repository.FindByIdWithConfigsAsync(user.Id, ct);
 
         result.Should().NotBeNull();
         result.Id.Should().Be(user.Id);
@@ -101,9 +101,9 @@ public sealed class UserRepositoryTests
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = CreateDb();
-        var repo = new EfUserRepository(db);
+        var repository = new EfUserRepository(db);
 
-        var result = await repo.FindByIdWithConfigsAsync(Guid.NewGuid(), ct);
+        var result = await repository.FindByIdWithConfigsAsync(Guid.NewGuid(), ct);
 
         result.Should().BeNull();
     }
@@ -119,9 +119,9 @@ public sealed class UserRepositoryTests
         var config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/nas" };
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserRepository(db);
+        var repository = new EfUserRepository(db);
 
-        var result = await repo.FindByIdWithConfigsAsync(user.Id, ct);
+        var result = await repository.FindByIdWithConfigsAsync(user.Id, ct);
 
         result!.StorageConfigs.Should().ContainSingle(c => c.Id == config.Id);
     }
@@ -138,12 +138,12 @@ public sealed class UserRepositoryTests
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserRepository(db);
+        var repository = new EfUserRepository(db);
 
-        repo.Remove(user);
+        repository.Remove(user);
         await db.SaveChangesAsync(ct);
 
-        var found = await repo.FindByIdWithConfigsAsync(user.Id, ct);
+        var found = await repository.FindByIdWithConfigsAsync(user.Id, ct);
         found.Should().BeNull();
     }
 }

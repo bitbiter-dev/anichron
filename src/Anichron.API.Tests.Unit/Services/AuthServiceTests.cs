@@ -19,6 +19,7 @@ public sealed class AuthServiceTests
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
         private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
         private readonly IRegistrationValidator _validator = Substitute.For<IRegistrationValidator>();
+        internal readonly ILockoutService Lockout = Substitute.For<ILockoutService>();
 
         internal readonly ITokenService TokenService = Substitute.For<ITokenService>();
 
@@ -125,8 +126,28 @@ public sealed class AuthServiceTests
             return this;
         }
 
+        public TestFixture WithLockedOut()
+        {
+            Lockout.IsLockedOut(Arg.Any<User>(), Arg.Any<Instant>()).Returns(true);
+            return this;
+        }
+
+        public TestFixture WithIdentityValidationError(AuthError error)
+        {
+            _validator
+                .ValidateIdentity(Arg.Any<string>(), Arg.Any<string>())
+                .Returns((AuthError?)error);
+            return this;
+        }
+
+        public TestFixture WithUserFoundForCredential(string normalizedCredential, User user)
+        {
+            Users.FindByCredentialAsync(normalizedCredential, Arg.Any<CancellationToken>()).Returns(user);
+            return this;
+        }
+
         public AuthService CreateTestee() => new(
-            Users, _invites, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService);
+            Users, _invites, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService, Lockout);
     }
 
     // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
@@ -244,7 +265,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentEmailUniqueViolation_ReturnsEmailTaken()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation("ix_users_email_unique"));
+            .WithSaveChangesThrows(UniqueViolation("ix_users_email"));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
@@ -260,7 +281,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentUsernameUniqueViolation_ReturnsUsernameTaken()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation("ix_users_username_unique"));
+            .WithSaveChangesThrows(UniqueViolation("ix_users_username"));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
@@ -493,7 +514,8 @@ public sealed class AuthServiceTests
         };
         var fixture = new TestFixture()
             .WithPasswordValid()
-            .WithUser(user);
+            .WithUser(user)
+            .WithLockedOut();
         var testee = fixture.CreateTestee();
 
         var result = await testee.LoginAsync("alice", "password", CancellationToken.None);
@@ -507,51 +529,23 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_WrongPassword_IncrementsFailedAttemptsAndSetsLockout()
+    public async Task LoginAsync_WrongPasswordAndNotLocked_DelegatesToLockoutService()
     {
-        // 3 existing failures → 4th attempt → backoff = 2^(4-3) = 2 s
-        var user = new User { PasswordHash = "hashed_value", FailedLoginAttempts = 3 };
-        var fixture = new TestFixture()
-            .WithUser(user);
+        var user = new User { PasswordHash = "hashed_value" };
+        // IsLockedOut returns false by default — covers both never-locked and expired-lockout cases
+        var fixture = new TestFixture().WithUser(user);
         var testee = fixture.CreateTestee();
 
         await testee.LoginAsync("alice", "wrong", CancellationToken.None);
 
-        Assert.Multiple(() =>
-        {
-            user.FailedLoginAttempts.Should().Be(4);
-            user.LockedUntil.Should().Be(Instant.FromUtc(2026, 1, 1, 12, 0, 0) + Duration.FromSeconds(2));
-        });
+        await fixture.Lockout.Received(1)
+            .RecordFailedAttemptAsync(user, Arg.Any<Instant>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task LoginAsync_WrongPasswordWithExpiredLockout_IncrementsCounter()
+    public async Task LoginAsync_ValidCredentialsNotLocked_ReturnsOk()
     {
-        // LockedUntil is in the past — lockout has expired; counter must still be incremented.
-        var user = new User
-        {
-            PasswordHash = "hashed_value",
-            FailedLoginAttempts = 3,
-            LockedUntil = Instant.FromUtc(2026, 1, 1, 11, 59, 0), // 60 s before fixed clock
-        };
-        var fixture = new TestFixture()
-            .WithUser(user);
-        var testee = fixture.CreateTestee();
-
-        await testee.LoginAsync("alice", "wrong", CancellationToken.None);
-
-        user.FailedLoginAttempts.Should().Be(4);
-    }
-
-    [Fact]
-    public async Task LoginAsync_ValidCredentialsWithExpiredLockout_ReturnsOk()
-    {
-        // LockedUntil is set but in the past — should NOT return AccountTemporarilyLocked.
-        var user = new User
-        {
-            PasswordHash = "hashed_value",
-            LockedUntil = Instant.FromUtc(2026, 1, 1, 11, 59, 0), // 60 s before fixed clock
-        };
+        var user = new User { PasswordHash = "hashed_value" };
         var fixture = new TestFixture()
             .WithPasswordValid()
             .WithUser(user);
@@ -563,28 +557,24 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_WrongPasswordDuringActiveLockout_DoesNotIncrementCounter()
+    public async Task LoginAsync_WrongPasswordDuringActiveLockout_DoesNotCallRecordFailed()
     {
-        // LockedUntil is in the future → counter must not grow further.
-        var user = new User
-        {
-            PasswordHash = "hashed_value",
-            FailedLoginAttempts = 5,
-            LockedUntil = Instant.FromUtc(2026, 1, 1, 12, 5, 0),
-        };
+        var user = new User { PasswordHash = "hashed_value" };
         var fixture = new TestFixture()
-            .WithUser(user);
+            .WithUser(user)
+            .WithLockedOut();
         var testee = fixture.CreateTestee();
 
         await testee.LoginAsync("alice", "wrong", CancellationToken.None);
 
-        user.FailedLoginAttempts.Should().Be(5);
+        await fixture.Lockout.DidNotReceive()
+            .RecordFailedAttemptAsync(Arg.Any<User>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task LoginAsync_SuccessfulLogin_ResetsFailedLoginAttemptsAndLockout()
+    public async Task LoginAsync_SuccessfulLogin_ResetsLockoutViaLockoutService()
     {
-        var user = new User { PasswordHash = "hashed_value", FailedLoginAttempts = 3 };
+        var user = new User { PasswordHash = "hashed_value" };
         var fixture = new TestFixture()
             .WithPasswordValid()
             .WithUser(user);
@@ -595,32 +585,22 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeTrue();
-            user.FailedLoginAttempts.Should().Be(0);
-            user.LockedUntil.Should().BeNull();
+            fixture.Lockout.Received(1).PrepareReset(user);
         });
     }
 
-    // AllowedAttempts=3, MaxAttempts=12, MaxLockoutSeconds=300, BackoffBase=2
-    [Theory]
-    [InlineData(0, 0)]    // 1st attempt (≤ AllowedAttempts) → no lockout
-    [InlineData(2, 0)]    // 3rd attempt (= AllowedAttempts) → no lockout
-    [InlineData(3, 2)]    // 4th attempt → 2^(4-3)=2 s
-    [InlineData(4, 4)]    // 5th attempt → 2^(5-3)=4 s
-    [InlineData(10, 256)] // 11th attempt → 2^(11-3)=256 s
-    [InlineData(11, 300)] // 12th attempt (≥ MaxAttempts) → capped at MaxLockoutSeconds
-    [InlineData(15, 300)] // beyond MaxAttempts → still capped
-    public async Task LoginAsync_ExponentialBackoff_SetsCorrectLockoutDuration(
-        int existingAttempts, int expectedBackoffSeconds)
+    [Fact]
+    public async Task LoginAsync_InputNormalization_TrimsAndLowercasesBeforeLookup()
     {
-        var user = new User { PasswordHash = "hashed_value", FailedLoginAttempts = existingAttempts };
+        var user = new User { PasswordHash = "hashed_value" };
         var fixture = new TestFixture()
-            .WithUser(user);
+            .WithPasswordValid()
+            .WithUserFoundForCredential("alice@example.com", user);
         var testee = fixture.CreateTestee();
 
-        await testee.LoginAsync("alice", "wrong", CancellationToken.None);
+        var result = await testee.LoginAsync("  ALICE@EXAMPLE.COM  ", "password", CancellationToken.None);
 
-        user.LockedUntil.Should()
-            .Be(Instant.FromUtc(2026, 1, 1, 12, 0, 0) + Duration.FromSeconds(expectedBackoffSeconds));
+        result.IsSuccess.Should().BeTrue();
     }
 
     // ==========================================================================
@@ -906,5 +886,23 @@ public sealed class AuthServiceTests
         var act = async () => await testee.AdminCreateUserAsync("alice", null!, CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("email");
+    }
+
+    [Theory]
+    [InlineData(AuthError.InvalidUsername)]
+    [InlineData(AuthError.InvalidEmail)]
+    public async Task AdminCreateUserAsync_IdentityValidationFails_ReturnsValidationError(AuthError validationError)
+    {
+        var testee = new TestFixture()
+            .WithIdentityValidationError(validationError)
+            .CreateTestee();
+
+        var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Be(validationError);
+        });
     }
 }

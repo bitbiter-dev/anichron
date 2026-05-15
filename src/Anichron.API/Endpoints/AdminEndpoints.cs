@@ -29,12 +29,12 @@ public static class AdminEndpoints
     }
 
     internal static async Task<IResult> CreateUserAsync(
-        CreateAdminUserRequest req,
+        CreateAdminUserRequest request,
         IAuthService auth,
         IAuthResponseMapper mapper,
         CancellationToken ct)
     {
-        var result = await auth.AdminCreateUserAsync(req.Username, req.Email, ct);
+        var result = await auth.AdminCreateUserAsync(request.Username, request.Email, ct);
         return mapper.GetAdminCreateUserResult(result);
     }
 
@@ -69,7 +69,7 @@ public static class AdminEndpoints
 
     internal static async Task<IResult> PatchUserAsync(
         Guid userId,
-        PatchAdminUserRequest req,
+        PatchAdminUserRequest request,
         ClaimsPrincipal caller,
         IAdminUserService adminUsers,
         IAuthResponseMapper mapper,
@@ -78,7 +78,7 @@ public static class AdminEndpoints
         if (!Guid.TryParse(caller.FindFirstValue(ClaimTypes.NameIdentifier), out var callerId))
             return Results.Unauthorized();
 
-        var result = await adminUsers.UpdateAsync(callerId, userId, req.IsAdmin, req.IsDisabled, ct);
+        var result = await adminUsers.UpdateAsync(callerId, userId, request.IsAdmin, request.IsDisabled, ct);
         return mapper.GetAdminPatchUserResult(result);
     }
 
@@ -108,12 +108,12 @@ public static class AdminEndpoints
 
     internal static async Task<IResult> CreateStorageConfigAsync(
         Guid userId,
-        CreateStorageConfigRequest req,
+        CreateStorageConfigRequest request,
         IAdminStorageConfigService adminStorageConfigs,
         IAuthResponseMapper mapper,
         CancellationToken ct)
     {
-        var result = await adminStorageConfigs.AddAsync(userId, req.RootPath, ct);
+        var result = await adminStorageConfigs.AddAsync(userId, request.RootPath, ct);
         return mapper.GetAdminCreateStorageConfigResult(result);
     }
 

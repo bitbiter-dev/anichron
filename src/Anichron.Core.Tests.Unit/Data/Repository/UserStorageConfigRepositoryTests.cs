@@ -32,9 +32,9 @@ public sealed class UserStorageConfigRepositoryTests
         var config = MakeConfig(Guid.NewGuid(), "/nas/photos");
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.FindByRootPathAsync("/nas/photos", ct);
+        var result = await repository.FindByRootPathAsync("/nas/photos", ct);
 
         result.Should().NotBeNull();
         result.Id.Should().Be(config.Id);
@@ -47,9 +47,9 @@ public sealed class UserStorageConfigRepositoryTests
         await using var db = CreateDb();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/nas/photos"));
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.FindByRootPathAsync("/nas/videos", ct);
+        var result = await repository.FindByRootPathAsync("/nas/videos", ct);
 
         result.Should().BeNull();
     }
@@ -61,9 +61,9 @@ public sealed class UserStorageConfigRepositoryTests
         await using var db = CreateDb();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/nas/photos"));
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.FindByRootPathAsync("/nas", ct);
+        var result = await repository.FindByRootPathAsync("/nas", ct);
 
         result.Should().BeNull();
     }
@@ -83,9 +83,9 @@ public sealed class UserStorageConfigRepositoryTests
         var inactive = MakeConfig(userId, "/c", isActive: false);
         await db.AddRangeAsync(active1, active2, inactive);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.GetAllActiveAsync(ct);
+        var result = await repository.GetAllActiveAsync(ct);
 
         result.Should().HaveCount(2);
         result.Should().NotContain(c => c.Id == inactive.Id);
@@ -98,9 +98,9 @@ public sealed class UserStorageConfigRepositoryTests
         await using var db = CreateDb();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/a", isActive: false));
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.GetAllActiveAsync(ct);
+        var result = await repository.GetAllActiveAsync(ct);
 
         result.Should().BeEmpty();
     }
@@ -120,9 +120,9 @@ public sealed class UserStorageConfigRepositoryTests
         var theirs = MakeConfig(otherUserId, "/theirs", isActive: true);
         await db.AddRangeAsync(mine, theirs);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.GetActiveByUserIdAsync(userId, ct);
+        var result = await repository.GetActiveByUserIdAsync(userId, ct);
 
         result.Should().ContainSingle(c => c.Id == mine.Id);
         result.Should().NotContain(c => c.Id == theirs.Id);
@@ -136,9 +136,9 @@ public sealed class UserStorageConfigRepositoryTests
         var userId = Guid.NewGuid();
         db.StorageConfigs.Add(MakeConfig(userId, "/archive", isActive: false));
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.GetActiveByUserIdAsync(userId, ct);
+        var result = await repository.GetActiveByUserIdAsync(userId, ct);
 
         result.Should().BeEmpty();
     }
@@ -152,13 +152,13 @@ public sealed class UserStorageConfigRepositoryTests
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = CreateDb();
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
         var config = MakeConfig(Guid.NewGuid(), "/new/path");
 
-        repo.Add(config);
+        repository.Add(config);
         await db.SaveChangesAsync(ct);
 
-        var found = await repo.FindByRootPathAsync("/new/path", ct);
+        var found = await repository.FindByRootPathAsync("/new/path", ct);
         found.Should().NotBeNull();
         found.Id.Should().Be(config.Id);
     }
@@ -175,9 +175,9 @@ public sealed class UserStorageConfigRepositoryTests
         var config = MakeConfig(Guid.NewGuid(), "/nas/photos");
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.FindByIdAsync(config.Id, ct);
+        var result = await repository.FindByIdAsync(config.Id, ct);
 
         result.Should().NotBeNull();
         result.Id.Should().Be(config.Id);
@@ -190,9 +190,9 @@ public sealed class UserStorageConfigRepositoryTests
         await using var db = CreateDb();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/nas/photos"));
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.FindByIdAsync(Guid.NewGuid(), ct);
+        var result = await repository.FindByIdAsync(Guid.NewGuid(), ct);
 
         result.Should().BeNull();
     }
@@ -212,9 +212,9 @@ public sealed class UserStorageConfigRepositoryTests
         var otherUser = MakeConfig(Guid.NewGuid(), "/other", isActive: true);
         await db.AddRangeAsync(active, inactive, otherUser);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.GetByUserIdAsync(userId, ct);
+        var result = await repository.GetByUserIdAsync(userId, ct);
 
         result.Should().HaveCount(2);
         result.Should().Contain(c => c.Id == active.Id);
@@ -227,9 +227,9 @@ public sealed class UserStorageConfigRepositoryTests
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = CreateDb();
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        var result = await repo.GetByUserIdAsync(Guid.NewGuid(), ct);
+        var result = await repository.GetByUserIdAsync(Guid.NewGuid(), ct);
 
         result.Should().BeEmpty();
     }
@@ -246,12 +246,12 @@ public sealed class UserStorageConfigRepositoryTests
         var config = MakeConfig(Guid.NewGuid(), "/to-remove");
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);
-        var repo = new EfUserStorageConfigRepository(db);
+        var repository = new EfUserStorageConfigRepository(db);
 
-        repo.Remove(config);
+        repository.Remove(config);
         await db.SaveChangesAsync(ct);
 
-        var found = await repo.FindByIdAsync(config.Id, ct);
+        var found = await repository.FindByIdAsync(config.Id, ct);
         found.Should().BeNull();
     }
 }

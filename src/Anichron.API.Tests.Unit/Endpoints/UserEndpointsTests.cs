@@ -29,25 +29,25 @@ public sealed class UserEndpointsTests
     [Fact]
     public async Task GetMeAsync_MissingNameIdentifierClaim_ReturnsUnauthorized()
     {
-        var repo = Substitute.For<IUserRepository>();
+        var repository = Substitute.For<IUserRepository>();
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithoutNameIdentifier(), repo, CancellationToken.None);
+            PrincipalWithoutNameIdentifier(), repository, CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>();
-        await repo.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await repository.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task GetMeAsync_NonGuidNameIdentifierClaim_ReturnsUnauthorized()
     {
-        var repo = Substitute.For<IUserRepository>();
+        var repository = Substitute.For<IUserRepository>();
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithClaim("not-a-guid"), repo, CancellationToken.None);
+            PrincipalWithClaim("not-a-guid"), repository, CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>();
-        await repo.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await repository.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================
@@ -66,11 +66,11 @@ public sealed class UserEndpointsTests
             IsAdmin = false,
             MustChangePassword = false
         };
-        var repo = Substitute.For<IUserRepository>();
-        repo.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(dbUser);
+        var repository = Substitute.For<IUserRepository>();
+        repository.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(dbUser);
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithGuid(userId), repo, CancellationToken.None);
+            PrincipalWithGuid(userId), repository, CancellationToken.None);
 
         var ok = result.Should()
             .BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<UserProfileResponse>>().Subject;
@@ -85,11 +85,11 @@ public sealed class UserEndpointsTests
     public async Task GetMeAsync_UserNotFound_ReturnsNotFound()
     {
         var userId = Guid.NewGuid();
-        var repo = Substitute.For<IUserRepository>();
-        repo.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns((User?)null);
+        var repository = Substitute.For<IUserRepository>();
+        repository.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns((User?)null);
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithGuid(userId), repo, CancellationToken.None);
+            PrincipalWithGuid(userId), repository, CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.NotFound>();
     }
