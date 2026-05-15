@@ -6,9 +6,9 @@ internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
 {
     private static readonly (string Method, PathString Path)[] ExemptRoutes =
     [
-        (HttpMethods.Get,  new($"{ApiPaths.Base}/{ApiPaths.Users.Group}{ApiPaths.Users.Me}")),
-        (HttpMethods.Post, new($"{ApiPaths.Base}/{ApiPaths.Users.Group}{ApiPaths.Users.ChangePassword}")),
-        (HttpMethods.Post, new($"{ApiPaths.Base}/{ApiPaths.Auth.Group}{ApiPaths.Auth.Logout}")),
+        (HttpMethods.Get,  new(ApiPaths.Users.MePath)),
+        (HttpMethods.Post, new(ApiPaths.Users.ChangePasswordPath)),
+        (HttpMethods.Post, new(ApiPaths.Auth.LogoutPath)),
     ];
 
     public async Task InvokeAsync(HttpContext context)

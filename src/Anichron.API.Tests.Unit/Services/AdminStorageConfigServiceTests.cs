@@ -58,6 +58,21 @@ public sealed class AdminStorageConfigServiceTests
     // AddAsync
     // ==========================================================================
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task AddAsync_WhitespaceRootPath_ReturnsPathInvalid(string rootPath)
+    {
+        var fixture = new TestFixture();
+
+        var result = await fixture.CreateTestee().AddAsync(Guid.NewGuid(), rootPath, CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be(AuthError.PathInvalid);
+        await fixture.Users.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
     [Fact]
     public async Task AddAsync_UserNotFound_ReturnsUserNotFound()
     {

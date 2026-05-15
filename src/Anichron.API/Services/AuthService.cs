@@ -1,10 +1,10 @@
 using Anichron.API.Security;
-using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -58,7 +58,8 @@ public sealed class AuthService(
     IGuidFactory guidFactory,
     IPasswordHasher passwordHasher,
     IRegistrationValidator validator,
-    ITokenService tokenService)
+    ITokenService tokenService,
+    ILockoutService lockout)
     : IAuthService
 {
     private readonly string _dummyPasswordHash = passwordHasher.Hash(guidFactory.NewGuid().ToString());
@@ -112,11 +113,9 @@ public sealed class AuthService(
         {
             return AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } postgresException)
         {
-            return pg.ConstraintName?.Contains("Email", StringComparison.OrdinalIgnoreCase) == true
-                ? AuthResult.Fail<AuthTokens>(AuthError.EmailTaken)
-                : AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken);
+            return AuthResult.Fail<AuthTokens>(DetectConstraintError(postgresException));
         }
     }
 
@@ -138,8 +137,8 @@ public sealed class AuthService(
 
         // Record failed attempt only if not already locked
         // Prevents counter growth and redundant DB writes during an active lockout.
-        if (user is not null && !passwordValid && (user.LockedUntil is null || user.LockedUntil <= now))
-            await RecordFailedLoginAttemptAsync(user, now, ct);
+        if (user is not null && !passwordValid && !lockout.IsLockedOut(user, now))
+            await lockout.RecordFailedAttemptAsync(user, now, ct);
 
         if (user is null || !passwordValid)
             return AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials);
@@ -147,16 +146,16 @@ public sealed class AuthService(
         if (user.IsDisabled)
             return AuthResult.Fail<AuthTokens>(AuthError.AccountDisabled);
 
-        if (user.LockedUntil is { } lockedUntil && lockedUntil > now)
+        if (lockout.IsLockedOut(user, now))
         {
-            var secondsRemaining = (int)Math.Ceiling((lockedUntil - now).TotalSeconds);
+            // IsLockedOut guarantees LockedUntil is non-null and in the future.
+            var secondsRemaining = (int)Math.Ceiling((user.LockedUntil!.Value - now).TotalSeconds);
             return AuthResult.Locked<AuthTokens>(Math.Max(1, secondsRemaining));
         }
 
         // Counter reset and token issuance share one transaction — if IssueAsync fails,
         // the counter is not persisted so the user's lockout state is preserved correctly.
-        user.FailedLoginAttempts = 0;
-        user.LockedUntil = null;
+        lockout.PrepareReset(user);
 
         var tokens = await unitOfWork.ExecuteInTransactionAsync(async () =>
         {
@@ -206,6 +205,10 @@ public sealed class AuthService(
         var normalizedUsername = username.Trim().ToLowerInvariant();
         var normalizedEmail = email.Trim().ToLowerInvariant();
 
+        var identityError = validator.ValidateIdentity(normalizedUsername, normalizedEmail);
+        if (identityError is not null)
+            return AuthResult.Fail<AdminCreatedUser>(identityError.Value);
+
         if (await users.AnyByUsernameAsync(normalizedUsername, ct))
             return AuthResult.Fail<AdminCreatedUser>(AuthError.UsernameTaken);
 
@@ -229,28 +232,19 @@ public sealed class AuthService(
         {
             await unitOfWork.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } pg)
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } postgresException)
         {
-            return pg.ConstraintName?.Contains("Email", StringComparison.OrdinalIgnoreCase) == true
-                ? AuthResult.Fail<AdminCreatedUser>(AuthError.EmailTaken)
-                : AuthResult.Fail<AdminCreatedUser>(AuthError.UsernameTaken);
+            return AuthResult.Fail<AdminCreatedUser>(DetectConstraintError(postgresException));
         }
 
         return AuthResult.Ok(new AdminCreatedUser(user.Id, user.Username, user.Email, temporaryPassword));
     }
 
-    private async Task RecordFailedLoginAttemptAsync(User user, Instant now, CancellationToken ct)
-    {
-        user.FailedLoginAttempts++;
-        var backoff = ComputeBackoffSeconds(user.FailedLoginAttempts);
-        user.LockedUntil = now.Plus(Duration.FromSeconds(backoff));
-        await unitOfWork.SaveChangesAsync(ct);
-    }
-
-    private static int ComputeBackoffSeconds(int failedAttempts) => failedAttempts switch
-    {
-        <= AppDefaults.Lockout.AllowedAttempts => 0,
-        >= AppDefaults.Lockout.MaxAttempts => AppDefaults.Lockout.MaxSeconds,
-        _ => (int)Math.Pow(AppDefaults.Lockout.BackoffBase, failedAttempts - AppDefaults.Lockout.AllowedAttempts),
-    };
+    private static AuthError DetectConstraintError(PostgresException postgresException)
+        => postgresException.ConstraintName switch
+        {
+            UserIndexNames.EmailUnique => AuthError.EmailTaken,
+            UserIndexNames.UsernameUnique => AuthError.UsernameTaken,
+            _ => throw new UnreachableException($"Unexpected unique constraint violation: {postgresException.ConstraintName}"),
+        }; // ix_users_username is the only other unique constraint on User
 }

@@ -118,6 +118,8 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         {
             return result.Error switch
             {
+                AuthError.InvalidUsername => Results.UnprocessableEntity(new { error = AuthMessages.InvalidUsername }),
+                AuthError.InvalidEmail => Results.UnprocessableEntity(new { error = AuthMessages.InvalidEmail }),
                 AuthError.UsernameTaken => Results.Conflict(new { error = AuthMessages.UsernameTaken }),
                 AuthError.EmailTaken => Results.Conflict(new { error = AuthMessages.EmailTaken }),
                 _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
@@ -125,7 +127,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         }
 
         var created = result.Value!;
-        var location = $"{ApiPaths.Base}/{ApiPaths.Users.Group}/{created.Id}";
+        var location = ApiPaths.Users.UserLocation(created.Id);
         return Results.Created(location, new AdminCreatedUserResponse(
             created.Id, created.Username, created.Email, created.TemporaryPassword));
     }
@@ -174,13 +176,14 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             return result.Error switch
             {
                 AuthError.UserNotFound => Results.NotFound(),
+                AuthError.PathInvalid => Results.UnprocessableEntity(new { error = AuthMessages.PathInvalid }),
                 AuthError.PathAlreadyAssigned => Results.Conflict(new { error = AuthMessages.PathAlreadyAssigned }),
                 _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateStorageConfig: {result.Error}"),
             };
         }
 
         var config = result.Value!;
-        var location = $"{ApiPaths.Base}/{ApiPaths.Users.Group}/{config.UserId}/storage-configs/{config.Id}";
+        var location = ApiPaths.Users.StorageConfigLocation(config.UserId, config.Id);
         return Results.Created(location, ToAdminStorageConfigResponse(config));
     }
 

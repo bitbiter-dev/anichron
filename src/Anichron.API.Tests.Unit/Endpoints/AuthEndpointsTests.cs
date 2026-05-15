@@ -18,9 +18,9 @@ public sealed class AuthEndpointsTests
 
     private static DefaultHttpContext NewHttpWithCookie(string name, string value)
     {
-        var ctx = new DefaultHttpContext();
-        ctx.Request.Headers.Cookie = $"{name}={value}";
-        return ctx;
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers.Cookie = $"{name}={value}";
+        return httpContext;
     }
 
     // ==========================================================================
@@ -138,7 +138,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
 
-        var result = await AuthEndpoints.RefreshAsync(NewHttp(), auth, mapper, req: null, CancellationToken.None);
+        var result = await AuthEndpoints.RefreshAsync(NewHttp(), auth, mapper, request: null, CancellationToken.None);
 
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(401);
         await auth.DidNotReceive().RefreshAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -154,7 +154,7 @@ public sealed class AuthEndpointsTests
         auth.RefreshAsync("cookie_tok", Arg.Any<CancellationToken>())
             .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
 
-        await AuthEndpoints.RefreshAsync(http, auth, mapper, req: null, CancellationToken.None);
+        await AuthEndpoints.RefreshAsync(http, auth, mapper, request: null, CancellationToken.None);
 
         await auth.Received(1).RefreshAsync("cookie_tok", Arg.Any<CancellationToken>());
         mapper.Received(1).GetRefreshResult(Arg.Any<AuthResult<AuthTokens>>(), Arg.Any<HttpContext>(), setCookie: true);
@@ -184,7 +184,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
 
-        var result = await AuthEndpoints.LogoutAsync(NewHttp(), auth, mapper, req: null, CancellationToken.None);
+        var result = await AuthEndpoints.LogoutAsync(NewHttp(), auth, mapper, request: null, CancellationToken.None);
 
         mapper.Received(1).ClearRefreshCookie(Arg.Any<HttpContext>());
         await auth.DidNotReceive().RevokeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -198,7 +198,7 @@ public sealed class AuthEndpointsTests
         var mapper = Substitute.For<IAuthResponseMapper>();
         var http = NewHttpWithCookie("refresh_token", "cookie_tok");
 
-        var result = await AuthEndpoints.LogoutAsync(http, auth, mapper, req: null, CancellationToken.None);
+        var result = await AuthEndpoints.LogoutAsync(http, auth, mapper, request: null, CancellationToken.None);
 
         mapper.Received(1).ClearRefreshCookie(Arg.Any<HttpContext>());
         await auth.Received(1).RevokeAsync("cookie_tok", Arg.Any<CancellationToken>());

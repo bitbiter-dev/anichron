@@ -35,10 +35,10 @@ public static partial class ApplicationExtensions
                 try
                 {
                     await using var scope = app.Services.CreateAsyncScope();
-                    var db = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
                     var logger = scope.ServiceProvider.GetRequiredService<ILogger<AnichronDbContext>>();
 
-                    await db.Database.MigrateWithAdvisoryLockAsync(ct);
+                    await dbContext.Database.MigrateWithAdvisoryLockAsync(ct);
                     Log.MigrationApplied(logger);
 
                     var bootstrapSeeder = scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>();
