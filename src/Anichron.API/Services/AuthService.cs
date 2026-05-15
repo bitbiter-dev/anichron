@@ -61,8 +61,6 @@ public sealed class AuthService(
     ILockoutService lockout)
     : IAuthService
 {
-    private const string EmailUniqueConstraintName = "ix_users_email";
-
     private readonly string _dummyPasswordHash = passwordHasher.Hash(guidFactory.NewGuid().ToString());
 
     public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct)
@@ -242,7 +240,7 @@ public sealed class AuthService(
     }
 
     private static AuthError DetectConstraintError(PostgresException postgresException)
-        => postgresException.ConstraintName == EmailUniqueConstraintName
+        => postgresException.ConstraintName == UserIndexNames.EmailUnique
             ? AuthError.EmailTaken
             : AuthError.UsernameTaken;
 }
