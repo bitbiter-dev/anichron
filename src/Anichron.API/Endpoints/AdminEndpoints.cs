@@ -25,6 +25,11 @@ public static class AdminEndpoints
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
         group.MapDelete(ApiPaths.Users.UserStorageConfigById, DeleteStorageConfigAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapGet("{userId:guid}/storage-configs", GetStorageConfigsAsync);
+        group.MapPost("{userId:guid}/storage-configs", CreateStorageConfigAsync)
+             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapDelete("{userId:guid}/storage-configs/{configId:guid}", DeleteStorageConfigAsync)
+             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
         return app;
     }
 
