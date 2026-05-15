@@ -55,7 +55,7 @@ public static class AuthEndpoints
         HttpContext http,
         IAuthService auth,
         IAuthResponseMapper mapper,
-        // [FromBody] is explicit here because the requestuest is nullable —
+        // [FromBody] is explicit here because the request is nullable —
         // web clients send no body (token arrives via cookie), mobile clients send it in the body.
         [FromBody] RefreshRequest? request,
         CancellationToken ct)

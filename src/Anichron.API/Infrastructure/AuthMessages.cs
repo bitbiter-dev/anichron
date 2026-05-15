@@ -2,6 +2,7 @@ namespace Anichron.API.Infrastructure;
 
 internal static class AuthMessages
 {
+    internal const string InvalidUsername = "The provided username is not valid.";
     internal const string UsernameTaken = "Username is already taken.";
     internal const string EmailTaken = "An account with this email already exists.";
     internal const string InvalidEmail = "The provided email address is not valid.";

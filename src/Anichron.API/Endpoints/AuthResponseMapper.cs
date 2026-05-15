@@ -118,6 +118,8 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         {
             return result.Error switch
             {
+                AuthError.InvalidUsername => Results.UnprocessableEntity(new { error = AuthMessages.InvalidUsername }),
+                AuthError.InvalidEmail => Results.UnprocessableEntity(new { error = AuthMessages.InvalidEmail }),
                 AuthError.UsernameTaken => Results.Conflict(new { error = AuthMessages.UsernameTaken }),
                 AuthError.EmailTaken => Results.Conflict(new { error = AuthMessages.EmailTaken }),
                 _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
