@@ -12,7 +12,7 @@ public interface ILockoutService
     void PrepareReset(User user);
 }
 
-internal sealed class LockoutService(IUnitOfWork unitOfWork) : ILockoutService
+public sealed class LockoutService(IUnitOfWork unitOfWork) : ILockoutService
 {
     public bool IsLockedOut(User user, Instant now)
         => user.LockedUntil is { } lockedUntil && lockedUntil > now;
