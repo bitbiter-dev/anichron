@@ -335,13 +335,13 @@ namespace Anichron.Core.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Users_Email",
+                name: "ix_users_email",
                 table: "Users",
                 column: "Email",
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Users_Username",
+                name: "ix_users_username",
                 table: "Users",
                 column: "Username",
                 unique: true);

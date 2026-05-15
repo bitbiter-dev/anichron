@@ -4,6 +4,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -240,7 +241,10 @@ public sealed class AuthService(
     }
 
     private static AuthError DetectConstraintError(PostgresException postgresException)
-        => postgresException.ConstraintName == UserIndexNames.EmailUnique
-            ? AuthError.EmailTaken
-            : AuthError.UsernameTaken; // ix_users_username is the only other unique constraint on User
+        => postgresException.ConstraintName switch
+        {
+            UserIndexNames.EmailUnique => AuthError.EmailTaken,
+            UserIndexNames.UsernameUnique => AuthError.UsernameTaken,
+            _ => throw new UnreachableException($"Unexpected unique constraint violation: {postgresException.ConstraintName}"),
+        }; // ix_users_username is the only other unique constraint on User
 }

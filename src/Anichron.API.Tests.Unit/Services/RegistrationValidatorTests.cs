@@ -193,6 +193,18 @@ public sealed class RegistrationValidatorTests
         result.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("abc")]                               // 3 chars — at MinLength
+    [InlineData("abcdefghijklmnopqrstuvwxyzabcdef")]  // 32 chars — at MaxLength
+    public void ValidateIdentity_UsernameAtLengthBoundary_ReturnsNull(string username)
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.ValidateIdentity(username, "user@example.com");
+
+        result.Should().BeNull();
+    }
+
     // ==========================================================================
     // ValidatePasswordAsync
     // ==========================================================================

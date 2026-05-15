@@ -98,6 +98,19 @@ public sealed class LockoutServiceTests
     }
 
     [Fact]
+    public async Task RecordFailedAttemptAsync_AtMaxAttempts_SetsLockedUntilToCap()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // 11 existing → 12th attempt (= MaxAttempts) → capped at 300 s
+        var user = new User { FailedLoginAttempts = 11 };
+        var testee = new TestFixture().Build();
+
+        await testee.RecordFailedAttemptAsync(user, Now, ct);
+
+        user.LockedUntil.Should().Be(Now.Plus(Duration.FromSeconds(300)));
+    }
+
+    [Fact]
     public async Task RecordFailedAttemptAsync_BelowThreshold_SetsLockedUntilToNow()
     {
         var ct = TestContext.Current.CancellationToken;

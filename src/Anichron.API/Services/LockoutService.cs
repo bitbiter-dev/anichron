@@ -20,6 +20,8 @@ internal sealed class LockoutService(IUnitOfWork unitOfWork) : ILockoutService
     public async Task RecordFailedAttemptAsync(User user, Instant now, CancellationToken ct)
     {
         user.FailedLoginAttempts++;
+        // When backoff = 0 (below threshold), LockedUntil = now is intentional — IsLockedOut uses strict >,
+        // so the user is not locked out, but the timestamp is always written for consistency.
         user.LockedUntil = now.Plus(Duration.FromSeconds(ComputeBackoffSeconds(user.FailedLoginAttempts)));
         await unitOfWork.SaveChangesAsync(ct);
     }

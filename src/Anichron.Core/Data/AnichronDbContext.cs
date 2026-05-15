@@ -151,8 +151,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
 
         modelBuilder.Entity<User>(entity =>
         {
-            entity.HasIndex(u => u.Username).IsUnique();
-            entity.HasIndex(u => u.Email).IsUnique();
+            entity.HasIndex(u => u.Username).IsUnique().HasDatabaseName(UserIndexNames.UsernameUnique);
+            entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName(UserIndexNames.EmailUnique);
 
             // 1:N with StorageConfig
             entity.HasMany(u => u.StorageConfigs)

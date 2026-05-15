@@ -5,6 +5,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Diagnostics;
 
 namespace Anichron.API.Tests.Unit.Services;
 
@@ -294,19 +295,15 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task RegisterAsync_ConcurrentViolationWithNullConstraintName_ReturnsUsernameTaken()
+    public async Task RegisterAsync_ConcurrentViolationWithUnknownConstraintName_ThrowsUnreachableException()
     {
         var fixture = new TestFixture()
             .WithSaveChangesThrows(UniqueViolation(null));
         var testee = fixture.CreateTestee();
 
-        var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
+        var act = async () => await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
-        Assert.Multiple(() =>
-        {
-            result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.UsernameTaken);
-        });
+        await act.Should().ThrowAsync<UnreachableException>();
     }
 
     [Fact]
@@ -866,6 +863,18 @@ public sealed class AuthServiceTests
         var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
 
         result.Error.Should().Be(AuthError.UsernameTaken);
+    }
+
+    [Fact]
+    public async Task AdminCreateUserAsync_UnknownConstraintViolation_ThrowsUnreachableException()
+    {
+        var testee = new TestFixture()
+            .WithSaveChangesThrows(UniqueViolation(null))
+            .CreateTestee();
+
+        var act = async () => await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnreachableException>();
     }
 
     [Fact]
