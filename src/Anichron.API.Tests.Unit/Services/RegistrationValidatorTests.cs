@@ -151,6 +151,49 @@ public sealed class RegistrationValidatorTests
     }
 
     // ==========================================================================
+    // ValidateIdentity
+    // ==========================================================================
+
+    [Theory]
+    [InlineData("")]                                   // 0 chars — below MinLength (3)
+    [InlineData("ab")]                                 // 2 chars — below MinLength (3)
+    [InlineData("abcdefghijklmnopqrstuvwxyzabcdefg")]  // 33 chars — above MaxLength (32)
+    [InlineData("user name")]                          // space not in [a-zA-Z0-9_-]
+    [InlineData("user.name")]                          // period not allowed
+    public void ValidateIdentity_InvalidUsername_ReturnsInvalidUsername(string username)
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.ValidateIdentity(username, "user@example.com");
+
+        result.Should().Be(AuthError.InvalidUsername);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("notanemail")]
+    [InlineData("@domain.com")]
+    [InlineData("user@")]
+    public void ValidateIdentity_InvalidEmail_ReturnsInvalidEmail(string email)
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.ValidateIdentity("validuser", email);
+
+        result.Should().Be(AuthError.InvalidEmail);
+    }
+
+    [Fact]
+    public void ValidateIdentity_ValidUsernameAndEmail_ReturnsNull()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.ValidateIdentity("validuser", "user@example.com");
+
+        result.Should().BeNull();
+    }
+
+    // ==========================================================================
     // ValidatePasswordAsync
     // ==========================================================================
 

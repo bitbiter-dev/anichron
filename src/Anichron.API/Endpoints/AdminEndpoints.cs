@@ -12,18 +12,18 @@ public static class AdminEndpoints
                        .RequireAuthorization(AuthPolicies.Admin);
         group.MapPost(string.Empty, CreateUserAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost("{userId:guid}/password-reset", ResetUserPasswordAsync)
+        group.MapPost(ApiPaths.Users.PasswordReset, ResetUserPasswordAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
         group.MapGet(string.Empty, GetUsersAsync);
-        group.MapGet("{userId:guid}", GetUserAsync);
-        group.MapPatch("{userId:guid}", PatchUserAsync)
+        group.MapGet(ApiPaths.Users.ById, GetUserAsync);
+        group.MapPatch(ApiPaths.Users.ById, PatchUserAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapDelete("{userId:guid}", DeleteUserAsync)
+        group.MapDelete(ApiPaths.Users.ById, DeleteUserAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapGet("{userId:guid}/storage-configs", GetStorageConfigsAsync);
-        group.MapPost("{userId:guid}/storage-configs", CreateStorageConfigAsync)
+        group.MapGet(ApiPaths.Users.UserStorageConfigs, GetStorageConfigsAsync);
+        group.MapPost(ApiPaths.Users.UserStorageConfigs, CreateStorageConfigAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapDelete("{userId:guid}/storage-configs/{configId:guid}", DeleteStorageConfigAsync)
+        group.MapDelete(ApiPaths.Users.UserStorageConfigById, DeleteStorageConfigAsync)
              .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
         return app;
     }

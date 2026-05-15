@@ -31,6 +31,8 @@ public sealed class AdminStorageConfigService(
     public async Task<AuthResult<UserStorageConfig>> AddAsync(Guid userId, string rootPath, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(rootPath);
+        if (string.IsNullOrWhiteSpace(rootPath))
+            return AuthResult.Fail<UserStorageConfig>(AuthError.PathInvalid);
 
         var user = await users.FindByIdAsync(userId, ct);
         if (user is null)

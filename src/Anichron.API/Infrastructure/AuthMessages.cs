@@ -19,6 +19,7 @@ internal static class AuthMessages
     internal const string InviteTokenInvalid = "The invite token is invalid, expired, or has already been used.";
     internal const string CannotModifySelf = "You cannot modify your own account.";
     internal const string PathAlreadyAssigned = "This root path is already assigned to a storage config.";
+    internal const string PathInvalid = "The root path cannot be empty or whitespace.";
 }
 
 internal static class AuthRateLimitPolicies

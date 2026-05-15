@@ -19,4 +19,5 @@ public enum AuthError
     UserNotFound = 14,
     PathAlreadyAssigned = 15,
     StorageConfigNotFound = 16,
+    PathInvalid = 17,
 }
