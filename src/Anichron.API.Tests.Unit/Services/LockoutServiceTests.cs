@@ -23,36 +23,36 @@ public sealed class LockoutServiceTests
     public void IsLockedOut_LockedUntilInFuture_ReturnsTrue()
     {
         var user = new User { LockedUntil = Now.Plus(Duration.FromSeconds(30)) };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        sut.IsLockedOut(user, Now).Should().BeTrue();
+        testee.IsLockedOut(user, Now).Should().BeTrue();
     }
 
     [Fact]
     public void IsLockedOut_LockedUntilInPast_ReturnsFalse()
     {
         var user = new User { LockedUntil = Now.Minus(Duration.FromSeconds(1)) };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        sut.IsLockedOut(user, Now).Should().BeFalse();
+        testee.IsLockedOut(user, Now).Should().BeFalse();
     }
 
     [Fact]
     public void IsLockedOut_LockedUntilExactlyNow_ReturnsFalse()
     {
         var user = new User { LockedUntil = Now };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        sut.IsLockedOut(user, Now).Should().BeFalse();
+        testee.IsLockedOut(user, Now).Should().BeFalse();
     }
 
     [Fact]
     public void IsLockedOut_LockedUntilNull_ReturnsFalse()
     {
         var user = new User { LockedUntil = null };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        sut.IsLockedOut(user, Now).Should().BeFalse();
+        testee.IsLockedOut(user, Now).Should().BeFalse();
     }
 
     // ==========================================================================
@@ -64,9 +64,9 @@ public sealed class LockoutServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         var user = new User { FailedLoginAttempts = 2 };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        await sut.RecordFailedAttemptAsync(user, Now, ct);
+        await testee.RecordFailedAttemptAsync(user, Now, ct);
 
         user.FailedLoginAttempts.Should().Be(3);
     }
@@ -77,9 +77,9 @@ public sealed class LockoutServiceTests
         var ct = TestContext.Current.CancellationToken;
         // 3 existing → 4th attempt → backoff = 2^(4-3) = 2 s
         var user = new User { FailedLoginAttempts = 3 };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        await sut.RecordFailedAttemptAsync(user, Now, ct);
+        await testee.RecordFailedAttemptAsync(user, Now, ct);
 
         user.LockedUntil.Should().Be(Now.Plus(Duration.FromSeconds(2)));
     }
@@ -90,9 +90,9 @@ public sealed class LockoutServiceTests
         var ct = TestContext.Current.CancellationToken;
         var user = new User();
         var fixture = new TestFixture();
-        var sut = fixture.Build();
+        var testee = fixture.Build();
 
-        await sut.RecordFailedAttemptAsync(user, Now, ct);
+        await testee.RecordFailedAttemptAsync(user, Now, ct);
 
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(ct);
     }
@@ -103,9 +103,9 @@ public sealed class LockoutServiceTests
         var ct = TestContext.Current.CancellationToken;
         // 1st attempt (≤ AllowedAttempts=3) → backoff is 0 → LockedUntil set to Now, not null
         var user = new User { FailedLoginAttempts = 0 };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        await sut.RecordFailedAttemptAsync(user, Now, ct);
+        await testee.RecordFailedAttemptAsync(user, Now, ct);
 
         user.LockedUntil.Should().Be(Now);
     }
@@ -122,9 +122,9 @@ public sealed class LockoutServiceTests
             FailedLoginAttempts = 5,
             LockedUntil = Now.Plus(Duration.FromSeconds(30)),
         };
-        var sut = new TestFixture().Build();
+        var testee = new TestFixture().Build();
 
-        sut.PrepareReset(user);
+        testee.PrepareReset(user);
 
         Assert.Multiple(() =>
         {

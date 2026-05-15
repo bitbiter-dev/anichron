@@ -242,5 +242,5 @@ public sealed class AuthService(
     private static AuthError DetectConstraintError(PostgresException postgresException)
         => postgresException.ConstraintName == UserIndexNames.EmailUnique
             ? AuthError.EmailTaken
-            : AuthError.UsernameTaken;
+            : AuthError.UsernameTaken; // ix_users_username is the only other unique constraint on User
 }
