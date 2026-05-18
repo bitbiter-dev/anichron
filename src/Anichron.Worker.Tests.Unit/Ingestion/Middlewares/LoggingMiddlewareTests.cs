@@ -113,16 +113,17 @@ public sealed class LoggingMiddlewareTests
         { await middleware.InvokeAsync(MakeContext(), nextAsync, CancellationToken.None); }
         catch (InvalidOperationException exception) { _ = exception; }
 
-        logger.Entries.Should().ContainSingle();
+        logger.Entries.Should().ContainSingle()
+            .Which.Message.Should().Contain("Ingesting");
     }
 
     private sealed class CapturingLogger : ILogger<LoggingMiddleware>
     {
-        private readonly List<(LogLevel Level, string Message)> _entries = [];
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries => _entries;
+        private readonly List<(LogLevel Level, string Message)> entries = [];
+        public IReadOnlyList<(LogLevel Level, string Message)> Entries => entries;
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) => _entries.Add((logLevel, formatter(state, exception)));
+            Func<TState, Exception?, string> formatter) => entries.Add((logLevel, formatter(state, exception)));
 
         public bool IsEnabled(LogLevel logLevel) => true;
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;

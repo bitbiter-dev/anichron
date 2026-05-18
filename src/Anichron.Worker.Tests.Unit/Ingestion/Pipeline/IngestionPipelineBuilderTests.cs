@@ -20,24 +20,8 @@ public sealed class IngestionPipelineBuilderTests
     public async Task Build_MultipleMiddlewares_InvokesInRegistrationOrderAsync()
     {
         var order = new List<int>();
-
-        var first = Substitute.For<IIngestionMiddleware>();
-        first.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
-        first.InvokeAsync(Arg.Any<IngestionContext>(), Arg.Any<IngestionDelegate>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                order.Add(1);
-                return callInfo.ArgAt<IngestionDelegate>(1)(callInfo.ArgAt<IngestionContext>(0), callInfo.ArgAt<CancellationToken>(2));
-            });
-
-        var second = Substitute.For<IIngestionMiddleware>();
-        second.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
-        second.InvokeAsync(Arg.Any<IngestionContext>(), Arg.Any<IngestionDelegate>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                order.Add(2);
-                return callInfo.ArgAt<IngestionDelegate>(1)(callInfo.ArgAt<IngestionContext>(0), callInfo.ArgAt<CancellationToken>(2));
-            });
+        var first = new OrderCapturingMiddleware(1, order);
+        var second = new OrderCapturingMiddleware(2, order);
 
         var pipeline = IngestionPipelineBuilder.Build([first, second]);
         await pipeline(MakeContext(), CancellationToken.None);
@@ -104,16 +88,8 @@ public sealed class IngestionPipelineBuilderTests
     [Fact]
     public async Task Build_SecondMiddlewareCannotInvoke_FirstMiddlewareStillRunsAsync()
     {
-        var firstInvoked = false;
-
-        var first = Substitute.For<IIngestionMiddleware>();
-        first.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
-        first.InvokeAsync(Arg.Any<IngestionContext>(), Arg.Any<IngestionDelegate>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                firstInvoked = true;
-                return callInfo.ArgAt<IngestionDelegate>(1)(callInfo.ArgAt<IngestionContext>(0), callInfo.ArgAt<CancellationToken>(2));
-            });
+        var invoked = new List<int>();
+        var first = new OrderCapturingMiddleware(1, invoked);
 
         var second = Substitute.For<IIngestionMiddleware>();
         second.CanInvoke(Arg.Any<IngestionContext>()).Returns(false);
@@ -124,6 +100,22 @@ public sealed class IngestionPipelineBuilderTests
         { await pipeline(MakeContext(), CancellationToken.None); }
         catch (PipelineConfigurationException exception) { _ = exception; }
 
-        firstInvoked.Should().BeTrue();
+        invoked.Should().Contain(1);
+    }
+
+    // ==========================================================================
+    // Helpers
+    // ==========================================================================
+
+    private sealed class OrderCapturingMiddleware(int order, List<int> tracker) : IIngestionMiddleware
+    {
+        public bool CanInvoke(IngestionContext context) => true;
+        public IngestionStepError OnCannotInvoke(IngestionContext context) => new(string.Empty);
+
+        public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        {
+            tracker.Add(order);
+            await next(context, ct);
+        }
     }
 }

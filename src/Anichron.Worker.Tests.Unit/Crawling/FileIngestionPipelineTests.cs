@@ -238,4 +238,19 @@ public sealed class FileIngestionPipelineTests
         await act.Should().NotThrowAsync();
         fixture.ProcessedContexts.Should().BeEmpty();
     }
+
+    // ==========================================================================
+    // Producer exception
+    // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_RootDirectoryDoesNotExist_ThrowsDirectoryNotFoundExceptionAsync()
+    {
+        var fixture = new TestFixture();
+
+        var pipeline = fixture.Build();
+        var act = async () => await pipeline.RunAsync(MakeConfig("/nonexistent"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<DirectoryNotFoundException>();
+    }
 }

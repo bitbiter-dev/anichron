@@ -17,7 +17,7 @@ public sealed class WorkerTests
         public IFileIngestionPipeline Pipeline { get; } = Substitute.For<IFileIngestionPipeline>();
         public WorkerState WorkerState { get; } = new();
 
-        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IServiceScopeFactory scopeFactory;
 
         public TestFixture()
         {
@@ -25,8 +25,8 @@ public sealed class WorkerTests
             var scope = Substitute.For<IServiceScope>();
             scope.ServiceProvider.Returns(serviceProvider);
 
-            _scopeFactory = Substitute.For<IServiceScopeFactory>();
-            _scopeFactory.CreateScope().Returns(scope);
+            scopeFactory = Substitute.For<IServiceScopeFactory>();
+            scopeFactory.CreateScope().Returns(scope);
 
             serviceProvider.GetService(typeof(IUserStorageConfigRepository)).Returns(ConfigRepository);
 
@@ -38,7 +38,7 @@ public sealed class WorkerTests
 
         public CrawlingWorker Build()
             => new(
-                _scopeFactory,
+                scopeFactory,
                 WorkerState,
                 Pipeline,
                 Options.Create(new WorkerSettings()),
