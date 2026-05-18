@@ -48,30 +48,30 @@ public sealed class WorkerInitializerTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_UserIsEmpty_LogsAllUserModeAndMakesNoDbCalls()
+    public async Task StartAsync_UserIsEmpty_LogsAllUserModeAndMakesNoDbCallsAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
-        var sut = fx.Build(user: string.Empty);
+        var fixture = new TestFixture();
+        var initializer = fixture.Build(user: string.Empty);
 
-        await sut.StartAsync(ct);
+        await initializer.StartAsync(ct);
 
-        await fx.UserRepository.DidNotReceive().FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
-        fx.WorkerState.ResolvedUserId.Should().BeNull();
+        await fixture.UserRepository.DidNotReceive().FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        fixture.WorkerState.ResolvedUserId.Should().BeNull();
     }
 
     [Fact]
-    public async Task StartAsync_UserIsWhitespace_LogsAllUserModeAndMakesNoDbCalls()
+    public async Task StartAsync_UserIsWhitespace_LogsAllUserModeAndMakesNoDbCallsAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
-        var sut = fx.Build(user: "   ");
+        var fixture = new TestFixture();
+        var initializer = fixture.Build(user: "   ");
 
-        await sut.StartAsync(ct);
+        await initializer.StartAsync(ct);
 
-        await fx.UserRepository.DidNotReceive().FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        fx.WorkerState.ResolvedUserId.Should().BeNull();
+        await fixture.UserRepository.DidNotReceive().FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        fixture.WorkerState.ResolvedUserId.Should().BeNull();
     }
 
     // ==========================================================================
@@ -79,15 +79,15 @@ public sealed class WorkerInitializerTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_UnknownUser_ThrowsInvalidOperationExceptionWithUserInMessage()
+    public async Task StartAsync_UnknownUser_ThrowsInvalidOperationExceptionWithUserInMessageAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
-        fx.UserRepository.FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        var fixture = new TestFixture();
+        fixture.UserRepository.FindByCredentialAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
-        var sut = fx.Build(user: "ghost@example.com");
+        var initializer = fixture.Build(user: "ghost@example.com");
 
-        var act = async () => await sut.StartAsync(ct);
+        var act = async () => await initializer.StartAsync(ct);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*ghost@example.com*");
@@ -98,21 +98,21 @@ public sealed class WorkerInitializerTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_CredentialNormalized_TrimsAndLowercases()
+    public async Task StartAsync_CredentialNormalized_TrimsAndLowercasesAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
-        fx.UserRepository.FindByCredentialAsync("alice@example.com", Arg.Any<CancellationToken>())
+        fixture.UserRepository.FindByCredentialAsync("alice@example.com", Arg.Any<CancellationToken>())
             .Returns(user);
         var existingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/data" };
-        fx.StorageConfigRepository.FindByRootPathAsync("/data", Arg.Any<CancellationToken>())
+        fixture.StorageConfigRepository.FindByRootPathAsync("/data", Arg.Any<CancellationToken>())
             .Returns(existingConfig);
-        var sut = fx.Build(user: "  Alice@Example.COM  ", rootPath: "/data");
+        var initializer = fixture.Build(user: "  Alice@Example.COM  ", rootPath: "/data");
 
-        await sut.StartAsync(ct);
+        await initializer.StartAsync(ct);
 
-        await fx.UserRepository.Received(1)
+        await fixture.UserRepository.Received(1)
             .FindByCredentialAsync("alice@example.com", Arg.Any<CancellationToken>());
     }
 
@@ -121,21 +121,21 @@ public sealed class WorkerInitializerTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_ExistingConfigSameUser_SkipsSaveAndSetsResolvedUserId()
+    public async Task StartAsync_ExistingConfigSameUser_SkipsSaveAndSetsResolvedUserIdAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
         var existingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/nas" };
-        fx.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
-        fx.StorageConfigRepository.FindByRootPathAsync("/nas", Arg.Any<CancellationToken>()).Returns(existingConfig);
-        var sut = fx.Build(user: "alice", rootPath: "/nas");
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
+        fixture.StorageConfigRepository.FindByRootPathAsync("/nas", Arg.Any<CancellationToken>()).Returns(existingConfig);
+        var initializer = fixture.Build(user: "alice", rootPath: "/nas");
 
-        await sut.StartAsync(ct);
+        await initializer.StartAsync(ct);
 
-        fx.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
-        await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
-        fx.WorkerState.ResolvedUserId.Should().Be(user.Id);
+        fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        fixture.WorkerState.ResolvedUserId.Should().Be(user.Id);
     }
 
     // ==========================================================================
@@ -143,17 +143,17 @@ public sealed class WorkerInitializerTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_ExistingConfigDifferentUser_ThrowsInvalidOperationExceptionWithRootPathInMessage()
+    public async Task StartAsync_ExistingConfigDifferentUser_ThrowsInvalidOperationExceptionWithRootPathInMessageAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
         var conflictingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/shared" };
-        fx.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
-        fx.StorageConfigRepository.FindByRootPathAsync("/shared", Arg.Any<CancellationToken>()).Returns(conflictingConfig);
-        var sut = fx.Build(user: "alice", rootPath: "/shared");
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
+        fixture.StorageConfigRepository.FindByRootPathAsync("/shared", Arg.Any<CancellationToken>()).Returns(conflictingConfig);
+        var initializer = fixture.Build(user: "alice", rootPath: "/shared");
 
-        var act = async () => await sut.StartAsync(ct);
+        var act = async () => await initializer.StartAsync(ct);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*/shared*");
@@ -164,25 +164,25 @@ public sealed class WorkerInitializerTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_NoExistingConfig_CreatesStorageConfigWithCorrectFieldsAndSetsResolvedUserId()
+    public async Task StartAsync_NoExistingConfig_CreatesStorageConfigWithCorrectFieldsAndSetsResolvedUserIdAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
-        fx.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
-        fx.StorageConfigRepository.FindByRootPathAsync("/nas", Arg.Any<CancellationToken>())
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
+        fixture.StorageConfigRepository.FindByRootPathAsync("/nas", Arg.Any<CancellationToken>())
             .Returns((UserStorageConfig?)null);
-        var sut = fx.Build(user: "alice", rootPath: "/nas");
+        var initializer = fixture.Build(user: "alice", rootPath: "/nas");
 
-        await sut.StartAsync(ct);
+        await initializer.StartAsync(ct);
 
-        fx.StorageConfigRepository.Received(1).Add(
-            Arg.Is<UserStorageConfig>(c =>
-                c.UserId == user.Id &&
-                c.RootPath == "/nas" &&
-                c.IsActive));
-        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
-        fx.WorkerState.ResolvedUserId.Should().Be(user.Id);
+        fixture.StorageConfigRepository.Received(1).Add(
+            Arg.Is<UserStorageConfig>(storageConfig =>
+                storageConfig.UserId == user.Id &&
+                storageConfig.RootPath == "/nas" &&
+                storageConfig.IsActive));
+        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        fixture.WorkerState.ResolvedUserId.Should().Be(user.Id);
     }
 
     // ==========================================================================
@@ -190,10 +190,10 @@ public sealed class WorkerInitializerTests
     // ==========================================================================
 
     [Fact]
-    public async Task StopAsync_AlwaysCompletesSuccessfully()
+    public async Task StopAsync_AlwaysCompletesSuccessfullyAsync()
     {
-        var sut = new TestFixture().Build();
-        var act = async () => await sut.StopAsync(TestContext.Current.CancellationToken);
+        var initializer = new TestFixture().Build();
+        var act = async () => await initializer.StopAsync(TestContext.Current.CancellationToken);
         await act.Should().NotThrowAsync();
     }
 }

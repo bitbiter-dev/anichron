@@ -45,42 +45,42 @@ public sealed class TokenCleanupServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task RunCleanupAsync_CallsDeleteExpiredWithCurrentInstant()
+    public async Task RunCleanupAsync_CallsDeleteExpiredWithCurrentInstantAsync()
     {
-        var fx = new TestFixture();
-        var sut = fx.Build();
+        var fixture = new TestFixture();
+        var service = fixture.Build();
 
-        await sut.RunCleanupAsync(CancellationToken.None);
+        await service.RunCleanupAsync(CancellationToken.None);
 
-        await fx.Repository.Received(1).DeleteExpiredAsync(fx.Now, Arg.Any<CancellationToken>());
+        await fixture.Repository.Received(1).DeleteExpiredAsync(fixture.Now, Arg.Any<CancellationToken>());
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(42)]
-    public async Task RunCleanupAsync_LogsDeletedCountAtInformation(int deletedCount)
+    public async Task RunCleanupAsync_LogsDeletedCountAtInformationAsync(int deletedCount)
     {
-        var fx = new TestFixture();
-        fx.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(deletedCount);
+        var fixture = new TestFixture();
+        fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(deletedCount);
         var logger = new CapturingLogger();
-        var sut = new TokenCleanupService(fx.ScopeFactory, fx.Clock, Options.Create(new WorkerSettings()), logger);
+        var service = new TokenCleanupService(fixture.ScopeFactory, fixture.Clock, Options.Create(new WorkerSettings()), logger);
 
-        await sut.RunCleanupAsync(CancellationToken.None);
+        await service.RunCleanupAsync(CancellationToken.None);
 
         logger.Entries.Should().ContainSingle()
             .Which.Should().Match<(LogLevel Level, string Message)>(
-                e => e.Level == LogLevel.Information && e.Message.Contains(deletedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                entry => entry.Level == LogLevel.Information && entry.Message.Contains(deletedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     [Fact]
-    public async Task RunCleanupAsync_PropagatesRepositoryException()
+    public async Task RunCleanupAsync_PropagatesRepositoryExceptionAsync()
     {
-        var fx = new TestFixture();
-        fx.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+        var fixture = new TestFixture();
+        fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
             .Returns<int>(_ => throw new InvalidOperationException("DB error"));
-        var sut = fx.Build();
+        var service = fixture.Build();
 
-        var act = async () => await sut.RunCleanupAsync(CancellationToken.None);
+        var act = async () => await service.RunCleanupAsync(CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB error");
     }

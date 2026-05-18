@@ -12,6 +12,7 @@ using System.IO.Abstractions;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddAppConfiguration();
+builder.AddIngestionServices();
 
 builder.Services.Configure<WorkerSettings>(builder.Configuration.GetSection("Worker"));
 builder.Services.AddSingleton<IClock>(SystemClock.Instance);

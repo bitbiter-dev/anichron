@@ -33,9 +33,9 @@ public sealed partial class TokenCleanupService(
     internal async Task RunCleanupAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IRefreshTokenRepository>();
+        var repository = scope.ServiceProvider.GetRequiredService<IRefreshTokenRepository>();
         var now = clock.GetCurrentInstant();
-        var deleted = await repo.DeleteExpiredAsync(now, ct);
+        var deleted = await repository.DeleteExpiredAsync(now, ct);
         Log.TokensDeleted(logger, deleted);
     }
 
