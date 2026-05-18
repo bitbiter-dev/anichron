@@ -38,8 +38,7 @@ internal sealed partial class FileIngestionPipeline(
             .Select(_ => ConsumeAsync(config, channel.Reader, ct))
             .ToArray();
 
-        await producer;
-        await Task.WhenAll(consumers);
+        await Task.WhenAll([producer, .. consumers]);
     }
 
     private async Task ProduceAsync(
@@ -58,7 +57,7 @@ internal sealed partial class FileIngestionPipeline(
         }
         finally
         {
-            writer.Complete();
+            writer.TryComplete();
         }
     }
 
@@ -68,7 +67,7 @@ internal sealed partial class FileIngestionPipeline(
         ChannelWriter<IngestionItem> writer,
         CancellationToken ct)
     {
-        var linkResult = livePhotoLinker.Link([.. filesInDirectory], rootPath);
+        var linkResult = livePhotoLinker.Link(filesInDirectory, rootPath);
 
         foreach (var item in linkResult.Items)
             await writer.WriteAsync(item, ct);

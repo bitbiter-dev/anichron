@@ -9,12 +9,12 @@ internal sealed record LivePhotoLinkResult(
 
 internal interface ILivePhotoLinker
 {
-    LivePhotoLinkResult Link(IReadOnlyList<string> filesInDirectory, string rootPath);
+    LivePhotoLinkResult Link(IEnumerable<string> filesInDirectory, string rootPath);
 }
 
 internal sealed class LivePhotoLinker(IFileSystem fileSystem) : ILivePhotoLinker
 {
-    public LivePhotoLinkResult Link(IReadOnlyList<string> filesInDirectory, string rootPath)
+    public LivePhotoLinkResult Link(IEnumerable<string> filesInDirectory, string rootPath)
     {
         var heicFiles = new List<string>();
         var movFilesByBaseName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

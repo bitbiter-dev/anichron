@@ -10,7 +10,7 @@ internal sealed record SingleFileItem(
     MediaType MediaType) : IngestionItem(AbsolutePath, RelativePath);
 
 internal sealed record LivePhotoPairItem(
-    string HeicAbsolutePath,
-    string HeicRelativePath,
+    string AbsolutePath,
+    string RelativePath,
     string MovAbsolutePath,
-    string MovRelativePath) : IngestionItem(HeicAbsolutePath, HeicRelativePath);
+    string MovRelativePath) : IngestionItem(AbsolutePath, RelativePath);
