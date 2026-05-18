@@ -16,8 +16,17 @@ internal sealed class LivePhotoLinker(IFileSystem fileSystem) : ILivePhotoLinker
 {
     public LivePhotoLinkResult Link(IReadOnlyList<string> filesInDirectory, string rootPath)
     {
-        var heicFiles = FindHeicFiles(filesInDirectory);
-        var movFilesByBaseName = IndexMovFilesByBaseName(filesInDirectory);
+        var heicFiles = new List<string>();
+        var movFilesByBaseName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in filesInDirectory)
+        {
+            var ext = fileSystem.Path.GetExtension(path);
+            if (ext.Equals(MediaFileExtensions.Heic, StringComparison.OrdinalIgnoreCase))
+                heicFiles.Add(path);
+            else if (ext.Equals(MediaFileExtensions.Mov, StringComparison.OrdinalIgnoreCase))
+                movFilesByBaseName[fileSystem.Path.GetFileNameWithoutExtension(path)] = path;
+        }
 
         var items = new List<IngestionItem>(heicFiles.Count);
         var claimedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -42,18 +51,4 @@ internal sealed class LivePhotoLinker(IFileSystem fileSystem) : ILivePhotoLinker
 
         return new LivePhotoLinkResult(items, claimedPaths);
     }
-
-    private List<string> FindHeicFiles(IReadOnlyList<string> files)
-        => files
-            .Where(path => fileSystem.Path.GetExtension(path)
-                .Equals(MediaFileExtensions.Heic, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-    private Dictionary<string, string> IndexMovFilesByBaseName(IReadOnlyList<string> files)
-        => files
-            .Where(path => fileSystem.Path.GetExtension(path)
-                .Equals(MediaFileExtensions.Mov, StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(
-                path => fileSystem.Path.GetFileNameWithoutExtension(path),
-                StringComparer.OrdinalIgnoreCase);
 }
