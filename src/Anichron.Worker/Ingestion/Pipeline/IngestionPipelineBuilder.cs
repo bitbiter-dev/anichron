@@ -1,8 +1,8 @@
 namespace Anichron.Worker.Ingestion.Pipeline;
 
-internal static class IngestionPipelineBuilder
+internal static partial class IngestionPipelineBuilder
 {
-    internal static IngestionDelegate Build(IReadOnlyList<IIngestionMiddleware> middlewares)
+    internal static IngestionDelegate Build(IReadOnlyList<IIngestionMiddleware> middlewares, ILogger logger)
     {
         IngestionDelegate pipeline = static (_, _) => Task.CompletedTask;
 
@@ -20,13 +20,20 @@ internal static class IngestionPipelineBuilder
                 {
                     var error = current.OnCannotInvoke(context);
                     throw new PipelineConfigurationException(
-                        $"{current.GetType().Name} cannot invoke: {error.Message}");
+                        $"{current.StepName} cannot invoke: {error.Message}");
                 }
 
+                Log.StepStarted(logger, current.StepName);
                 await current.InvokeAsync(context, next, ct);
             };
         }
 
         return pipeline;
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "→ {MiddlewareName}")]
+        public static partial void StepStarted(ILogger logger, string middlewareName);
     }
 }

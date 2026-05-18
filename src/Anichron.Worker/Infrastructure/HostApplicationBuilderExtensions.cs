@@ -1,3 +1,4 @@
+using Anichron.Core.Data.Repository;
 using Anichron.Infrastructure.Configuration;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
@@ -32,6 +33,7 @@ public static class HostApplicationBuilderExtensions
             builder.Services.AddSingleton<IFileSystem, FileSystem>();
             builder.Services.AddSingleton<ILivePhotoLinker, LivePhotoLinker>();
             builder.Services.AddSingleton<IFileIngestionPipeline, FileIngestionPipeline>();
+            builder.Services.AddScoped<IMediaAssetRepository, EfMediaAssetRepository>();
             builder.Services.AddIngestionSteps();
             return builder;
         }

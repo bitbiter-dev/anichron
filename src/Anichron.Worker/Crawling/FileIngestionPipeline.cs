@@ -20,13 +20,13 @@ internal sealed partial class FileIngestionPipeline(
     IOptions<WorkerSettings> workerOptions,
     ILogger<FileIngestionPipeline> logger) : IFileIngestionPipeline
 {
-    private readonly IngestionDelegate _pipeline = IngestionPipelineBuilder.Build([.. middlewares]);
-    private readonly WorkerSettings _settings = workerOptions.Value;
+    private readonly IngestionDelegate pipeline = IngestionPipelineBuilder.Build([.. middlewares], logger);
+    private readonly WorkerSettings settings = workerOptions.Value;
 
     public async Task RunAsync(UserStorageConfig config, CancellationToken ct)
     {
         var channel = Channel.CreateBounded<IngestionItem>(
-            new BoundedChannelOptions(_settings.MaxConcurrentFiles * 2)
+            new BoundedChannelOptions(settings.MaxConcurrentFiles * 2)
             {
                 SingleWriter = true,
                 FullMode = BoundedChannelFullMode.Wait,
@@ -34,8 +34,8 @@ internal sealed partial class FileIngestionPipeline(
 
         var producer = ProduceAsync(config, channel.Writer, ct);
         var consumers = Enumerable
-            .Range(0, _settings.MaxConcurrentFiles)
-            .Select(_ => ConsumeAsync(config, channel.Reader, ct))
+            .Range(0, settings.MaxConcurrentFiles)
+            .Select(workerIndex => ConsumeAsync(config, channel.Reader, workerIndex, ct))
             .ToArray();
 
         await Task.WhenAll([producer, .. consumers]);
@@ -92,14 +92,18 @@ internal sealed partial class FileIngestionPipeline(
     private async Task ConsumeAsync(
         UserStorageConfig config,
         ChannelReader<IngestionItem> reader,
+        int workerIndex,
         CancellationToken ct)
     {
         await foreach (var item in reader.ReadAllAsync(ct))
         {
+            var filename = fileSystem.Path.GetFileName(item.AbsolutePath);
+            using var scope = logger.BeginScope(
+                "W{WorkerIndex} {IngestionFile}", workerIndex, filename);
             try
             {
                 var context = new IngestionContext { Item = item, Config = config };
-                await _pipeline(context, ct);
+                await pipeline(context, ct);
             }
             catch (PipelineConfigurationException ex)
             {

@@ -12,7 +12,7 @@ internal sealed partial class Worker(
     IOptions<WorkerSettings> options,
     ILogger<Worker> logger) : BackgroundService
 {
-    private readonly WorkerSettings _settings = options.Value;
+    private readonly WorkerSettings settings = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -24,7 +24,7 @@ internal sealed partial class Worker(
         while (!stoppingToken.IsCancellationRequested)
         {
             await CrawlAllAsync(stoppingToken);
-            await Task.Delay(TimeSpan.FromHours(_settings.CrawlIntervalHours), stoppingToken);
+            await Task.Delay(TimeSpan.FromHours(settings.CrawlIntervalHours), stoppingToken);
         }
     }
 
