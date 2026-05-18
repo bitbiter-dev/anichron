@@ -3,7 +3,6 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
@@ -14,23 +13,8 @@ public sealed class IdempotencyCheckMiddlewareTests
     {
         public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
 
-        private readonly IServiceScopeFactory scopeFactory;
-
-        public TestFixture()
-        {
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
-
-            var factory = Substitute.For<IServiceScopeFactory>();
-            factory.CreateScope().Returns(scope);
-            scopeFactory = factory;
-
-            serviceProvider.GetService(typeof(IMediaAssetRepository)).Returns(Repository);
-        }
-
         public IdempotencyCheckMiddleware Build()
-            => new(scopeFactory, Substitute.For<ILogger<IdempotencyCheckMiddleware>>());
+            => new(Repository, Substitute.For<ILogger<IdempotencyCheckMiddleware>>());
     }
 
     private static IngestionContext MakeContext(string? contentHash = null) => new()

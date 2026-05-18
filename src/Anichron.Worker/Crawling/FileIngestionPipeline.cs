@@ -14,13 +14,12 @@ internal interface IFileIngestionPipeline
 }
 
 internal sealed partial class FileIngestionPipeline(
-    IEnumerable<IIngestionMiddleware> middlewares,
+    IServiceScopeFactory scopeFactory,
     IFileSystem fileSystem,
     ILivePhotoLinker livePhotoLinker,
     IOptions<WorkerSettings> workerOptions,
     ILogger<FileIngestionPipeline> logger) : IFileIngestionPipeline
 {
-    private readonly IngestionDelegate pipeline = IngestionPipelineBuilder.Build([.. middlewares], logger);
     private readonly WorkerSettings settings = workerOptions.Value;
 
     public async Task RunAsync(UserStorageConfig config, CancellationToken ct)
@@ -98,12 +97,15 @@ internal sealed partial class FileIngestionPipeline(
         await foreach (var item in reader.ReadAllAsync(ct))
         {
             var filename = fileSystem.Path.GetFileName(item.AbsolutePath);
-            using var scope = logger.BeginScope(
+            using var logScope = logger.BeginScope(
                 "W{WorkerIndex} {IngestionFile}", workerIndex, filename);
+            // Scoped services (e.g. DbContext) must not be shared across concurrent files.
+            using var diScope = scopeFactory.CreateScope();
+            var runner = diScope.ServiceProvider.GetRequiredService<IIngestionPipelineRunner>();
             try
             {
                 var context = new IngestionContext { Item = item, Config = config };
-                await pipeline(context, ct);
+                await runner.RunAsync(context, ct);
             }
             catch (PipelineConfigurationException ex)
             {
