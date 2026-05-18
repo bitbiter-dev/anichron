@@ -2,11 +2,8 @@ namespace Anichron.Worker.Ingestion.Pipeline;
 
 internal static class IngestionPipelineBuilder
 {
-    // Composes middlewares into a single IngestionDelegate.
-    // Each step is wrapped with a CanInvoke guard — middleware authors never write this themselves.
     internal static IngestionDelegate Build(IReadOnlyList<IIngestionMiddleware> middlewares)
     {
-        // Terminal step: the last middleware's `next` calls this, completing the chain.
         IngestionDelegate pipeline = static (_, _) => Task.CompletedTask;
 
         // Build right-to-left so the composed chain runs left-to-right:
