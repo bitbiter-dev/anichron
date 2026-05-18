@@ -15,20 +15,20 @@ public interface IJwtFactory
 
 public sealed class JwtFactory : IJwtFactory
 {
-    private readonly JwtSettings _settings;
-    private readonly IClock _clock;
-    private readonly IGuidFactory _guidFactory;
-    private readonly SigningCredentials _credentials;
-    private static readonly JwtSecurityTokenHandler TokenHandler = new();
+    private readonly JwtSettings settings;
+    private readonly IClock clock;
+    private readonly IGuidFactory guidFactory;
+    private readonly SigningCredentials credentials;
+    private static readonly JwtSecurityTokenHandler tokenHandler = new();
 
     public JwtFactory(IOptions<JwtSettings> options, IClock clock, IGuidFactory guidFactory)
     {
-        _settings = options.Value;
-        _clock = clock;
-        _guidFactory = guidFactory;
+        settings = options.Value;
+        this.clock = clock;
+        this.guidFactory = guidFactory;
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret));
-        _credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Secret));
+        credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
     }
 
     public string Create(User user)
@@ -37,7 +37,7 @@ public sealed class JwtFactory : IJwtFactory
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.UniqueName, user.Username),
-            new(JwtRegisteredClaimNames.Jti, _guidFactory.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Jti, guidFactory.NewGuid().ToString()),
         };
 
         if (user.MustChangePassword)
@@ -47,12 +47,12 @@ public sealed class JwtFactory : IJwtFactory
             claims.Add(new Claim(AppClaimTypes.IsAdmin, "true"));
 
         var token = new JwtSecurityToken(
-            issuer: _settings.Issuer,
-            audience: _settings.Audience,
+            issuer: settings.Issuer,
+            audience: settings.Audience,
             claims: claims,
-            expires: _clock.GetCurrentInstant().ToDateTimeUtc().AddMinutes(_settings.AccessTokenMinutes),
-            signingCredentials: _credentials);
+            expires: clock.GetCurrentInstant().ToDateTimeUtc().AddMinutes(settings.AccessTokenMinutes),
+            signingCredentials: credentials);
 
-        return TokenHandler.WriteToken(token);
+        return tokenHandler.WriteToken(token);
     }
 }

@@ -4,7 +4,7 @@ using Anichron.Worker.Ingestion.Pipeline;
 namespace Anichron.Worker.Ingestion.Middlewares;
 
 internal sealed partial class IdempotencyCheckMiddleware(
-    IServiceScopeFactory scopeFactory,
+    IMediaAssetRepository repository,
     ILogger<IdempotencyCheckMiddleware> logger) : IIngestionMiddleware
 {
     public bool CanInvoke(IngestionContext context) => context.ContentHash is not null;
@@ -14,9 +14,7 @@ internal sealed partial class IdempotencyCheckMiddleware(
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
-        using var scope = scopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IMediaAssetRepository>();
-        var existing = await repository.FindByHashAsync(context.ContentHash!, ct); // CanInvoke verified not null
+        var existing = await repository.FindByHashAsync(context.ContentHash!, ct);
         if (existing is not null)
         {
             Log.AlreadyIngested(logger, context.Item.AbsolutePath);
