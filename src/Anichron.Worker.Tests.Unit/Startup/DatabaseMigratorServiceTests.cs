@@ -36,15 +36,15 @@ public sealed class DatabaseMigratorServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_MigrationSucceedsFirstAttempt_ReturnsWithoutException()
+    public async Task StartAsync_MigrationSucceedsFirstAttempt_ReturnsWithoutExceptionAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
-        var sut = fx.Build();
+        var fixture = new TestFixture();
+        var service = fixture.Build();
 
-        await sut.StartAsync(ct);
+        await service.StartAsync(ct);
 
-        await fx.Migrator.Received(1).MigrateAsync(Arg.Any<CancellationToken>());
+        await fixture.Migrator.Received(1).MigrateAsync(Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================
@@ -52,21 +52,21 @@ public sealed class DatabaseMigratorServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_DatabaseNotReadyThenReady_RetriesAndSucceeds()
+    public async Task StartAsync_DatabaseNotReadyThenReady_RetriesAndSucceedsAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var callCount = 0;
-        fx.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
             callCount++;
             return callCount < 3 ? throw new InvalidOperationException("DB not ready yet") : Task.CompletedTask;
         });
-        var sut = fx.Build();
+        var service = fixture.Build();
 
-        await sut.StartAsync(ct);
+        await service.StartAsync(ct);
 
-        await fx.Migrator.Received(3).MigrateAsync(Arg.Any<CancellationToken>());
+        await fixture.Migrator.Received(3).MigrateAsync(Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================
@@ -74,45 +74,45 @@ public sealed class DatabaseMigratorServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task StartAsync_AllAttemptsExhausted_ThrowsInvalidOperationException()
+    public async Task StartAsync_AllAttemptsExhausted_ThrowsInvalidOperationExceptionAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
-        fx.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw new InvalidOperationException("postgres unavailable"));
-        var sut = fx.Build();
+        var fixture = new TestFixture();
+        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw new InvalidOperationException("postgres unavailable"));
+        var service = fixture.Build();
 
-        var act = async () => await sut.StartAsync(ct);
+        var act = async () => await service.StartAsync(ct);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*10 attempts*");
     }
 
     [Fact]
-    public async Task StartAsync_AllAttemptsExhausted_OriginalExceptionIsInnerException()
+    public async Task StartAsync_AllAttemptsExhausted_OriginalExceptionIsInnerExceptionAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
-        var originalEx = new InvalidOperationException("postgres unavailable");
-        fx.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw originalEx);
-        var sut = fx.Build();
+        var fixture = new TestFixture();
+        var originalException = new InvalidOperationException("postgres unavailable");
+        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw originalException);
+        var service = fixture.Build();
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.StartAsync(ct));
+            () => service.StartAsync(ct));
 
-        thrown.InnerException.Should().BeSameAs(originalEx);
+        thrown.InnerException.Should().BeSameAs(originalException);
     }
 
     [Fact]
-    public async Task StartAsync_AllAttemptsExhausted_MigrateCalledMaxAttemptsTimes()
+    public async Task StartAsync_AllAttemptsExhausted_MigrateCalledMaxAttemptsTimesAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var fx = new TestFixture();
-        fx.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw new InvalidOperationException());
-        var sut = fx.Build();
+        var fixture = new TestFixture();
+        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw new InvalidOperationException());
+        var service = fixture.Build();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.StartAsync(ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.StartAsync(ct));
 
-        await fx.Migrator.Received(10).MigrateAsync(Arg.Any<CancellationToken>());
+        await fixture.Migrator.Received(10).MigrateAsync(Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================
@@ -120,10 +120,10 @@ public sealed class DatabaseMigratorServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task StopAsync_AlwaysCompletesSuccessfully()
+    public async Task StopAsync_AlwaysCompletesSuccessfullyAsync()
     {
-        var sut = new TestFixture().Build();
-        var act = async () => await sut.StopAsync(TestContext.Current.CancellationToken);
+        var service = new TestFixture().Build();
+        var act = async () => await service.StopAsync(TestContext.Current.CancellationToken);
         await act.Should().NotThrowAsync();
     }
 }

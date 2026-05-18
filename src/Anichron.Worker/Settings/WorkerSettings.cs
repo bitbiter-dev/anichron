@@ -11,4 +11,6 @@ public sealed record WorkerSettings
     public int MaxConcurrentFiles { get; init; } = 4;
 
     public double TokenCleanupIntervalHours { get; init; } = 24;
+
+    public string ProxyPath { get; init; } = "/data/proxies";
 }

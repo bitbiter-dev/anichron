@@ -5,9 +5,10 @@ using Microsoft.Extensions.Options;
 
 namespace Anichron.Worker.Crawling;
 
-public sealed partial class Worker(
+internal sealed partial class Worker(
     IServiceScopeFactory scopeFactory,
     WorkerState workerState,
+    IFileIngestionPipeline ingestionPipeline,
     IOptions<WorkerSettings> options,
     ILogger<Worker> logger) : BackgroundService
 {
@@ -15,8 +16,8 @@ public sealed partial class Worker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var mode = workerState.ResolvedUserId is { } uid
-            ? $"dedicated (userId={uid})"
+        var mode = workerState.ResolvedUserId is { } userId
+            ? $"dedicated (userId={userId})"
             : "all-user";
         Log.Starting(logger, mode);
 
@@ -27,24 +28,23 @@ public sealed partial class Worker(
         }
     }
 
-    private async Task CrawlAllAsync(CancellationToken ct)
+    internal async Task CrawlAllAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IUserStorageConfigRepository>();
+        var repository = scope.ServiceProvider.GetRequiredService<IUserStorageConfigRepository>();
 
         var configs = workerState.ResolvedUserId is { } userId
-            ? await repo.GetActiveByUserIdAsync(userId, ct)
-            : await repo.GetAllActiveAsync(ct);
+            ? await repository.GetActiveByUserIdAsync(userId, ct)
+            : await repository.GetAllActiveAsync(ct);
 
         foreach (var config in configs)
             await CrawlAsync(config, ct);
     }
 
-    private Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
+    private async Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
         Log.CrawlingPath(logger, config.RootPath, config.UserId);
-        return Task.CompletedTask;
+        await ingestionPipeline.RunAsync(config, ct);
     }
 
     private static partial class Log
