@@ -61,7 +61,7 @@ internal sealed partial class ExifExtractionMiddleware(
             CameraMake: ifd0?.GetString(ExifDirectoryBase.TagMake),
             CameraModel: ifd0?.GetString(ExifDirectoryBase.TagModel),
             LensModel: subIfd?.GetString(ExifDirectoryBase.TagLensModel),
-            DurationSeconds: GetDurationSeconds(movieHeader));
+            DurationInSeconds: GetDurationInSeconds(movieHeader));
     }
 
     private static int GetWidth(ExifIfd0Directory? ifd0, QuickTimeTrackHeaderDirectory? trackHeader)
@@ -105,14 +105,14 @@ internal sealed partial class ExifExtractionMiddleware(
         return result.Success ? result.Value : null;
     }
 
-    private static (float? Latitude, float? Longitude) GetCoordinates(GpsDirectory? gps)
+    private static (double? Latitude, double? Longitude) GetCoordinates(GpsDirectory? gps)
     {
         if (gps is null)
             return (null, null);
         try
         {
             var location = gps.GetGeoLocation();
-            return location is null ? (null, null) : ((float)location.Latitude, (float)location.Longitude);
+            return location is null ? (null, null) : (location.Latitude, location.Longitude);
         }
         catch
         {
@@ -120,18 +120,18 @@ internal sealed partial class ExifExtractionMiddleware(
         }
     }
 
-    private static float? GetDurationSeconds(QuickTimeMovieHeaderDirectory? movieHeader)
+    private static int? GetDurationInSeconds(QuickTimeMovieHeaderDirectory? movieHeader)
     {
         if (movieHeader is null)
             return null;
-        if (!movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagDuration, out var duration) ||
+        if (!movieHeader.TryGetInt64(QuickTimeMovieHeaderDirectory.TagDuration, out var duration) ||
             !movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var timeScale) ||
             timeScale <= 0)
         {
             return null;
         }
 
-        return (float)duration / timeScale;
+        return (int)Math.Round((double)duration / timeScale);
     }
 
     private static partial class Log
