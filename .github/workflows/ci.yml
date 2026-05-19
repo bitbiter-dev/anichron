@@ -41,7 +41,7 @@ jobs:
         with:
           reports: 'coverage/**/coverage.cobertura.xml'
           targetdir: 'coverage/report'
-          reporttypes: 'HtmlInline_AzurePipelines;MarkdownSummaryGithub;Badges'
+          reporttypes: 'HtmlInline;MarkdownSummaryGithub;Badges'
           verbosity: 'Warning'
 
       - name: Publish coverage summary
@@ -74,7 +74,7 @@ jobs:
 
       - name: Prepare coverage report for Pages
         if: github.ref == 'refs/heads/master'
-        run: cp coverage/report/index.htm coverage/report/index.html
+        run: touch coverage/report/.nojekyll
 
       - name: Upload coverage report to Pages
         if: github.ref == 'refs/heads/master'
