@@ -12,7 +12,7 @@ public interface IMediaAssetRepository
 public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRepository
 {
     public Task<MediaAsset?> FindByHashAsync(string contentHash, CancellationToken ct)
-        => db.MediaAssets.FirstOrDefaultAsync(a => a.ContentHash == contentHash, ct);
+        => db.MediaAssets.SingleOrDefaultAsync(a => a.ContentHash == contentHash, ct);
 
     public void Add(MediaAsset asset)
         => db.MediaAssets.Add(asset);

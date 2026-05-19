@@ -12,4 +12,7 @@ internal sealed record ExifData(
     string? CameraMake,
     string? CameraModel,
     string? LensModel,
-    int? DurationInSeconds);
+    int? DurationInSeconds)
+{
+    internal static ExifData Empty { get; } = new(0, 0, 0, null, null, null, null, null, null, null);
+}

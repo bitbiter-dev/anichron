@@ -14,6 +14,7 @@ internal sealed partial class IdempotencyCheckMiddleware(
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
+        // CanInvoke guards ContentHash != null; suppression is safe.
         var existing = await repository.FindByHashAsync(context.ContentHash!, ct);
         if (existing is not null)
         {
