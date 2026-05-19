@@ -30,6 +30,7 @@ public sealed class ExifExtractionMiddlewareTests
     {
         Item = new SingleFileItem(path, "photo.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AssetId = Guid.NewGuid(),
         ContentHash = contentHash,
     };
 

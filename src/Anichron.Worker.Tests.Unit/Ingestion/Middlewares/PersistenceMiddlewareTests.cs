@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
@@ -36,8 +37,10 @@ public sealed class PersistenceMiddlewareTests
 
         public IClock Clock { get; }
 
+        public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
+
         public PersistenceMiddleware Build()
-            => new(Repository, UnitOfWork, FileSystem, Clock, Substitute.For<ILogger<PersistenceMiddleware>>());
+            => new(Repository, UnitOfWork, FileSystem, Clock, GuidFactory, Substitute.For<ILogger<PersistenceMiddleware>>());
     }
 
     private static readonly ExifData DefaultExif =
@@ -53,6 +56,7 @@ public sealed class PersistenceMiddlewareTests
         {
             Item = resolvedItem,
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
             ContentHash = contentHash,
             SecondaryHash = resolvedItem.SecondaryFile is not null ? "cafebabe" : null,
             Exif = exif ?? DefaultExif,

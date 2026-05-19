@@ -11,6 +11,7 @@ public sealed class IngestionPipelineRunnerTests
     {
         Item = new SingleFileItem("/abs/file.jpg", "file.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AssetId = Guid.NewGuid(),
     };
 
     // ==========================================================================

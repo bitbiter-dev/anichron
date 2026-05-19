@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
@@ -12,6 +13,7 @@ internal sealed partial class PersistenceMiddleware(
     IUnitOfWork unitOfWork,
     IFileSystem fileSystem,
     IClock clock,
+    IGuidFactory guidFactory,
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Persistence;
@@ -44,7 +46,7 @@ internal sealed partial class PersistenceMiddleware(
 
         return new MediaAsset
         {
-            Id = Guid.NewGuid(),
+            Id = context.AssetId,
             StorageConfigId = context.Config.Id,
             FilePath = relativePath,
             FileName = Path.GetFileName(relativePath),
@@ -79,7 +81,7 @@ internal sealed partial class PersistenceMiddleware(
 
         return new MediaAsset
         {
-            Id = Guid.NewGuid(),
+            Id = guidFactory.NewGuid(),
             StorageConfigId = context.Config.Id,
             FilePath = secondary.RelativePath,
             FileName = Path.GetFileName(secondary.RelativePath),

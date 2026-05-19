@@ -13,7 +13,9 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Ini" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Blurhash.ImageSharp" />
     <PackageReference Include="MetadataExtractor" />
+    <PackageReference Include="SixLabors.ImageSharp" />
     <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="System.IO.Abstractions" />
   </ItemGroup>

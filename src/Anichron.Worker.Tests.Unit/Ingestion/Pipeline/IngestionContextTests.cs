@@ -13,6 +13,7 @@ public sealed class IngestionContextTests
         {
             Item = new SingleFileItem("/abs/file.jpg", "file.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
         };
         context.ProxyFiles.Should().NotBeNull().And.BeEmpty();
     }
@@ -24,6 +25,7 @@ public sealed class IngestionContextTests
         {
             Item = new SingleFileItem("/abs/file.jpg", "file.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
         };
         var asset = new MediaAsset();
         context.Asset = asset;

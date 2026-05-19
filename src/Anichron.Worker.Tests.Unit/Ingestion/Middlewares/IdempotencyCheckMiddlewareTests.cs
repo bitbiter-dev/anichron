@@ -21,6 +21,7 @@ public sealed class IdempotencyCheckMiddlewareTests
     {
         Item = new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AssetId = Guid.NewGuid(),
         ContentHash = contentHash,
     };
 
