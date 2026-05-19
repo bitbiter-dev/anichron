@@ -141,4 +141,23 @@ public sealed class ExifExtractionMiddlewareTests
         context.Exif!.Latitude.Should().BeNull();
         context.Exif!.Longitude.Should().BeNull();
     }
+
+    [Fact]
+    public async Task InvokeAsync_UnreadableFile_SetsEmptyExifAsync()
+    {
+        var fs = new MockFileSystem(new Dictionary<string, MockFileData>
+        {
+            ["/abs/photo.jpg"] = new MockFileData([0x00, 0x00, 0x00, 0x00]),
+        });
+        var context = MakeContext("/abs/photo.jpg");
+
+        await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+
+        context.Exif!.Width.Should().Be(0);
+        context.Exif!.Height.Should().Be(0);
+        context.Exif!.OrientationDegrees.Should().Be(0);
+        context.Exif!.DateCaptured.Should().BeNull();
+        context.Exif!.Latitude.Should().BeNull();
+        context.Exif!.Longitude.Should().BeNull();
+    }
 }

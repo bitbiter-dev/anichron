@@ -33,7 +33,7 @@ internal static partial class IngestionPipelineBuilder
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Debug, Message = "→ {MiddlewareName}")]
+        [LoggerMessage(Level = LogLevel.Debug, Message = "-> {MiddlewareName}")]
         public static partial void StepStarted(ILogger logger, string middlewareName);
     }
 }

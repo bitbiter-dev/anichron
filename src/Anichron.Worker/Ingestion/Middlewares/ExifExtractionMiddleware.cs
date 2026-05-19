@@ -87,7 +87,7 @@ internal sealed partial class ExifExtractionMiddleware(
         MetadataExtractor.Directory? exifDirectory, int exifTag,
         QuickTimeTrackHeaderDirectory? trackHeader, int quickTimeTag)
     {
-        // Each check: segment present AND tag readable AND value is a valid positive dimension.
+        // Each check below: segment present AND tag readable AND value is a valid positive dimension.
         if (exifDirectory is not null && exifDirectory.TryGetInt32(exifTag, out var exifPixels) && exifPixels > 0)
             return exifPixels;
         if (trackHeader is not null && trackHeader.TryGetInt32(quickTimeTag, out var qtPixels) && qtPixels > 0)
@@ -128,7 +128,8 @@ internal sealed partial class ExifExtractionMiddleware(
             return null;
         if (!movieHeader.TryGetInt64(QuickTimeMovieHeaderDirectory.TagDuration, out var duration) ||    // tag absent or unreadable
             !movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var timeScale) ||  // tag absent or unreadable
-            timeScale <= 0)                                                                             // guard: prevents division by zero
+            timeScale <= 0 ||                                                                           // guard: prevents division by zero
+            duration < 0)                                                                               // guard: malformed negative duration
         {
             return null;
         }
