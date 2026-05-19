@@ -46,11 +46,13 @@ public sealed class PersistenceMiddlewareTests
     private static IngestionContext MakeContext(
         IngestionItem? item = null,
         string? contentHash = "deadbeef",
+        string? movContentHash = "cafebabe",
         ExifData? exif = null) => new()
         {
             Item = item ?? new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
             ContentHash = contentHash,
+            MovContentHash = movContentHash,
             Exif = exif ?? DefaultExif,
         };
 
@@ -213,24 +215,71 @@ public sealed class PersistenceMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_UsesImageMediaTypeAsync()
+    public void CanInvoke_LivePhotoPairItem_WhenMovHashNull_ReturnsFalse()
     {
-        var fs = new MockFileSystem(new Dictionary<string, MockFileData>
+        var context = new IngestionContext
         {
-            ["/abs/heic/photo.heic"] = new MockFileData([])
-            {
-                LastWriteTime = new DateTimeOffset(2023, 6, 15, 12, 0, 0, TimeSpan.Zero),
-            },
-        });
+            Item = new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            ContentHash = "deadbeef",
+            Exif = DefaultExif,
+        };
+        new TestFixture().Build().CanInvoke(context).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_HeicHasLivePhotoMediaTypeAsync()
+    {
         var fx = new TestFixture();
-        var middleware = new PersistenceMiddleware(
-            fx.Repository, fx.UnitOfWork, fs, fx.Clock,
-            Substitute.For<ILogger<PersistenceMiddleware>>());
         var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/heic/photo.heic", "heic/photo.heic", "/abs/mov/photo.mov", "mov/photo.mov"));
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
-        await middleware.InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        context.Asset!.MediaType.Should().Be(MediaType.Image);
+        context.Asset!.MediaType.Should().Be(MediaType.LivePhoto);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_AddsTwoAssetsToRepositoryAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        fx.Repository.Received(2).Add(Arg.Any<MediaAsset>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_MovHasVideoMediaTypeAsync()
+    {
+        MediaAsset? movAsset = null;
+        var fx = new TestFixture();
+        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
+            .Do(call => movAsset = call.Arg<MediaAsset>());
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
+            movContentHash: "cafebabe");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        movAsset.Should().NotBeNull();
+        movAsset.ContentHash.Should().Be("cafebabe");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_HeicLivePhotoPairIdPointsToMovAsync()
+    {
+        MediaAsset? movAsset = null;
+        var fx = new TestFixture();
+        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
+            .Do(call => movAsset = call.Arg<MediaAsset>());
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.LivePhotoPairId.Should().Be(movAsset!.Id);
     }
 }

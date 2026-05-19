@@ -13,10 +13,19 @@ internal sealed class ContentHashingMiddleware(IFileSystem fileSystem) : IIngest
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
-        await using var stream = fileSystem.File.OpenRead(context.Item.AbsolutePath);
+        context.ContentHash = await HashFileAsync(context.Item.AbsolutePath, ct);
+
+        if (context.Item is LivePhotoPairItem livePhoto)
+            context.MovContentHash = await HashFileAsync(livePhoto.MovAbsolutePath, ct);
+
+        await next(context, ct);
+    }
+
+    private async Task<string> HashFileAsync(string absolutePath, CancellationToken ct)
+    {
+        await using var stream = fileSystem.File.OpenRead(absolutePath);
         var hasher = new XxHash64();
         await hasher.AppendAsync(stream, ct);
-        context.ContentHash = Convert.ToHexStringLower(hasher.GetHashAndReset());
-        await next(context, ct);
+        return Convert.ToHexStringLower(hasher.GetHashAndReset());
     }
 }

@@ -113,4 +113,24 @@ public sealed class ContentHashingMiddlewareTests
 
         contextA.ContentHash.Should().NotBe(contextB.ContentHash);
     }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_SetsMovContentHashAsync()
+    {
+        var fs = new MockFileSystem(new Dictionary<string, MockFileData>
+        {
+            ["/abs/photo.heic"] = new MockFileData([0x01, 0x02]),
+            ["/abs/photo.mov"] = new MockFileData([0x03, 0x04]),
+        });
+        var context = new IngestionContext
+        {
+            Item = new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        };
+
+        await new ContentHashingMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+
+        context.MovContentHash.Should().NotBeNullOrEmpty();
+        context.MovContentHash.Should().NotBe(context.ContentHash);
+    }
 }

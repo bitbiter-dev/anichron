@@ -15,7 +15,9 @@ internal sealed partial class PersistenceMiddleware(
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public bool CanInvoke(IngestionContext context)
-        => context.ContentHash is not null && context.Exif is not null;
+        => context.ContentHash is not null
+           && context.Exif is not null
+           && (context.Item is not LivePhotoPairItem || context.MovContentHash is not null);
 
     public IngestionStepError OnCannotInvoke(IngestionContext context)
         => new("ContentHash and Exif must be set before persistence");
@@ -23,6 +25,14 @@ internal sealed partial class PersistenceMiddleware(
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         var asset = BuildAsset(context);
+
+        if (context.Item is LivePhotoPairItem livePhoto)
+        {
+            var movAsset = BuildMovAsset(livePhoto, context);
+            asset.LivePhotoPairId = movAsset.Id;
+            repository.Add(movAsset);
+        }
+
         repository.Add(asset);
         await unitOfWork.SaveChangesAsync(ct);
         context.Asset = asset;
@@ -35,7 +45,7 @@ internal sealed partial class PersistenceMiddleware(
         var (relativePath, mediaType) = context.Item switch
         {
             SingleFileItem s => (s.RelativePath, s.MediaType),
-            LivePhotoPairItem l => (l.RelativePath, MediaType.Image),
+            LivePhotoPairItem l => (l.RelativePath, MediaType.LivePhoto),
             _ => throw new PipelineConfigurationException($"Unsupported item type: {context.Item.GetType().Name}"),
         };
 
@@ -58,6 +68,7 @@ internal sealed partial class PersistenceMiddleware(
             MediaType = mediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
+            ProxyFiles = [.. context.ProxyFiles],
             Metadata = new Metadata
             {
                 Width = exif.Width,
@@ -70,6 +81,28 @@ internal sealed partial class PersistenceMiddleware(
                 LensModel = exif.LensModel,
                 DurationInSeconds = exif.DurationInSeconds,
             },
+        };
+    }
+
+    private MediaAsset BuildMovAsset(LivePhotoPairItem item, IngestionContext context)
+    {
+        var exif = context.Exif!;
+        var dateCaptured = exif.DateCaptured ?? FallbackDate(item.MovAbsolutePath);
+
+        return new MediaAsset
+        {
+            Id = Guid.NewGuid(),
+            StorageConfigId = context.Config.Id,
+            FilePath = item.MovRelativePath,
+            FileName = Path.GetFileName(item.MovRelativePath),
+            ContentHash = context.MovContentHash!,
+            DateCaptured = dateCaptured,
+            Month = dateCaptured.Month,
+            Day = dateCaptured.Day,
+            Year = dateCaptured.Year,
+            MediaType = MediaType.Video,
+            IsSoftDeleted = false,
+            LastSeenOnNas = clock.GetCurrentInstant(),
         };
     }
 
