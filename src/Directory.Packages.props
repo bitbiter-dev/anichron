@@ -30,7 +30,7 @@
     <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
   </ItemGroup>
   <ItemGroup Label="Test utilities">
-    <PackageVersion Include="coverlet.collector" Version="10.0.0" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.7" />
     <PackageVersion Include="FluentAssertions" Version="8.9.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.7" />
