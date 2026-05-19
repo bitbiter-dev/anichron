@@ -4,7 +4,7 @@ namespace Anichron.Worker.Ingestion;
 
 internal static class MediaTypeDetector
 {
-    private static readonly Dictionary<string, MediaType> ExtensionMap =
+    private static readonly Dictionary<string, MediaType> extensionMap =
         new(StringComparer.OrdinalIgnoreCase)
         {
             [".jpg"] = MediaType.Image,
@@ -28,6 +28,6 @@ internal static class MediaTypeDetector
     public static MediaType? Detect(string filePath)
     {
         var extension = Path.GetExtension(filePath);
-        return ExtensionMap.TryGetValue(extension, out var type) ? type : null;
+        return extensionMap.TryGetValue(extension, out var type) ? type : null;
     }
 }

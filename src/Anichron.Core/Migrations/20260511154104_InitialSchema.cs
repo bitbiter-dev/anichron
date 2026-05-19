@@ -195,12 +195,12 @@ namespace Anichron.Core.Migrations
                     Width = table.Column<int>(type: "integer", nullable: false),
                     Height = table.Column<int>(type: "integer", nullable: false),
                     OrientationDegrees = table.Column<int>(type: "integer", nullable: false),
-                    Latitude = table.Column<float>(type: "real", nullable: true),
-                    Longitude = table.Column<float>(type: "real", nullable: true),
+                    Latitude = table.Column<double>(type: "double precision", nullable: true),
+                    Longitude = table.Column<double>(type: "double precision", nullable: true),
                     CameraMake = table.Column<string>(type: "text", nullable: true),
                     CameraModel = table.Column<string>(type: "text", nullable: true),
                     LensModel = table.Column<string>(type: "text", nullable: true),
-                    DurationSeconds = table.Column<float>(type: "real", nullable: true)
+                    DurationInSeconds = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
                 {

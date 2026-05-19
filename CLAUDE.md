@@ -133,16 +133,7 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 - Observability: structured JSON logging in production; `GET /api/v1/healthz` health endpoint; OpenTelemetry instrumented but no exporter configured by default (`OTEL_EXPORTER_OTLP_ENDPOINT` to enable).
 - License: AGPL-3.0.
 
-## Development Roadmap
+## GitHub References
 
-The project is in early stages. Epic 1 (Foundation & Infrastructure) is largely complete. Remaining epics in order:
-
-1. **Epic 2**: User management & JWT authentication
-2. **Epic 3**: Full media ingestion pipeline (EXIF, hashing, proxies, bursts)
-3. **Epic 4**: NAS reconciliation (soft-delete, move detection, deduplication)
-4. **Epic 5**: API endpoints (flashback queries, file serving, interactions)
-5. **Epic 6**: Flashback UI (story player, Live Photo, blurhash, pre-fetching)
-6. **Epic 7**: Recaps & calendar views
-7. **Epic 8**: Email notifications with deep links
-
-Additional context is in `../Anichron-Documentation/` (adjacent repo): `requirements.txt`, `solution-overview.txt`, `roadmap.md`, `database/database-decisions.txt`, and an ERD in `database/erd-mermaid.txt`.
+- **Issues** (bug reports, feature requests, epic tracking): https://github.com/bitbiter-dev/anichron/issues
+- **Wiki** (architecture decisions, ADRs, engineering notes): https://github.com/bitbiter-dev/anichron/wiki

@@ -12,8 +12,8 @@ public class Metadata
     public int OrientationDegrees { get; set; }
 
     // Location
-    public float? Latitude { get; set; }
-    public float? Longitude { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
 
     // Hardware Specs
     public string? CameraMake { get; set; }
@@ -21,5 +21,5 @@ public class Metadata
     public string? LensModel { get; set; }
 
     // Video/File Specifics
-    public float? DurationSeconds { get; set; }
+    public int? DurationInSeconds { get; set; }
 }

@@ -62,7 +62,7 @@ public sealed class AuthService(
     ILockoutService lockout)
     : IAuthService
 {
-    private readonly string _dummyPasswordHash = passwordHasher.Hash(guidFactory.NewGuid().ToString());
+    private readonly string dummyPasswordHash = passwordHasher.Hash(guidFactory.NewGuid().ToString());
 
     public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct)
     {
@@ -131,7 +131,7 @@ public sealed class AuthService(
         var user = await users.FindByCredentialAsync(normalized, ct);
 
         // Prevent timing attack: Use dummy hash for non-existing accounts
-        var passwordValid = passwordHasher.Verify(password, user?.PasswordHash ?? _dummyPasswordHash);
+        var passwordValid = passwordHasher.Verify(password, user?.PasswordHash ?? dummyPasswordHash);
 
         var now = clock.GetCurrentInstant();
 

@@ -16,13 +16,13 @@ public sealed class RegistrationValidator(
     IOptions<UsernamePolicy> usernamePolicyOptions,
     IPwnedPasswordClient pwnedClient) : IRegistrationValidator
 {
-    private readonly PasswordPolicy _passwordPolicy = passwordPolicyOptions.Value;
-    private readonly UsernamePolicy _usernamePolicy = usernamePolicyOptions.Value;
+    private readonly PasswordPolicy passwordPolicy = passwordPolicyOptions.Value;
+    private readonly UsernamePolicy usernamePolicy = usernamePolicyOptions.Value;
 
     public AuthError? ValidateIdentity(string username, string email)
     {
-        if (username.Length < _usernamePolicy.MinLength
-            || username.Length > _usernamePolicy.MaxLength
+        if (username.Length < usernamePolicy.MinLength
+            || username.Length > usernamePolicy.MaxLength
             || !UsernamePolicy.AllowedCharacters().IsMatch(username))
         {
             return AuthError.InvalidUsername;
@@ -44,15 +44,15 @@ public sealed class RegistrationValidator(
 
     private async Task<AuthError?> ValidatePasswordRulesAsync(string password, CancellationToken ct)
     {
-        if (password.Length < _passwordPolicy.MinLength)
+        if (password.Length < passwordPolicy.MinLength)
             return AuthError.PasswordTooShort;
 
-        if (password.Length > _passwordPolicy.MaxLength)
+        if (password.Length > passwordPolicy.MaxLength)
             return AuthError.PasswordTooLong;
 
         // IDE0046 suppressed: collapsing an async condition into a ternary reduces readability
 #pragma warning disable IDE0046
-        if (_passwordPolicy.CheckPwnedPasswords && await pwnedClient.IsPwnedAsync(password, ct))
+        if (passwordPolicy.CheckPwnedPasswords && await pwnedClient.IsPwnedAsync(password, ct))
 #pragma warning restore IDE0046
             return AuthError.PasswordPwned;
 

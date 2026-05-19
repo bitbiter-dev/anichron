@@ -13,11 +13,11 @@ public sealed partial class WorkerInitializer(
     WorkerState workerState,
     ILogger<WorkerInitializer> logger) : IHostedService
 {
-    private readonly WorkerSettings _settings = options.Value;
+    private readonly WorkerSettings settings = options.Value;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_settings.User))
+        if (string.IsNullOrWhiteSpace(settings.User))
         {
             Log.AllUserMode(logger);
             return;
@@ -28,21 +28,21 @@ public sealed partial class WorkerInitializer(
         var storageConfigRepository = scope.ServiceProvider.GetRequiredService<IUserStorageConfigRepository>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var credential = _settings.User.Trim().ToLowerInvariant();
+        var credential = settings.User.Trim().ToLowerInvariant();
         var user = await userRepository.FindByCredentialAsync(credential, cancellationToken)
             ?? throw new InvalidOperationException(
-                $"WORKER__USER '{_settings.User}' not found in database.");
+                $"WORKER__USER '{settings.User}' not found in database.");
 
-        var existing = await storageConfigRepository.FindByRootPathAsync(_settings.RootPath, cancellationToken);
+        var existing = await storageConfigRepository.FindByRootPathAsync(settings.RootPath, cancellationToken);
         if (existing is not null)
         {
             if (existing.UserId != user.Id)
             {
                 throw new InvalidOperationException(
-                    $"Path '{_settings.RootPath}' is already assigned to another user.");
+                    $"Path '{settings.RootPath}' is already assigned to another user.");
             }
 
-            Log.StorageConfigExists(logger, user.Username, _settings.RootPath);
+            Log.StorageConfigExists(logger, user.Username, settings.RootPath);
             workerState.ResolvedUserId = user.Id;
             return;
         }
@@ -51,12 +51,12 @@ public sealed partial class WorkerInitializer(
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            RootPath = _settings.RootPath,
+            RootPath = settings.RootPath,
             IsActive = true,
         });
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        Log.StorageConfigCreated(logger, user.Username, _settings.RootPath);
+        Log.StorageConfigCreated(logger, user.Username, settings.RootPath);
         workerState.ResolvedUserId = user.Id;
     }
 

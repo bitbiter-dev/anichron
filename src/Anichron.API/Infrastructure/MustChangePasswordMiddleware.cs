@@ -4,7 +4,7 @@ namespace Anichron.API.Infrastructure;
 
 internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
 {
-    private static readonly (string Method, PathString Path)[] ExemptRoutes =
+    private static readonly (string Method, PathString Path)[] exemptRoutes =
     [
         (HttpMethods.Get,  new(ApiPaths.Users.MePath)),
         (HttpMethods.Post, new(ApiPaths.Users.ChangePasswordPath)),
@@ -26,5 +26,5 @@ internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
     }
 
     private static bool IsExemptRequest(HttpRequest request)
-        => ExemptRoutes.Any(e => e.Method == request.Method && e.Path == request.Path);
+        => exemptRoutes.Any(e => e.Method == request.Method && e.Path == request.Path);
 }

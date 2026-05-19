@@ -1,6 +1,7 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
+using Microsoft.Extensions.Logging;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Pipeline;
 
@@ -23,7 +24,7 @@ public sealed class IngestionPipelineBuilderTests
         var first = new OrderCapturingMiddleware(1, order);
         var second = new OrderCapturingMiddleware(2, order);
 
-        var pipeline = IngestionPipelineBuilder.Build([first, second]);
+        var pipeline = IngestionPipelineBuilder.Build([first, second], Substitute.For<ILogger>());
         await pipeline(MakeContext(), CancellationToken.None);
 
         order.Should().Equal(1, 2);
@@ -32,7 +33,7 @@ public sealed class IngestionPipelineBuilderTests
     [Fact]
     public async Task Build_EmptyPipeline_CompletesWithoutExceptionAsync()
     {
-        var pipeline = IngestionPipelineBuilder.Build([]);
+        var pipeline = IngestionPipelineBuilder.Build([], Substitute.For<ILogger>());
         var act = async () => await pipeline(MakeContext(), CancellationToken.None);
         await act.Should().NotThrowAsync();
     }
@@ -48,7 +49,7 @@ public sealed class IngestionPipelineBuilderTests
         middleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(false);
         middleware.OnCannotInvoke(Arg.Any<IngestionContext>()).Returns(new IngestionStepError("hash is required"));
 
-        var pipeline = IngestionPipelineBuilder.Build([middleware]);
+        var pipeline = IngestionPipelineBuilder.Build([middleware], Substitute.For<ILogger>());
         var act = async () => await pipeline(MakeContext(), CancellationToken.None);
 
         await act.Should().ThrowAsync<PipelineConfigurationException>()
@@ -62,7 +63,7 @@ public sealed class IngestionPipelineBuilderTests
         middleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(false);
         middleware.OnCannotInvoke(Arg.Any<IngestionContext>()).Returns(new IngestionStepError("missing"));
 
-        var pipeline = IngestionPipelineBuilder.Build([middleware]);
+        var pipeline = IngestionPipelineBuilder.Build([middleware], Substitute.For<ILogger>());
         var act = async () => await pipeline(MakeContext(), CancellationToken.None);
 
         await act.Should().ThrowAsync<PipelineConfigurationException>()
@@ -76,7 +77,7 @@ public sealed class IngestionPipelineBuilderTests
         middleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(false);
         middleware.OnCannotInvoke(Arg.Any<IngestionContext>()).Returns(new IngestionStepError(string.Empty));
 
-        var pipeline = IngestionPipelineBuilder.Build([middleware]);
+        var pipeline = IngestionPipelineBuilder.Build([middleware], Substitute.For<ILogger>());
         try
         { await pipeline(MakeContext(), CancellationToken.None); }
         catch (PipelineConfigurationException exception) { _ = exception; }
@@ -95,7 +96,7 @@ public sealed class IngestionPipelineBuilderTests
         second.CanInvoke(Arg.Any<IngestionContext>()).Returns(false);
         second.OnCannotInvoke(Arg.Any<IngestionContext>()).Returns(new IngestionStepError(string.Empty));
 
-        var pipeline = IngestionPipelineBuilder.Build([first, second]);
+        var pipeline = IngestionPipelineBuilder.Build([first, second], Substitute.For<ILogger>());
         try
         { await pipeline(MakeContext(), CancellationToken.None); }
         catch (PipelineConfigurationException exception) { _ = exception; }

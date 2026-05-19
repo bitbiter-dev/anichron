@@ -11,11 +11,11 @@ public sealed partial class TokenCleanupService(
     IOptions<WorkerSettings> options,
     ILogger<TokenCleanupService> logger) : BackgroundService
 {
-    private readonly WorkerSettings _settings = options.Value;
+    private readonly WorkerSettings settings = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(_settings.TokenCleanupIntervalHours));
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(settings.TokenCleanupIntervalHours));
         do
         {
             try

@@ -207,20 +207,20 @@ namespace Anichron.Core.Migrations
                     b.Property<string>("CameraModel")
                         .HasColumnType("text");
 
-                    b.Property<float?>("DurationSeconds")
-                        .HasColumnType("real");
+                    b.Property<int?>("DurationInSeconds")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Height")
                         .HasColumnType("integer");
 
-                    b.Property<float?>("Latitude")
-                        .HasColumnType("real");
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("LensModel")
                         .HasColumnType("text");
 
-                    b.Property<float?>("Longitude")
-                        .HasColumnType("real");
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
 
                     b.Property<int>("OrientationDegrees")
                         .HasColumnType("integer");

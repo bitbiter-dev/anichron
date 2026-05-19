@@ -3,6 +3,7 @@ using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Settings;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.IO.Abstractions.TestingHelpers;
@@ -22,7 +23,6 @@ public sealed class FileIngestionPipelineTests
     {
         public MockFileSystem FileSystem { get; } = new();
         public List<IngestionContext> ProcessedContexts { get; } = [];
-        public List<IIngestionMiddleware> Middlewares { get; } = [];
 
         public FileIngestionPipeline Build(int maxConcurrentFiles = 2)
         {
@@ -39,11 +39,29 @@ public sealed class FileIngestionPipelineTests
                     return Task.CompletedTask;
                 });
 
-            Middlewares.Add(capturingMiddleware);
+            return BuildWithMiddlewares([capturingMiddleware], maxConcurrentFiles);
+        }
+
+        public FileIngestionPipeline BuildWithMiddlewares(
+            IEnumerable<IIngestionMiddleware> middlewares,
+            int maxConcurrentFiles = 2)
+        {
+            var runner = new IngestionPipelineRunner(
+                middlewares,
+                Substitute.For<ILogger<IngestionPipelineRunner>>());
+
+            var serviceProvider = Substitute.For<IServiceProvider>();
+            serviceProvider.GetService(typeof(IIngestionPipelineRunner)).Returns(runner);
+
+            var scope = Substitute.For<IServiceScope>();
+            scope.ServiceProvider.Returns(serviceProvider);
+
+            var scopeFactory = Substitute.For<IServiceScopeFactory>();
+            scopeFactory.CreateScope().Returns(_ => scope);
 
             var options = Options.Create(new WorkerSettings { MaxConcurrentFiles = maxConcurrentFiles });
             return new FileIngestionPipeline(
-                Middlewares,
+                scopeFactory,
                 FileSystem,
                 new LivePhotoLinker(FileSystem),
                 options,
@@ -170,15 +188,8 @@ public sealed class FileIngestionPipelineTests
         failingMiddleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(false);
         failingMiddleware.OnCannotInvoke(Arg.Any<IngestionContext>())
             .Returns(new IngestionStepError("required slot missing"));
-        fixture.Middlewares.Add(failingMiddleware);
 
-        var options = Options.Create(new WorkerSettings { MaxConcurrentFiles = 1 });
-        var pipeline = new FileIngestionPipeline(
-            fixture.Middlewares,
-            fixture.FileSystem,
-            new LivePhotoLinker(fixture.FileSystem),
-            options,
-            Substitute.For<ILogger<FileIngestionPipeline>>());
+        var pipeline = fixture.BuildWithMiddlewares([failingMiddleware], maxConcurrentFiles: 1);
 
         var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
 

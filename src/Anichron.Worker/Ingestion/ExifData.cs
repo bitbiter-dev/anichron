@@ -7,9 +7,12 @@ internal sealed record ExifData(
     int Height,
     int OrientationDegrees,
     LocalDateTime? DateCaptured,
-    float? Latitude,
-    float? Longitude,
+    double? Latitude,
+    double? Longitude,
     string? CameraMake,
     string? CameraModel,
     string? LensModel,
-    float? DurationSeconds);
+    int? DurationInSeconds)
+{
+    internal static ExifData Empty { get; } = new(0, 0, 0, null, null, null, null, null, null, null);
+}

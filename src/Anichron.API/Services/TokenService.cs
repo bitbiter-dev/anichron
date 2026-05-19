@@ -24,7 +24,7 @@ public sealed class TokenService(
     IOptions<JwtSettings> options,
     IJwtFactory jwtFactory) : ITokenService
 {
-    private readonly JwtSettings _settings = options.Value;
+    private readonly JwtSettings settings = options.Value;
 
     public async Task<AuthTokens> IssueAsync(User user, CancellationToken ct)
     {
@@ -37,7 +37,7 @@ public sealed class TokenService(
             UserId = user.Id,
             TokenHash = HashToken(rawToken),
             CreatedAt = now,
-            ExpiresAt = now.Plus(Duration.FromDays(_settings.RefreshTokenDays)),
+            ExpiresAt = now.Plus(Duration.FromDays(settings.RefreshTokenDays)),
         });
 
         await unitOfWork.SaveChangesAsync(ct);

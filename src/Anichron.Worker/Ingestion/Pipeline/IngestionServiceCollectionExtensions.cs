@@ -4,9 +4,13 @@ namespace Anichron.Worker.Ingestion.Pipeline;
 
 internal static class IngestionServiceCollectionExtensions
 {
-    public static IServiceCollection AddIngestionSteps(this IServiceCollection services)
+    internal static IServiceCollection AddIngestionSteps(this IServiceCollection services)
     {
-        services.AddSingleton<IIngestionMiddleware, LoggingMiddleware>();
+        services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
+        services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
+        services.AddScoped<IIngestionMiddleware, IdempotencyCheckMiddleware>();
+        services.AddScoped<IIngestionMiddleware, ExifExtractionMiddleware>();
+        services.AddScoped<IIngestionPipelineRunner, IngestionPipelineRunner>();
         return services;
     }
 }
