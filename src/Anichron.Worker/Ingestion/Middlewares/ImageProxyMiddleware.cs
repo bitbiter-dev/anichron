@@ -18,8 +18,6 @@ internal sealed partial class ImageProxyMiddleware(
     IGuidFactory guidFactory,
     ILogger<ImageProxyMiddleware> logger) : IIngestionMiddleware
 {
-    private readonly HashSet<string> createdDirectories = [];
-
     public int Order => IngestionOrder.ImageProxy;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
@@ -36,8 +34,7 @@ internal sealed partial class ImageProxyMiddleware(
         var proxyPath = Path.Combine(proxyRoot, proxyDirectoryName);
         var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
 
-        if (createdDirectories.Add(proxyPath))
-            fileSystem.Directory.CreateDirectory(proxyPath);
+        fileSystem.Directory.CreateDirectory(proxyPath);
 
         var proxyFiles = await Task.WhenAll(generators.Select(WriteProxyAsync));
 

@@ -7,7 +7,7 @@ internal interface IProxyDirectoryStrategy
 
 internal sealed class TwoLevelHexShardStrategy : IProxyDirectoryStrategy
 {
-    // Produces {first 2 hex chars}/{remaining 30 hex chars} — caps the top-level bucket count at 256.
+    // Two hex chars → 256 top-level buckets; prevents filesystem directory-count blowup at large library sizes.
     public string GetDirectory(Guid assetId)
     {
         var hex = assetId.ToString("N");

@@ -223,4 +223,48 @@ public sealed class ImageProxyMiddlewareTests
         await fx.ImageProcessor.DidNotReceive()
             .CreateThumbnailAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_GeneratesProxyFilesAsync()
+    {
+        var fx = new TestFixture();
+        fx.FileSystem.AddFile("/nas/photo.heic", new MockFileData([0xFF, 0xD8, 0xFF, 0xD9]));
+        var context = new IngestionContext
+        {
+            Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AssetId = Guid.NewGuid(),
+        };
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.ProxyFiles.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ImageItem_SetsCorrectSizeBytesOnEachProxyFileAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        // Thumbnail [0x01,0x02] = 2 B; Preview [0x03,0x04] = 2 B; Blurhash = 28-char ASCII string = 28 B
+        context.ProxyFiles.Single(p => p.ProxyType == ProxyType.Thumbnail).SizeBytes.Should().Be(2);
+        context.ProxyFiles.Single(p => p.ProxyType == ProxyType.FullPreview).SizeBytes.Should().Be(2);
+        context.ProxyFiles.Single(p => p.ProxyType == ProxyType.BlurHash).SizeBytes.Should().Be(28);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ImageItem_AssignsProxyFileIdsFromGuidFactoryAsync()
+    {
+        var fx = new TestFixture();
+        var expectedId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        fx.GuidFactory.NewGuid().Returns(expectedId);
+        var context = MakeContext();
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.ProxyFiles.Should().AllSatisfy(p => p.Id.Should().Be(expectedId));
+    }
 }

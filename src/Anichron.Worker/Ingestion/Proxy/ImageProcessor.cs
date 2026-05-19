@@ -17,34 +17,36 @@ internal interface IImageProcessor
 
 internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : IImageProcessor
 {
+    private readonly WorkerSettings settings = options.Value;
+
     public async Task<byte[]> CreateThumbnailAsync(Stream source, CancellationToken ct)
     {
         using var image = await Image.LoadAsync(source, ct);
         image.Mutate(x => x.Resize(new ResizeOptions
         {
-            Size = new Size(options.Value.ThumbnailMaxWidth, 0),
+            Size = new Size(settings.ThumbnailMaxWidth, 0),
             Mode = ResizeMode.Max,
         }));
 
         await using var ms = new MemoryStream();
-        await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = options.Value.ThumbnailJpegQuality }, ct);
+        await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = settings.ThumbnailJpegQuality }, ct);
         return ms.ToArray();
     }
 
     public async Task<byte[]> CreateFullPreviewAsync(Stream source, CancellationToken ct)
     {
         using var image = await Image.LoadAsync(source, ct);
-        if (image.Width > options.Value.PreviewMaxWidth)
+        if (image.Width > settings.PreviewMaxWidth)
         {
             image.Mutate(x => x.Resize(new ResizeOptions
             {
-                Size = new Size(options.Value.PreviewMaxWidth, 0),
+                Size = new Size(settings.PreviewMaxWidth, 0),
                 Mode = ResizeMode.Max,
             }));
         }
 
         await using var ms = new MemoryStream();
-        await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = options.Value.PreviewJpegQuality }, ct);
+        await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = settings.PreviewJpegQuality }, ct);
         return ms.ToArray();
     }
 
@@ -53,7 +55,7 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
         using var image = await Image.LoadAsync<Rgba32>(source, ct);
         image.Mutate(x => x.Resize(new ResizeOptions
         {
-            Size = new Size(options.Value.BlurhashSampleWidth, 0),
+            Size = new Size(settings.BlurhashSampleWidth, 0),
             Mode = ResizeMode.Max,
         }));
 
