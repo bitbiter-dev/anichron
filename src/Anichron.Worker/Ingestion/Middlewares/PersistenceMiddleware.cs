@@ -39,7 +39,10 @@ internal sealed partial class PersistenceMiddleware(
             _ => throw new PipelineConfigurationException($"Unsupported item type: {context.Item.GetType().Name}"),
         };
 
-        var dateCaptured = context.Exif!.DateCaptured ?? FallbackDate(context.Item.AbsolutePath);
+        var exif = context.Exif!;
+        // LocalDateTime.FromDateTime ignores DateTimeKind, so LastWriteTimeUtc component values
+        // are copied directly — 2023-06-15 12:00:00 UTC → LocalDateTime(2023, 6, 15, 12, 0, 0).
+        var dateCaptured = exif.DateCaptured ?? FallbackDate(context.Item.AbsolutePath);
 
         return new MediaAsset
         {
@@ -57,15 +60,15 @@ internal sealed partial class PersistenceMiddleware(
             LastSeenOnNas = clock.GetCurrentInstant(),
             Metadata = new Metadata
             {
-                Width = context.Exif!.Width,
-                Height = context.Exif!.Height,
-                OrientationDegrees = context.Exif!.OrientationDegrees,
-                Latitude = context.Exif!.Latitude,
-                Longitude = context.Exif!.Longitude,
-                CameraMake = context.Exif!.CameraMake,
-                CameraModel = context.Exif!.CameraModel,
-                LensModel = context.Exif!.LensModel,
-                DurationInSeconds = context.Exif!.DurationInSeconds,
+                Width = exif.Width,
+                Height = exif.Height,
+                OrientationDegrees = exif.OrientationDegrees,
+                Latitude = exif.Latitude,
+                Longitude = exif.Longitude,
+                CameraMake = exif.CameraMake,
+                CameraModel = exif.CameraModel,
+                LensModel = exif.LensModel,
+                DurationInSeconds = exif.DurationInSeconds,
             },
         };
     }

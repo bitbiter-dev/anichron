@@ -194,11 +194,22 @@ public sealed class PersistenceMiddlewareTests
     public async Task InvokeAsync_SingleFileItem_UsesItemMediaTypeAsync()
     {
         var fx = new TestFixture();
-        var context = MakeContext(item: new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image));
+        var context = MakeContext(item: new SingleFileItem("/abs/video.mp4", "video.mp4", MediaType.Video));
 
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        context.Asset!.MediaType.Should().Be(MediaType.Image);
+        context.Asset!.MediaType.Should().Be(MediaType.Video);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_Always_SetsContentHashFromContextAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext(contentHash: "deadbeef");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.ContentHash.Should().Be("deadbeef");
     }
 
     [Fact]
