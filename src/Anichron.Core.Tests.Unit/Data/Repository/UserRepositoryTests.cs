@@ -237,7 +237,8 @@ public sealed class UserRepositoryTests
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
         var result = await new EfUserRepository(db).FindByCredentialAsync("alice", ct);
-        result!.Id.Should().Be(user.Id);
+        result.Should().NotBeNull();
+        result.Id.Should().Be(user.Id);
     }
 
     [Fact]
@@ -249,7 +250,8 @@ public sealed class UserRepositoryTests
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
         var result = await new EfUserRepository(db).FindByCredentialAsync("alice@example.com", ct);
-        result!.Id.Should().Be(user.Id);
+        result.Should().NotBeNull();
+        result.Id.Should().Be(user.Id);
     }
 
     [Fact]
@@ -275,7 +277,8 @@ public sealed class UserRepositoryTests
         db.Users.Add(admin);
         await db.SaveChangesAsync(ct);
         var result = await new EfUserRepository(db).FindAdminByUsernameAsync("admin", ct);
-        result!.Id.Should().Be(admin.Id);
+        result.Should().NotBeNull();
+        result.Id.Should().Be(admin.Id);
     }
 
     [Fact]

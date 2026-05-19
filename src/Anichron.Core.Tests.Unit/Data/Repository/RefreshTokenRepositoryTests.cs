@@ -83,7 +83,8 @@ public sealed class RefreshTokenRepositoryTests
 
         var result = await new EfRefreshTokenRepository(db).FindByHashAsync("tok2", ct);
 
-        result!.Id.Should().Be(token.Id);
+        result.Should().NotBeNull();
+        result.Id.Should().Be(token.Id);
     }
 
     [Fact]
