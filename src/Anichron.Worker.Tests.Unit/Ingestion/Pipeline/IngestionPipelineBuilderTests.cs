@@ -78,10 +78,9 @@ public sealed class IngestionPipelineBuilderTests
         middleware.OnCannotInvoke(Arg.Any<IngestionContext>()).Returns(new IngestionStepError(string.Empty));
 
         var pipeline = IngestionPipelineBuilder.Build([middleware], Substitute.For<ILogger>());
-        try
-        { await pipeline(MakeContext(), CancellationToken.None); }
-        catch (PipelineConfigurationException exception) { _ = exception; }
+        var act = async () => await pipeline(MakeContext(), CancellationToken.None);
 
+        await act.Should().ThrowAsync<PipelineConfigurationException>();
         await middleware.DidNotReceive().InvokeAsync(
             Arg.Any<IngestionContext>(), Arg.Any<IngestionDelegate>(), Arg.Any<CancellationToken>());
     }
@@ -97,10 +96,9 @@ public sealed class IngestionPipelineBuilderTests
         second.OnCannotInvoke(Arg.Any<IngestionContext>()).Returns(new IngestionStepError(string.Empty));
 
         var pipeline = IngestionPipelineBuilder.Build([first, second], Substitute.For<ILogger>());
-        try
-        { await pipeline(MakeContext(), CancellationToken.None); }
-        catch (PipelineConfigurationException exception) { _ = exception; }
+        var act = async () => await pipeline(MakeContext(), CancellationToken.None);
 
+        await act.Should().ThrowAsync<PipelineConfigurationException>();
         invoked.Should().Contain(1);
     }
 
