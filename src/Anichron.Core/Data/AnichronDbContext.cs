@@ -55,8 +55,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             // Composite Index for "On This Day" (Optimized for Flashbacks)
             entity.HasIndex(m => new { m.Month, m.Day }).HasDatabaseName("IX_MediaAsset_Flashback");
 
-            // Index for Move Tracking
-            entity.HasIndex(m => m.ContentHash);
+            // Index for Move Tracking (scoped to storage config for efficient idempotency lookups)
+            entity.HasIndex(m => new { m.StorageConfigId, m.ContentHash });
 
             // Unique Constraint: One file path per storage config
             entity.HasIndex(m => new { m.StorageConfigId, m.FilePath }).IsUnique();

@@ -12,7 +12,7 @@ internal sealed partial class IdempotencyCheckMiddleware(
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         // Ordering guarantees ContentHashingMiddleware ran first; suppression is safe.
-        var existing = await repository.FindByHashAsync(context.ContentHash!, ct);
+        var existing = await repository.FindByHashAsync(context.ContentHash!, context.Config.Id, ct);
         if (existing is not null)
         {
             Log.AlreadyIngested(logger, context.Item.AbsolutePath);

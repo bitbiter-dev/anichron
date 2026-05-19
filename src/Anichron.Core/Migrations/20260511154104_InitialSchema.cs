@@ -292,9 +292,9 @@ namespace Anichron.Core.Migrations
                 column: "BurstId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MediaAssets_ContentHash",
+                name: "IX_MediaAssets_StorageConfigId_ContentHash",
                 table: "MediaAssets",
-                column: "ContentHash");
+                columns: new[] { "StorageConfigId", "ContentHash" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_MediaAssets_PairedAssetId",

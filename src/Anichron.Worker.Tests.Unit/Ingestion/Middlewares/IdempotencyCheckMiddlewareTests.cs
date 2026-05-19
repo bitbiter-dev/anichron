@@ -32,7 +32,7 @@ public sealed class IdempotencyCheckMiddlewareTests
     public async Task InvokeAsync_KnownHash_DoesNotCallNextAsync()
     {
         var fx = new TestFixture();
-        fx.Repository.FindByHashAsync("abc123", Arg.Any<CancellationToken>())
+        fx.Repository.FindByHashAsync("abc123", Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new MediaAsset());
         var nextCalled = false;
         Task NextAsync(IngestionContext ctx, CancellationToken ct)
@@ -51,7 +51,7 @@ public sealed class IdempotencyCheckMiddlewareTests
     public async Task InvokeAsync_UnknownHash_CallsNextAsync()
     {
         var fx = new TestFixture();
-        fx.Repository.FindByHashAsync("abc123", Arg.Any<CancellationToken>())
+        fx.Repository.FindByHashAsync("abc123", Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((MediaAsset?)null);
         var nextCalled = false;
         Task NextAsync(IngestionContext ctx, CancellationToken ct)
@@ -62,6 +62,28 @@ public sealed class IdempotencyCheckMiddlewareTests
         }
 
         await fx.Build().InvokeAsync(MakeContext("abc123"), NextAsync, CancellationToken.None);
+
+        nextCalled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_KnownHashInDifferentConfig_CallsNextAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext("abc123");
+        fx.Repository.FindByHashAsync("abc123", context.Config.Id, Arg.Any<CancellationToken>())
+            .Returns((MediaAsset?)null);
+        fx.Repository.FindByHashAsync("abc123", Arg.Is<Guid>(id => id != context.Config.Id), Arg.Any<CancellationToken>())
+            .Returns(new MediaAsset());
+        var nextCalled = false;
+        Task NextAsync(IngestionContext ctx, CancellationToken ct)
+        {
+            _ = (ctx, ct);
+            nextCalled = true;
+            return Task.CompletedTask;
+        }
+
+        await fx.Build().InvokeAsync(context, NextAsync, CancellationToken.None);
 
         nextCalled.Should().BeTrue();
     }

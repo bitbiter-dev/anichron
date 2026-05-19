@@ -179,7 +179,7 @@ namespace Anichron.Core.Migrations
 
                     b.HasIndex("BurstId");
 
-                    b.HasIndex("ContentHash");
+                    b.HasIndex("StorageConfigId", "ContentHash");
 
                     b.HasIndex("IsSoftDeleted")
                         .HasDatabaseName("IX_MediaAssets_Active")
