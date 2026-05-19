@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Infrastructure.Configuration;
@@ -29,6 +30,11 @@ public static class HostApplicationBuilderExtensions
                 new IniEntry("Worker", "MaxConcurrentFiles", () => "4"),
                 new IniEntry("Worker", "TokenCleanupIntervalHours", () => "24"),
                 new IniEntry("Worker", "ProxyPath", () => "/data/proxies"),
+                new IniEntry("Worker", "ThumbnailMaxWidth", () => "300"),
+                new IniEntry("Worker", "ThumbnailJpegQuality", () => "75"),
+                new IniEntry("Worker", "PreviewMaxWidth", () => "1920"),
+                new IniEntry("Worker", "PreviewJpegQuality", () => "85"),
+                new IniEntry("Worker", "BlurhashSampleWidth", () => "64"),
             ]);
             builder.Configuration.AddIniFile(iniPath, optional: false, reloadOnChange: false);
             builder.Configuration.AddEnvironmentVariables();
@@ -48,6 +54,7 @@ public static class HostApplicationBuilderExtensions
         public HostApplicationBuilder AddWorkerCoreServices()
         {
             builder.Services.Configure<WorkerSettings>(builder.Configuration.GetSection("Worker"));
+            builder.Services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             builder.Services.AddSingleton<IClock>(SystemClock.Instance);
             builder.Services.AddSingleton<WorkerState>();
             return builder;

@@ -1,4 +1,3 @@
-using Anichron.API.Security;
 using Anichron.API.Services;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;

@@ -12,6 +12,7 @@ public sealed class ContentHashingMiddlewareTests
     {
         Item = new SingleFileItem(path, "photo.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AssetId = Guid.NewGuid(),
     };
 
     // ==========================================================================
@@ -65,11 +66,13 @@ public sealed class ContentHashingMiddlewareTests
         {
             Item = new SingleFileItem("/abs/a.jpg", "a.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
         };
         var contextB = new IngestionContext
         {
             Item = new SingleFileItem("/abs/b.jpg", "b.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
         };
 
         await new ContentHashingMiddleware(fs).InvokeAsync(contextA, (_, _) => Task.CompletedTask, CancellationToken.None);
@@ -90,11 +93,13 @@ public sealed class ContentHashingMiddlewareTests
         {
             Item = new SingleFileItem("/abs/a.jpg", "a.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
         };
         var contextB = new IngestionContext
         {
             Item = new SingleFileItem("/abs/b.jpg", "b.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
         };
 
         await new ContentHashingMiddleware(fs).InvokeAsync(contextA, (_, _) => Task.CompletedTask, CancellationToken.None);
@@ -115,6 +120,7 @@ public sealed class ContentHashingMiddlewareTests
         {
             Item = new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
         };
 
         await new ContentHashingMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);

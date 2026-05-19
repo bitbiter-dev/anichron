@@ -13,4 +13,14 @@ public sealed record WorkerSettings
     public double TokenCleanupIntervalHours { get; init; } = 24;
 
     public string ProxyPath { get; init; } = "/data/proxies";
+
+    public int ThumbnailMaxWidth { get; init; } = 300;
+
+    public int ThumbnailJpegQuality { get; init; } = 75;
+
+    public int PreviewMaxWidth { get; init; } = 1920;
+
+    public int PreviewJpegQuality { get; init; } = 85;
+
+    public int BlurhashSampleWidth { get; init; } = 64;
 }

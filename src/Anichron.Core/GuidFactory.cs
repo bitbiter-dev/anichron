@@ -1,4 +1,4 @@
-namespace Anichron.API.Security;
+namespace Anichron.Core;
 
 public interface IGuidFactory
 {

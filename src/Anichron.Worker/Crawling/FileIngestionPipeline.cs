@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
@@ -18,6 +19,7 @@ internal sealed partial class FileIngestionPipeline(
     IFileSystem fileSystem,
     ILivePhotoLinker livePhotoLinker,
     IOptions<WorkerSettings> workerOptions,
+    IGuidFactory guidFactory,
     ILogger<FileIngestionPipeline> logger) : IFileIngestionPipeline
 {
     private readonly WorkerSettings settings = workerOptions.Value;
@@ -104,7 +106,7 @@ internal sealed partial class FileIngestionPipeline(
             var runner = diScope.ServiceProvider.GetRequiredService<IIngestionPipelineRunner>();
             try
             {
-                var context = new IngestionContext { Item = item, Config = config };
+                var context = new IngestionContext { Item = item, Config = config, AssetId = guidFactory.NewGuid() };
                 await runner.RunAsync(context, ct);
             }
             catch (Exception ex)

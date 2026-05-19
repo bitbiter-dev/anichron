@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Domain;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
@@ -65,6 +66,7 @@ public sealed class FileIngestionPipelineTests
                 FileSystem,
                 new LivePhotoLinker(FileSystem),
                 options,
+                Substitute.For<IGuidFactory>(),
                 Substitute.For<ILogger<FileIngestionPipeline>>());
         }
     }
