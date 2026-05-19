@@ -1,0 +1,19 @@
+using Anichron.Core.Domain;
+using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Pipeline;
+
+namespace Anichron.Worker.Tests.Unit.Ingestion.Pipeline;
+
+public sealed class IngestionContextTests
+{
+    [Fact]
+    public void ProxyFiles_DefaultsToEmptyList()
+    {
+        var context = new IngestionContext
+        {
+            Item = new SingleFileItem("/abs/file.jpg", "file.jpg", MediaType.Image),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        };
+        context.ProxyFiles.Should().NotBeNull().And.BeEmpty();
+    }
+}

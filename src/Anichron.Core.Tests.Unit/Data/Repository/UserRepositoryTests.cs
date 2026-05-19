@@ -127,6 +127,230 @@ public sealed class UserRepositoryTests
     }
 
     // ==========================================================================
+    // AnyAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task AnyAsync_NoUsers_ReturnsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var result = await new EfUserRepository(db).AnyAsync(ct);
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AnyAsync_UsersExist_ReturnsTrue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        db.Users.Add(MakeUser());
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).AnyAsync(ct);
+        result.Should().BeTrue();
+    }
+
+    // ==========================================================================
+    // AnyByUsernameAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task AnyByUsernameAsync_UsernameExists_ReturnsTrue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        db.Users.Add(MakeUser("alice", "alice@example.com"));
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).AnyByUsernameAsync("alice", ct);
+        result.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AnyByUsernameAsync_UsernameDoesNotExist_ReturnsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var result = await new EfUserRepository(db).AnyByUsernameAsync("nobody", ct);
+        result.Should().BeFalse();
+    }
+
+    // ==========================================================================
+    // AnyByEmailAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task AnyByEmailAsync_EmailExists_ReturnsTrue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        db.Users.Add(MakeUser("alice", "alice@example.com"));
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).AnyByEmailAsync("alice@example.com", ct);
+        result.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AnyByEmailAsync_EmailDoesNotExist_ReturnsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var result = await new EfUserRepository(db).AnyByEmailAsync("nobody@example.com", ct);
+        result.Should().BeFalse();
+    }
+
+    // ==========================================================================
+    // FindByIdAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task FindByIdAsync_ExistingId_ReturnsUser()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var user = MakeUser();
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).FindByIdAsync(user.Id, ct);
+        result.Should().NotBeNull();
+        result.Id.Should().Be(user.Id);
+    }
+
+    [Fact]
+    public async Task FindByIdAsync_UnknownId_ReturnsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var result = await new EfUserRepository(db).FindByIdAsync(Guid.NewGuid(), ct);
+        result.Should().BeNull();
+    }
+
+    // ==========================================================================
+    // FindByCredentialAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task FindByCredentialAsync_ByUsername_ReturnsUser()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var user = MakeUser("alice", "alice@example.com");
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).FindByCredentialAsync("alice", ct);
+        result!.Id.Should().Be(user.Id);
+    }
+
+    [Fact]
+    public async Task FindByCredentialAsync_ByEmail_ReturnsUser()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var user = MakeUser("alice", "alice@example.com");
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).FindByCredentialAsync("alice@example.com", ct);
+        result!.Id.Should().Be(user.Id);
+    }
+
+    [Fact]
+    public async Task FindByCredentialAsync_NoMatch_ReturnsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var result = await new EfUserRepository(db).FindByCredentialAsync("nobody", ct);
+        result.Should().BeNull();
+    }
+
+    // ==========================================================================
+    // FindAdminByUsernameAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task FindAdminByUsernameAsync_AdminExists_ReturnsUser()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var admin = MakeUser("admin", "admin@example.com");
+        admin.IsAdmin = true;
+        db.Users.Add(admin);
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).FindAdminByUsernameAsync("admin", ct);
+        result!.Id.Should().Be(admin.Id);
+    }
+
+    [Fact]
+    public async Task FindAdminByUsernameAsync_NonAdminWithUsername_ReturnsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        db.Users.Add(MakeUser("alice", "alice@example.com"));
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).FindAdminByUsernameAsync("alice", ct);
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindAdminByUsernameAsync_NoMatch_ReturnsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var result = await new EfUserRepository(db).FindAdminByUsernameAsync("nobody", ct);
+        result.Should().BeNull();
+    }
+
+    // ==========================================================================
+    // FindAdminsAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task FindAdminsAsync_ReturnsOnlyAdmins()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var admin = MakeUser("admin", "admin@example.com");
+        admin.IsAdmin = true;
+        var regular = MakeUser("alice", "alice@example.com");
+        await db.Users.AddRangeAsync(admin, regular);
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).FindAdminsAsync(10, ct);
+        result.Should().ContainSingle(u => u.Id == admin.Id);
+    }
+
+    [Fact]
+    public async Task FindAdminsAsync_RespectsTakeLimit()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        for (var i = 0; i < 5; i++)
+        {
+            var admin = MakeUser($"admin{i}", $"admin{i}@example.com");
+            admin.IsAdmin = true;
+            db.Users.Add(admin);
+        }
+
+        await db.SaveChangesAsync(ct);
+        var result = await new EfUserRepository(db).FindAdminsAsync(3, ct);
+        result.Should().HaveCount(3);
+    }
+
+    // ==========================================================================
+    // Add
+    // ==========================================================================
+
+    [Fact]
+    public async Task Add_AddsUserToContext()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        var user = MakeUser();
+        var repository = new EfUserRepository(db);
+        repository.Add(user);
+        await db.SaveChangesAsync(ct);
+        var found = await repository.FindByIdAsync(user.Id, ct);
+        found.Should().NotBeNull();
+    }
+
+    // ==========================================================================
     // Remove
     // ==========================================================================
 
