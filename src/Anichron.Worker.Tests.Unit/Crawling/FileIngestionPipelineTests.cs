@@ -27,6 +27,7 @@ public sealed class FileIngestionPipelineTests
         public FileIngestionPipeline Build(int maxConcurrentFiles = 2)
         {
             var capturingMiddleware = Substitute.For<IIngestionMiddleware>();
+            capturingMiddleware.Order.Returns(10);
             capturingMiddleware.InvokeAsync(
                     Arg.Any<IngestionContext>(),
                     Arg.Any<IngestionDelegate>(),

@@ -22,6 +22,7 @@ internal sealed partial class PersistenceMiddleware(
 
         if (context.Item.SecondaryFile is { } secondary)
         {
+            // Ordering guarantees ContentHashingMiddleware ran first and set SecondaryHash; suppression is safe.
             var secondaryAsset = BuildSecondaryAsset(secondary, context.SecondaryHash!, context);
             asset.PairedAssetId = secondaryAsset.Id;
             repository.Add(secondaryAsset);
@@ -39,8 +40,6 @@ internal sealed partial class PersistenceMiddleware(
         var relativePath = context.Item.RelativePath;
         var mediaType = context.Item.PrimaryMediaType;
         var exif = context.Exif!;
-        // LocalDateTime.FromDateTime ignores DateTimeKind, so LastWriteTimeUtc component values
-        // are copied directly — 2023-06-15 12:00:00 UTC → LocalDateTime(2023, 6, 15, 12, 0, 0).
         var dateCaptured = exif.DateCaptured ?? FallbackDate(context.Item.AbsolutePath);
 
         return new MediaAsset
@@ -97,8 +96,8 @@ internal sealed partial class PersistenceMiddleware(
 
     private LocalDateTime FallbackDate(string absolutePath)
     {
-        var lastWriteUtc = fileSystem.FileInfo.New(absolutePath).LastWriteTimeUtc;
-        return LocalDateTime.FromDateTime(lastWriteUtc);
+        var lastWrite = fileSystem.FileInfo.New(absolutePath).LastWriteTime;
+        return LocalDateTime.FromDateTime(lastWrite);
     }
 
     private static partial class Log
