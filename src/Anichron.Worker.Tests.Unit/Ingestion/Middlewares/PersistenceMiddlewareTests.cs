@@ -46,48 +46,23 @@ public sealed class PersistenceMiddlewareTests
     private static IngestionContext MakeContext(
         IngestionItem? item = null,
         string? contentHash = "deadbeef",
-        string? movContentHash = "cafebabe",
-        ExifData? exif = null) => new()
+        ExifData? exif = null)
+    {
+        var resolvedItem = item ?? new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image);
+        return new IngestionContext
         {
-            Item = item ?? new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image),
+            Item = resolvedItem,
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
             ContentHash = contentHash,
-            MovContentHash = movContentHash,
+            SecondaryHash = resolvedItem.SecondaryFile is not null ? "cafebabe" : null,
             Exif = exif ?? DefaultExif,
         };
+    }
 
     private static Task NoOpNextAsync(IngestionContext ctx, CancellationToken ct)
     {
         _ = (ctx, ct);
         return Task.CompletedTask;
-    }
-
-    // ==========================================================================
-    // CanInvoke
-    // ==========================================================================
-
-    [Fact]
-    public void CanInvoke_WhenHashAndExifSet_ReturnsTrue()
-    {
-        new TestFixture().Build().CanInvoke(MakeContext()).Should().BeTrue();
-    }
-
-    [Fact]
-    public void CanInvoke_WhenHashIsNull_ReturnsFalse()
-    {
-        new TestFixture().Build().CanInvoke(MakeContext(contentHash: null)).Should().BeFalse();
-    }
-
-    [Fact]
-    public void CanInvoke_WhenExifIsNull_ReturnsFalse()
-    {
-        var context = new IngestionContext
-        {
-            Item = new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image),
-            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
-            ContentHash = "deadbeef",
-        };
-        new TestFixture().Build().CanInvoke(context).Should().BeFalse();
     }
 
     // ==========================================================================
@@ -215,19 +190,6 @@ public sealed class PersistenceMiddlewareTests
     }
 
     [Fact]
-    public void CanInvoke_LivePhotoPairItem_WhenMovHashNull_ReturnsFalse()
-    {
-        var context = new IngestionContext
-        {
-            Item = new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
-            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
-            ContentHash = "deadbeef",
-            Exif = DefaultExif,
-        };
-        new TestFixture().Build().CanInvoke(context).Should().BeFalse();
-    }
-
-    [Fact]
     public async Task InvokeAsync_LivePhotoPairItem_HeicHasLivePhotoMediaTypeAsync()
     {
         var fx = new TestFixture();
@@ -259,8 +221,7 @@ public sealed class PersistenceMiddlewareTests
         fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
             .Do(call => movAsset = call.Arg<MediaAsset>());
         var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
-            movContentHash: "cafebabe");
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
@@ -269,7 +230,7 @@ public sealed class PersistenceMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_HeicLivePhotoPairIdPointsToMovAsync()
+    public async Task InvokeAsync_LivePhotoPairItem_HeicPairedAssetIdPointsToMovAsync()
     {
         MediaAsset? movAsset = null;
         var fx = new TestFixture();
@@ -280,6 +241,6 @@ public sealed class PersistenceMiddlewareTests
 
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        context.Asset!.LivePhotoPairId.Should().Be(movAsset!.Id);
+        context.Asset!.PairedAssetId.Should().Be(movAsset!.Id);
     }
 }

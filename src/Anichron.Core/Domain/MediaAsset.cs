@@ -7,9 +7,9 @@ public class MediaAsset
     public Guid? BurstId { get; set; }
 
     /// <summary>
-    /// Self-referencing ID to link a photo (.HEIC) with its video (.MOV) counterpart.
+    /// Links this asset to its paired secondary asset (e.g. a HEIC photo linked to its Live Photo MOV counterpart).
     /// </summary>
-    public Guid? LivePhotoPairId { get; set; }
+    public Guid? PairedAssetId { get; set; }
 
     // File Information
     public string FilePath { get; set; } = string.Empty; // Relative to StorageConfig Root
@@ -34,9 +34,9 @@ public class MediaAsset
     public virtual Burst? Burst { get; set; }
 
     /// <summary>
-    /// The paired video for a Live Photo.
+    /// Navigation property for the paired secondary asset.
     /// </summary>
-    public virtual MediaAsset? LivePhotoPair { get; set; }
+    public virtual MediaAsset? PairedAsset { get; set; }
 
     public virtual Metadata? Metadata { get; set; }
 

@@ -14,23 +14,17 @@ internal sealed partial class PersistenceMiddleware(
     IClock clock,
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
-    public bool CanInvoke(IngestionContext context)
-        => context.ContentHash is not null
-           && context.Exif is not null
-           && (context.Item is not LivePhotoPairItem || context.MovContentHash is not null);
-
-    public IngestionStepError OnCannotInvoke(IngestionContext context)
-        => new("ContentHash and Exif must be set before persistence");
+    public int Order => IngestionOrder.Persistence;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         var asset = BuildAsset(context);
 
-        if (context.Item is LivePhotoPairItem livePhoto)
+        if (context.Item.SecondaryFile is { } secondary)
         {
-            var movAsset = BuildMovAsset(livePhoto, context);
-            asset.LivePhotoPairId = movAsset.Id;
-            repository.Add(movAsset);
+            var secondaryAsset = BuildSecondaryAsset(secondary, context.SecondaryHash!, context);
+            asset.PairedAssetId = secondaryAsset.Id;
+            repository.Add(secondaryAsset);
         }
 
         repository.Add(asset);
@@ -42,13 +36,8 @@ internal sealed partial class PersistenceMiddleware(
 
     private MediaAsset BuildAsset(IngestionContext context)
     {
-        var (relativePath, mediaType) = context.Item switch
-        {
-            SingleFileItem s => (s.RelativePath, s.MediaType),
-            LivePhotoPairItem l => (l.RelativePath, MediaType.LivePhoto),
-            _ => throw new PipelineConfigurationException($"Unsupported item type: {context.Item.GetType().Name}"),
-        };
-
+        var relativePath = context.Item.RelativePath;
+        var mediaType = context.Item.PrimaryMediaType;
         var exif = context.Exif!;
         // LocalDateTime.FromDateTime ignores DateTimeKind, so LastWriteTimeUtc component values
         // are copied directly — 2023-06-15 12:00:00 UTC → LocalDateTime(2023, 6, 15, 12, 0, 0).
@@ -84,23 +73,23 @@ internal sealed partial class PersistenceMiddleware(
         };
     }
 
-    private MediaAsset BuildMovAsset(LivePhotoPairItem item, IngestionContext context)
+    private MediaAsset BuildSecondaryAsset(SecondaryFileDescriptor secondary, string hash, IngestionContext context)
     {
         var exif = context.Exif!;
-        var dateCaptured = exif.DateCaptured ?? FallbackDate(item.MovAbsolutePath);
+        var dateCaptured = exif.DateCaptured ?? FallbackDate(secondary.AbsolutePath);
 
         return new MediaAsset
         {
             Id = Guid.NewGuid(),
             StorageConfigId = context.Config.Id,
-            FilePath = item.MovRelativePath,
-            FileName = Path.GetFileName(item.MovRelativePath),
-            ContentHash = context.MovContentHash!,
+            FilePath = secondary.RelativePath,
+            FileName = Path.GetFileName(secondary.RelativePath),
+            ContentHash = hash,
             DateCaptured = dateCaptured,
             Month = dateCaptured.Month,
             Day = dateCaptured.Day,
             Year = dateCaptured.Year,
-            MediaType = MediaType.Video,
+            MediaType = secondary.MediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
         };

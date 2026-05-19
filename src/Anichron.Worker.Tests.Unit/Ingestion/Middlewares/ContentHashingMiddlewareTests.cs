@@ -15,17 +15,6 @@ public sealed class ContentHashingMiddlewareTests
     };
 
     // ==========================================================================
-    // CanInvoke
-    // ==========================================================================
-
-    [Fact]
-    public void CanInvoke_Always_ReturnsTrue()
-    {
-        var middleware = new ContentHashingMiddleware(new MockFileSystem());
-        middleware.CanInvoke(MakeContext()).Should().BeTrue();
-    }
-
-    // ==========================================================================
     // InvokeAsync
     // ==========================================================================
 
@@ -115,7 +104,7 @@ public sealed class ContentHashingMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_SetsMovContentHashAsync()
+    public async Task InvokeAsync_LivePhotoPairItem_SetsSecondaryHashAsync()
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
@@ -130,7 +119,7 @@ public sealed class ContentHashingMiddlewareTests
 
         await new ContentHashingMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        context.MovContentHash.Should().NotBeNullOrEmpty();
-        context.MovContentHash.Should().NotBe(context.ContentHash);
+        context.SecondaryHash.Should().NotBeNullOrEmpty();
+        context.SecondaryHash.Should().NotBe(context.ContentHash);
     }
 }

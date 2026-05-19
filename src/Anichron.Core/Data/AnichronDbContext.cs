@@ -61,10 +61,10 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             // Unique Constraint: One file path per storage config
             entity.HasIndex(m => new { m.StorageConfigId, m.FilePath }).IsUnique();
 
-            // Self-Reference (Live Photo)
-            entity.HasOne(m => m.LivePhotoPair)
+            // Self-Reference (Paired Asset)
+            entity.HasOne(m => m.PairedAsset)
                   .WithMany()
-                  .HasForeignKey(m => m.LivePhotoPairId)
+                  .HasForeignKey(m => m.PairedAssetId)
                   .OnDelete(DeleteBehavior.SetNull);
 
             // N:1 with Burst

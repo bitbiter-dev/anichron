@@ -7,14 +7,11 @@ internal sealed partial class IdempotencyCheckMiddleware(
     IMediaAssetRepository repository,
     ILogger<IdempotencyCheckMiddleware> logger) : IIngestionMiddleware
 {
-    public bool CanInvoke(IngestionContext context) => context.ContentHash is not null;
-
-    public IngestionStepError OnCannotInvoke(IngestionContext context)
-        => new("ContentHash must be set before idempotency check");
+    public int Order => IngestionOrder.IdempotencyCheck;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
-        // CanInvoke guards ContentHash != null; suppression is safe.
+        // Ordering guarantees ContentHashingMiddleware ran first; suppression is safe.
         var existing = await repository.FindByHashAsync(context.ContentHash!, ct);
         if (existing is not null)
         {

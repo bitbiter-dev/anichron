@@ -37,26 +37,6 @@ public sealed class ExifExtractionMiddlewareTests
         => new(fs, Substitute.For<ILogger<ExifExtractionMiddleware>>());
 
     // ==========================================================================
-    // CanInvoke
-    // ==========================================================================
-
-    [Fact]
-    public void CanInvoke_WhenHashSet_ReturnsTrue()
-    {
-        var middleware = MakeMiddleware(new MockFileSystem());
-        var context = MakeContext();
-        context.ContentHash = "abc123";
-        middleware.CanInvoke(context).Should().BeTrue();
-    }
-
-    [Fact]
-    public void CanInvoke_WhenHashNull_ReturnsFalse()
-    {
-        var middleware = MakeMiddleware(new MockFileSystem());
-        middleware.CanInvoke(MakeContext(contentHash: null)).Should().BeFalse();
-    }
-
-    // ==========================================================================
     // InvokeAsync
     // ==========================================================================
 

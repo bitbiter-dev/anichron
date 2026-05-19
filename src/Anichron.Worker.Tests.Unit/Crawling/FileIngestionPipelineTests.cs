@@ -27,7 +27,6 @@ public sealed class FileIngestionPipelineTests
         public FileIngestionPipeline Build(int maxConcurrentFiles = 2)
         {
             var capturingMiddleware = Substitute.For<IIngestionMiddleware>();
-            capturingMiddleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
             capturingMiddleware.InvokeAsync(
                     Arg.Any<IngestionContext>(),
                     Arg.Any<IngestionDelegate>(),
@@ -172,28 +171,6 @@ public sealed class FileIngestionPipelineTests
         fixture.ProcessedContexts.Should().ContainSingle()
             .Which.Item.Should().BeOfType<SingleFileItem>()
             .Which.AbsolutePath.Should().Be("/nas/photo.jpg");
-    }
-
-    // ==========================================================================
-    // Consumer — PipelineConfigurationException propagates
-    // ==========================================================================
-
-    [Fact]
-    public async Task RunAsync_PipelineConfigurationException_PropagatesAsync()
-    {
-        var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData([]));
-
-        var failingMiddleware = Substitute.For<IIngestionMiddleware>();
-        failingMiddleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(false);
-        failingMiddleware.OnCannotInvoke(Arg.Any<IngestionContext>())
-            .Returns(new IngestionStepError("required slot missing"));
-
-        var pipeline = fixture.BuildWithMiddlewares([failingMiddleware], maxConcurrentFiles: 1);
-
-        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
-
-        await act.Should().ThrowAsync<PipelineConfigurationException>();
     }
 
     // ==========================================================================

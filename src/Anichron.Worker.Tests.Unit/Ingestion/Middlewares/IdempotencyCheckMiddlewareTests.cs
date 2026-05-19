@@ -25,22 +25,6 @@ public sealed class IdempotencyCheckMiddlewareTests
     };
 
     // ==========================================================================
-    // CanInvoke
-    // ==========================================================================
-
-    [Fact]
-    public void CanInvoke_WhenHashSet_ReturnsTrue()
-    {
-        new TestFixture().Build().CanInvoke(MakeContext("abc123")).Should().BeTrue();
-    }
-
-    [Fact]
-    public void CanInvoke_WhenHashNull_ReturnsFalse()
-    {
-        new TestFixture().Build().CanInvoke(MakeContext(null)).Should().BeFalse();
-    }
-
-    // ==========================================================================
     // InvokeAsync
     // ==========================================================================
 

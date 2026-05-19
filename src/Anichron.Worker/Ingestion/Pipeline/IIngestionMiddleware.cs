@@ -5,9 +5,15 @@ internal delegate Task IngestionDelegate(IngestionContext context, CancellationT
 internal interface IIngestionMiddleware
 {
     string StepName => GetType().Name;
-    bool CanInvoke(IngestionContext context);
-    IngestionStepError OnCannotInvoke(IngestionContext context);
+    int Order { get; }
     Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct);
 }
 
-internal sealed record IngestionStepError(string Message);
+internal static class IngestionOrder
+{
+    public const int Logging = 0;
+    public const int ContentHashing = 10;
+    public const int IdempotencyCheck = 20;
+    public const int ExifExtraction = 30;
+    public const int Persistence = 40;
+}
