@@ -122,7 +122,7 @@ namespace Anichron.Core.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     StorageConfigId = table.Column<Guid>(type: "uuid", nullable: false),
                     BurstId = table.Column<Guid>(type: "uuid", nullable: true),
-                    LivePhotoPairId = table.Column<Guid>(type: "uuid", nullable: true),
+                    PairedAssetId = table.Column<Guid>(type: "uuid", nullable: true),
                     FilePath = table.Column<string>(type: "text", nullable: false),
                     FileName = table.Column<string>(type: "text", nullable: false),
                     ContentHash = table.Column<string>(type: "text", nullable: false),
@@ -144,8 +144,8 @@ namespace Anichron.Core.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
-                        name: "FK_MediaAssets_MediaAssets_LivePhotoPairId",
-                        column: x => x.LivePhotoPairId,
+                        name: "FK_MediaAssets_MediaAssets_PairedAssetId",
+                        column: x => x.PairedAssetId,
                         principalTable: "MediaAssets",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
@@ -292,14 +292,14 @@ namespace Anichron.Core.Migrations
                 column: "BurstId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MediaAssets_ContentHash",
+                name: "IX_MediaAssets_StorageConfigId_ContentHash",
                 table: "MediaAssets",
-                column: "ContentHash");
+                columns: new[] { "StorageConfigId", "ContentHash" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MediaAssets_LivePhotoPairId",
+                name: "IX_MediaAssets_PairedAssetId",
                 table: "MediaAssets",
-                column: "LivePhotoPairId");
+                column: "PairedAssetId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MediaAssets_StorageConfigId_FilePath",

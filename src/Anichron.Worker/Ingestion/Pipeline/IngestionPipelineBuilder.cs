@@ -16,13 +16,6 @@ internal static partial class IngestionPipelineBuilder
             var current = middleware;
             pipeline = async (context, ct) =>
             {
-                if (!current.CanInvoke(context))
-                {
-                    var error = current.OnCannotInvoke(context);
-                    throw new PipelineConfigurationException(
-                        $"{current.StepName} cannot invoke: {error.Message}");
-                }
-
                 Log.StepStarted(logger, current.StepName);
                 await current.InvokeAsync(context, next, ct);
             };

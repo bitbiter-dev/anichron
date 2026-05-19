@@ -107,11 +107,6 @@ internal sealed partial class FileIngestionPipeline(
                 var context = new IngestionContext { Item = item, Config = config };
                 await runner.RunAsync(context, ct);
             }
-            catch (PipelineConfigurationException ex)
-            {
-                Log.PipelineMisconfigured(logger, ex);
-                throw;
-            }
             catch (Exception ex)
             {
                 Log.ItemFailed(logger, item.AbsolutePath, ex);
@@ -123,9 +118,6 @@ internal sealed partial class FileIngestionPipeline(
     {
         [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping unsupported file type: {Path}.")]
         public static partial void UnsupportedFile(ILogger logger, string path);
-
-        [LoggerMessage(Level = LogLevel.Critical, Message = "Ingestion pipeline is misconfigured and cannot continue.")]
-        public static partial void PipelineMisconfigured(ILogger logger, Exception ex);
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Failed to ingest {Path}.")]
         public static partial void ItemFailed(ILogger logger, string path, Exception ex);

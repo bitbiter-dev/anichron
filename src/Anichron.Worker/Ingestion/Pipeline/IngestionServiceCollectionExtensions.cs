@@ -10,6 +10,7 @@ internal static class IngestionServiceCollectionExtensions
         services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
         services.AddScoped<IIngestionMiddleware, IdempotencyCheckMiddleware>();
         services.AddScoped<IIngestionMiddleware, ExifExtractionMiddleware>();
+        services.AddScoped<IIngestionMiddleware, PersistenceMiddleware>();
         services.AddScoped<IIngestionPipelineRunner, IngestionPipelineRunner>();
         return services;
     }

@@ -1,13 +1,10 @@
 using Anichron.Worker.Ingestion.Pipeline;
-using System.Diagnostics;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
 
 internal sealed partial class LoggingMiddleware(ILogger<LoggingMiddleware> logger) : IIngestionMiddleware
 {
-    public bool CanInvoke(IngestionContext context) => true;
-
-    public IngestionStepError OnCannotInvoke(IngestionContext context) => throw new UnreachableException();
+    public int Order => IngestionOrder.Logging;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {

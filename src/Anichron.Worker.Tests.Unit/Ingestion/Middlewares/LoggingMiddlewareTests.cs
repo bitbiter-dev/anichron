@@ -15,17 +15,6 @@ public sealed class LoggingMiddlewareTests
     };
 
     // ==========================================================================
-    // CanInvoke
-    // ==========================================================================
-
-    [Fact]
-    public void CanInvoke_Always_ReturnsTrue()
-    {
-        var middleware = new LoggingMiddleware(Substitute.For<ILogger<LoggingMiddleware>>());
-        middleware.CanInvoke(MakeContext()).Should().BeTrue();
-    }
-
-    // ==========================================================================
     // InvokeAsync
     // ==========================================================================
 

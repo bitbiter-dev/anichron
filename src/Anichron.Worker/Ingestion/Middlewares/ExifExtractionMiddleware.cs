@@ -16,10 +16,7 @@ internal sealed partial class ExifExtractionMiddleware(
     private static readonly LocalDateTimePattern exifDatePattern =
         LocalDateTimePattern.CreateWithInvariantCulture("yyyy:MM:dd HH:mm:ss");
 
-    public bool CanInvoke(IngestionContext context) => context.ContentHash is not null;
-
-    public IngestionStepError OnCannotInvoke(IngestionContext context)
-        => new("ContentHash must be set before EXIF extraction");
+    public int Order => IngestionOrder.ExifExtraction;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {

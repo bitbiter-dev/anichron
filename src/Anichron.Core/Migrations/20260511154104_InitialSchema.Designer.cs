@@ -159,7 +159,7 @@ namespace Anichron.Core.Migrations
                     b.Property<Instant>("LastSeenOnNas")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("LivePhotoPairId")
+                    b.Property<Guid?>("PairedAssetId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("MediaType")
@@ -179,13 +179,13 @@ namespace Anichron.Core.Migrations
 
                     b.HasIndex("BurstId");
 
-                    b.HasIndex("ContentHash");
+                    b.HasIndex("StorageConfigId", "ContentHash");
 
                     b.HasIndex("IsSoftDeleted")
                         .HasDatabaseName("IX_MediaAssets_Active")
                         .HasFilter("\"IsSoftDeleted\" = false");
 
-                    b.HasIndex("LivePhotoPairId");
+                    b.HasIndex("PairedAssetId");
 
                     b.HasIndex("Month", "Day")
                         .HasDatabaseName("IX_MediaAsset_Flashback");
@@ -419,9 +419,9 @@ namespace Anichron.Core.Migrations
                         .HasForeignKey("BurstId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Anichron.Core.Domain.MediaAsset", "LivePhotoPair")
+                    b.HasOne("Anichron.Core.Domain.MediaAsset", "PairedAsset")
                         .WithMany()
-                        .HasForeignKey("LivePhotoPairId")
+                        .HasForeignKey("PairedAssetId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Anichron.Core.Domain.UserStorageConfig", "StorageConfig")
@@ -432,7 +432,7 @@ namespace Anichron.Core.Migrations
 
                     b.Navigation("Burst");
 
-                    b.Navigation("LivePhotoPair");
+                    b.Navigation("PairedAsset");
 
                     b.Navigation("StorageConfig");
                 });

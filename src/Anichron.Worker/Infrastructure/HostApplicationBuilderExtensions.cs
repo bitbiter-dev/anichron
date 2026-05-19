@@ -62,6 +62,7 @@ public static class HostApplicationBuilderExtensions
             builder.Services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             builder.Services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             builder.Services.AddScoped<IDatabaseMigrator, EfDatabaseMigrator>();
+            builder.Services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             return builder;
         }
 
