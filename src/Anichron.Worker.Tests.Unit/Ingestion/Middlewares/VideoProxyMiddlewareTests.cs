@@ -120,8 +120,9 @@ public sealed class VideoProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var expectedShard = context.AssetId.ToString("N")[..2];
-        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith(expectedShard));
+        var hex = context.AssetId.ToString("N");
+        var expectedDirectory = $"{hex[..2]}/{hex[2..]}";
+        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith(expectedDirectory));
     }
 
     [Fact]

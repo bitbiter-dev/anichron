@@ -22,21 +22,13 @@ internal sealed partial class VideoProxyMiddleware(
     public bool CanInvoke(IngestionContext context)
         => context.Item.PrimaryMediaType == MediaType.Video;
 
-    // Same as ImageProxyMiddleware — skips redundant CreateDirectory calls.
-    private readonly HashSet<string> createdDirectories = [];
-    private readonly Lock directoryLock = new();
-
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         var proxyRoot = settings.Value.ProxyPath;
         var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.AssetId);
         var proxyPath = Path.Combine(proxyRoot, proxyDirectoryName);
 
-        lock (directoryLock)
-        {
-            if (createdDirectories.Add(proxyPath))
-                fileSystem.Directory.CreateDirectory(proxyPath);
-        }
+        fileSystem.Directory.CreateDirectory(proxyPath);
 
         // Sequential: concurrent FFmpeg processes would saturate the GPU.
         var proxyFiles = new List<ProxyFile>();
@@ -47,7 +39,6 @@ internal sealed partial class VideoProxyMiddleware(
 
         Log.ProxiesGenerated(logger, proxyFiles.Count, context.Item.RelativePath);
         await next(context, ct);
-        return;
 
         async Task<ProxyFile> TranscodeAsync(IVideoProxyGenerator generator)
         {

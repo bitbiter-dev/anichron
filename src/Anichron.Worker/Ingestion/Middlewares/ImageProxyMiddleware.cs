@@ -22,11 +22,6 @@ internal sealed partial class ImageProxyMiddleware(
     public bool CanInvoke(IngestionContext context)
         => context.Item.PrimaryMediaType is MediaType.Image or MediaType.LivePhoto;
 
-    // Skips redundant CreateDirectory calls once a shard directory is known to exist.
-    // Lock needed because MaxConcurrentFiles threads share this singleton.
-    private readonly HashSet<string> createdDirectories = [];
-    private readonly Lock directoryLock = new();
-
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         var proxyRoot = settings.Value.ProxyPath;
@@ -34,11 +29,7 @@ internal sealed partial class ImageProxyMiddleware(
         var proxyPath = Path.Combine(proxyRoot, proxyDirectoryName);
         var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
 
-        lock (directoryLock)
-        {
-            if (createdDirectories.Add(proxyPath))
-                fileSystem.Directory.CreateDirectory(proxyPath);
-        }
+        fileSystem.Directory.CreateDirectory(proxyPath);
 
         var proxyFiles = await Task.WhenAll(generators.Select(WriteProxyAsync));
 
