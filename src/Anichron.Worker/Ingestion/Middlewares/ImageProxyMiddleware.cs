@@ -19,16 +19,11 @@ internal sealed partial class ImageProxyMiddleware(
     ILogger<ImageProxyMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.ImageProxy;
+    public bool CanInvoke(IngestionContext context)
+        => context.Item.PrimaryMediaType is MediaType.Image or MediaType.LivePhoto;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
-        // Video thumbnails require FFmpeg frame extraction — handled by a future VideoProxyMiddleware.
-        if (context.Item.PrimaryMediaType == MediaType.Video)
-        {
-            await next(context, ct);
-            return;
-        }
-
         var proxyRoot = settings.Value.ProxyPath;
         var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.AssetId);
         var proxyPath = Path.Combine(proxyRoot, proxyDirectoryName);
@@ -42,7 +37,6 @@ internal sealed partial class ImageProxyMiddleware(
 
         Log.ProxiesGenerated(logger, proxyFiles.Length, context.Item.RelativePath);
         await next(context, ct);
-        return;
 
         async Task<ProxyFile> WriteProxyAsync(IImageProxyGenerator generator)
         {
@@ -51,25 +45,14 @@ internal sealed partial class ImageProxyMiddleware(
             var bytes = await generator.GenerateAsync(ms, ct);
             await fileSystem.File.WriteAllBytesAsync(Path.Combine(proxyRoot, relativePath), bytes, ct);
             Log.ProxyWritten(logger, generator.ProxyType, bytes.Length, context.Item.RelativePath);
-            return BuildProxyFile(context, relativePath, generator.ProxyType, bytes.Length);
+            return ProxyFileBuilder.Build(context, relativePath, generator.ProxyType, bytes.Length, guidFactory, clock);
         }
     }
-
-    private ProxyFile BuildProxyFile(IngestionContext context, string relPath, ProxyType type, long sizeBytes)
-        => new()
-        {
-            Id = guidFactory.NewGuid(),
-            AssetId = context.AssetId,
-            ProxyPath = relPath,
-            ProxyType = type,
-            SizeBytes = sizeBytes,
-            CreatedAt = clock.GetCurrentInstant(),
-        };
 
     private static partial class Log
     {
         [LoggerMessage(Level = LogLevel.Debug, Message = "Wrote {ProxyType} proxy ({SizeBytes} B) for {RelativePath}.")]
-        public static partial void ProxyWritten(ILogger logger, ProxyType proxyType, int sizeBytes, string relativePath);
+        public static partial void ProxyWritten(ILogger logger, ProxyType proxyType, long sizeBytes, string relativePath);
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Generated {Count} proxy files for {RelativePath}.")]
         public static partial void ProxiesGenerated(ILogger logger, int count, string relativePath);

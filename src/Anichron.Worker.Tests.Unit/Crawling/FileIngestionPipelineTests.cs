@@ -29,6 +29,7 @@ public sealed class FileIngestionPipelineTests
         {
             var capturingMiddleware = Substitute.For<IIngestionMiddleware>();
             capturingMiddleware.Order.Returns(10);
+            capturingMiddleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
             capturingMiddleware.InvokeAsync(
                     Arg.Any<IngestionContext>(),
                     Arg.Any<IngestionDelegate>(),

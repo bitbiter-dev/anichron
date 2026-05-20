@@ -7,6 +7,7 @@ namespace Anichron.Worker.Ingestion.Middlewares;
 internal sealed class ContentHashingMiddleware(IFileSystem fileSystem) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.ContentHashing;
+    public bool CanInvoke(IngestionContext context) => true;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
