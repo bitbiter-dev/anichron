@@ -210,18 +210,32 @@ public sealed class ImageProxyMiddlewareTests
             .Should().BeTrue();
     }
 
+    // ==========================================================================
+    // CanInvoke
+    // ==========================================================================
+
     [Fact]
-    public async Task InvokeAsync_VideoItem_SkipsProxyGenerationAndCallsNextAsync()
+    public void CanInvoke_ImageItem_ReturnsTrue()
     {
-        var fx = new TestFixture();
-        var context = MakeContext(MediaType.Video);
-        fx.FileSystem.AddFile("/nas/photo.jpg", new MockFileData([0xFF, 0xD8]));
+        new TestFixture().Build().CanInvoke(MakeContext(MediaType.Image)).Should().BeTrue();
+    }
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+    [Fact]
+    public void CanInvoke_LivePhotoItem_ReturnsTrue()
+    {
+        var context = new IngestionContext
+        {
+            Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AssetId = Guid.NewGuid(),
+        };
+        new TestFixture().Build().CanInvoke(context).Should().BeTrue();
+    }
 
-        context.ProxyFiles.Should().BeEmpty();
-        await fx.ImageProcessor.DidNotReceive()
-            .CreateThumbnailAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
+    [Fact]
+    public void CanInvoke_VideoItem_ReturnsFalse()
+    {
+        new TestFixture().Build().CanInvoke(MakeContext(MediaType.Video)).Should().BeFalse();
     }
 
     [Fact]
