@@ -9,15 +9,15 @@ internal static class IngestionServiceCollectionExtensions
     {
         internal IServiceCollection AddIngestionSteps()
         {
+            services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();
             services.AddImageProxyServices();
             services.AddVideoProxyServices();
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
             services.AddScoped<IIngestionMiddleware, IdempotencyCheckMiddleware>();
             services.AddScoped<IIngestionMiddleware, ExifExtractionMiddleware>();
-            // Singleton so the createdDirectories cache is shared across all per-file scopes.
-            services.AddSingleton<IIngestionMiddleware, ImageProxyMiddleware>();
-            services.AddSingleton<IIngestionMiddleware, VideoProxyMiddleware>();
+            services.AddScoped<IIngestionMiddleware, ImageProxyMiddleware>();
+            services.AddScoped<IIngestionMiddleware, VideoProxyMiddleware>();
             services.AddScoped<IIngestionMiddleware, PersistenceMiddleware>();
             services.AddScoped<IIngestionPipelineRunner, IngestionPipelineRunner>();
             return services;
@@ -34,7 +34,6 @@ internal static class IngestionServiceCollectionExtensions
         private IServiceCollection AddImageProxyServices()
         {
             services.AddSingleton<IImageProcessor, ImageSharpProcessor>();
-            services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();
             services.AddSingleton<IImageProxyGenerator, ThumbnailGenerator>();
             services.AddSingleton<IImageProxyGenerator, FullPreviewGenerator>();
             services.AddSingleton<IImageProxyGenerator, BlurhashGenerator>();

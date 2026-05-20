@@ -17,6 +17,7 @@ internal sealed class SystemProcessLauncher : IProcessLauncher
         process.StartInfo = new ProcessStartInfo
         {
             FileName = fileName,
+            RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -27,10 +28,13 @@ internal sealed class SystemProcessLauncher : IProcessLauncher
         process.Start();
         try
         {
-            // Read stderr without a CT — we must drain the pipe regardless of cancellation.
+            // Drain both pipes without a CT — pipes must be consumed regardless of cancellation
+            // to prevent the child process from blocking on a full pipe buffer.
             // Cancellation is signalled only via WaitForExitAsync.
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
             var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
             await process.WaitForExitAsync(ct);
+            await stdoutTask;
             var standardError = await stderrTask;
             return new ProcessResult(process.ExitCode, standardError);
         }

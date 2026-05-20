@@ -52,7 +52,7 @@ internal sealed partial class ImageProxyMiddleware(
     private static partial class Log
     {
         [LoggerMessage(Level = LogLevel.Debug, Message = "Wrote {ProxyType} proxy ({SizeBytes} B) for {RelativePath}.")]
-        public static partial void ProxyWritten(ILogger logger, ProxyType proxyType, int sizeBytes, string relativePath);
+        public static partial void ProxyWritten(ILogger logger, ProxyType proxyType, long sizeBytes, string relativePath);
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Generated {Count} proxy files for {RelativePath}.")]
         public static partial void ProxiesGenerated(ILogger logger, int count, string relativePath);

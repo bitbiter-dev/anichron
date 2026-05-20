@@ -26,20 +26,19 @@ internal sealed partial class FfmpegVideoProcessor(
 
     public async Task TranscodeAsync(string sourcePath, string outputPath, CancellationToken ct)
     {
-        if (detectedEncoder is null)
+        string encoder;
+        await encoderDetectionLock.WaitAsync(ct);
+        try
         {
-            await encoderDetectionLock.WaitAsync(ct);
-            try
-            {
-                detectedEncoder ??= await DetectEncoderAsync(ct);
-            }
-            finally
-            {
-                encoderDetectionLock.Release();
-            }
+            detectedEncoder ??= await DetectEncoderAsync(ct);
+            encoder = detectedEncoder;
+        }
+        finally
+        {
+            encoderDetectionLock.Release();
         }
 
-        await RunFfmpegAsync(sourcePath, outputPath, detectedEncoder, ct);
+        await RunFfmpegAsync(sourcePath, outputPath, encoder, ct);
     }
 
     private async Task<string> DetectEncoderAsync(CancellationToken ct)
@@ -62,6 +61,7 @@ internal sealed partial class FfmpegVideoProcessor(
     private async Task<bool> ProbeEncoderAsync(string encoder, CancellationToken ct)
     {
         // Encode a tiny synthetic clip to /dev/null — success means the encoder is available.
+        // /dev/null is Linux-only; the deployment target is linux/amd64 + linux/arm64 (see Dockerfile).
         string[] arguments =
         [
             "-f", "lavfi",
