@@ -26,13 +26,12 @@ internal sealed class SystemProcessLauncher : IProcessLauncher
             process.StartInfo.ArgumentList.Add(arg);
 
         process.Start();
+        // Start draining pipes immediately — must be consumed to prevent the child process
+        // from blocking on a full pipe buffer. Cancellation is signalled only via WaitForExitAsync.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
         try
         {
-            // Drain both pipes without a CT — pipes must be consumed regardless of cancellation
-            // to prevent the child process from blocking on a full pipe buffer.
-            // Cancellation is signalled only via WaitForExitAsync.
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-            var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
             await process.WaitForExitAsync(ct);
             await stdoutTask;
             var standardError = await stderrTask;
@@ -42,6 +41,8 @@ internal sealed class SystemProcessLauncher : IProcessLauncher
         {
             // Kill the process tree so GPU encoder children (e.g. vaenc) are not orphaned.
             process.Kill(entireProcessTree: true);
+            // Drain fully before returning — the killed process closes its pipes immediately.
+            await Task.WhenAll(stdoutTask, stderrTask);
             throw;
         }
     }

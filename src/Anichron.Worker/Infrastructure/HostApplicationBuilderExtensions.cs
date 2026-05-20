@@ -9,6 +9,7 @@ using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions;
 using CrawlingWorker = Anichron.Worker.Crawling.Worker;
@@ -57,6 +58,8 @@ public static class HostApplicationBuilderExtensions
         public HostApplicationBuilder AddWorkerCoreServices()
         {
             builder.Services.Configure<WorkerSettings>(builder.Configuration.GetSection("Worker"));
+            builder.Services.AddSingleton<IValidateOptions<WorkerSettings>, WorkerSettingsValidator>();
+            builder.Services.AddOptions<WorkerSettings>().ValidateOnStart();
             builder.Services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             builder.Services.AddSingleton<IClock>(SystemClock.Instance);
             builder.Services.AddSingleton<WorkerState>();

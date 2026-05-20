@@ -181,4 +181,18 @@ public sealed class FfmpegVideoProcessorTests
 
         ex.Message.Should().Contain("2").And.Contain("-i source.mp4");
     }
+
+    // ==========================================================================
+    // Dispose
+    // ==========================================================================
+
+    [Fact]
+    public void Dispose_DoesNotThrow()
+    {
+        var processor = new TestFixture().Build();
+
+        var act = processor.Dispose;
+
+        act.Should().NotThrow();
+    }
 }

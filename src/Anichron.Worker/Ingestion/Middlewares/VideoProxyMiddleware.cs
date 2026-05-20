@@ -33,14 +33,14 @@ internal sealed partial class VideoProxyMiddleware(
         // Sequential: concurrent FFmpeg processes would saturate the GPU.
         var proxyFiles = new List<ProxyFile>();
         foreach (var generator in generators)
-            proxyFiles.Add(await TranscodeAsync(generator));
+            proxyFiles.Add(await ProcessGeneratorAsync(generator));
 
         context.ProxyFiles.AddRange(proxyFiles);
 
         Log.ProxiesGenerated(logger, proxyFiles.Count, context.Item.RelativePath);
         await next(context, ct);
 
-        async Task<ProxyFile> TranscodeAsync(IVideoProxyGenerator generator)
+        async Task<ProxyFile> ProcessGeneratorAsync(IVideoProxyGenerator generator)
         {
             var relativePath = $"{proxyDirectoryName}/{generator.FileName}";
             var outputAbsolutePath = Path.Combine(proxyRoot, relativePath);
