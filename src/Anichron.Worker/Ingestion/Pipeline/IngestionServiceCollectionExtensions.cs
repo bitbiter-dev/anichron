@@ -10,13 +10,24 @@ internal static class IngestionServiceCollectionExtensions
         internal IServiceCollection AddIngestionSteps()
         {
             services.AddImageProxyServices();
+            services.AddVideoProxyServices();
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
             services.AddScoped<IIngestionMiddleware, IdempotencyCheckMiddleware>();
             services.AddScoped<IIngestionMiddleware, ExifExtractionMiddleware>();
-            services.AddScoped<IIngestionMiddleware, ImageProxyMiddleware>();
+            // Singleton so the createdDirectories cache is shared across all per-file scopes.
+            services.AddSingleton<IIngestionMiddleware, ImageProxyMiddleware>();
+            services.AddSingleton<IIngestionMiddleware, VideoProxyMiddleware>();
             services.AddScoped<IIngestionMiddleware, PersistenceMiddleware>();
             services.AddScoped<IIngestionPipelineRunner, IngestionPipelineRunner>();
+            return services;
+        }
+
+        private IServiceCollection AddVideoProxyServices()
+        {
+            services.AddSingleton<IProcessLauncher, SystemProcessLauncher>();
+            services.AddSingleton<IVideoProcessor, FfmpegVideoProcessor>();
+            services.AddSingleton<IVideoProxyGenerator, Video720PGenerator>();
             return services;
         }
 

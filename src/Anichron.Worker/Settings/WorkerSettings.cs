@@ -23,4 +23,10 @@ public sealed record WorkerSettings
     public int PreviewJpegQuality { get; init; } = 85;
 
     public int BlurhashSampleWidth { get; init; } = 64;
+
+    public string FfmpegPath { get; init; } = "ffmpeg";
+
+    public int VideoMaxHeight { get; init; } = 720;
+
+    public int VideoBitrateKbps { get; init; } = 2000;
 }

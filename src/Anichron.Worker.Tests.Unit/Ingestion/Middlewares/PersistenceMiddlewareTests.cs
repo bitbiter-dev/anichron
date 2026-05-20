@@ -247,4 +247,45 @@ public sealed class PersistenceMiddlewareTests
 
         context.Asset!.PairedAssetId.Should().Be(movAsset!.Id);
     }
+
+    [Fact]
+    public async Task InvokeAsync_Always_UsesContextAssetIdForPrimaryAssetAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.Id.Should().Be(context.AssetId);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_Always_CopiesProxyFilesFromContextToAssetAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+        var proxyFile = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
+        context.ProxyFiles.Add(proxyFile);
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.ProxyFiles.Should().ContainSingle(p => p.Id == proxyFile.Id);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_UsesGuidFactoryForSecondaryAssetIdAsync()
+    {
+        var fx = new TestFixture();
+        var expectedId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        fx.GuidFactory.NewGuid().Returns(expectedId);
+        MediaAsset? movAsset = null;
+        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
+            .Do(call => movAsset = call.Arg<MediaAsset>());
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        movAsset!.Id.Should().Be(expectedId);
+    }
 }

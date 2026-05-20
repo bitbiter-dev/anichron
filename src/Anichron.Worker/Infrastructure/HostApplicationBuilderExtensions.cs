@@ -35,6 +35,9 @@ public static class HostApplicationBuilderExtensions
                 new IniEntry("Worker", "PreviewMaxWidth", () => "1920"),
                 new IniEntry("Worker", "PreviewJpegQuality", () => "85"),
                 new IniEntry("Worker", "BlurhashSampleWidth", () => "64"),
+                new IniEntry("Worker", "FfmpegPath",          () => "ffmpeg"),
+                new IniEntry("Worker", "VideoMaxHeight",      () => "720"),
+                new IniEntry("Worker", "VideoBitrateKbps",    () => "2000"),
             ]);
             builder.Configuration.AddIniFile(iniPath, optional: false, reloadOnChange: false);
             builder.Configuration.AddEnvironmentVariables();

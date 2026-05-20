@@ -5,6 +5,7 @@ namespace Anichron.Worker.Ingestion.Middlewares;
 internal sealed partial class LoggingMiddleware(ILogger<LoggingMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Logging;
+    public bool CanInvoke(IngestionContext context) => true;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {

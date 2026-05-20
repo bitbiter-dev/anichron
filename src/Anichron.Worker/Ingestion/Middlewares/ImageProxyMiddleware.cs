@@ -19,22 +19,26 @@ internal sealed partial class ImageProxyMiddleware(
     ILogger<ImageProxyMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.ImageProxy;
+    public bool CanInvoke(IngestionContext context)
+        => context.Item.PrimaryMediaType is MediaType.Image or MediaType.LivePhoto;
+
+    // Skips redundant CreateDirectory calls once a shard directory is known to exist.
+    // Lock needed because MaxConcurrentFiles threads share this singleton.
+    private readonly HashSet<string> createdDirectories = [];
+    private readonly Lock directoryLock = new();
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
-        // Video thumbnails require FFmpeg frame extraction — handled by a future VideoProxyMiddleware.
-        if (context.Item.PrimaryMediaType == MediaType.Video)
-        {
-            await next(context, ct);
-            return;
-        }
-
         var proxyRoot = settings.Value.ProxyPath;
         var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.AssetId);
         var proxyPath = Path.Combine(proxyRoot, proxyDirectoryName);
         var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
 
-        fileSystem.Directory.CreateDirectory(proxyPath);
+        lock (directoryLock)
+        {
+            if (createdDirectories.Add(proxyPath))
+                fileSystem.Directory.CreateDirectory(proxyPath);
+        }
 
         var proxyFiles = await Task.WhenAll(generators.Select(WriteProxyAsync));
 
@@ -42,7 +46,6 @@ internal sealed partial class ImageProxyMiddleware(
 
         Log.ProxiesGenerated(logger, proxyFiles.Length, context.Item.RelativePath);
         await next(context, ct);
-        return;
 
         async Task<ProxyFile> WriteProxyAsync(IImageProxyGenerator generator)
         {
@@ -51,20 +54,9 @@ internal sealed partial class ImageProxyMiddleware(
             var bytes = await generator.GenerateAsync(ms, ct);
             await fileSystem.File.WriteAllBytesAsync(Path.Combine(proxyRoot, relativePath), bytes, ct);
             Log.ProxyWritten(logger, generator.ProxyType, bytes.Length, context.Item.RelativePath);
-            return BuildProxyFile(context, relativePath, generator.ProxyType, bytes.Length);
+            return ProxyFileBuilder.Build(context, relativePath, generator.ProxyType, bytes.Length, guidFactory, clock);
         }
     }
-
-    private ProxyFile BuildProxyFile(IngestionContext context, string relPath, ProxyType type, long sizeBytes)
-        => new()
-        {
-            Id = guidFactory.NewGuid(),
-            AssetId = context.AssetId,
-            ProxyPath = relPath,
-            ProxyType = type,
-            SizeBytes = sizeBytes,
-            CreatedAt = clock.GetCurrentInstant(),
-        };
 
     private static partial class Log
     {

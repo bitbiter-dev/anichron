@@ -16,6 +16,13 @@ internal static partial class IngestionPipelineBuilder
             var current = middleware;
             pipeline = async (context, ct) =>
             {
+                if (!current.CanInvoke(context))
+                {
+                    Log.StepSkipped(logger, current.StepName);
+                    await next(context, ct);
+                    return;
+                }
+
                 Log.StepStarted(logger, current.StepName);
                 await current.InvokeAsync(context, next, ct);
             };
@@ -28,5 +35,8 @@ internal static partial class IngestionPipelineBuilder
     {
         [LoggerMessage(Level = LogLevel.Debug, Message = "-> {MiddlewareName}")]
         public static partial void StepStarted(ILogger logger, string middlewareName);
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "-- {MiddlewareName} (skipped)")]
+        public static partial void StepSkipped(ILogger logger, string middlewareName);
     }
 }
