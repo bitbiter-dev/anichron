@@ -16,6 +16,9 @@ public sealed class WorkerSettingsValidatorTests
         BlurhashSampleWidth = 64,
         VideoMaxHeight = 720,
         VideoBitrateKbps = 2000,
+        TokenCleanupIntervalHours = 24,
+        FfmpegPath = "ffmpeg",
+        ProxyPath = "/data/proxies",
     };
 
     private static ValidateOptionsResult Validate(WorkerSettings settings)
@@ -83,6 +86,48 @@ public sealed class WorkerSettingsValidatorTests
     public void Validate_VideoBitrateKbpsZero_ReturnsFailed()
     {
         Validate(ValidSettings with { VideoBitrateKbps = 0 }).Failed.Should().BeTrue();
+    }
+
+    // ==========================================================================
+    // TokenCleanupIntervalHours
+    // ==========================================================================
+
+    [Fact]
+    public void Validate_TokenCleanupIntervalHoursZero_ReturnsFailed()
+    {
+        Validate(ValidSettings with { TokenCleanupIntervalHours = 0 }).Failed.Should().BeTrue();
+    }
+
+    // ==========================================================================
+    // FfmpegPath
+    // ==========================================================================
+
+    [Fact]
+    public void Validate_FfmpegPathEmpty_ReturnsFailed()
+    {
+        Validate(ValidSettings with { FfmpegPath = string.Empty }).Failed.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_FfmpegPathWhitespace_ReturnsFailed()
+    {
+        Validate(ValidSettings with { FfmpegPath = "   " }).Failed.Should().BeTrue();
+    }
+
+    // ==========================================================================
+    // ProxyPath
+    // ==========================================================================
+
+    [Fact]
+    public void Validate_ProxyPathEmpty_ReturnsFailed()
+    {
+        Validate(ValidSettings with { ProxyPath = string.Empty }).Failed.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_ProxyPathWhitespace_ReturnsFailed()
+    {
+        Validate(ValidSettings with { ProxyPath = "   " }).Failed.Should().BeTrue();
     }
 
     // ==========================================================================

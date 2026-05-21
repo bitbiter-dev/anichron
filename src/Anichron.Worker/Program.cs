@@ -2,9 +2,11 @@ using Anichron.Worker.Infrastructure;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddAppConfiguration();
-builder.AddWorkerCoreServices();
-builder.AddWorkerDataServices();
-builder.AddIngestionServices();
-builder.AddWorkerHostedServices();
+
+builder.Services
+    .AddWorkerCoreServices(builder.Configuration)
+    .AddWorkerDataServices(builder.Configuration)
+    .AddIngestionServices()
+    .AddWorkerHostedServices();
 
 await builder.Build().RunAsync();

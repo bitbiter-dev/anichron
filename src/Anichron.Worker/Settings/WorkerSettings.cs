@@ -57,6 +57,12 @@ internal sealed class WorkerSettingsValidator : IValidateOptions<WorkerSettings>
             failures.Add($"{nameof(WorkerSettings.VideoMaxHeight)} must be > 0");
         if (options.VideoBitrateKbps <= 0)
             failures.Add($"{nameof(WorkerSettings.VideoBitrateKbps)} must be > 0");
+        if (options.TokenCleanupIntervalHours <= 0)
+            failures.Add($"{nameof(WorkerSettings.TokenCleanupIntervalHours)} must be > 0");
+        if (string.IsNullOrWhiteSpace(options.FfmpegPath))
+            failures.Add($"{nameof(WorkerSettings.FfmpegPath)} must not be empty");
+        if (string.IsNullOrWhiteSpace(options.ProxyPath))
+            failures.Add($"{nameof(WorkerSettings.ProxyPath)} must not be empty");
 
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
