@@ -4,7 +4,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.AddAppConfiguration();
 
 builder.Services
-    .AddWorkerCoreServices(builder.Configuration)
+    .AddWorkerCoreServices()
     .AddWorkerDataServices(builder.Configuration)
     .AddIngestionServices()
     .AddWorkerHostedServices();

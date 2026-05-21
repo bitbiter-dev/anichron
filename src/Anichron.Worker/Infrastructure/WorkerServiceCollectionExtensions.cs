@@ -11,7 +11,6 @@ using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions;
 using CrawlingWorker = Anichron.Worker.Crawling.Worker;
@@ -22,11 +21,12 @@ internal static class WorkerServiceCollectionExtensions
 {
     extension(IServiceCollection services)
     {
-        internal IServiceCollection AddWorkerCoreServices(IConfiguration configuration)
+        internal IServiceCollection AddWorkerCoreServices()
         {
-            services.Configure<WorkerSettings>(configuration.GetSection("Worker"));
-            services.AddSingleton<IValidateOptions<WorkerSettings>, WorkerSettingsValidator>();
-            services.AddOptions<WorkerSettings>().ValidateOnStart();
+            services.AddOptions<WorkerSettings>()
+                .BindConfiguration("Worker")
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IClock>(SystemClock.Instance);
             services.AddSingleton<WorkerState>();
