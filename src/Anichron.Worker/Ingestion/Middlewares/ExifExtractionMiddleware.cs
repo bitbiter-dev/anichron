@@ -17,6 +17,7 @@ internal sealed partial class ExifExtractionMiddleware(
         LocalDateTimePattern.CreateWithInvariantCulture("yyyy:MM:dd HH:mm:ss");
 
     public int Order => IngestionOrder.ExifExtraction;
+    public bool CanInvoke(IngestionContext context) => true;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {

@@ -59,6 +59,7 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
             Mode = ResizeMode.Max,
         }));
 
+        // Blurhasher.Encode is CPU-bound and synchronous; no overload accepts a CancellationToken.
         return Blurhasher.Encode(image, 4, 3);
     }
 }

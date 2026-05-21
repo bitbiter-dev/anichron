@@ -6,6 +6,7 @@ internal interface IIngestionMiddleware
 {
     string StepName => GetType().Name;
     int Order { get; }
+    bool CanInvoke(IngestionContext context);
     Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct);
 }
 
@@ -16,5 +17,6 @@ internal static class IngestionOrder
     public const int IdempotencyCheck = 20;
     public const int ExifExtraction = 30;
     public const int ImageProxy = 40;
-    public const int Persistence = 50;
+    public const int VideoProxy = 50;
+    public const int Persistence = 60;
 }

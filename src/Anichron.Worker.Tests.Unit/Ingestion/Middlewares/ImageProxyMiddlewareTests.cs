@@ -79,7 +79,7 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_Always_CallsNextAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var nextCalled = false;
         Task NextAsync(IngestionContext ctx, CancellationToken ct)
         {
@@ -88,7 +88,7 @@ public sealed class ImageProxyMiddlewareTests
             return Task.CompletedTask;
         }
 
-        await fx.Build().InvokeAsync(MakeContext(), NextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(MakeContext(), NextAsync, CancellationToken.None);
 
         nextCalled.Should().BeTrue();
     }
@@ -96,10 +96,10 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_AddsThreeProxyFilesToContextAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().HaveCount(3);
     }
@@ -107,10 +107,10 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_AddsThumbnailProxyAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().ContainSingle(p => p.ProxyType == ProxyType.Thumbnail);
     }
@@ -118,10 +118,10 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_AddsFullPreviewProxyAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().ContainSingle(p => p.ProxyType == ProxyType.FullPreview);
     }
@@ -129,10 +129,10 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_AddsBlurhashProxyAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().ContainSingle(p => p.ProxyType == ProxyType.BlurHash);
     }
@@ -140,22 +140,23 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_ProxyPathsContainAssetShardAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var expectedShard = context.AssetId.ToString("N")[..2];
-        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith(expectedShard));
+        var hex = context.AssetId.ToString("N");
+        var expectedDirectory = $"{hex[..2]}/{hex[2..]}";
+        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith(expectedDirectory));
     }
 
     [Fact]
     public async Task InvokeAsync_ImageItem_ProxyFilesHaveContextAssetIdAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().AllSatisfy(p => p.AssetId.Should().Be(context.AssetId));
     }
@@ -163,72 +164,86 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_ProxyFilesHaveCreatedAtFromClockAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        context.ProxyFiles.Should().AllSatisfy(p => p.CreatedAt.Should().Be(fx.Now));
+        context.ProxyFiles.Should().AllSatisfy(p => p.CreatedAt.Should().Be(fixture.Now));
     }
 
     [Fact]
     public async Task InvokeAsync_ImageItem_WritesThumbnailFileToDiskAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         var shard = context.AssetId.ToString("N");
-        fx.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/thumbnail.jpg")
+        fixture.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/thumbnail.jpg")
             .Should().BeTrue();
     }
 
     [Fact]
     public async Task InvokeAsync_ImageItem_WritesPreviewFileToDiskAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         var shard = context.AssetId.ToString("N");
-        fx.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/preview.jpg")
+        fixture.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/preview.jpg")
             .Should().BeTrue();
     }
 
     [Fact]
     public async Task InvokeAsync_ImageItem_WritesBlurhashFileToDiskAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         var shard = context.AssetId.ToString("N");
-        fx.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/blurhash.txt")
+        fixture.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/blurhash.txt")
             .Should().BeTrue();
     }
 
+    // ==========================================================================
+    // CanInvoke
+    // ==========================================================================
+
     [Fact]
-    public async Task InvokeAsync_VideoItem_SkipsProxyGenerationAndCallsNextAsync()
+    public void CanInvoke_ImageItem_ReturnsTrue()
     {
-        var fx = new TestFixture();
-        var context = MakeContext(MediaType.Video);
-        fx.FileSystem.AddFile("/nas/photo.jpg", new MockFileData([0xFF, 0xD8]));
+        new TestFixture().Build().CanInvoke(MakeContext(MediaType.Image)).Should().BeTrue();
+    }
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+    [Fact]
+    public void CanInvoke_LivePhotoItem_ReturnsTrue()
+    {
+        var context = new IngestionContext
+        {
+            Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AssetId = Guid.NewGuid(),
+        };
+        new TestFixture().Build().CanInvoke(context).Should().BeTrue();
+    }
 
-        context.ProxyFiles.Should().BeEmpty();
-        await fx.ImageProcessor.DidNotReceive()
-            .CreateThumbnailAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
+    [Fact]
+    public void CanInvoke_VideoItem_ReturnsFalse()
+    {
+        new TestFixture().Build().CanInvoke(MakeContext(MediaType.Video)).Should().BeFalse();
     }
 
     [Fact]
     public async Task InvokeAsync_LivePhotoPairItem_GeneratesProxyFilesAsync()
     {
-        var fx = new TestFixture();
-        fx.FileSystem.AddFile("/nas/photo.heic", new MockFileData([0xFF, 0xD8, 0xFF, 0xD9]));
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.heic", new MockFileData([0xFF, 0xD8, 0xFF, 0xD9]));
         var context = new IngestionContext
         {
             Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
@@ -236,7 +251,7 @@ public sealed class ImageProxyMiddlewareTests
             AssetId = Guid.NewGuid(),
         };
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().HaveCount(3);
     }
@@ -244,10 +259,10 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_SetsCorrectSizeBytesOnEachProxyFileAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         // Thumbnail [0x01,0x02] = 2 B; Preview [0x03,0x04] = 2 B; Blurhash = 28-char ASCII string = 28 B
         context.ProxyFiles.Single(p => p.ProxyType == ProxyType.Thumbnail).SizeBytes.Should().Be(2);
@@ -258,12 +273,12 @@ public sealed class ImageProxyMiddlewareTests
     [Fact]
     public async Task InvokeAsync_ImageItem_AssignsProxyFileIdsFromGuidFactoryAsync()
     {
-        var fx = new TestFixture();
+        var fixture = new TestFixture();
         var expectedId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-        fx.GuidFactory.NewGuid().Returns(expectedId);
+        fixture.GuidFactory.NewGuid().Returns(expectedId);
         var context = MakeContext();
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().AllSatisfy(p => p.Id.Should().Be(expectedId));
     }

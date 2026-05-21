@@ -17,6 +17,7 @@ internal sealed partial class PersistenceMiddleware(
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Persistence;
+    public bool CanInvoke(IngestionContext context) => true;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {

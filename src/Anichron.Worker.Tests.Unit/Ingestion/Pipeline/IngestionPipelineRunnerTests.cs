@@ -23,8 +23,10 @@ public sealed class IngestionPipelineRunnerTests
     {
         var first = Substitute.For<IIngestionMiddleware>();
         first.Order.Returns(10);
+        first.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
         var second = Substitute.For<IIngestionMiddleware>();
         second.Order.Returns(10);
+        second.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
 
         var act = () => new IngestionPipelineRunner(
             [first, second],
@@ -38,8 +40,10 @@ public sealed class IngestionPipelineRunnerTests
     {
         var first = Substitute.For<IIngestionMiddleware>();
         first.Order.Returns(10);
+        first.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
         var second = Substitute.For<IIngestionMiddleware>();
         second.Order.Returns(20);
+        second.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
 
         var act = () => new IngestionPipelineRunner(
             [first, second],
@@ -76,6 +80,7 @@ public sealed class IngestionPipelineRunnerTests
     private sealed class StubMiddleware(int order, List<int> tracker) : IIngestionMiddleware
     {
         public int Order => order;
+        public bool CanInvoke(IngestionContext context) => true;
 
         public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
         {

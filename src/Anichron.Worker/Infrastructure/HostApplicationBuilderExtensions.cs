@@ -9,6 +9,7 @@ using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions;
 using CrawlingWorker = Anichron.Worker.Crawling.Worker;
@@ -35,6 +36,9 @@ public static class HostApplicationBuilderExtensions
                 new IniEntry("Worker", "PreviewMaxWidth", () => "1920"),
                 new IniEntry("Worker", "PreviewJpegQuality", () => "85"),
                 new IniEntry("Worker", "BlurhashSampleWidth", () => "64"),
+                new IniEntry("Worker", "FfmpegPath",          () => "ffmpeg"),
+                new IniEntry("Worker", "VideoMaxHeight",      () => "720"),
+                new IniEntry("Worker", "VideoBitrateKbps",    () => "2000"),
             ]);
             builder.Configuration.AddIniFile(iniPath, optional: false, reloadOnChange: false);
             builder.Configuration.AddEnvironmentVariables();
@@ -54,6 +58,8 @@ public static class HostApplicationBuilderExtensions
         public HostApplicationBuilder AddWorkerCoreServices()
         {
             builder.Services.Configure<WorkerSettings>(builder.Configuration.GetSection("Worker"));
+            builder.Services.AddSingleton<IValidateOptions<WorkerSettings>, WorkerSettingsValidator>();
+            builder.Services.AddOptions<WorkerSettings>().ValidateOnStart();
             builder.Services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             builder.Services.AddSingleton<IClock>(SystemClock.Instance);
             builder.Services.AddSingleton<WorkerState>();

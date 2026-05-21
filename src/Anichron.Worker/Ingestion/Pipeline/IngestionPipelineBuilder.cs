@@ -10,14 +10,20 @@ internal static partial class IngestionPipelineBuilder
         // wrapping middleware[n-1] first means middleware[0] is the outermost caller.
         foreach (var middleware in middlewares.Reverse())
         {
-            // Capture loop variables into locals; lambdas close over the local, not
-            // the loop variable, so each iteration gets its own independent copy.
+            // Capture 'pipeline' before reassignment — without this all lambdas would
+            // close over the final value of the outer variable, not this iteration's.
             var next = pipeline;
-            var current = middleware;
             pipeline = async (context, ct) =>
             {
-                Log.StepStarted(logger, current.StepName);
-                await current.InvokeAsync(context, next, ct);
+                if (!middleware.CanInvoke(context))
+                {
+                    Log.StepSkipped(logger, middleware.StepName);
+                    await next(context, ct);
+                    return;
+                }
+
+                Log.StepStarted(logger, middleware.StepName);
+                await middleware.InvokeAsync(context, next, ct);
             };
         }
 
@@ -28,5 +34,8 @@ internal static partial class IngestionPipelineBuilder
     {
         [LoggerMessage(Level = LogLevel.Debug, Message = "-> {MiddlewareName}")]
         public static partial void StepStarted(ILogger logger, string middlewareName);
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "-- {MiddlewareName} (skipped)")]
+        public static partial void StepSkipped(ILogger logger, string middlewareName);
     }
 }

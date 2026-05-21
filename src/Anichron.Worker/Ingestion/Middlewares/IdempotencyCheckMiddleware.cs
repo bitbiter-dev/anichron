@@ -8,6 +8,7 @@ internal sealed partial class IdempotencyCheckMiddleware(
     ILogger<IdempotencyCheckMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.IdempotencyCheck;
+    public bool CanInvoke(IngestionContext context) => true;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
