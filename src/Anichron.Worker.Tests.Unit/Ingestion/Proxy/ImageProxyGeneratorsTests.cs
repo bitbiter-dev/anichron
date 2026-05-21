@@ -1,5 +1,7 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Proxy;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Proxy;
 
@@ -49,10 +51,11 @@ public sealed class ImageProxyGeneratorsTests
     public async Task ThumbnailGenerator_GenerateAsync_DelegatesToCreateThumbnailAsync()
     {
         var processor = Substitute.For<IImageProcessor>();
-        processor.CreateThumbnailAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+        processor.CreateThumbnailAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
             .Returns([0x01, 0x02]);
+        using var image = new Image<Rgba32>(1, 1);
 
-        var bytes = await new ThumbnailGenerator(processor).GenerateAsync(Stream.Null, CancellationToken.None);
+        var bytes = await new ThumbnailGenerator(processor).GenerateAsync(image, CancellationToken.None);
 
         bytes.Should().Equal(0x01, 0x02);
     }
@@ -77,10 +80,11 @@ public sealed class ImageProxyGeneratorsTests
     public async Task FullPreviewGenerator_GenerateAsync_DelegatesToCreateFullPreviewAsync()
     {
         var processor = Substitute.For<IImageProcessor>();
-        processor.CreateFullPreviewAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+        processor.CreateFullPreviewAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
             .Returns([0x03, 0x04]);
+        using var image = new Image<Rgba32>(1, 1);
 
-        var bytes = await new FullPreviewGenerator(processor).GenerateAsync(Stream.Null, CancellationToken.None);
+        var bytes = await new FullPreviewGenerator(processor).GenerateAsync(image, CancellationToken.None);
 
         bytes.Should().Equal(0x03, 0x04);
     }
@@ -93,10 +97,11 @@ public sealed class ImageProxyGeneratorsTests
     public async Task GenerateAsync_ReturnsUtf8EncodedHashBytesAsync()
     {
         var processor = Substitute.For<IImageProcessor>();
-        processor.ComputeBlurhashAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+        processor.ComputeBlurhashAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
             .Returns("HASH");
+        using var image = new Image<Rgba32>(1, 1);
 
-        var bytes = await new BlurhashGenerator(processor).GenerateAsync(Stream.Null, CancellationToken.None);
+        var bytes = await new BlurhashGenerator(processor).GenerateAsync(image, CancellationToken.None);
 
         bytes.Should().Equal("HASH"u8.ToArray());
     }

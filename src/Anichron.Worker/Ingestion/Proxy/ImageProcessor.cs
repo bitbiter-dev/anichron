@@ -10,18 +10,17 @@ namespace Anichron.Worker.Ingestion.Proxy;
 
 internal interface IImageProcessor
 {
-    Task<byte[]> CreateThumbnailAsync(Stream source, CancellationToken ct);
-    Task<byte[]> CreateFullPreviewAsync(Stream source, CancellationToken ct);
-    Task<string> ComputeBlurhashAsync(Stream source, CancellationToken ct);
+    Task<byte[]> CreateThumbnailAsync(Image<Rgba32> image, CancellationToken ct);
+    Task<byte[]> CreateFullPreviewAsync(Image<Rgba32> image, CancellationToken ct);
+    Task<string> ComputeBlurhashAsync(Image<Rgba32> image, CancellationToken ct);
 }
 
 internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : IImageProcessor
 {
     private readonly WorkerSettings settings = options.Value;
 
-    public async Task<byte[]> CreateThumbnailAsync(Stream source, CancellationToken ct)
+    public async Task<byte[]> CreateThumbnailAsync(Image<Rgba32> image, CancellationToken ct)
     {
-        using var image = await Image.LoadAsync(source, ct);
         image.Mutate(x => x.Resize(new ResizeOptions
         {
             Size = new Size(settings.ThumbnailMaxWidth, 0),
@@ -33,9 +32,8 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
         return ms.ToArray();
     }
 
-    public async Task<byte[]> CreateFullPreviewAsync(Stream source, CancellationToken ct)
+    public async Task<byte[]> CreateFullPreviewAsync(Image<Rgba32> image, CancellationToken ct)
     {
-        using var image = await Image.LoadAsync(source, ct);
         if (image.Width > settings.PreviewMaxWidth)
         {
             image.Mutate(x => x.Resize(new ResizeOptions
@@ -50,9 +48,8 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
         return ms.ToArray();
     }
 
-    public async Task<string> ComputeBlurhashAsync(Stream source, CancellationToken ct)
+    public Task<string> ComputeBlurhashAsync(Image<Rgba32> image, CancellationToken ct)
     {
-        using var image = await Image.LoadAsync<Rgba32>(source, ct);
         image.Mutate(x => x.Resize(new ResizeOptions
         {
             Size = new Size(settings.BlurhashSampleWidth, 0),
@@ -60,6 +57,6 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
         }));
 
         // Blurhasher.Encode is CPU-bound and synchronous; no overload accepts a CancellationToken.
-        return Blurhasher.Encode(image, 4, 3);
+        return Task.FromResult(Blurhasher.Encode(image, 4, 3));
     }
 }

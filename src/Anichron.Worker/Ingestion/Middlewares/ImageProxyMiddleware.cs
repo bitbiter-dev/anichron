@@ -5,6 +5,8 @@ using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 using NodaTime;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
@@ -29,6 +31,9 @@ internal sealed partial class ImageProxyMiddleware(
         var proxyPath = Path.Combine(proxyRoot, proxyDirectoryName);
         var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
 
+        await using var ms = new MemoryStream(sourceBytes);
+        using var image = await Image.LoadAsync<Rgba32>(ms, ct);
+
         fileSystem.Directory.CreateDirectory(proxyPath);
 
         var proxyFiles = await Task.WhenAll(generators.Select(WriteProxyAsync));
@@ -41,8 +46,8 @@ internal sealed partial class ImageProxyMiddleware(
         async Task<ProxyFile> WriteProxyAsync(IImageProxyGenerator generator)
         {
             var relativePath = $"{proxyDirectoryName}/{generator.FileName}";
-            await using var ms = new MemoryStream(sourceBytes);
-            var bytes = await generator.GenerateAsync(ms, ct);
+            using var clone = image.Clone();
+            var bytes = await generator.GenerateAsync(clone, ct);
             await fileSystem.File.WriteAllBytesAsync(Path.Combine(proxyRoot, relativePath), bytes, ct);
             Log.ProxyWritten(logger, generator.ProxyType, bytes.Length, context.Item.RelativePath);
             return ProxyFileBuilder.Build(context, relativePath, generator.ProxyType, bytes.Length, guidFactory, clock);
