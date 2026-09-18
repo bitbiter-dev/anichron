@@ -27,6 +27,12 @@ COPY ["Anichron.Worker/Anichron.Worker.csproj", "Anichron.Worker/"]
 COPY ["Anichron.Core/Anichron.Core.csproj", "Anichron.Core/"]
 COPY ["Anichron.Infrastructure/Anichron.Infrastructure.csproj", "Anichron.Infrastructure/"]
 
+# Lock files must be present before restore, otherwise the restore layer
+# resolves its own graph and is then overwritten by COPY . . below.
+COPY ["Anichron.Worker/packages.lock.json", "Anichron.Worker/"]
+COPY ["Anichron.Core/packages.lock.json", "Anichron.Core/"]
+COPY ["Anichron.Infrastructure/packages.lock.json", "Anichron.Infrastructure/"]
+
 RUN dotnet restore "./Anichron.Worker/Anichron.Worker.csproj"
 COPY . .
 WORKDIR "/src/Anichron.Worker"
