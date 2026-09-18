@@ -17,6 +17,12 @@ COPY ["Anichron.API/Anichron.API.csproj", "Anichron.API/"]
 COPY ["Anichron.Core/Anichron.Core.csproj", "Anichron.Core/"]
 COPY ["Anichron.Infrastructure/Anichron.Infrastructure.csproj", "Anichron.Infrastructure/"]
 
+# Lock files must be present before restore, otherwise the restore layer
+# resolves its own graph and is then overwritten by COPY . . below.
+COPY ["Anichron.API/packages.lock.json", "Anichron.API/"]
+COPY ["Anichron.Core/packages.lock.json", "Anichron.Core/"]
+COPY ["Anichron.Infrastructure/packages.lock.json", "Anichron.Infrastructure/"]
+
 # Restore based on the API project
 RUN dotnet restore "Anichron.API/Anichron.API.csproj"
 
