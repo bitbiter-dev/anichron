@@ -10,10 +10,6 @@ updates:
       nuget:
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
 
   - package-ecosystem: docker
     directory: /src/Anichron.API
@@ -36,7 +32,3 @@ updates:
       github-actions:
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
