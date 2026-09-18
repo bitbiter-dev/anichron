@@ -8,6 +8,8 @@ using Anichron.Worker.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
@@ -16,10 +18,20 @@ public sealed class ImageProxyMiddlewareTests
 {
     private sealed class TestFixture
     {
+        internal static readonly byte[] MinimalPng = CreateMinimalPng();
+
+        private static byte[] CreateMinimalPng()
+        {
+            using var img = new Image<Rgba32>(1, 1);
+            using var ms = new MemoryStream();
+            img.SaveAsPng(ms);
+            return ms.ToArray();
+        }
+
         public IImageProcessor ImageProcessor { get; } = Substitute.For<IImageProcessor>();
         public MockFileSystem FileSystem { get; } = new MockFileSystem(new Dictionary<string, MockFileData>
         {
-            ["/nas/photo.jpg"] = new MockFileData([0xFF, 0xD8, 0xFF, 0xD9]),
+            ["/nas/photo.jpg"] = new MockFileData(MinimalPng),
         });
         public Instant Now { get; } = Instant.FromUtc(2026, 5, 19, 10, 0, 0);
 
@@ -29,11 +41,11 @@ public sealed class ImageProxyMiddlewareTests
             clock.GetCurrentInstant().Returns(Now);
             Clock = clock;
 
-            ImageProcessor.CreateThumbnailAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            ImageProcessor.CreateThumbnailAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
                 .Returns([0x01, 0x02]);
-            ImageProcessor.CreateFullPreviewAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            ImageProcessor.CreateFullPreviewAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
                 .Returns([0x03, 0x04]);
-            ImageProcessor.ComputeBlurhashAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            ImageProcessor.ComputeBlurhashAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
                 .Returns("LGFFaXYk^6#M@-5c,1J5@[or[Q6.");
         }
 
@@ -243,7 +255,7 @@ public sealed class ImageProxyMiddlewareTests
     public async Task InvokeAsync_LivePhotoPairItem_GeneratesProxyFilesAsync()
     {
         var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/nas/photo.heic", new MockFileData([0xFF, 0xD8, 0xFF, 0xD9]));
+        fixture.FileSystem.AddFile("/nas/photo.heic", new MockFileData(TestFixture.MinimalPng));
         var context = new IngestionContext
         {
             Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
