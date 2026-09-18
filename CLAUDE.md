@@ -49,10 +49,12 @@ Four projects with strict separation of concerns:
 |---------|------|
 | `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects. |
 | `Anichron.Infrastructure` | DI wiring; reads DB connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets |
-| `Anichron.API` | ASP.NET Core Minimal APIs — read-only queries, DTO mapping, proxy file serving, originals on demand. All routes prefixed `/api/v1/`. |
+| `Anichron.API` | ASP.NET Core Minimal APIs — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data; DTO mapping, proxy file serving, originals on demand. All routes prefixed `/api/v1/`. |
 | `Anichron.Worker` | `BackgroundService` — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, reconciliation |
 
-**Worker is the only database writer.** All inserts, reconciliation, burst detection, and soft-deletes happen here. The API is read-only.
+**Write ownership is split by domain, not centralized.**
+- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media.
+- **API owns all *identity/auth/admin* writes** — registration, login/refresh-token issuance and cleanup, lockout state, invites, and admin user/storage-config CRUD all persist through API services (`AuthService`, `AdminUserService`, `AdminStorageConfigService`, `TokenService`, etc.) via `IUnitOfWork.SaveChangesAsync`. The API is read-only *only with respect to media*.
 
 A planned `Anichron.UI` (NextJS/React) for the Instagram Story-style flashback experience is documented but not yet in the solution.
 
@@ -92,7 +94,7 @@ Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{ty
 - Extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `content_hash` → writes `MediaAsset` + `Metadata`
 - Generates proxy types: `thumbnail`, `preview`, `video_720p`, `blurhash`
 - FFmpeg transcodes video with runtime GPU detection: QuickSync (`h264_qsv`) → NVENC (`h264_nvenc`) → AMF (`h264_amf`) → software (`libx264`)
-- Burst detection: groups rapid-fire sequences, assigns `primary_asset_id` cover
+- Burst detection (**planned, not yet implemented**): will group rapid-fire sequences and assign a `primary_asset_id` cover. The `Burst` entity and schema exist; no detection code is wired into the Worker yet.
 - Reconciliation: periodic NAS scan; soft-deletes missing files (preserves user interactions); hash match re-links moved files
 
 ### Flashback Interaction Rules
@@ -137,3 +139,41 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 
 - **Issues** (bug reports, feature requests, epic tracking): https://github.com/bitbiter-dev/anichron/issues
 - **Wiki** (architecture decisions, ADRs, engineering notes): https://github.com/bitbiter-dev/anichron/wiki
+
+## graphify (knowledge graph — orient here first)
+
+This repo ships a pre-built knowledge graph in `graphify-out/` so agents can orient
+themselves without grepping the whole tree. It captures call relationships, shared data,
+community structure, and the architecture/CI/domain concepts extracted from the docs.
+
+**Orient before exploring.** For any "how does X work / what calls Y / where is Z handled"
+question, query the graph first instead of grepping source blindly:
+
+```bash
+graphify query "<question>"      # scoped subgraph answer (much smaller than raw grep)
+graphify path "<A>" "<B>"        # shortest relationship path between two concepts
+graphify explain "<concept>"     # focused explanation of one node and its neighbours
+```
+
+- Read `graphify-out/GRAPH_REPORT.md` for a one-page map: god nodes (most-connected
+  abstractions), the ~25 named communities (Auth Service, Worker pipeline, EXIF Extraction,
+  Image/Video Proxy middleware, repositories, etc.), and surprising cross-file links.
+- Fall back to raw grep/Read only after the graph has oriented you, or to edit/debug
+  specific lines.
+
+**Keep it current — enforced before push.** The `pre-push` Husky group runs a
+`graphify-update` task that regenerates the graph and **fails the push if committed
+`graphify-out/graph.json` is stale**, so reviewers and future agents always inherit an
+accurate map. When it blocks you, commit the regenerated files and push again:
+
+```bash
+graphify update .                # AST-only re-extraction of changed files, no API cost
+git add graphify-out/graph.json graphify-out/GRAPH_REPORT.md && git commit
+```
+
+The check skips silently if `graphify` isn't installed (it's an optional dev aid, not part
+of the dotnet toolchain). Doc-only changes need a manual `/graphify --update`. Only
+`graph.json` (date-stable) and `GRAPH_REPORT.md` are committed; `graph.html`, `cache/`,
+`cost.json`, and `manifest.json` are gitignored (volatile or machine-specific). Without a
+local `manifest.json`, `graphify update` rebuilds from scratch (AST-only, cheap), so a fresh
+clone still produces a correct graph.
