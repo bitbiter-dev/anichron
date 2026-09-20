@@ -8,7 +8,6 @@ builder.Services
     .AddDatabase(builder.Configuration)
     .AddForwardedHeadersSupport()
     .AddAuthServices(builder.Configuration)
-    .AddAuthorization()
     .AddAuthorizationPolicies()
     .AddRateLimiting()
     .AddCorsPolicy(builder.Configuration)
