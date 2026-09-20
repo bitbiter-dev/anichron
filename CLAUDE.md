@@ -39,7 +39,7 @@ dotnet test src/SomeProject.Tests.Unit/SomeProject.Tests.Unit.csproj
 dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 ```
 
-Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the xUnit + Moq SDK to any project matching that pattern. Internal members are exposed to test projects via `InternalsVisibleTo`.
+Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the test SDK to any project matching that pattern: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
 ## Architecture
 
@@ -73,7 +73,7 @@ Seven entities — all EF Core config via **Fluent API only**, no data annotatio
 ### Key EF Core / Database Decisions
 
 - `month` and `day` stored as separate integers on `MediaAsset` with a **composite index** — enables "On This Day" queries as direct index lookups instead of `EXTRACT()` scans
-- Unique B-Tree index on `content_hash` — detects renames/moves without breaking references
+- Index on `(storage_config_id, content_hash)` — detects renames/moves within a storage config without breaking references. Dedup is **config-scoped**: the same bytes under two storage configs are two assets, which is what makes multi-user work. A *global* unique index on `content_hash` alone would break that and must not be added. Note the index is currently **non-unique**, which is a known defect (see issue #159): nothing enforces the "one active asset per `(config, hash)`" invariant that `IdempotencyCheckMiddleware` assumes, so concurrent consumers can create silent duplicates. Planned fix is a config-scoped *partial* unique index filtered to active rows
 - Filtered index on `is_soft_deleted` — excludes trashed assets from active gallery queries
 - Global query filter: soft-deleted `MediaAsset` records are hidden by default
 - `MediaType` and `ProxyType` stored as strings (not integers)
@@ -86,7 +86,7 @@ Seven entities — all EF Core config via **Fluent API only**, no data annotatio
 /data/proxies/     ← Local SSD (Worker writes; API reads for serving)
 ```
 
-Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{type}` (e.g., `f3/a1b2c4.../thumbnail.jpg`). `ProxyFile.FilePath` stores the path relative to `/data/proxies/`.
+Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{type}` (e.g., `f3/a1b2c4.../thumbnail.jpg`). `ProxyFile.ProxyPath` stores the path relative to `/data/proxies/` (note: `FilePath` is on `MediaAsset`, relative to the storage config root — the two are different properties).
 
 ### Worker Media Processing
 
@@ -109,7 +109,7 @@ Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{ty
 - **Namespaces**: File-scoped, matching `{AssemblyName}.{Layer}` (enforced as warning in `.editorconfig`)
 - **Nullability**: Enabled globally — treat as baseline
 - **Implicit usings**: Enabled globally — no need to import common `System.*` namespaces
-- **Private fields**: `_camelCase` for instance, `PascalCase` for static
+- **Private fields**: plain `camelCase` for instance — **no underscore prefix**; `PascalCase` for static
 - **Interfaces**: Prefixed with `I`
 - **Indentation**: 4 spaces, CRLF line endings
 - **Analyzers**: Run at `Recommended` severity during build — fix warnings, don't suppress
@@ -177,3 +177,17 @@ of the dotnet toolchain). Doc-only changes need a manual `/graphify --update`. O
 `cost.json`, and `manifest.json` are gitignored (volatile or machine-specific). Without a
 local `manifest.json`, `graphify update` rebuilds from scratch (AST-only, cheap), so a fresh
 clone still produces a correct graph.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues in `bitbiter-dev/anichron`, driven via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.

@@ -17,12 +17,12 @@ internal static partial class IngestionPipelineBuilder
             {
                 if (!middleware.CanInvoke(context))
                 {
-                    Log.StepSkipped(logger, middleware.StepName);
+                    Log.StepSkipped(logger, middleware.GetType().Name);
                     await next(context, ct);
                     return;
                 }
 
-                Log.StepStarted(logger, middleware.StepName);
+                Log.StepStarted(logger, middleware.GetType().Name);
                 await middleware.InvokeAsync(context, next, ct);
             };
         }

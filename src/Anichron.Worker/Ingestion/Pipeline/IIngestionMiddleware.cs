@@ -4,7 +4,6 @@ internal delegate Task IngestionDelegate(IngestionContext context, CancellationT
 
 internal interface IIngestionMiddleware
 {
-    string StepName => GetType().Name;
     int Order { get; }
     bool CanInvoke(IngestionContext context);
     Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct);
