@@ -41,6 +41,15 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the test SDK to any project matching that pattern: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
+### Mutation testing
+
+```bash
+dotnet tool restore
+cd src && dotnet stryker      # must run from src/, not the repo root
+```
+
+All settings live in `src/stryker-config.json` — pass no score-affecting flags. **Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
+
 ## Architecture
 
 Four projects with strict separation of concerns:

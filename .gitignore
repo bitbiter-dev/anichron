@@ -442,3 +442,6 @@ src/Anichron.API/configuration/
 
 # JetBrains IDEs
 **/.idea/
+
+# Stryker.NET mutation testing reports
+StrykerOutput/
