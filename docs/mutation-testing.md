@@ -108,6 +108,58 @@ Note that Stryker's own documented cross-check — re-running with coverage anal
 Also: scoping a run to a single file is reported upstream to lose kills even single-threaded, so
 bisecting a score change file-by-file is unreliable. Read the HTML report instead.
 
+## Post-processing the report
+
+`scripts/mutation-report.sh` derives the two things CI needs from a JSON report. It needs only
+bash and `jq`, and runs anywhere with no CI context.
+
+```bash
+# shields.io endpoint payload for the badge
+scripts/mutation-report.sh badge mutation/reports/mutation-report.json
+
+# compare two runs' detected counts; non-zero exit means they diverged
+scripts/mutation-report.sh compare run-a.json run-b.json
+```
+
+The badge's colour bands come from the **report's own** `thresholds` object, which Stryker copies
+from `stryker-config.json` — so the badge cannot drift from the configured gate. At or above
+`high` is `brightgreen`, at or above `low` is `yellow`, below that is `red`. Both keys must be
+present: jq evaluates `x >= null` as true, so a partial `thresholds` object would otherwise
+silently colour a failing score green.
+
+`compare` deliberately compares **detected counts**, not scores. The upstream defect it guards
+keeps killed-plus-survived constant while moving the split between them, so a single run looks
+internally consistent and a score comparison can miss it.
+
+Both subcommands distinguish a **bad measurement** from a **bad score**, and fail loudly on the
+first. A missing file, malformed JSON, a report whose `thresholds` are absent or partial, or a
+report with no *detectable* mutants at all is an error — never a number.
+
+A detected count of zero, on the other hand, is a legitimate measurement of a suite that killed
+nothing, and does report `0%`. The distinction matters most for `compare`: two runs that each
+measured nothing would otherwise "agree" and pass the divergence gate, which is the likeliest way
+a collapsed measurement could look healthy. Both are refused instead.
+
+A report containing `Pending` mutants is also refused. Pending means the run never finished, and
+since those mutants are absent from the denominator the resulting score would read *better* than
+reality — the one direction of error a quality gate must never make.
+
+That whole guard exists because a silent zero looks like a catastrophic test suite rather than a
+broken measurement — the same failure shape as the VSTest runner in
+[ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md).
+
+### Verifying the script
+
+```bash
+scripts/mutation-report.test.sh
+```
+
+Fixture-driven, no network, about a second. The fixtures in `scripts/fixtures/` are deliberately
+tiny and hand-written rather than real reports — a real one embeds the full source of every mutated
+file and runs to megabytes. `divergent-a.json` and `divergent-b.json` both hold ten mutants with
+`Killed + Survived = 10` and differ only in the split (8/2 versus 5/5), reproducing the upstream
+defect's signature so the comparison is tested against the thing it exists to catch.
+
 ## Known weak spots
 
 The worst-scoring files are real test debt, not noise:
