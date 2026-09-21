@@ -2,14 +2,15 @@
 
 Status: accepted — partially implemented
 
-We will gate merges on a mutation score from Stryker.NET, and we run it with
+We gate merges on a mutation score from Stryker.NET, and we run it with
 `test-runner: mtp` even though Stryker labels that runner "preview", because the default
 VSTest runner cannot measure this repository at all and no alternative engine exists.
 
-**Implementation state.** The runner choice and the reproducible local sweep are in place
-(issue #178). The CI gate (#180), published report (#181), badge (#182), threshold ratchet (#183)
-and the scheduled divergence check described under Consequences (#184) are decided but **not yet
-built**. Read the future-tense statements below as the decision, not as the current behaviour.
+**Implementation state.** The runner choice and reproducible local sweep (#178) are in place, and
+the CI merge gate is wired but its first hosted run is not yet observed (#180). The published
+report (#181), badge (#182), threshold ratchet (#183) and the scheduled divergence check described
+under Consequences (#184) are decided but **not yet built**. Read statements about those as the
+decision, not as the current behaviour.
 
 ## Why not the default runner
 

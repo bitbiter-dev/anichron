@@ -21,12 +21,15 @@ running it from the repository root fails with `No .csproj or .fsproj file found
 solution file parses correctly.
 
 No flags are needed and none should be added. Every value that affects the score lives in
-`src/stryker-config.json`, which is what will make a local run and a CI run comparable once the
-gate lands — CI is expected to pass nothing on the command line but the output location.
+`src/stryker-config.json`, which is what makes a local run and the CI run comparable: CI passes
+nothing on the command line but the output location.
 
-> **Mutation testing is not yet wired into CI.** Today this is a local command only. The CI gate
-> (#180), published report (#181), badge (#182), threshold ratchet (#183) and scheduled divergence
-> check (#184) are specified under #177 but not built.
+> **Partly wired into CI.** The gate is configured to run on every pull request and fail below the
+> `break` threshold (#180); the first hosted run has not been observed yet, so the `42` threshold
+> is still calibrated against a single developer machine. The published report (#181), badge
+> (#182), threshold ratchet (#183) and scheduled divergence check (#184) are specified under #177
+> but not built — so today the report is a build artifact and the score appears in the job summary,
+> with no URL and no badge.
 
 The run takes roughly one to one and a half minutes on a developer machine, with live progress as
 it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
@@ -45,8 +48,26 @@ Uncovered mutants (`NoCoverage`) count against the score too, so the score is
 `detected / (detected + survived + uncovered)`.
 
 Stryker exits `2` when the score is below the `break` threshold in the config — not `1`, despite
-what its documentation says — so whatever consumes the exit code should treat any non-zero value as
-failure.
+what its documentation says — so CI treats any non-zero value as failure rather than matching on a
+specific code.
+
+In CI the sweep runs with `continue-on-error` and the job's **last** step fails on the outcome.
+Three constraints force that shape, and changing any part of it tends to break one of the others:
+
+- GitHub applies an implicit `success()` to any `if:` without a status-check function. A step that
+  aborted mid-job would therefore silently skip the formatting result, the coverage badge push and
+  the Pages upload — so enforcement has to be deferred to the end.
+- Enforcement must stay **inside the `Build & Test` job**, because that job is a required status
+  check on the default branch. A separate gate job would turn the workflow red but could not block
+  a merge until someone added it to the required-checks list.
+- A job-level `if:` does **not** relax a `needs:` success requirement — only `always()` or
+  `!cancelled()` does. So `deploy-pages` uses `!cancelled()`, guarded on the Pages artifact
+  actually having been uploaded, which keeps the coverage report deploying when the gate fails
+  while still skipping cleanly when an earlier failure meant no artifact was produced.
+
+A mutation regression therefore fails a required check and blocks the merge, without suppressing
+the formatting result, the coverage artifact, the badge or the Pages deployment. The Docker jobs
+do get skipped, since they need `Build & Test` to succeed.
 
 ## Configuration
 
