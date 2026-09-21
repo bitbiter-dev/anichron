@@ -53,6 +53,11 @@ jobs:
       - name: Check formatting
         run: dotnet format --verify-no-changes src/
 
+      - name: Test helper scripts
+        run: |
+          scripts/mutation-report.test.sh
+          scripts/publish-badges.test.sh
+
       - name: Restore .NET tools
         run: dotnet tool restore
 
@@ -82,6 +87,25 @@ jobs:
           path: mutation/reports/
           retention-days: 30
 
+      # Written to RUNNER_TEMP, not the work tree: the badge step below switches
+      # to the badges branch, where scripts/ does not exist.
+      #
+      # The write is staged through a temp file and moved only on success.
+      # Redirecting straight to the final path would create it before the
+      # generator ran, so a refused report would leave a zero-byte file for the
+      # badge step to publish — destroying a working badge. The badge step
+      # validates the payload as well; both guards are cheap and it force-pushes.
+      #
+      # continue-on-error is required, not belt-and-braces: without it a failure
+      # here would skip the badge, Pages and formatting steps below, which is
+      # the trap documented on the Enforce step.
+      - name: Build mutation badge payload
+        if: always()
+        continue-on-error: true
+        run: |
+          scripts/mutation-report.sh badge mutation/reports/mutation-report.json > "$RUNNER_TEMP/mutation.json.tmp"
+          mv "$RUNNER_TEMP/mutation.json.tmp" "$RUNNER_TEMP/mutation.json"
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v7
@@ -90,18 +114,18 @@ jobs:
           path: coverage/report/
           retention-days: 30
 
-      - name: Update coverage badge
+      # Branch manipulation lives in a script so it can be tested against a
+      # throwaway repo — see scripts/publish-badges.test.sh. It adds files to
+      # the badges branch rather than rebuilding it, which is what keeps the
+      # mutation badge and, later, #183's stored high-water mark alive.
+      - name: Update quality badges
         if: github.ref == 'refs/heads/master'
+        env:
+          MUTATION_BADGE: ${{ runner.temp }}/mutation.json
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin badges:badges 2>/dev/null || true
-          git checkout badges 2>/dev/null || git checkout --orphan badges
-          git rm -rf . --quiet 2>/dev/null || true
-          cp coverage/report/badge_linecoverage.svg coverage.svg
-          git add coverage.svg
-          git diff --staged --quiet || git commit -m "chore: update coverage badge"
-          git push --force origin badges
+          scripts/publish-badges.sh coverage/report/badge_linecoverage.svg
 
       - name: Prepare coverage report for Pages
         if: github.ref == 'refs/heads/master'

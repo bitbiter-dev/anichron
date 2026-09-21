@@ -148,13 +148,65 @@ That whole guard exists because a silent zero looks like a catastrophic test sui
 broken measurement — the same failure shape as the VSTest runner in
 [ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md).
 
-### Verifying the script
+## Publishing the badge
+
+`scripts/publish-badges.sh` writes the coverage and mutation badges onto the orphan `badges`
+branch, which the README reads from. CI runs it on default-branch builds only, so a pull request
+cannot move a badge.
+
+```bash
+MUTATION_BADGE=/path/to/mutation.json scripts/publish-badges.sh coverage/report/badge_linecoverage.svg
+```
+
+It **adds** to the branch rather than rebuilding it. The earlier inline version cleared the branch
+on every run, which was harmless while `coverage.svg` was the only artifact but would have deleted
+the mutation badge — and, once #183 lands, the ratchet's stored high-water mark.
+
+The payload is **validated, not just existence-checked**: an absent, empty, truncated, or
+non-conforming `MUTATION_BADGE` leaves any existing `mutation.json` untouched. That matters because
+a generator which fails *after* its output has been redirected leaves a zero-byte file behind, and
+force-pushing that would destroy a working badge and render as `invalid`. Keeping the last good
+badge always beats overwriting it with junk.
+
+Because it force-pushes, it also refuses to guess about the remote. `git ls-remote` distinguishes
+"the branch does not exist yet" from "I could not reach origin": the first creates the branch, the
+second aborts. Treating an unreachable origin as a missing branch would recreate `badges` from
+scratch and wipe every artifact on it. The fetch is forcing, so a local `badges` left over from an
+earlier run cannot diverge and then be pushed over the top of the remote.
+
+Note the ordering constraint in CI: the badge payload is generated **before** this script runs,
+because checking out `badges` removes `scripts/` from the work tree. The payload goes to
+`$RUNNER_TEMP`, outside the repository entirely.
+
+### Verifying the scripts
 
 ```bash
 scripts/mutation-report.test.sh
+scripts/publish-badges.test.sh
 ```
 
-Fixture-driven, no network, about a second. The fixtures in `scripts/fixtures/` are deliberately
+Both run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
+run, if the build, tests, coverage or formatting steps have already failed.
+
+They are deliberately *not* isolated into their own job, even though `publish-badges.test.sh`
+executes real `git push` commands inside a checkout that holds push credentials. A separate job
+would not gate a merge: branch protection requires `Build & Test`, and adding a new required check
+is a repository-settings change. The test script instead guards itself twice — every setup step is
+checked, and it refuses to run at all unless `origin` resolves inside its own temp directory.
+
+One consequence worth knowing: because the badge publishing step runs after these tests, a failing
+helper test stops the coverage badge and the Pages upload too. That is intended for the badge — a
+publisher whose tests fail should not publish — but it does mean the Pages site can go stale on a
+failure unrelated to coverage.
+
+`publish-badges.test.sh` builds a throwaway repository with a bare remote and exercises the real
+push path. The cases that matter are the destructive ones: an artifact the script knows nothing
+about survives an update; an empty or truncated payload does not overwrite a good badge; a *diverged*
+local branch does not clobber the remote; an unreachable origin is refused rather than treated as a
+missing branch; and a detached HEAD is restored rather than left on `badges`.
+
+`mutation-report.test.sh` is fixture-driven, no network, about a second. The fixtures in
+`scripts/fixtures/` are deliberately
 tiny and hand-written rather than real reports — a real one embeds the full source of every mutated
 file and runs to megabytes. `divergent-a.json` and `divergent-b.json` both hold ten mutants with
 `Killed + Survived = 10` and differ only in the split (8/2 versus 5/5), reproducing the upstream
