@@ -1,10 +1,6 @@
-using Anichron.Core;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using Anichron.Worker.Settings;
-using Microsoft.Extensions.Options;
-using NodaTime;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO.Abstractions;
@@ -14,10 +10,8 @@ namespace Anichron.Worker.Ingestion.Middlewares;
 internal sealed partial class ImageProxyMiddleware(
     IEnumerable<IImageProxyGenerator> generators,
     IProxyDirectoryStrategy proxyDirectoryStrategy,
-    IOptions<WorkerSettings> settings,
+    ProxyStagingWriter stagingWriter,
     IFileSystem fileSystem,
-    IClock clock,
-    IGuidFactory guidFactory,
     ILogger<ImageProxyMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.ImageProxy;
@@ -26,39 +20,39 @@ internal sealed partial class ImageProxyMiddleware(
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
-        var proxyRoot = settings.Value.ProxyPath;
-        var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.AssetId);
-        var proxyPath = Path.Combine(proxyRoot, proxyDirectoryName);
+        // Ordering guarantees ContentHashingMiddleware ran first; suppression is safe.
+        var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.Config.Id, context.ContentHash!);
         var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
 
         await using var ms = new MemoryStream(sourceBytes);
         using var image = await Image.LoadAsync<Rgba32>(ms, ct);
 
-        fileSystem.Directory.CreateDirectory(proxyPath);
+        var writes = generators.Select(WriteProxyAsync).ToArray();
+        await Task.WhenAll(writes);
 
-        var proxyFiles = await Task.WhenAll(generators.Select(WriteProxyAsync));
-
-        context.ProxyFiles.AddRange(proxyFiles);
-
-        Log.ProxiesGenerated(logger, proxyFiles.Length, context.Item.RelativePath);
+        Log.ProxiesGenerated(logger, writes.Length, context.Item.RelativePath);
         await next(context, ct);
 
-        async Task<ProxyFile> WriteProxyAsync(IImageProxyGenerator generator)
+        Task WriteProxyAsync(IImageProxyGenerator generator)
         {
-            var relativePath = $"{proxyDirectoryName}/{generator.FileName}";
-            using var clone = image.Clone();
-            var bytes = await generator.GenerateAsync(clone, ct);
-            await fileSystem.File.WriteAllBytesAsync(Path.Combine(proxyRoot, relativePath), bytes, ct);
-            Log.ProxyWritten(logger, generator.ProxyType, bytes.Length, context.Item.RelativePath);
-            return ProxyFileBuilder.Build(context, relativePath, generator.ProxyType, bytes.Length, guidFactory, clock);
+            return stagingWriter.WriteAsync(
+                context,
+                $"{proxyDirectoryName}/{generator.FileName}",
+                generator.ProxyType,
+                ProduceAsync,
+                ct);
+
+            async Task ProduceAsync(string temporaryPath, CancellationToken token)
+            {
+                using var clone = image.Clone();
+                var bytes = await generator.GenerateAsync(clone, token);
+                await fileSystem.File.WriteAllBytesAsync(temporaryPath, bytes, token);
+            }
         }
     }
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Debug, Message = "Wrote {ProxyType} proxy ({SizeBytes} B) for {RelativePath}.")]
-        public static partial void ProxyWritten(ILogger logger, ProxyType proxyType, long sizeBytes, string relativePath);
-
         [LoggerMessage(Level = LogLevel.Information, Message = "Generated {Count} proxy files for {RelativePath}.")]
         public static partial void ProxiesGenerated(ILogger logger, int count, string relativePath);
     }
