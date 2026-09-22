@@ -109,6 +109,11 @@ internal sealed partial class FileIngestionPipeline(
                 var context = new IngestionContext { Item = item, Config = config, AssetId = guidFactory.NewGuid() };
                 await runner.RunAsync(context, ct);
             }
+            catch (Exception ex) when (IngestionShutdown.IsInProgress(ex, ct))
+            {
+                // A shutdown is not an item failure: stop promptly instead of draining the queue.
+                throw;
+            }
             catch (Exception ex)
             {
                 Log.ItemFailed(logger, item.AbsolutePath, ex);

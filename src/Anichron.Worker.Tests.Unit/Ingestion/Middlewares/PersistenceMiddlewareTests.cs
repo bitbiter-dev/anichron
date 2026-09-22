@@ -265,7 +265,7 @@ public sealed class PersistenceMiddlewareTests
         var fx = new TestFixture();
         var context = MakeContext();
         var proxyFile = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
-        context.ProxyFiles.Add(proxyFile);
+        context.AddProxyFile(proxyFile);
 
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
