@@ -24,7 +24,13 @@ assert_absent_on_badges() {
 # `contents: write`. Every step of the setup is therefore guarded: without -e a
 # failed `cd` would silently leave the rest of the script operating on the real
 # repository and its real origin.
-work=$(mktemp -d) || { echo 'could not create a temp dir' >&2; exit 1; }
+# The template is not decoration: a bare `mktemp` on macOS ignores $TMPDIR and
+# uses confstr(_CS_DARWIN_USER_TEMP_DIR) instead, so it lands outside any
+# sandbox that redirected $TMPDIR and fails with "Operation not permitted".
+# ${TMPDIR:-/tmp} rather than $TMPDIR because this is also run by hand, where
+# the variable may be unset — a bare "$TMPDIR/..." would resolve to "/...".
+work=$(mktemp -d "${TMPDIR:-/tmp}/publish-badges-test.XXXXXXXX") \
+  || { echo 'could not create a temp dir' >&2; exit 1; }
 [ -n "$work" ] && [ -d "$work" ] || { echo 'temp dir is not usable' >&2; exit 1; }
 trap 'rm -rf "$work"' EXIT
 

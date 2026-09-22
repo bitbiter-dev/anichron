@@ -29,9 +29,8 @@ nothing on the command line but the output location.
 > score the `42` threshold was calibrated against on a developer machine, so the headroom is
 > measured on both and not just locally
 > ([run 35577766467](https://github.com/bitbiter-dev/anichron/actions/runs/35577766467)). The
-> badge (#182) is published. The published report (#181), threshold ratchet (#183) and scheduled
-> divergence check (#184) are specified under #177 but not built — so today the report is a build
-> artifact and the score appears in the job summary and on the badge, with no report URL.
+> badge (#182) and the published report (#181) are both live. The threshold ratchet (#183) and the
+> scheduled divergence check (#184) are specified under #177 but not built.
 
 The run takes roughly one to one and a half minutes on a developer machine, with live progress as
 it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
@@ -180,14 +179,81 @@ Note the ordering constraint in CI: the badge payload is generated **before** th
 because checking out `badges` removes `scripts/` from the work tree. The payload goes to
 `$RUNNER_TEMP`, outside the repository entirely.
 
+## Publishing the report
+
+`scripts/assemble-pages.sh` builds the Pages site from both reports:
+
+```
+pages-site/
+  index.html     landing page linking whichever reports are present
+  coverage/      the coverage report
+  mutation/      the mutation report
+  .nojekyll      so Pages serves paths beginning with an underscore
+```
+
+The coverage report moved out of the site root into `coverage/`, so **the coverage URL changed** to
+`https://bitbiter-dev.github.io/anichron/coverage/`. That was #181's call: serving two reports means
+subdirectories, and a root that arbitrarily served one of them was accidental rather than designed.
+The README badges point at the new locations.
+
+It runs on default-branch builds only, so a pull request still gets the report as a CI artifact and
+the score in the job summary, never a URL. User stories 8 and 9 read as though contributors get a
+URL on every PR; they do not.
+
+### Why the mutation report is optional, and the earlier rule that got reversed
+
+If Stryker crashes it produces no HTML report. The script publishes coverage alone and the landing
+page says the mutation report is unavailable *for this build*, naming the distinction that matters:
+the sweep **failed** rather than scored badly.
+
+An earlier draft of this script enforced "both reports or neither" and failed when either was
+missing. That was wrong in two ways. It would fail the required `Build & Test` check a second time
+for a reason that is only about publishing, when the mutation gate had already reported the real
+problem. And it would publish *nothing* — losing the coverage report, which used to ship regardless
+of the mutation outcome. A missing report is honest; a stale one is misleading; neither is worth
+blocking a merge over.
+
+### Why it runs before the badge step
+
+`.github/workflows/ci.yml` assembles the site **before** `Update quality badges`, and the order is
+load-bearing. `publish-badges.sh` switches the work tree to the orphan `badges` branch and restores
+it in an `EXIT` trap that swallows its own failure and still exits 0 — so a failed restore leaves
+every later step running on a branch where neither `scripts/` nor `coverage/` exists. Assembling
+first means a restore failure can cost the upload but not the assembly.
+
+`pages-site/` is gitignored on purpose: `publish-badges.sh` uses only `git checkout --force` and
+`git rm -rf .`, so an untracked, ignored directory survives the branch switch. A `git clean -fdx`
+anywhere in that script would silently delete the assembled site.
+
+### The output guard, and why it is a sentinel rather than a blocklist
+
+The script has to clear its output directory before rebuilding it. An earlier version did that with
+an unguarded `rm -rf "$output"`, and on 2026-09-21 a test written to prove it *refused* dangerous
+paths was run before that guard existed, passed `$HOME`, and deleted a home directory. BSD `rm`
+self-protects `/`, `.` and `..`; nothing protects `$HOME`.
+
+The fix is not a longer list of forbidden paths — a blocklist is only as good as its author's
+imagination, and the path that did the damage was supplied by the caller at runtime. Instead the
+delete is made self-limiting: the script writes a sentinel file (`.assembled-by-anichron`) into the
+directory as its first act, and **removes a directory only if that sentinel is present.** A
+directory it did not create is refused, not deleted. The cheap checks for `/`, `$HOME`, `.`, `..`,
+and for an output that contains one of its own inputs, are kept as a second layer that gives a
+clearer message.
+
+⚠️ The corollary for anyone extending `scripts/assemble-pages.test.sh`: every dangerous path in that
+file is a **fake** built inside a temp directory, and a fake `$HOME` is injected with
+`env HOME=...`. A test that needs the guard to work in order to be safe is a test that can only be
+run once.
+
 ### Verifying the scripts
 
 ```bash
 scripts/mutation-report.test.sh
 scripts/publish-badges.test.sh
+scripts/assemble-pages.test.sh
 ```
 
-Both run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
+All three run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
 run, if the build, tests, coverage or formatting steps have already failed.
 
 They are deliberately *not* isolated into their own job, even though `publish-badges.test.sh`

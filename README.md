@@ -5,8 +5,8 @@ A self-hosted media flashback system. Crawls your a folder and surfaces your pho
 ## Status
 
 [![CI](https://github.com/bitbiter-dev/anichron/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/bitbiter-dev/anichron/actions/workflows/ci.yml)
-[![Coverage](https://raw.githubusercontent.com/bitbiter-dev/anichron/badges/coverage.svg)](https://bitbiter-dev.github.io/anichron/)
-[![Mutation](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbitbiter-dev%2Fanichron%2Fbadges%2Fmutation.json)](https://github.com/bitbiter-dev/anichron/actions/workflows/ci.yml)
+[![Coverage](https://raw.githubusercontent.com/bitbiter-dev/anichron/badges/coverage.svg)](https://bitbiter-dev.github.io/anichron/coverage/)
+[![Mutation](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbitbiter-dev%2Fanichron%2Fbadges%2Fmutation.json)](https://bitbiter-dev.github.io/anichron/mutation/mutation-report.html)
 
 Early development — Follow progress in [Issues](https://github.com/bitbiter-dev/anichron/issues) and [Milestones](https://github.com/bitbiter-dev/anichron/milestones).
 
