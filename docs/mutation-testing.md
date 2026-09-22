@@ -24,12 +24,14 @@ No flags are needed and none should be added. Every value that affects the score
 `src/stryker-config.json`, which is what makes a local run and the CI run comparable: CI passes
 nothing on the command line but the output location.
 
-> **Partly wired into CI.** The gate is configured to run on every pull request and fail below the
-> `break` threshold (#180); the first hosted run has not been observed yet, so the `42` threshold
-> is still calibrated against a single developer machine. The published report (#181), badge
-> (#182), threshold ratchet (#183) and scheduled divergence check (#184) are specified under #177
-> but not built — so today the report is a build artifact and the score appears in the job summary,
-> with no URL and no badge.
+> **Partly wired into CI.** The gate runs on every pull request and fails below the `break`
+> threshold (#180). The first hosted run has now been observed: it scored **46.58%**, the same
+> score the `42` threshold was calibrated against on a developer machine, so the headroom is
+> measured on both and not just locally
+> ([run 35577766467](https://github.com/bitbiter-dev/anichron/actions/runs/35577766467)). The
+> badge (#182) is published. The published report (#181), threshold ratchet (#183) and scheduled
+> divergence check (#184) are specified under #177 but not built — so today the report is a build
+> artifact and the score appears in the job summary and on the badge, with no report URL.
 
 The run takes roughly one to one and a half minutes on a developer machine, with live progress as
 it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
