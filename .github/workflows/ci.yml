@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      pages-artifact: ${{ steps.pages-upload.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -51,6 +53,60 @@ jobs:
       - name: Check formatting
         run: dotnet format --verify-no-changes src/
 
+      - name: Test helper scripts
+        run: |
+          scripts/mutation-report.test.sh
+          scripts/publish-badges.test.sh
+          scripts/assemble-pages.test.sh
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      # Deferred enforcement — see docs/mutation-testing.md. Must run before the
+      # badge step, which switches the tree to the badges branch.
+      - name: Mutation test
+        id: mutation
+        continue-on-error: true
+        timeout-minutes: 20
+        working-directory: src
+        run: dotnet stryker --output ../mutation
+
+      - name: Publish mutation summary
+        if: always()
+        run: |
+          if [ -f mutation/reports/mutation-report.md ]; then
+            cat mutation/reports/mutation-report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo '### Mutation testing produced no report — see the step log' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report
+          path: mutation/reports/
+          retention-days: 30
+
+      # Written to RUNNER_TEMP, not the work tree: the badge step below switches
+      # to the badges branch, where scripts/ does not exist.
+      #
+      # The write is staged through a temp file and moved only on success.
+      # Redirecting straight to the final path would create it before the
+      # generator ran, so a refused report would leave a zero-byte file for the
+      # badge step to publish — destroying a working badge. The badge step
+      # validates the payload as well; both guards are cheap and it force-pushes.
+      #
+      # continue-on-error is required, not belt-and-braces: without it a failure
+      # here would skip the badge, Pages and formatting steps below, which is
+      # the trap documented on the Enforce step.
+      - name: Build mutation badge payload
+        if: always()
+        continue-on-error: true
+        run: |
+          scripts/mutation-report.sh badge mutation/reports/mutation-report.json > "$RUNNER_TEMP/mutation.json.tmp"
+          mv "$RUNNER_TEMP/mutation.json.tmp" "$RUNNER_TEMP/mutation.json"
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v7
@@ -59,34 +115,62 @@ jobs:
           path: coverage/report/
           retention-days: 30
 
-      - name: Update coverage badge
+      # Assembles both reports into one artifact. Runs BEFORE the badge step,
+      # and that order is load-bearing — see docs/mutation-testing.md, "Why it
+      # runs before the badge step".
+      #
+      # What the order COSTS, which is not nothing: this step has a bare `if:`,
+      # so it implies success(), and an assemble failure now skips the badge
+      # publish below. The previous order carried the same coupling reversed —
+      # a badge failure skipped the Pages steps. Reordering moved the coupling
+      # rather than removing it. This direction is preferred because assembling
+      # is the cheaper and more deterministic of the two: failing before the
+      # branch switch beats discovering it afterwards, on a branch where
+      # scripts/ no longer exists.
+      - name: Assemble Pages site
         if: github.ref == 'refs/heads/master'
+        run: scripts/assemble-pages.sh coverage/report mutation/reports pages-site
+
+      # Branch manipulation lives in a script so it can be tested against a
+      # throwaway repo — see scripts/publish-badges.test.sh. It adds files to
+      # the badges branch rather than rebuilding it, which is what keeps the
+      # mutation badge and, later, #183's stored high-water mark alive.
+      - name: Update quality badges
+        if: github.ref == 'refs/heads/master'
+        env:
+          MUTATION_BADGE: ${{ runner.temp }}/mutation.json
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin badges:badges 2>/dev/null || true
-          git checkout badges 2>/dev/null || git checkout --orphan badges
-          git rm -rf . --quiet 2>/dev/null || true
-          cp coverage/report/badge_linecoverage.svg coverage.svg
-          git add coverage.svg
-          git diff --staged --quiet || git commit -m "chore: update coverage badge"
-          git push --force origin badges
+          scripts/publish-badges.sh coverage/report/badge_linecoverage.svg
 
-      - name: Prepare coverage report for Pages
-        if: github.ref == 'refs/heads/master'
-        run: touch coverage/report/.nojekyll
-
-      - name: Upload coverage report to Pages
+      # This step's id feeds outputs.pages-artifact, which is what gates the
+      # deploy-pages job. Renaming the step is fine; dropping the id is not.
+      - name: Upload Pages artifact
+        id: pages-upload
         if: github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: coverage/report/
+          path: pages-site/
+
+      # Deliberately the last step, and deliberately inside this job rather than a
+      # job of its own: "Build & Test" is a required status check, so failing here is
+      # what actually blocks a merge. Any non-zero Stryker exit counts — 2 is a
+      # break-threshold violation, 1 is Stryker itself failing.
+      - name: Enforce mutation score
+        if: always() && steps.mutation.outcome == 'failure'
+        run: |
+          echo "::error::Mutation testing failed. See the job summary for the score, and the mutation-report artifact for surviving mutants."
+          exit 1
 
   deploy-pages:
-    name: Deploy coverage report to Pages
+    name: Deploy quality reports to Pages
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.ref == 'refs/heads/master'
+    # !cancelled() rather than the implicit success(), so a failed mutation gate
+    # still deploys the reports. Gated on the artifact actually existing, so an
+    # earlier failure skips this cleanly instead of failing with no artifact.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.build-and-test.outputs.pages-artifact == 'true' }}
     permissions:
       pages: write
       id-token: write
