@@ -35,7 +35,9 @@ assert_no_path() {
 }
 
 assert_contains_file() {
-  if grep -q "$2" "$3" 2>/dev/null; then pass "$1"; else fail "$1" "'$2' in $3" "$(head -c 200 "$3" 2>/dev/null)"; fi
+  # -F: the needle is a literal path, and an unescaped `.` would match any
+  # character, so `coverage/index.html` would pass against `coverageXindex!html`.
+  if grep -qF "$2" "$3" 2>/dev/null; then pass "$1"; else fail "$1" "'$2' in $3" "$(head -c 200 "$3" 2>/dev/null)"; fi
 }
 
 # Runs the script expecting FAILURE, and checks the message. `$1` label,
@@ -56,6 +58,13 @@ assert_fails() {
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/assemble-pages-test.XXXXXXXX") \
   || { echo 'could not create a temp dir' >&2; exit 1; }
+# Deliberately redundant with the `||` above, and kept for the same reason
+# publish-badges.test.sh keeps it: this file does not run `set -e`, and every
+# fixture below is "$work/...". An empty or unusable $work would turn
+# `foreign="$work/someone-elses-directory"` and `mkdir -p "$fake_home"` into
+# writes at the filesystem root -- in the one test file whose subject is a
+# deleted home directory.
+[ -n "$work" ] && [ -d "$work" ] || { echo 'temp dir is not usable' >&2; exit 1; }
 trap 'rm -rf "$work"' EXIT
 
 # Fixtures: the smallest shape each report generator actually produces. Coverage
@@ -176,6 +185,8 @@ assert_no_path 'leaves no partial output when coverage has no index' "$work/site
 assert_fails 'no arguments prints usage' 'usage:' "$script"
 assert_fails 'one argument prints usage' 'usage:' "$script" "$cov"
 assert_fails 'two arguments prints usage' 'usage:' "$script" "$cov" "$mut"
+assert_fails 'four arguments prints usage' 'usage:' "$script" "$cov" "$mut" "$work/site-z" extra
+assert_no_path 'a rejected argument count creates nothing' "$work/site-z"
 
 echo
 if [ "$failures" -gt 0 ]; then

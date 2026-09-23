@@ -185,11 +185,18 @@ because checking out `badges` removes `scripts/` from the work tree. The payload
 
 ```
 pages-site/
-  index.html     landing page linking whichever reports are present
-  coverage/      the coverage report
-  mutation/      the mutation report
-  .nojekyll      so Pages serves paths beginning with an underscore
+  index.html                landing page linking whichever reports are present
+  coverage/                 the coverage report
+  mutation/                 the mutation report
+  .nojekyll                 so Pages serves paths beginning with an underscore
+  .assembled-by-anichron    the output guard's sentinel — see below
 ```
+
+`.assembled-by-anichron` is published along with everything else, because
+`upload-pages-artifact` takes the whole directory. That is accepted rather than worked around: the
+sentinel has to live in the output directory to mark it, and deleting it after a successful run
+would make the next run refuse to rebuild. A 60-byte text file at the site root is a cheap price
+for a delete that cannot escape.
 
 The coverage report moved out of the site root into `coverage/`, so **the coverage URL changed** to
 `https://bitbiter-dev.github.io/anichron/coverage/`. That was #181's call: serving two reports means
@@ -221,9 +228,11 @@ it in an `EXIT` trap that swallows its own failure and still exits 0 — so a fa
 every later step running on a branch where neither `scripts/` nor `coverage/` exists. Assembling
 first means a restore failure can cost the upload but not the assembly.
 
-`pages-site/` is gitignored on purpose: `publish-badges.sh` uses only `git checkout --force` and
-`git rm -rf .`, so an untracked, ignored directory survives the branch switch. A `git clean -fdx`
-anywhere in that script would silently delete the assembled site.
+`pages-site/` is gitignored on purpose. `publish-badges.sh` manipulates the work tree with
+`git checkout --force`, `git checkout --orphan`, `git rm -rf .`, `git reset` and a plain
+`git checkout` to restore — and crucially **no `git clean`**, which is the one that would take an
+ignored directory with it. So the assembled site survives the branch switch. Verified by reading
+that script; a `git clean -fdx` added to it later would silently break this.
 
 ### The output guard, and why it is a sentinel rather than a blocklist
 

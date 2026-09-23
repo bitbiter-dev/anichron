@@ -13,19 +13,20 @@
 # be a landing page instead of arbitrarily serving one of the two reports. That
 # changes the existing coverage URL, which #181 accepts deliberately.
 #
-# The mutation report is OPTIONAL and its absence is not an error. Stryker runs
-# under continue-on-error, so a crash leaves no HTML report; failing here would
-# fail the required check a second time for a publishing-only reason, and would
-# publish nothing at all -- including the coverage report, which used to ship
-# regardless. This reverses the "both reports or neither" rule an earlier draft
-# of this script carried: a missing report is honest, a stale one is misleading,
-# and neither is worth blocking a merge over. The landing page says which is
-# missing rather than pretending the site is complete.
+# The mutation report is OPTIONAL and its absence is not an error; the landing
+# page says so rather than the script failing. Why, in one place:
+# docs/mutation-testing.md, "Why the mutation report is optional".
 set -euo pipefail
 
-coverage_dir="${1:?usage: assemble-pages.sh <coverage-report-dir> <mutation-report-dir> <output-dir>}"
-mutation_dir="${2:?usage: assemble-pages.sh <coverage-report-dir> <mutation-report-dir> <output-dir>}"
-output="${3:?usage: assemble-pages.sh <coverage-report-dir> <mutation-report-dir> <output-dir>}"
+usage() {
+  echo 'usage: assemble-pages.sh <coverage-report-dir> <mutation-report-dir> <output-dir>' >&2
+  exit 1
+}
+
+[ "$#" -eq 3 ] || usage
+coverage_dir="$1"
+mutation_dir="$2"
+output="$3"
 
 # The sentinel is what makes the rm below safe. It is written into the output
 # directory as the first act of a run, so this script will only ever delete a
@@ -75,8 +76,14 @@ case "$(basename "$output")" in
   .|..) die "refusing to use a relative directory reference as output: $output" ;;
 esac
 
+# Only two entries, and both earn their place by producing a clearer message
+# than the sentinel check would -- "refusing to write the site to /Users/you"
+# beats "no .assembled-by-anichron, so this script did not create it" for
+# someone who just typed `~`. A third entry, "$output_parent/..", was removed
+# after review: it was an uncanonicalised string compared against a resolved
+# path, so it could never match, and a `..` basename is already refused above.
 home_abs=$(cd "$HOME" 2>/dev/null && pwd || echo "$HOME")
-for forbidden in "/" "$home_abs" "$output_parent/.." ; do
+for forbidden in "/" "$home_abs"; do
   [ "$output_abs" = "$forbidden" ] && die "refusing to write the site to $output_abs"
 done
 

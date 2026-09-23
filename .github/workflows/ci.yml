@@ -115,33 +115,26 @@ jobs:
           path: coverage/report/
           retention-days: 30
 
-      # Branch manipulation lives in a script so it can be tested against a
-      # throwaway repo — see scripts/publish-badges.test.sh. It adds files to
-      # the badges branch rather than rebuilding it, which is what keeps the
-      # mutation badge and, later, #183's stored high-water mark alive.
-      # Assembles both reports into one artifact, and deliberately runs BEFORE
-      # the badge step. The ordering is load-bearing: publish-badges.sh switches
-      # the work tree to the orphan `badges` branch and restores it in an EXIT
-      # trap that swallows its own failure (`|| echo "WARNING: could not
-      # restore"`) and still exits 0. A failed restore would leave the steps
-      # after it running on the badges branch, where neither scripts/ nor
-      # coverage/ exists. Assembling first means a restore failure can cost the
-      # upload but not the assembly.
+      # Assembles both reports into one artifact. Runs BEFORE the badge step,
+      # and that order is load-bearing — see docs/mutation-testing.md, "Why it
+      # runs before the badge step".
       #
-      # pages-site/ survives the branch switch because it is untracked and
-      # gitignored, and publish-badges.sh uses only `git checkout --force` and
-      # `git rm -rf .` — no `git clean`, which would have removed it. Verified
-      # by reading that script rather than assumed.
-      #
-      # The mutation report is optional here: Stryker runs under
-      # continue-on-error, so a crash leaves no HTML report and the site ships
-      # with coverage alone plus a note saying so. Failing instead would fail a
-      # required check a second time for a publishing-only reason and publish
-      # nothing at all. See scripts/assemble-pages.sh.
+      # What the order COSTS, which is not nothing: this step has a bare `if:`,
+      # so it implies success(), and an assemble failure now skips the badge
+      # publish below. The previous order carried the same coupling reversed —
+      # a badge failure skipped the Pages steps. Reordering moved the coupling
+      # rather than removing it. This direction is preferred because assembling
+      # is the cheaper and more deterministic of the two: failing before the
+      # branch switch beats discovering it afterwards, on a branch where
+      # scripts/ no longer exists.
       - name: Assemble Pages site
         if: github.ref == 'refs/heads/master'
         run: scripts/assemble-pages.sh coverage/report mutation/reports pages-site
 
+      # Branch manipulation lives in a script so it can be tested against a
+      # throwaway repo — see scripts/publish-badges.test.sh. It adds files to
+      # the badges branch rather than rebuilding it, which is what keeps the
+      # mutation badge and, later, #183's stored high-water mark alive.
       - name: Update quality badges
         if: github.ref == 'refs/heads/master'
         env:
