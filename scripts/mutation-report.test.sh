@@ -70,8 +70,14 @@ assert_eq 'timeouts count as detected here too' '90' "$(echo "$out" | jq -r '.sc
 
 # Unlike badge, tally needs no thresholds: it reports a measurement, not a
 # colour. A report with no thresholds is still a valid thing to count.
+#
+# Asserting the VALUE, not just $?: an exit-status-only assertion here would
+# pass if tally emitted nothing at all, which is the failure this would most
+# plausibly have.
 out=$("$script" tally "$fixtures/no-thresholds.json")
-assert_eq 'a report with no thresholds can still be tallied' '0' "$?"
+assert_eq 'a report with no thresholds can still be tallied' '50' "$(echo "$out" | jq -r '.score')"
+assert_eq 'and still reports its counts' '1' "$(echo "$out" | jq -r '.detected')"
+assert_fails 'where badge refuses the same report' 'no usable thresholds' "$script" badge "$fixtures/no-thresholds.json"
 
 echo
 echo "compare"

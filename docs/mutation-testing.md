@@ -263,9 +263,10 @@ scripts/assemble-pages.test.sh
 ```
 
 `mutation-report.test.sh` covers `badge`, `compare` and `tally`. The `tally` cases matter to the
-divergence job specifically: it reports counts and score from the same `TALLY` expression the other
-two use, so the job summary cannot disagree with the badge, and a run with pending mutants is
-refused on that path too rather than reporting a number that reads better than reality.
+divergence job specifically. `tally` counts through the shared `TALLY` expression and then computes
+the percentage, and `badge` is built **on top of** `tally` rather than beside it — so the job
+summary cannot disagree with the badge about either number, and a run with pending mutants is
+refused on that path too rather than reporting a score that reads better than reality.
 
 All three run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
 run, if the build, tests, coverage or formatting steps have already failed.
@@ -308,7 +309,7 @@ It runs weekly and on `workflow_dispatch`. It never runs on a pull request and n
 
 Re-run it from the Actions tab (`Mutation divergence` → *Run workflow*) after either of these:
 
-1. **A Stryker upgrade** — any change to the pinned version in `.config/dotnet-tools.json`.
+1. **A Stryker upgrade** — any change to the pinned version in `dotnet-tools.json` at the repository root.
 2. **A significant change in the shape of the test suite** — deleting or splitting a test class,
    changing the test runner, or a large change in how many tests there are.
 
@@ -344,6 +345,11 @@ number, which is why `scripts/mutation-report.sh compare` compares exactly that.
 The job summary carries both detected counts, both detectable totals and both scores, so the
 divergence is diagnosable without downloading anything. Both reports are uploaded as artifacts for
 when it is not.
+
+When a sweep produced no *usable* report — it crashed, or was interrupted and left a report full of
+pending mutants — the summary says so in that sweep's row and quotes the reason, and it does **not**
+claim the measurement is sound. That distinction is deliberate: a file being present is not the same
+as a file being trustworthy, and an interrupted run leaves one that exists and lies.
 
 A failure means the gate has been enforcing a number that does not mean what it says. It does not
 mean the build is broken — nothing merges differently because of it — so the response is to

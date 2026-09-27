@@ -35,20 +35,31 @@ readonly TALLY='
     end
 '
 
-# The percentage, to two decimal places, from a tally. Shared for the same
-# reason TALLY is: `badge` and `tally` both report this number, and two copies
-# of the arithmetic is two things to keep in step.
-readonly SCORE='($tally.detected * 10000 / $tally.total | round / 100)'
-
 tally_of() {
   [ -f "$1" ] || { printf 'report not found: %s\n' "$1" >&2; exit 1; }
   jq -e --arg path "$1" "$TALLY" "$1"
 }
 
+# Counts and score in one object, straight from TALLY. `badge` is built on top
+# of this rather than beside it, so there is exactly one place that turns a
+# tally into a percentage.
+#
+# No thresholds are read: this reports a measurement, not a verdict, so a report
+# without them is still tallyable where `badge` would refuse.
+cmd_tally() {
+  [ $# -eq 1 ] || usage
+  tally_of "$1" | jq -e '
+    . + { score: (.detected * 10000 / .total | round / 100) }
+  '
+}
+
 cmd_badge() {
   [ $# -eq 1 ] || usage
   local tally thresholds
-  tally=$(tally_of "$1")
+  # The score arithmetic lives in cmd_tally and is borrowed here. An earlier
+  # revision shared a jq fragment between the two instead, which forced this
+  # program into double quotes and fourteen backslashes to save one line.
+  tally=$(cmd_tally "$1")
   # Bands come from the report's own thresholds, which Stryker copies from
   # stryker-config.json — so the badge cannot drift from the configured gate.
   # Both keys are required: jq treats `x >= null` as true, so a partial
@@ -58,33 +69,17 @@ cmd_badge() {
       "\($path) has no usable thresholds.high/.low — cannot choose a badge colour\n" | halt_error(1)
     else .thresholds end
   ' "$1")
-  jq -n --argjson tally "$tally" --argjson t "$thresholds" "
-    $SCORE as \$score
+  jq -n --argjson tally "$tally" --argjson t "$thresholds" '
+    $tally.score as $score
     | {
         schemaVersion: 1,
-        label: \"mutation\",
-        message: ((\$score | tostring) + \"%\"),
-        color: (if \$score >= \$t.high then \"brightgreen\"
-                elif \$score >= \$t.low then \"yellow\"
-                else \"red\" end)
+        label: "mutation",
+        message: (($score | tostring) + "%"),
+        color: (if $score >= $t.high then "brightgreen"
+                elif $score >= $t.low then "yellow"
+                else "red" end)
       }
-  "
-}
-
-# Counts and score in one object. Exists because the divergence job (#184) has
-# to put both in its job summary, and an inline jq in the workflow would be a
-# second copy of the arithmetic above — without the guards in TALLY, which is
-# exactly how a collapsed run would report a number that looked fine.
-#
-# No thresholds are read: this reports a measurement, not a verdict, so a report
-# without them is still tallyable where `badge` would refuse.
-cmd_tally() {
-  [ $# -eq 1 ] || usage
-  local tally
-  tally=$(tally_of "$1")
-  jq -n --argjson tally "$tally" "
-    { detected: \$tally.detected, total: \$tally.total, score: $SCORE }
-  "
+  '
 }
 
 # Guards the upstream defect that under-reports kills at concurrency above 1.

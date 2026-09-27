@@ -32,10 +32,16 @@ jobs:
     # could land on different hardware and the comparison would mean nothing.
     #
     # The single-threaded sweep is roughly twice as slow as the default one, so
-    # the pair costs about three times a normal sweep. ci.yml allows 20 minutes
-    # for one; 75 bounds the pair with room for a slow runner, and bounds it
-    # loudly rather than letting a hung sweep burn six hours.
-    timeout-minutes: 75
+    # the pair costs about three times a normal sweep.
+    #
+    # Bounded at BOTH levels on purpose. The per-step limits match ci.yml's
+    # convention and are what makes a hang attributable to one sweep rather
+    # than the pair — and, more usefully, a step timeout fails that step while
+    # letting the `always()` summary and artifact upload still run. A job-level
+    # timeout CANCELS the job, and a cancelled job does not run its remaining
+    # steps, so the job limit alone would have thrown away the diagnosis.
+    # It stays as a backstop for a hang outside the two sweeps.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
 
@@ -56,14 +62,14 @@ jobs:
       # comparison step below decides the outcome, and it fails the job on a
       # missing report rather than letting a crashed sweep pass silently.
       - name: Sweep at CI concurrency
-        id: default
         continue-on-error: true
+        timeout-minutes: 25
         working-directory: src
         run: dotnet stryker --output ../mutation-default
 
       - name: Sweep single-threaded
-        id: single
         continue-on-error: true
+        timeout-minutes: 45
         working-directory: src
         run: dotnet stryker --concurrency 1 --output ../mutation-single
 
@@ -86,32 +92,65 @@ jobs:
         run: |
           d=mutation-default/reports/mutation-report.json
           s=mutation-single/reports/mutation-report.json
+
+          # Emits one table row, or a row saying why there isn't one, and
+          # returns non-zero in the second case.
+          #
+          # It tests whether the report is USABLE, not merely present, and that
+          # distinction is the whole point. A sweep that was interrupted leaves
+          # a JSON file full of Pending mutants: the file exists, so a `[ -f ]`
+          # check passes, but `tally` refuses it because any score computed from
+          # it reads better than reality. An earlier revision piped tally
+          # straight into jq -- and since a pipeline's status is the LAST
+          # command's, and `run:` blocks are bash -e without pipefail, the
+          # failure was swallowed, jq printed nothing, and the summary rendered
+          # a table with a missing row under the words "the measurement is
+          # sound". That is precisely the case tally's guard exists to catch.
+          row() {
+            local label="$1" report="$2" tally
+            if [ ! -f "$report" ]; then
+              printf '| %s | — | — | **no report** |\n' "$label"
+              return 1
+            fi
+            if ! tally=$(scripts/mutation-report.sh tally "$report" 2>&1); then
+              printf '| %s | — | — | **unusable** |\n' "$label"
+              printf '\n> `%s`: %s\n\n' "$label" "$(printf '%s' "$tally" | head -1)"
+              return 1
+            fi
+            printf '%s' "$tally" \
+              | jq -r --arg l "$label" '"| \($l) | \(.detected) | \(.total) | \(.score)% |"'
+          }
+
           {
             echo '## Mutation divergence check'
             echo
-            if [ -f "$d" ] && [ -f "$s" ]; then
-              echo '| sweep | detected | detectable | score |'
-              echo '|---|---:|---:|---:|'
-              scripts/mutation-report.sh tally "$d" \
-                | jq -r '"| CI concurrency | \(.detected) | \(.total) | \(.score)% |"'
-              scripts/mutation-report.sh tally "$s" \
-                | jq -r '"| single-threaded | \(.detected) | \(.total) | \(.score)% |"'
-              echo
+            echo '| sweep | detected | detectable | score |'
+            echo '|---|---:|---:|---:|'
+            both_usable=true
+            row 'CI concurrency'  "$d" || both_usable=false
+            row 'single-threaded' "$s" || both_usable=false
+            echo
+            if [ "$both_usable" = true ]; then
               echo 'Equal **detected** counts mean the measurement is sound. A difference means'
               echo 'the score the pull-request gate has been enforcing is not measuring what we'
               echo 'think it is — see `docs/mutation-testing.md`.'
             else
-              echo 'One or both sweeps produced no JSON report, so there is nothing to compare.'
-              echo 'That is a failed sweep rather than a divergence — check the step logs.'
-              [ -f "$d" ] || echo '- CI-concurrency sweep: no report'
-              [ -f "$s" ] || echo '- single-threaded sweep: no report'
+              echo 'At least one sweep produced no usable report, so **there is nothing to'
+              echo 'compare** — this is a failed sweep, not a divergence. Check the step logs'
+              echo 'and the uploaded artifacts.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The committed script, not an inline comparison: the "did this run even
       # finish" guards live in it, and a pending-mutant report would otherwise
       # compare two numbers that both read better than reality.
+      # always(), not a bare `if:`. A bare one implies success(), so a failure in
+      # the summary step above -- which runs under always() and therefore can
+      # fail after an earlier step already has -- would SKIP this step, and the
+      # job would fail on formatting rather than on the measurement. This step
+      # is the one that decides the outcome, so it has to run.
       - name: Compare detected counts
+        if: always()
         run: |
           scripts/mutation-report.sh compare \
             mutation-default/reports/mutation-report.json \

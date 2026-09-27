@@ -48,7 +48,7 @@ dotnet tool restore
 cd src && dotnet stryker      # must run from src/, not the repo root
 ```
 
-All settings live in `src/stryker-config.json` — pass no score-affecting flags. **Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
+All settings live in `src/stryker-config.json` — pass no score-affecting flags, so that a local run and the CI run stay comparable. **One deliberate exception, and only one**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test. Anywhere else, a score-affecting flag is a bug. **Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
 
 ## Architecture
 
