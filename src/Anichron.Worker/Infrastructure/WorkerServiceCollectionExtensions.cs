@@ -67,21 +67,22 @@ internal static class WorkerServiceCollectionExtensions
             return services;
         }
 
-        private IServiceCollection AddVideoProxyServices()
+        // void, not IServiceCollection: these two are private and both call sites above invoke
+        // them as statements, so the fluent return was never consumed. The internal members keep
+        // returning IServiceCollection because they are part of the chainable surface.
+        private void AddVideoProxyServices()
         {
             services.AddSingleton<IProcessLauncher, SystemProcessLauncher>();
             services.AddSingleton<IVideoProcessor, FfmpegVideoProcessor>();
             services.AddSingleton<IVideoProxyGenerator, Video720PGenerator>();
-            return services;
         }
 
-        private IServiceCollection AddImageProxyServices()
+        private void AddImageProxyServices()
         {
             services.AddSingleton<IImageProcessor, ImageSharpProcessor>();
             services.AddSingleton<IImageProxyGenerator, ThumbnailGenerator>();
             services.AddSingleton<IImageProxyGenerator, FullPreviewGenerator>();
             services.AddSingleton<IImageProxyGenerator, BlurhashGenerator>();
-            return services;
         }
 
         internal IServiceCollection AddWorkerHostedServices()

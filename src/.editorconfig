@@ -302,6 +302,19 @@ dotnet_diagnostic.CS1591.severity = silent
 [**/*.Tests.Unit/**/*.cs]
 dotnet_diagnostic.IDE1006.severity = none
 
+# Repository tests seed an in-memory DbContext with DbSet<T>.Add, which VSTHRD103 reports as
+# "Add synchronously blocks. Await AddAsync instead." It does not block: EF Core's own docs say
+# AddAsync exists ONLY so special value generators (HiLo, sequences) can reach the database, and
+# that "for all other cases the non async method should be used". The rule pattern-matches an
+# Add/AddAsync sibling pair and infers sync-over-async, which is wrong here.
+#
+# ⚠️ Scoped to this ONE directory, not to test projects at large, and deliberately so: VSTHRD103
+# still earns its keep against real sync-over-async (.Result, .Wait(), ReadToEnd) everywhere else.
+# Widening this glob would silently give that up. It became an ERROR rather than a warning when
+# Microsoft.VisualStudio.Threading.Analyzers went 17.14 → 18.7 under TreatWarningsAsErrors.
+[Anichron.Core.Tests.Unit/Data/Repository/*.cs]
+dotnet_diagnostic.VSTHRD103.severity = none
+
 # EF Core generated migration files — suppress all analyzers
 [**/Migrations/*.cs]
 generated_code = true

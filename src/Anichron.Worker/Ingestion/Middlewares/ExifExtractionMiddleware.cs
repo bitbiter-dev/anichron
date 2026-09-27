@@ -69,8 +69,13 @@ internal sealed partial class ExifExtractionMiddleware(
             return (null, null);
         try
         {
+            // MetadataExtractor 2.9 turned GeoLocation from a class into a readonly struct, so
+            // GetGeoLocation() now returns Nullable<GeoLocation>. `is null` no longer narrows the
+            // value for member access — hence the positional pattern, which unwraps it.
             var location = gps.GetGeoLocation();
-            return location is null ? (null, null) : (location.Latitude, location.Longitude);
+            return location is { } coordinates
+                ? (coordinates.Latitude, coordinates.Longitude)
+                : (null, null);
         }
         catch (Exception ex)
         {

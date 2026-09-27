@@ -18,7 +18,8 @@ internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
             && !IsExemptRequest(context.Request))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsJsonAsync(new { error = AuthMessages.MustChangePassword });
+            await context.Response.WriteAsJsonAsync(
+                new { error = AuthMessages.MustChangePassword }, context.RequestAborted);
             return;
         }
 

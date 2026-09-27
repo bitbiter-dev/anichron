@@ -7,9 +7,35 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
+      # Analyzers are separated from everything else because they fail differently.
+      #
+      # A runtime bump breaks the build by changing an API. An ANALYZER bump breaks it by
+      # reporting new diagnostics against code that did not change — and with
+      # TreatWarningsAsErrors=true in src/Directory.Build.props, every one of those is a build
+      # error. So an analyzer upgrade is normally expected to need code or .editorconfig work,
+      # and a runtime upgrade is normally expected to need none.
+      #
+      # ⛔ They were in one `*` group, so a single PR carried both. That is what stranded #187:
+      # 29 harmless runtime bumps could not merge because 3 analyzer bumps in the same commit
+      # produced 33 new errors. All-or-nothing by configuration, with no way to take the safe
+      # half. Splitting them means the analyzer PR can sit under review on its own without
+      # blocking routine dependency maintenance.
+      analyzers:
+        patterns:
+          - "SonarAnalyzer.*"
+          - "Roslynator.*"
+          - "Microsoft.VisualStudio.Threading.Analyzers"
+          - "StyleCop.Analyzers*"
+          - "Microsoft.CodeAnalysis.*Analyzers"
       nuget:
         patterns:
           - "*"
+        exclude-patterns:
+          - "SonarAnalyzer.*"
+          - "Roslynator.*"
+          - "Microsoft.VisualStudio.Threading.Analyzers"
+          - "StyleCop.Analyzers*"
+          - "Microsoft.CodeAnalysis.*Analyzers"
 
   - package-ecosystem: docker
     directory: /src/Anichron.API

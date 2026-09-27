@@ -87,7 +87,7 @@ public sealed class ExifExtractionMiddlewareTests
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
         context.Exif!.Width.Should().Be(100);
-        context.Exif!.Height.Should().Be(200);
+        context.Exif.Height.Should().Be(200);
     }
 
     [Fact]
@@ -116,11 +116,11 @@ public sealed class ExifExtractionMiddlewareTests
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
         context.Exif!.Width.Should().Be(0);
-        context.Exif!.Height.Should().Be(0);
-        context.Exif!.OrientationDegrees.Should().Be(0);
-        context.Exif!.DateCaptured.Should().BeNull();
-        context.Exif!.Latitude.Should().BeNull();
-        context.Exif!.Longitude.Should().BeNull();
+        context.Exif.Height.Should().Be(0);
+        context.Exif.OrientationDegrees.Should().Be(0);
+        context.Exif.DateCaptured.Should().BeNull();
+        context.Exif.Latitude.Should().BeNull();
+        context.Exif.Longitude.Should().BeNull();
     }
 
     [Fact]
@@ -135,10 +135,10 @@ public sealed class ExifExtractionMiddlewareTests
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
         context.Exif!.Width.Should().Be(0);
-        context.Exif!.Height.Should().Be(0);
-        context.Exif!.OrientationDegrees.Should().Be(0);
-        context.Exif!.DateCaptured.Should().BeNull();
-        context.Exif!.Latitude.Should().BeNull();
-        context.Exif!.Longitude.Should().BeNull();
+        context.Exif.Height.Should().Be(0);
+        context.Exif.OrientationDegrees.Should().Be(0);
+        context.Exif.DateCaptured.Should().BeNull();
+        context.Exif.Latitude.Should().BeNull();
+        context.Exif.Longitude.Should().BeNull();
     }
 }
