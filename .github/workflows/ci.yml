@@ -26,9 +26,9 @@ jobs:
     outputs:
       pages-artifact: ${{ steps.pages-upload.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -289,7 +289,7 @@ jobs:
             dockerfile: src/Anichron.Worker/Dockerfile
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-qemu-action@v4
 
