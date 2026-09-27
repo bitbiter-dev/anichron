@@ -8,30 +8,6 @@ namespace Anichron.Worker.Tests.Unit.Ingestion.Proxy;
 public sealed class ImageProxyGeneratorsTests
 {
     // ==========================================================================
-    // TwoLevelHexShardStrategy
-    // ==========================================================================
-
-    [Fact]
-    public void GetDirectory_ProducesCorrectTwoLevelPath()
-    {
-        var id = Guid.Parse("abcdef12-3456-7890-abcd-ef1234567890");
-
-        var result = new TwoLevelHexShardStrategy().GetDirectory(id);
-
-        result.Should().Be("ab/cdef1234567890abcdef1234567890");
-    }
-
-    [Fact]
-    public void GetDirectory_TopDirectoryIsAlwaysTwoChars()
-    {
-        var id = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
-        var top = new TwoLevelHexShardStrategy().GetDirectory(id).Split('/')[0];
-
-        top.Should().HaveLength(2);
-    }
-
-    // ==========================================================================
     // ThumbnailGenerator
     // ==========================================================================
 

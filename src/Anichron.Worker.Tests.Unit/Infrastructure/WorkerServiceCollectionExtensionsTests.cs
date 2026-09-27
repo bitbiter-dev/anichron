@@ -145,6 +145,18 @@ public sealed class WorkerServiceCollectionExtensionsTests
             d.Lifetime == ServiceLifetime.Singleton);
     }
 
+    [Fact]
+    public void AddIngestionServices_RegistersProxyStagingWriter_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIngestionServices();
+
+        services.Should().ContainSingle(d =>
+            d.ServiceType == typeof(ProxyStagingWriter) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
     // ==========================================================================
     // AddWorkerHostedServices
     // ==========================================================================

@@ -21,6 +21,7 @@ public sealed class VideoProxyMiddlewareTests
         public Instant Now { get; } = Instant.FromUtc(2026, 5, 20, 12, 0, 0);
         public IClock Clock { get; }
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
+        public IProxyDirectoryStrategy DirectoryStrategy { get; } = Substitute.For<IProxyDirectoryStrategy>();
 
         public TestFixture()
         {
@@ -30,6 +31,7 @@ public sealed class VideoProxyMiddlewareTests
 
             Generator.FileName.Returns("video_720p.mp4");
             Generator.ProxyType.Returns(ProxyType.WebVideo);
+            DirectoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
 
             FileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
             {
@@ -45,13 +47,17 @@ public sealed class VideoProxyMiddlewareTests
                 });
         }
 
-        public VideoProxyMiddleware Build()
-            => new([Generator],
-                   new TwoLevelHexShardStrategy(),
-                   Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
-                   FileSystem,
-                   Clock,
-                   GuidFactory,
+        public VideoProxyMiddleware Build() => BuildWith(Generator);
+
+        public VideoProxyMiddleware BuildWith(params IVideoProxyGenerator[] generators)
+            => new(generators,
+                   DirectoryStrategy,
+                   new ProxyStagingWriter(
+                       FileSystem,
+                       Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
+                       Clock,
+                       GuidFactory,
+                       Substitute.For<ILogger<ProxyStagingWriter>>()),
                    Substitute.For<ILogger<VideoProxyMiddleware>>());
     }
 
@@ -61,6 +67,8 @@ public sealed class VideoProxyMiddlewareTests
             Item = new SingleFileItem("/nas/video.mp4", "video.mp4", mediaType),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
             AssetId = Guid.NewGuid(),
+            ContentHash = "0123456789abcdef",
+            SecondaryHash = "fedcba9876543210",
         };
 
     private static Task NoOpNextAsync(IngestionContext ctx, CancellationToken ct)
@@ -113,16 +121,14 @@ public sealed class VideoProxyMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_VideoItem_ProxyPathContainsAssetShardAsync()
+    public async Task InvokeAsync_VideoItem_ProxyPathStartsWithStrategyDirectoryAsync()
     {
         var fixture = new TestFixture();
         var context = MakeContext();
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var hex = context.AssetId.ToString("N");
-        var expectedDirectory = $"{hex[..2]}/{hex[2..]}";
-        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith(expectedDirectory));
+        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith("ab/cd"));
     }
 
     [Fact]
@@ -179,9 +185,7 @@ public sealed class VideoProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var shard = context.AssetId.ToString("N");
-        fixture.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/video_720p.mp4")
-            .Should().BeTrue();
+        fixture.FileSystem.FileExists("/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
     }
 
     [Fact]
@@ -192,9 +196,7 @@ public sealed class VideoProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var shard = context.AssetId.ToString("N");
-        fixture.FileSystem.Directory.Exists($"/proxies/{shard[..2]}/{shard[2..]}")
-            .Should().BeTrue();
+        fixture.FileSystem.Directory.Exists("/proxies/ab/cd").Should().BeTrue();
     }
 
     [Fact]
@@ -225,14 +227,7 @@ public sealed class VideoProxyMiddlewareTests
                 return Task.CompletedTask;
             });
 
-        var middleware = new VideoProxyMiddleware(
-            [fixture.Generator, secondGenerator],
-            new TwoLevelHexShardStrategy(),
-            Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
-            fixture.FileSystem,
-            fixture.Clock,
-            fixture.GuidFactory,
-            Substitute.For<ILogger<VideoProxyMiddleware>>());
+        var middleware = fixture.BuildWith(fixture.Generator, secondGenerator);
 
         var context = MakeContext();
         await middleware.InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
@@ -240,6 +235,83 @@ public sealed class VideoProxyMiddlewareTests
         context.ProxyFiles.Should().HaveCount(2);
         await fixture.Generator.Received(1).TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await secondGenerator.Received(1).TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_VideoItem_DerivesDirectoryFromConfigIdAndContentHashAsync()
+    {
+        var fixture = new TestFixture();
+        var context = MakeContext();
+
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        // Not the asset id, and not the Live Photo secondary hash ("fedcba9876543210").
+        fixture.DirectoryStrategy.Received(1).GetDirectory(context.Config.Id, "0123456789abcdef");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_VideoItem_TranscodesToTemporaryPathAsync()
+    {
+        var fixture = new TestFixture();
+        var context = MakeContext();
+
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await fixture.Generator.Received(1).TranscodeAsync(
+            "/nas/video.mp4", "/proxies/ab/cd/video_720p.mp4.tmp", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_VideoItem_LeavesNoTemporaryFilesOnDiskAsync()
+    {
+        var fixture = new TestFixture();
+
+        await fixture.Build().InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShutdownCancelsTranscode_DropsTheInFlightTemporaryFileAsync()
+    {
+        var fixture = new TestFixture();
+        using var cts = new CancellationTokenSource();
+        var middleware = fixture.BuildWith(fixture.Generator, CancellingGenerator(fixture, cts));
+
+        var act = () => middleware.InvokeAsync(MakeContext(), NoOpNextAsync, cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
+        fixture.FileSystem.FileExists("/proxies/ab/cd/video_1080p.mp4").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShutdownCancelsTranscode_KeepsTheProxyAlreadyCompletedAsync()
+    {
+        var fixture = new TestFixture();
+        using var cts = new CancellationTokenSource();
+        var middleware = fixture.BuildWith(fixture.Generator, CancellingGenerator(fixture, cts));
+
+        var act = () => middleware.InvokeAsync(MakeContext(), NoOpNextAsync, cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        fixture.FileSystem.FileExists("/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
+    }
+
+    private static IVideoProxyGenerator CancellingGenerator(TestFixture fixture, CancellationTokenSource cts)
+    {
+        var generator = Substitute.For<IVideoProxyGenerator>();
+        generator.FileName.Returns("video_1080p.mp4");
+        generator.ProxyType.Returns(ProxyType.WebVideo);
+        generator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(async callInfo =>
+            {
+                // Half-written output on disk, then the shutdown lands mid-transcode.
+                fixture.FileSystem.File.WriteAllBytes(callInfo.ArgAt<string>(1), [0xAA]);
+                await cts.CancelAsync();
+                cts.Token.ThrowIfCancellationRequested();
+            });
+        return generator;
     }
 
     // ==========================================================================

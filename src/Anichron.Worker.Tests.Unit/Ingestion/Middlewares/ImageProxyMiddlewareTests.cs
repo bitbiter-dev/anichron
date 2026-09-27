@@ -47,10 +47,13 @@ public sealed class ImageProxyMiddlewareTests
                 .Returns([0x03, 0x04]);
             ImageProcessor.ComputeBlurhashAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
                 .Returns("LGFFaXYk^6#M@-5c,1J5@[or[Q6.");
+
+            DirectoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
         }
 
         public IClock Clock { get; }
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
+        public IProxyDirectoryStrategy DirectoryStrategy { get; } = Substitute.For<IProxyDirectoryStrategy>();
 
         public ImageProxyMiddleware Build()
         {
@@ -61,11 +64,14 @@ public sealed class ImageProxyMiddlewareTests
                 new BlurhashGenerator(ImageProcessor),
             ];
             return new(generators,
-                       new TwoLevelHexShardStrategy(),
-                       Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
+                       DirectoryStrategy,
+                       new ProxyStagingWriter(
+                           FileSystem,
+                           Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
+                           Clock,
+                           GuidFactory,
+                           Substitute.For<ILogger<ProxyStagingWriter>>()),
                        FileSystem,
-                       Clock,
-                       GuidFactory,
                        Substitute.For<ILogger<ImageProxyMiddleware>>());
         }
     }
@@ -76,6 +82,8 @@ public sealed class ImageProxyMiddlewareTests
             Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", mediaType),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
             AssetId = Guid.NewGuid(),
+            ContentHash = "0123456789abcdef",
+            SecondaryHash = "fedcba9876543210",
         };
 
     private static Task NoOpNextAsync(IngestionContext ctx, CancellationToken ct)
@@ -150,16 +158,14 @@ public sealed class ImageProxyMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ImageItem_ProxyPathsContainAssetShardAsync()
+    public async Task InvokeAsync_ImageItem_ProxyPathsStartWithStrategyDirectoryAsync()
     {
         var fixture = new TestFixture();
         var context = MakeContext();
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var hex = context.AssetId.ToString("N");
-        var expectedDirectory = $"{hex[..2]}/{hex[2..]}";
-        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith(expectedDirectory));
+        context.ProxyFiles.Should().AllSatisfy(p => p.ProxyPath.Should().StartWith("ab/cd"));
     }
 
     [Fact]
@@ -192,9 +198,7 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var shard = context.AssetId.ToString("N");
-        fixture.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/thumbnail.jpg")
-            .Should().BeTrue();
+        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
     }
 
     [Fact]
@@ -205,9 +209,7 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var shard = context.AssetId.ToString("N");
-        fixture.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/preview.jpg")
-            .Should().BeTrue();
+        fixture.FileSystem.FileExists("/proxies/ab/cd/preview.jpg").Should().BeTrue();
     }
 
     [Fact]
@@ -218,9 +220,42 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        var shard = context.AssetId.ToString("N");
-        fixture.FileSystem.FileExists($"/proxies/{shard[..2]}/{shard[2..]}/blurhash.txt")
-            .Should().BeTrue();
+        fixture.FileSystem.FileExists("/proxies/ab/cd/blurhash.txt").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ImageItem_DerivesDirectoryFromConfigIdAndContentHashAsync()
+    {
+        var fixture = new TestFixture();
+        var context = MakeContext();
+
+        await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        // Not the asset id, and not the Live Photo secondary hash ("fedcba9876543210").
+        fixture.DirectoryStrategy.Received(1).GetDirectory(context.Config.Id, "0123456789abcdef");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ImageItem_LeavesNoTemporaryFilesOnDiskAsync()
+    {
+        var fixture = new TestFixture();
+
+        await fixture.Build().InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_GeneratorThrows_DropsTemporaryFileAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.ImageProcessor.CreateThumbnailAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+            .Returns<byte[]>(_ => throw new InvalidOperationException("boom"));
+
+        var act = () => fixture.Build().InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
     }
 
     // ==========================================================================
@@ -241,6 +276,8 @@ public sealed class ImageProxyMiddlewareTests
             Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
             AssetId = Guid.NewGuid(),
+            ContentHash = "0123456789abcdef",
+            SecondaryHash = "fedcba9876543210",
         };
         new TestFixture().Build().CanInvoke(context).Should().BeTrue();
     }
@@ -261,6 +298,8 @@ public sealed class ImageProxyMiddlewareTests
             Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
             AssetId = Guid.NewGuid(),
+            ContentHash = "0123456789abcdef",
+            SecondaryHash = "fedcba9876543210",
         };
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);

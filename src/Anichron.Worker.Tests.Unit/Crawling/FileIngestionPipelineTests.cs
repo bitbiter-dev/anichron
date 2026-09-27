@@ -3,6 +3,7 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -48,8 +49,14 @@ public sealed class FileIngestionPipelineTests
             IEnumerable<IIngestionMiddleware> middlewares,
             int maxConcurrentFiles = 2)
         {
+            var directoryStrategy = Substitute.For<IProxyDirectoryStrategy>();
+            directoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
+
             var runner = new IngestionPipelineRunner(
                 middlewares,
+                directoryStrategy,
+                FileSystem,
+                Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
                 Substitute.For<ILogger<IngestionPipelineRunner>>());
 
             var serviceProvider = Substitute.For<IServiceProvider>();
@@ -232,6 +239,43 @@ public sealed class FileIngestionPipelineTests
     }
 
     // ==========================================================================
+    // Shutdown
+    // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_CancellationRequestedWhileIngesting_StopsWithoutTakingTheNextFileAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/c.jpg", new MockFileData([]));
+        using var cts = new CancellationTokenSource();
+        var seen = new List<IngestionContext>();
+
+        var pipeline = fixture.BuildWithMiddlewares([new CancellingMiddleware(cts, seen)], maxConcurrentFiles: 1);
+        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        seen.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task RunAsync_ItemFails_StillIngestsTheRemainingFilesAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        var seen = new List<IngestionContext>();
+
+        var pipeline = fixture.BuildWithMiddlewares(
+            [new FailingOnFirstItemMiddleware(seen)], maxConcurrentFiles: 1);
+        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        seen.Should().HaveCount(2);
+    }
+
+    // ==========================================================================
     // Producer exception
     // ==========================================================================
 
@@ -244,5 +288,40 @@ public sealed class FileIngestionPipelineTests
         var act = async () => await pipeline.RunAsync(MakeConfig("/nonexistent"), CancellationToken.None);
 
         await act.Should().ThrowAsync<DirectoryNotFoundException>();
+    }
+
+    // ==========================================================================
+    // Helpers
+    // ==========================================================================
+
+    private sealed class CancellingMiddleware(CancellationTokenSource cts, List<IngestionContext> seen)
+        : IIngestionMiddleware
+    {
+        public int Order => 10;
+        public bool CanInvoke(IngestionContext context) => true;
+
+        public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        {
+            _ = next;
+            seen.Add(context);
+            await cts.CancelAsync();
+            ct.ThrowIfCancellationRequested();
+        }
+    }
+
+    private sealed class FailingOnFirstItemMiddleware(List<IngestionContext> seen) : IIngestionMiddleware
+    {
+        public int Order => 10;
+        public bool CanInvoke(IngestionContext context) => true;
+
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        {
+            _ = (next, ct);
+            seen.Add(context);
+            if (seen.Count == 1)
+                throw new InvalidOperationException("boom");
+
+            return Task.CompletedTask;
+        }
     }
 }
