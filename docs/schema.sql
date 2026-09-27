@@ -1,4 +1,3 @@
-The Entity Framework tools version '10.0.7' is older than that of the runtime '10.0.12'. Update the tools for the latest features and bug fixes. See https://aka.ms/AAc1fbw for more information.
 CREATE TABLE "Users" (
     "Id" uuid NOT NULL,
     "Username" text NOT NULL,
@@ -204,6 +203,3 @@ CREATE UNIQUE INDEX ix_users_username ON "Users" ("Username");
 
 
 ALTER TABLE "Bursts" ADD CONSTRAINT "FK_Bursts_MediaAssets_PrimaryAssetId" FOREIGN KEY ("PrimaryAssetId") REFERENCES "MediaAssets" ("Id") ON DELETE RESTRICT;
-
-
-

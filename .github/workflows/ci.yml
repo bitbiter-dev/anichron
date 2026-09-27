@@ -53,6 +53,14 @@ jobs:
       - name: Check formatting
         run: dotnet format --verify-no-changes src/
 
+      # ⛔ Before the helper-script tests, not after. derive-db-docs.sh shells out to
+      # `dotnet ef`, which is a MANIFEST tool — without the restore it does not exist on a
+      # clean runner, and the script fails with "dotnet-ef does not exist" rather than with
+      # anything about the schema. It happens to be installed globally on some dev machines,
+      # which is exactly how that dependency went unnoticed until CI.
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
       - name: Test helper scripts
         run: |
           scripts/mutation-report.test.sh
@@ -66,9 +74,6 @@ jobs:
       # rather than the database-docs job below. See docs/adr/0004-schema-documentation.md.
       - name: Schema documentation is current
         run: scripts/derive-db-docs.sh --check
-
-      - name: Restore .NET tools
-        run: dotnet tool restore
 
       # Reads the ratchet's stored high-water mark from the badges branch and
       # turns it into Stryker flags. See docs/mutation-testing.md, "The ratchet".

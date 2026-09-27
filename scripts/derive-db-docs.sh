@@ -29,9 +29,40 @@ check=false
 
 mkdir -p "$(dirname "$target")"
 
-# stdout only: the tool writes a tools-version notice to stderr, which is not part of the schema.
+# ⛔ dotnet-ef is a MANIFEST tool (dotnet-tools.json), not something the SDK ships. Without a
+# restore it is simply absent, and `dotnet ef` then fails with "dotnet-ef does not exist" —
+# which reads as a broken script rather than as a missing prerequisite. It is also commonly
+# installed GLOBALLY on a developer machine, so the dependency is invisible locally and only
+# shows up on a clean runner. Measured: that is exactly how it reached CI unnoticed.
+if ! dotnet tool run dotnet-ef -- --version >/dev/null 2>&1; then
+  printf 'dotnet-ef is not available.\n' >&2
+  printf 'It is a manifest tool — run `dotnet tool restore` first.\n' >&2
+  exit 1
+fi
+
 derive() {
-  dotnet ef dbcontext script --project src/Anichron.Core --no-build 2>/dev/null
+  # 🔴 `dotnet ef` writes its tools-version-mismatch notice to STDOUT, not stderr — so `2>/dev/null`
+  # does NOT keep it out of the schema. The first committed version of docs/schema.sql began with
+  #   "The Entity Framework tools version '10.0.7' is older than that of the runtime '10.0.12'..."
+  # and was therefore not valid SQL. Pinning dotnet-ef in dotnet-tools.json to match the runtime
+  # removes the notice at source; this guard is what makes a future mismatch loud instead of
+  # silently corrupting the file again.
+  local out
+  out=$(dotnet ef dbcontext script --project src/Anichron.Core --no-build 2>/dev/null)
+
+  local first
+  first=$(printf '%s\n' "$out" | grep -vE '^\s*$' | head -1)
+  case "$first" in
+    CREATE*|ALTER*|COMMENT*|DROP*|--*|START*|DO\ *) ;;
+    *)
+      printf 'dotnet ef emitted something that is not SQL as its first line:\n\n  %s\n\n' "$first" >&2
+      printf 'Most likely the dotnet-ef version in dotnet-tools.json no longer matches the\n' >&2
+      printf 'runtime, and the mismatch notice is being written to stdout. Align them.\n' >&2
+      return 1
+      ;;
+  esac
+
+  printf '%s\n' "$out"
 }
 
 if [ "$check" = true ]; then
