@@ -337,7 +337,12 @@ jobs:
           POSTGRES_CONNECTION__USERNAME: anichron
           POSTGRES_CONNECTION__PASSWORD: anichron
         run: |
-          dotnet tool install --global dotnet-ef --version 10.0.12
+          # ⛔ `dotnet tool restore`, NOT `dotnet tool install --global`. dotnet-ef is in
+          # dotnet-tools.json, and inside a repo with a manifest the MANIFEST wins — a global
+          # install is then ignored and `dotnet ef` fails with "Run dotnet tool restore to make
+          # the dotnet-ef command available". Restoring also pins the version in one place
+          # rather than two that can disagree.
+          dotnet tool restore
           dotnet ef database update --project src/Anichron.Core \
             --connection "Host=localhost;Database=anichron_docs;Username=anichron;Password=anichron"
 
