@@ -1,0 +1,118 @@
+# Proves the mutation measurement is still trustworthy, and fails loudly when it
+# is not. See docs/mutation-testing.md, "The weekly divergence check".
+#
+# A separate workflow rather than a job in ci.yml, for one reason: `schedule`
+# applies to a whole workflow, so adding it there would run the build, the
+# Docker images and CodeQL every week as well. Keeping it separate also makes
+# "does not run on pull requests and does not gate merges" structural rather
+# than something to remember.
+name: Mutation divergence
+
+on:
+  schedule:
+    # 05:17 on Mondays. Off the hour on purpose — GitHub queues scheduled jobs
+    # at popular times, and a run that starts twenty minutes late is a run whose
+    # two sweeps are further apart than they need to be.
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: mutation-divergence
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  divergence:
+    name: Concurrency divergence
+    runs-on: ubuntu-latest
+    # Both sweeps in ONE job so they share a commit and a runner — the whole
+    # point is that concurrency is the only difference between them. Two jobs
+    # could land on different hardware and the comparison would mean nothing.
+    #
+    # The single-threaded sweep is roughly twice as slow as the default one, so
+    # the pair costs about three times a normal sweep. ci.yml allows 20 minutes
+    # for one; 75 bounds the pair with room for a slow runner, and bounds it
+    # loudly rather than letting a hung sweep burn six hours.
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      # CLAUDE.md forbids passing score-affecting flags to Stryker, because the
+      # config file is what keeps a local run and the CI run comparable. This
+      # job is the one deliberate exception: --concurrency is the variable under
+      # test, so it is the one flag that must be passed here and nowhere else.
+      #
+      # continue-on-error on both sweeps: a sweep that scores below the break
+      # threshold exits 2, and that is not what this job is asking about. The
+      # comparison step below decides the outcome, and it fails the job on a
+      # missing report rather than letting a crashed sweep pass silently.
+      - name: Sweep at CI concurrency
+        id: default
+        continue-on-error: true
+        working-directory: src
+        run: dotnet stryker --output ../mutation-default
+
+      - name: Sweep single-threaded
+        id: single
+        continue-on-error: true
+        working-directory: src
+        run: dotnet stryker --concurrency 1 --output ../mutation-single
+
+      - name: Upload both reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-divergence-reports
+          path: |
+            mutation-default/reports/
+            mutation-single/reports/
+          retention-days: 30
+
+      # The summary is written BEFORE the comparison so the numbers are there
+      # whichever way the comparison goes — on a divergence this is the whole
+      # diagnosis, and needing to download two artifacts to see four integers is
+      # how a red scheduled job gets ignored.
+      - name: Summarise both sweeps
+        if: always()
+        run: |
+          d=mutation-default/reports/mutation-report.json
+          s=mutation-single/reports/mutation-report.json
+          {
+            echo '## Mutation divergence check'
+            echo
+            if [ -f "$d" ] && [ -f "$s" ]; then
+              echo '| sweep | detected | detectable | score |'
+              echo '|---|---:|---:|---:|'
+              scripts/mutation-report.sh tally "$d" \
+                | jq -r '"| CI concurrency | \(.detected) | \(.total) | \(.score)% |"'
+              scripts/mutation-report.sh tally "$s" \
+                | jq -r '"| single-threaded | \(.detected) | \(.total) | \(.score)% |"'
+              echo
+              echo 'Equal **detected** counts mean the measurement is sound. A difference means'
+              echo 'the score the pull-request gate has been enforcing is not measuring what we'
+              echo 'think it is — see `docs/mutation-testing.md`.'
+            else
+              echo 'One or both sweeps produced no JSON report, so there is nothing to compare.'
+              echo 'That is a failed sweep rather than a divergence — check the step logs.'
+              [ -f "$d" ] || echo '- CI-concurrency sweep: no report'
+              [ -f "$s" ] || echo '- single-threaded sweep: no report'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The committed script, not an inline comparison: the "did this run even
+      # finish" guards live in it, and a pending-mutant report would otherwise
+      # compare two numbers that both read better than reality.
+      - name: Compare detected counts
+        run: |
+          scripts/mutation-report.sh compare \
+            mutation-default/reports/mutation-report.json \
+            mutation-single/reports/mutation-report.json

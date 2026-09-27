@@ -48,6 +48,32 @@ assert_eq "a score exactly at that report's low is 40%" '40' "$(echo "$out" | jq
 assert_eq "exactly low counts as yellow, not red" 'yellow' "$(echo "$out" | jq -r '.color')"
 
 echo
+echo "tally"
+
+# The divergence job (#184) needs BOTH counts and scores in its job summary.
+# Doing that with an inline jq in the workflow would duplicate the tally, which
+# is the one thing this script exists to prevent — the "measured nothing" guard
+# has to sit on every path that reports a number.
+out=$("$script" tally "$fixtures/passing.json")
+assert_eq 'reports the detected count' '3' "$(echo "$out" | jq -r '.detected')"
+assert_eq 'reports the detectable total' '4' "$(echo "$out" | jq -r '.total')"
+assert_eq 'reports the score alongside them' '75' "$(echo "$out" | jq -r '.score')"
+
+out=$("$script" tally "$fixtures/below-break.json")
+assert_eq 'tally agrees with badge on 1 of 10' '10' "$(echo "$out" | jq -r '.score')"
+assert_eq 'and on the count' '1' "$(echo "$out" | jq -r '.detected')"
+
+# Timeouts count as detected, ignored and compile errors are excluded — the same
+# arithmetic badge uses, because both go through TALLY.
+out=$("$script" tally "$fixtures/above-high.json")
+assert_eq 'timeouts count as detected here too' '90' "$(echo "$out" | jq -r '.score')"
+
+# Unlike badge, tally needs no thresholds: it reports a measurement, not a
+# colour. A report with no thresholds is still a valid thing to count.
+out=$("$script" tally "$fixtures/no-thresholds.json")
+assert_eq 'a report with no thresholds can still be tallied' '0' "$?"
+
+echo
 echo "compare"
 
 if out=$("$script" compare "$fixtures/divergent-a.json" "$fixtures/divergent-a.json" 2>&1); then
@@ -104,6 +130,11 @@ assert_fails "a partial thresholds object cannot be coloured" 'no usable thresho
 # score better than reality — 2 killed of 2 completed reads as 100%.
 assert_fails "an unfinished run is refused rather than flattered" 'did not finish' "$script" badge "$fixtures/unfinished.json"
 assert_fails "compare refuses an unfinished run" 'did not finish' "$script" compare "$fixtures/passing.json" "$fixtures/unfinished.json"
+assert_fails "tally refuses an unfinished run" 'did not finish' "$script" tally "$fixtures/unfinished.json"
+assert_fails "tally refuses a run that detected nothing detectable" 'no detectable mutants' "$script" tally "$fixtures/nothing-detectable.json"
+assert_fails "tally with no report path prints usage" 'usage:' "$script" tally
+assert_fails "tally with two report paths prints usage" 'usage:' "$script" tally "$fixtures/passing.json" "$fixtures/passing.json"
+assert_fails "tally of a missing file says so" 'report not found' "$script" tally "$fixtures/no-such-file.json"
 
 echo
 if [ "$failures" -gt 0 ]; then

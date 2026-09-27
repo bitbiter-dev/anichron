@@ -8,6 +8,7 @@ usage() {
 usage:
   mutation-report.sh badge <report.json>            shields.io endpoint payload
   mutation-report.sh compare <a.json> <b.json>      non-zero if detected counts differ
+  mutation-report.sh tally <report.json>            {detected, total, score} as JSON
 EOF
   exit 2
 }
@@ -34,6 +35,11 @@ readonly TALLY='
     end
 '
 
+# The percentage, to two decimal places, from a tally. Shared for the same
+# reason TALLY is: `badge` and `tally` both report this number, and two copies
+# of the arithmetic is two things to keep in step.
+readonly SCORE='($tally.detected * 10000 / $tally.total | round / 100)'
+
 tally_of() {
   [ -f "$1" ] || { printf 'report not found: %s\n' "$1" >&2; exit 1; }
   jq -e --arg path "$1" "$TALLY" "$1"
@@ -52,17 +58,33 @@ cmd_badge() {
       "\($path) has no usable thresholds.high/.low — cannot choose a badge colour\n" | halt_error(1)
     else .thresholds end
   ' "$1")
-  jq -n --argjson tally "$tally" --argjson t "$thresholds" '
-    ($tally.detected * 10000 / $tally.total | round / 100) as $score
+  jq -n --argjson tally "$tally" --argjson t "$thresholds" "
+    $SCORE as \$score
     | {
         schemaVersion: 1,
-        label: "mutation",
-        message: (($score | tostring) + "%"),
-        color: (if $score >= $t.high then "brightgreen"
-                elif $score >= $t.low then "yellow"
-                else "red" end)
+        label: \"mutation\",
+        message: ((\$score | tostring) + \"%\"),
+        color: (if \$score >= \$t.high then \"brightgreen\"
+                elif \$score >= \$t.low then \"yellow\"
+                else \"red\" end)
       }
-  '
+  "
+}
+
+# Counts and score in one object. Exists because the divergence job (#184) has
+# to put both in its job summary, and an inline jq in the workflow would be a
+# second copy of the arithmetic above — without the guards in TALLY, which is
+# exactly how a collapsed run would report a number that looked fine.
+#
+# No thresholds are read: this reports a measurement, not a verdict, so a report
+# without them is still tallyable where `badge` would refuse.
+cmd_tally() {
+  [ $# -eq 1 ] || usage
+  local tally
+  tally=$(tally_of "$1")
+  jq -n --argjson tally "$tally" "
+    { detected: \$tally.detected, total: \$tally.total, score: $SCORE }
+  "
 }
 
 # Guards the upstream defect that under-reports kills at concurrency above 1.
@@ -85,5 +107,6 @@ cmd_compare() {
 case "${1:-}" in
   badge) shift; cmd_badge "$@" ;;
   compare) shift; cmd_compare "$@" ;;
+  tally) shift; cmd_tally "$@" ;;
   *) usage ;;
 esac

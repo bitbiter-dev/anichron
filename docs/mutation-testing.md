@@ -29,8 +29,8 @@ nothing on the command line but the output location.
 > score the `42` threshold was calibrated against on a developer machine, so the headroom is
 > measured on both and not just locally
 > ([run 35577766467](https://github.com/bitbiter-dev/anichron/actions/runs/35577766467)). The
-> badge (#182) and the published report (#181) are both live. The threshold ratchet (#183) and the
-> scheduled divergence check (#184) are specified under #177 but not built.
+> badge (#182), the published report (#181) and the weekly divergence check (#184) are all live.
+> The threshold ratchet (#183) is specified under #177 but not built.
 
 The run takes roughly one to one and a half minutes on a developer machine, with live progress as
 it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
@@ -262,6 +262,11 @@ scripts/publish-badges.test.sh
 scripts/assemble-pages.test.sh
 ```
 
+`mutation-report.test.sh` covers `badge`, `compare` and `tally`. The `tally` cases matter to the
+divergence job specifically: it reports counts and score from the same `TALLY` expression the other
+two use, so the job summary cannot disagree with the badge, and a run with pending mutants is
+refused on that path too rather than reporting a number that reads better than reality.
+
 All three run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
 run, if the build, tests, coverage or formatting steps have already failed.
 
@@ -288,6 +293,66 @@ tiny and hand-written rather than real reports — a real one embeds the full so
 file and runs to megabytes. `divergent-a.json` and `divergent-b.json` both hold ten mutants with
 `Killed + Survived = 10` and differ only in the split (8/2 versus 5/5), reproducing the upstream
 defect's signature so the comparison is tested against the thing it exists to catch.
+
+## The weekly divergence check
+
+`.github/workflows/mutation-divergence.yml` runs the sweep **twice on the same commit and the same
+runner** — once at the concurrency CI normally uses, once with `--concurrency 1` — and compares the
+**detected-mutant counts**. Equal counts mean the measurement is sound. Different counts mean the
+score the pull-request gate has been enforcing is not measuring what we think it is, and the job
+fails so a human finds out.
+
+It runs weekly and on `workflow_dispatch`. It never runs on a pull request and never gates a merge.
+
+### ⚠️ When to run it by hand, rather than waiting for Monday
+
+Re-run it from the Actions tab (`Mutation divergence` → *Run workflow*) after either of these:
+
+1. **A Stryker upgrade** — any change to the pinned version in `.config/dotnet-tools.json`.
+2. **A significant change in the shape of the test suite** — deleting or splitting a test class,
+   changing the test runner, or a large change in how many tests there are.
+
+The second one is the unintuitive trigger, and it is the important one. **The defect is
+test-shape-dependent, not version-dependent.** Upstream demonstrated an earlier release that
+measured correctly and then started under-reporting once a test class was deleted — no dependency
+change at all. So a version pin cannot guard this, and "we did not upgrade anything" is not a reason
+to skip the check.
+
+### Why it compares counts rather than scores
+
+The upstream defect under-reports kills non-deterministically at concurrency above 1 on exactly this
+stack (.NET 10, xUnit v3, Stryker 5.0.0). Its signature is that **killed-plus-survived stays
+constant while the split between them moves** — so a single run looks perfectly self-consistent, and
+a green build looks identical whether or not kills have started silently vanishing.
+
+The score moves too, of course. But comparing scores would also fire on an ordinary quality change,
+and comparing *detectable totals* would not fire at all. The detected count is the discriminating
+number, which is why `scripts/mutation-report.sh compare` compares exactly that.
+
+### What not to reach for when a run looks wrong
+
+- ⛔ **Stryker's documented cross-check does not work for this.** The docs suggest re-running with
+  coverage analysis disabled to verify a suspicious result. The upstream reporter showed it does not
+  detect the concurrency defect, and we reproduced the same thing locally: disabling coverage
+  analysis returned an identical score, which told us nothing about the runner.
+- ⛔ **Do not bisect a score change file by file.** Scoping a run to a single file is reported
+  upstream to lose kills even single-threaded, so the numbers you get from narrowing are not
+  comparable to the numbers you started from. Read the HTML report instead.
+
+### When it fails
+
+The job summary carries both detected counts, both detectable totals and both scores, so the
+divergence is diagnosable without downloading anything. Both reports are uploaded as artifacts for
+when it is not.
+
+A failure means the gate has been enforcing a number that does not mean what it says. It does not
+mean the build is broken — nothing merges differently because of it — so the response is to
+investigate the measurement, not to rerun until it goes green.
+
+⚠️ Note the job passes `--concurrency`, which is the one place in this repo that passes a
+score-affecting flag to Stryker. Everywhere else the rule is that every value affecting the score
+lives in `src/stryker-config.json`, so a local run and the CI run stay comparable. Here concurrency
+is the variable under test, so it has to come from the command line.
 
 ## Known weak spots
 
