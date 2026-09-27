@@ -331,18 +331,24 @@ jobs:
       - name: Apply migrations to a throwaway database
         # ⭐ Migrations rather than a hand-written schema: this also proves the migrations
         # actually APPLY, which building the model alone never checks.
-        env:
-          POSTGRES_CONNECTION__HOST: localhost
-          POSTGRES_CONNECTION__DBNAME: anichron_docs
-          POSTGRES_CONNECTION__USERNAME: anichron
-          POSTGRES_CONNECTION__PASSWORD: anichron
+        #
+        # ⚠️ No POSTGRES_CONNECTION__* here on purpose. AnichronDbContextFactory hardcodes its
+        # connection string and never reads IConfiguration, so those variables would be read by
+        # nobody — present only to mislead the next person debugging this job.
         run: |
-          # ⛔ `dotnet tool restore`, NOT `dotnet tool install --global`. dotnet-ef is in
-          # dotnet-tools.json, and inside a repo with a manifest the MANIFEST wins — a global
-          # install is then ignored and `dotnet ef` fails with "Run dotnet tool restore to make
-          # the dotnet-ef command available". Restoring also pins the version in one place
-          # rather than two that can disagree.
+          # Three prerequisites this job does NOT inherit from build-and-test, each of which
+          # failed it in turn before being added. It is a separate job on a clean checkout:
+          #   1. dotnet-ef is a MANIFEST tool — `--global` is ignored inside a repo carrying
+          #      dotnet-tools.json, and `dotnet ef` then demands a restore.
+          #   2. Nothing has restored the SOLUTION, so `dotnet ef` fails with NETSDK1004
+          #      ("Assets file project.assets.json not found") before it reaches the database.
           dotnet tool restore
+          dotnet restore src/
+
+          # ⭐ `--connection` DOES override the design-time factory's hardcoded string — verified
+          # by pointing it at a nonexistent host and confirming the error named that host rather
+          # than the factory's `anichron_design`. Worth recording, because the factory ignoring
+          # its `args` parameter makes the opposite look true from a reading of the code alone.
           dotnet ef database update --project src/Anichron.Core \
             --connection "Host=localhost;Database=anichron_docs;Username=anichron;Password=anichron"
 
@@ -351,7 +357,13 @@ jobs:
           curl -sSL -o tbls.tar.gz \
             https://github.com/k1LoW/tbls/releases/download/v1.96.0/tbls_v1.96.0_linux_amd64.tar.gz
           tar -xzf tbls.tar.gz tbls
-          ./tbls doc --rm-dist \
+
+          # ⭐ -t mermaid, not the default svg. Mermaid is rendered by the viewer rather than by
+          # an image toolchain, so the diagram has no renderer dependency and stays readable in
+          # the artefact without downloading anything. The table/column COMMENTs configured via
+          # .HasComment(...) come through as descriptions — which is the whole point of putting
+          # the rationale in the schema.
+          ./tbls doc --rm-dist -t mermaid \
             "postgres://anichron:anichron@localhost:5432/anichron_docs?sslmode=disable" \
             schema-docs
 
