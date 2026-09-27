@@ -131,8 +131,8 @@ public sealed class PersistenceMiddlewareTests
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.Asset!.Month.Should().Be(6);
-        context.Asset!.Day.Should().Be(15);
-        context.Asset!.Year.Should().Be(2023);
+        context.Asset.Day.Should().Be(15);
+        context.Asset.Year.Should().Be(2023);
     }
 
     [Fact]
@@ -144,8 +144,8 @@ public sealed class PersistenceMiddlewareTests
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.Asset!.Year.Should().Be(2023);
-        context.Asset!.Month.Should().Be(6);
-        context.Asset!.Day.Should().Be(15);
+        context.Asset.Month.Should().Be(6);
+        context.Asset.Day.Should().Be(15);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class PersistenceMiddlewareTests
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.Asset!.Metadata!.Width.Should().Be(100);
-        context.Asset!.Metadata!.Height.Should().Be(200);
+        context.Asset.Metadata.Height.Should().Be(200);
     }
 
     [Fact]

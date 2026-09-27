@@ -15,9 +15,13 @@ public sealed partial class PwnedPasswordClient(HttpClient http, ILogger<PwnedPa
         var passwordBytes = Encoding.UTF8.GetBytes(password);
         try
         {
-#pragma warning disable CA5350 // SHA1 is required by the HIBP k-anonymity API protocol
+            // SHA1 is not a choice here: the HIBP range endpoint is defined in terms of SHA-1
+            // prefixes, so any other algorithm queries a namespace the service does not have.
+            // S4790 is Sonar's equivalent of CA5350 and arrived with SonarAnalyzer 10.34; both
+            // are listed so neither analyzer alone fails the build.
+#pragma warning disable CA5350, S4790 // SHA1 is required by the HIBP k-anonymity API protocol
             var hash = Convert.ToHexString(SHA1.HashData(passwordBytes));
-#pragma warning restore CA5350
+#pragma warning restore CA5350, S4790
             var prefix = hash[..5];
             var suffix = hash[5..];
 

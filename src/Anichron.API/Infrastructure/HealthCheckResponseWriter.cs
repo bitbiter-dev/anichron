@@ -14,6 +14,6 @@ internal static class HealthCheckResponseWriter
                 e => e.Key,
                 e => e.Value.Status.ToString().ToLowerInvariant())
         };
-        await context.Response.WriteAsJsonAsync(response);
+        await context.Response.WriteAsJsonAsync(response, context.RequestAborted);
     }
 }
