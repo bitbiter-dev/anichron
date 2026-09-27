@@ -1,0 +1,20 @@
+{
+  "stryker-config": {
+    "solution": "Anichron.slnx",
+    "test-runner": "mtp",
+    "mutate": [
+      "!**/Migrations/**"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 42,
+      "break": 42
+    },
+    "reporters": [
+      "progress",
+      "html",
+      "json",
+      "markdown"
+    ]
+  }
+}

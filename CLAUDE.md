@@ -41,6 +41,19 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the test SDK to any project matching that pattern: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
+### Mutation testing
+
+```bash
+dotnet tool restore
+cd src && dotnet stryker      # must run from src/, not the repo root
+```
+
+All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **One deliberate exception, and only one**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test. Anywhere else, a measurement-affecting flag is a bug.
+
+Threshold flags are a separate category and are *not* covered by that rule: `--break-at`, `--threshold-low` and `--threshold-high` change the **verdict**, not the measurement, so passing them does not make two runs incomparable. `ci.yml` passes all three, computed by `scripts/mutation-ratchet.sh` from the stored high-water mark. They are always passed **together** — Stryker validates `break <= low <= high` before mutating and exits `1` if it fails, which reads as a broken tool rather than a threshold event. Never raise one by hand without the others.
+
+**Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
+
 ## Architecture
 
 Four projects with strict separation of concerns:
@@ -86,7 +99,7 @@ Seven entities — all EF Core config via **Fluent API only**, no data annotatio
 /data/proxies/     ← Local SSD (Worker writes; API reads for serving)
 ```
 
-Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{type}` (e.g., `f3/a1b2c4.../thumbnail.jpg`). `ProxyFile.ProxyPath` stores the path relative to `/data/proxies/` (note: `FilePath` is on `MediaAsset`, relative to the storage config root — the two are different properties).
+Proxy files follow a two-level shard path derived from **content, not from the ingestion attempt**: `/data/proxies/{content_hash[0:2]}/{storage_config_id:N}-{content_hash}/{type}` (e.g. `01/3fa85f6457174562b3fc2c963f66afa6-0123456789abcdef/thumbnail.jpg`). Re-ingesting the same file therefore resolves to the same directory, so a retry overwrites its own debris instead of stranding it; the storage config id keeps byte-identical files of two users apart, without which removing one user's config would cascade away the other's proxies. `IProxyDirectoryStrategy` is the single place this rule lives. `ProxyFile.ProxyPath` stores the path relative to `/data/proxies/` (note: `FilePath` is on `MediaAsset`, relative to the storage config root — the two are different properties).
 
 ### Worker Media Processing
 
@@ -96,6 +109,7 @@ Proxy files follow a two-level shard path: `/data/proxies/{id[0:2]}/{id[2:]}/{ty
 - FFmpeg transcodes video with runtime GPU detection: QuickSync (`h264_qsv`) → NVENC (`h264_nvenc`) → AMF (`h264_amf`) → software (`libx264`)
 - Burst detection (**planned, not yet implemented**): will group rapid-fire sequences and assign a `primary_asset_id` cover. The `Burst` entity and schema exist; no detection code is wired into the Worker yet.
 - Reconciliation: periodic NAS scan; soft-deletes missing files (preserves user interactions); hash match re-links moved files
+- Failure ownership: `ProxyStagingWriter` is the single place a proxy reaches its final name — it writes under a `.tmp` suffix, renames into place once complete, and registers the proxy on the `IngestionContext` at that moment; the proxy middlewares only supply the bytes. If a step throws, `IngestionPipelineRunner` deletes exactly those registered proxies plus any `.tmp` siblings, and removes the directory only if it is left empty — never recursively, since a duplicate asset can share it until #159 lands. A clean shutdown is treated differently: the in-flight temporary file is dropped, but proxies already completed in that run are kept, and the consumer loop re-throws the cancellation instead of recording an item failure and draining the queue. A hard kill or the storage-config cascade delete is out of reach in-process and belongs to the orphan sweeper (#174).
 
 ### Flashback Interaction Rules
 

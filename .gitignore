@@ -208,6 +208,11 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
+# Assembled GitHub Pages site (scripts/assemble-pages.sh). Ignored on purpose:
+# publish-badges.sh switches the work tree to the orphan `badges` branch, and an
+# untracked, ignored directory is what survives that.
+pages-site/
+
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml
@@ -442,3 +447,6 @@ src/Anichron.API/configuration/
 
 # JetBrains IDEs
 **/.idea/
+
+# Stryker.NET mutation testing reports
+StrykerOutput/

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "2",
+  "thresholds": { "high": 80, "low": 42 },
+  "files": {
+    "Example.cs": {
+      "language": "cs",
+      "source": "class Example { }",
+      "mutants": [
+        { "id": "1", "status": "Killed" },
+        { "id": "2", "status": "Killed" },
+        { "id": "3", "status": "Killed" },
+        { "id": "4", "status": "Survived" }
+      ]
+    }
+  }
+}
