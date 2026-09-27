@@ -50,8 +50,24 @@ derive() {
   local out
   out=$(dotnet ef dbcontext script --project src/Anichron.Core --no-build 2>/dev/null)
 
-  local first
-  first=$(printf '%s\n' "$out" | grep -vE '^\s*$' | head -1)
+  # 🔴 NOT `grep -v '^\s*$' | head -1`. `head` closes the pipe after one line, grep takes SIGPIPE,
+  # and under `set -o pipefail` that fails the whole function — so the generator exits 2 with
+  # "grep: write error: Broken pipe" and says nothing about the schema. Whether it fires depends
+  # on whether grep finished writing before head exited, so it PASSED on macOS and failed on the
+  # CI runner with identical input. A read loop has no pipeline and therefore no race.
+  local first="" line
+  while IFS= read -r line; do
+    case "$line" in
+      ''|[[:space:]]*) [ -z "${line//[[:space:]]/}" ] && continue ;;
+    esac
+    first=$line
+    break
+  done <<< "$out"
+
+  # Leading whitespace trimmed before the match below: `CREATE*` does not match "  CREATE ...",
+  # so an indented first statement would be rejected as "not SQL". dotnet ef does not indent it
+  # today, which is exactly what makes that a latent false positive rather than a visible one.
+  first="${first#"${first%%[![:space:]]*}"}"
   case "$first" in
     CREATE*|ALTER*|COMMENT*|DROP*|--*|START*|DO\ *) ;;
     *)
