@@ -30,44 +30,47 @@ check=false
 mkdir -p "$(dirname "$target")"
 
 # stdout only: the tool writes a tools-version notice to stderr, which is not part of the schema.
-dotnet ef dbcontext script --project src/Anichron.Core --no-build 2>/dev/null > "$target"
-
-# ⛔ Regenerate-then-ask-git, rather than diffing against a temp file. Process substitution hands
-# diff a /dev/fd path that some sandboxes and container runtimes refuse, and a fixed temp path
-# collides between concurrent runs — both fail in ways that read as a broken script rather than
-# as drift. Regenerating in place needs neither, gives a real diff for free, and is the pattern
-# tbls and Rails' schema.rb checks both use.
-#
-# `status --porcelain` rather than `diff --quiet`: the latter reports no change for a file git
-# does not yet track, so a newly added schema would pass the gate silently.
-if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  printf '%s regenerated. (No git work tree — cannot report whether it changed.)\n' "$target"
-  exit 0
-fi
-
-changed=$(git status --porcelain -- "$target")
+derive() {
+  dotnet ef dbcontext script --project src/Anichron.Core --no-build 2>/dev/null
+}
 
 if [ "$check" = true ]; then
-  if [ -n "$changed" ]; then
+  # ⛔ --check must NOT write to $target. An earlier version regenerated in place and then asked
+  # git, which cannot see a hand-edited file at all: the regeneration overwrote the edit before
+  # git was consulted, so the gate reported "current" on a file it had just silently repaired.
+  #
+  # ⛔ The comparison file goes beside the target, not in /tmp and not through `<(...)`. Process
+  # substitution hands diff a /dev/fd path that some sandboxes and container runtimes refuse,
+  # and a fixed temp path collides between concurrent runs — both fail as "Operation not
+  # permitted", which reads like a broken script rather than like drift.
+  derived="$(dirname "$target")/.$(basename "$target").derived"
+  trap 'rm -f "$derived"' EXIT
+  derive > "$derived"
+
+  if ! drift=$(diff -u "$target" "$derived" 2>&1); then
     printf '%s is stale.\n\n' "$target" >&2
     # Show WHAT moved. A schema change is exactly the moment a reviewer wants the diff, and
     # making them re-run the command to see it is how a drift gate becomes something people
-    # switch off. `git diff` is empty for an untracked file, hence the fallback.
-    if git ls-files --error-unmatch "$target" >/dev/null 2>&1; then
-      git --no-pager diff -- "$target" >&2
-    else
-      printf '(%s is not tracked yet — commit it.)\n' "$target" >&2
-    fi
+    # switch off.
+    printf '%s\n' "$drift" >&2
     printf '\nRun scripts/derive-db-docs.sh and commit the result.\n' >&2
     exit 1
   fi
+
   printf '%s is current.\n' "$target"
   exit 0
 fi
 
+derive > "$target"
 printf '%s regenerated from the EF Core model.\n' "$target"
-if [ -z "$changed" ]; then
-  printf 'No change — the committed file already matched the model.\n'
-else
-  printf 'The file CHANGED. Review and commit it:\n  git add %s && git commit\n' "$target"
+
+# `git` may be absent, and this may run outside a work tree; neither is a failure of the
+# generator. `status --porcelain` rather than `diff --quiet`, because the latter reports no
+# change for a file git does not yet track — so the first run would misreport itself.
+if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if [ -z "$(git status --porcelain -- "$target")" ]; then
+    printf 'No change — the committed file already matched the model.\n'
+  else
+    printf 'The file CHANGED. Review and commit it:\n  git add %s && git commit\n' "$target"
+  fi
 fi

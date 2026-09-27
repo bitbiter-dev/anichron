@@ -56,7 +56,12 @@ echo "repair"
 
 out=$("$script" 2>&1)
 assert_eq "regenerating restores the file exactly" "$before" "$(cat "$doc")"
-assert_contains "and reports that it changed" 'CHANGED' "$out"
+
+# ⚠️ "No change", not "CHANGED" — and the distinction is the point. The generator reports
+# against GIT, not against whatever the working tree held a moment ago. Having just undone an
+# uncommitted edit, the file matches HEAD again, so there is genuinely nothing to commit. An
+# earlier revision asserted 'CHANGED' here and was simply wrong about what was being compared.
+assert_contains "and reports nothing to commit, since it now matches HEAD" 'No change' "$out"
 
 printf '\n'
 if [ "$failures" -eq 0 ]; then
