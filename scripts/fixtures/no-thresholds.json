@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "2",
+  "files": {
+    "Example.cs": {
+      "language": "cs",
+      "source": "class Example { }",
+      "mutants": [
+        { "id": "1", "status": "Killed" },
+        { "id": "2", "status": "Survived" }
+      ]
+    }
+  }
+}

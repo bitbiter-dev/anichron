@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "2",
+  "thresholds": { "low": 42 },
+  "files": {
+    "Example.cs": {
+      "language": "cs",
+      "source": "class Example { }",
+      "mutants": [
+        { "id": "1", "status": "Killed" },
+        { "id": "2", "status": "Survived" },
+        { "id": "3", "status": "Survived" },
+        { "id": "4", "status": "Survived" },
+        { "id": "5", "status": "Survived" },
+        { "id": "6", "status": "Survived" },
+        { "id": "7", "status": "Survived" },
+        { "id": "8", "status": "Survived" },
+        { "id": "9", "status": "Survived" },
+        { "id": "10", "status": "Survived" }
+      ]
+    }
+  }
+}
