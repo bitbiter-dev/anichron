@@ -41,6 +41,19 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the test SDK to any project matching that pattern: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
+### Mutation testing
+
+```bash
+dotnet tool restore
+cd src && dotnet stryker      # must run from src/, not the repo root
+```
+
+All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **One deliberate exception, and only one**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test. Anywhere else, a measurement-affecting flag is a bug.
+
+Threshold flags are a separate category and are *not* covered by that rule: `--break-at`, `--threshold-low` and `--threshold-high` change the **verdict**, not the measurement, so passing them does not make two runs incomparable. `ci.yml` passes all three, computed by `scripts/mutation-ratchet.sh` from the stored high-water mark. They are always passed **together** — Stryker validates `break <= low <= high` before mutating and exits `1` if it fails, which reads as a broken tool rather than a threshold event. Never raise one by hand without the others.
+
+**Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
+
 ## Architecture
 
 Four projects with strict separation of concerns:

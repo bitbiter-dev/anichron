@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2",
+  "thresholds": { "high": 80, "low": 42 },
+  "files": {
+    "Example.cs": {
+      "language": "cs",
+      "source": "class Example { }",
+      "mutants": [
+        { "id": "1", "status": "Ignored" },
+        { "id": "2", "status": "CompileError" }
+      ]
+    }
+  }
+}
