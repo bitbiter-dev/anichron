@@ -20,6 +20,11 @@ internal sealed partial class ProxyStagingWriter(
     // are recognisable by this suffix, both to an operator and to the orphan sweeper (#174).
     internal const string TemporaryFileSuffix = ".tmp";
 
+    // Naming a leftover and finding one are the same rule, so they live together: a consumer that
+    // hunts for staging artifacts — compensation here, the orphan sweeper in #174 — must never
+    // re-express how this writer names them.
+    internal const string TemporaryFileSearchPattern = "*" + TemporaryFileSuffix;
+
     internal static string TemporaryPathFor(string proxyAbsolutePath)
         => proxyAbsolutePath + TemporaryFileSuffix;
 

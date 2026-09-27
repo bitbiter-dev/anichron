@@ -76,8 +76,9 @@ internal sealed partial class IngestionPipelineRunner(
     {
         try
         {
-            var pattern = $"*{ProxyStagingWriter.TemporaryFileSuffix}";
-            foreach (var temporaryPath in fileSystem.Directory.EnumerateFiles(directory, pattern))
+            var temporaryFiles = fileSystem.Directory.EnumerateFiles(
+                directory, ProxyStagingWriter.TemporaryFileSearchPattern);
+            foreach (var temporaryPath in temporaryFiles)
                 TryDelete(temporaryPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
