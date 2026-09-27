@@ -58,9 +58,67 @@ jobs:
           scripts/mutation-report.test.sh
           scripts/publish-badges.test.sh
           scripts/assemble-pages.test.sh
+          scripts/mutation-ratchet.test.sh
 
       - name: Restore .NET tools
         run: dotnet tool restore
+
+      # Reads the ratchet's stored high-water mark from the badges branch and
+      # turns it into Stryker flags. See docs/mutation-testing.md, "The ratchet".
+      #
+      # `git show FETCH_HEAD:...` rather than a checkout: the work tree has to
+      # stay on the source branch, because scripts/ does not exist on badges.
+      #
+      # A missing branch, or a branch without the file, is the ordinary state
+      # before the first advance — and the state left behind when someone
+      # deletes the mark to reset the ratchet by hand. Neither may fail the
+      # build, which is why both are folded into "no mark" rather than checked
+      # apart. With no mark the script emits no flags and the committed
+      # stryker-config.json governs, satisfying the fallback criterion.
+      - name: Resolve the mutation gate
+        id: gate
+        run: |
+          mark="$RUNNER_TEMP/highwater.json"
+
+          # Mirrors publish-badges.sh: `ls-remote --exit-code` tells "no such
+          # branch" (2) apart from "cannot reach origin" (anything else).
+          # Folding those together is what would make a network blip look like
+          # a fresh ratchet — and a fresh ratchet seeds from the committed
+          # floor, which the advance step would then publish OVER the real
+          # stored mark. An unreachable origin must stop the run, not guess.
+          set +e
+          git ls-remote --exit-code --heads origin badges >/dev/null 2>&1
+          remote_state=$?
+          set -e
+
+          case "$remote_state" in
+            0)
+              git fetch --no-tags --quiet --depth=1 origin badges
+              if git show FETCH_HEAD:mutation-highwater.json > "$mark.tmp" 2>/dev/null; then
+                mv "$mark.tmp" "$mark"
+                printf 'stored high-water mark: %s%%\n' "$(jq -r '.mark' "$mark")"
+              else
+                rm -f "$mark.tmp"
+                mark=''
+                echo 'badges branch carries no high-water mark yet'
+              fi
+              ;;
+            2)
+              mark=''
+              echo 'no badges branch yet; the committed thresholds govern'
+              ;;
+            *)
+              echo 'cannot reach origin to read the high-water mark; refusing to guess' >&2
+              exit 1
+              ;;
+          esac
+
+          # One invocation, both arms: `thresholds <cfg> ""` and
+          # `thresholds <cfg>` are equivalent.
+          flags=$(scripts/mutation-ratchet.sh thresholds src/stryker-config.json "$mark")
+          printf 'gate flags: %s\n' "${flags:-<none, from stryker-config.json>}"
+          echo "flags=$flags" >> "$GITHUB_OUTPUT"
+          echo "mark=$mark" >> "$GITHUB_OUTPUT"
 
       # Deferred enforcement — see docs/mutation-testing.md. Must run before the
       # badge step, which switches the tree to the badges branch.
@@ -69,7 +127,13 @@ jobs:
         continue-on-error: true
         timeout-minutes: 20
         working-directory: src
-        run: dotnet stryker --output ../mutation
+        env:
+          # Via env rather than ${{ }} interpolated into the script, so the
+          # value cannot terminate the command it sits in.
+          GATE_FLAGS: ${{ steps.gate.outputs.flags }}
+        # $GATE_FLAGS is deliberately unquoted: it is a flag LIST that has to
+        # word-split, and it is empty whenever there is no stored mark.
+        run: dotnet stryker --output ../mutation $GATE_FLAGS
 
       - name: Publish mutation summary
         if: always()
@@ -107,6 +171,28 @@ jobs:
           scripts/mutation-report.sh badge mutation/reports/mutation-report.json > "$RUNNER_TEMP/mutation.json.tmp"
           mv "$RUNNER_TEMP/mutation.json.tmp" "$RUNNER_TEMP/mutation.json"
 
+      # Default-branch only, so an in-flight pull request cannot move the bar
+      # for every other open one. Pull requests still READ the mark above and
+      # are gated against it; they simply never reach this step.
+      #
+      # continue-on-error and always() for the same reason as the badge payload
+      # step: "the score did not beat the mark" is the common case, not a
+      # failure, and it must not skip the publish steps below. The script exits
+      # 3 to say so. It refuses outright on a sweep with pending mutants —
+      # recording a score from an interrupted run would raise the bar
+      # permanently on a measurement that never happened.
+      - name: Advance the high-water mark
+        if: always() && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        env:
+          MARK: ${{ steps.gate.outputs.mark }}
+        run: |
+          out="$RUNNER_TEMP/highwater-new.json"
+          scripts/mutation-ratchet.sh advance src/stryker-config.json \
+            mutation/reports/mutation-report.json "$MARK" > "$out.tmp"
+          mv "$out.tmp" "$out"
+          printf 'raising the high-water mark to %s%%\n' "$(jq -r '.mark' "$out")"
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v7
@@ -134,11 +220,16 @@ jobs:
       # Branch manipulation lives in a script so it can be tested against a
       # throwaway repo — see scripts/publish-badges.test.sh. It adds files to
       # the badges branch rather than rebuilding it, which is what keeps the
-      # mutation badge and, later, #183's stored high-water mark alive.
+      # mutation badge and the ratchet's stored high-water mark alive.
       - name: Update quality badges
         if: github.ref == 'refs/heads/master'
         env:
           MUTATION_BADGE: ${{ runner.temp }}/mutation.json
+          # Written only when the score actually beat the mark. When it did
+          # not, the path simply does not exist, and publish-badges.sh treats
+          # an absent payload as "leave the stored mark alone" — the same
+          # semantics as the badge, so no extra conditional is needed here.
+          HIGHWATER: ${{ runner.temp }}/highwater-new.json
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

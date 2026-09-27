@@ -20,17 +20,23 @@ dotnet stryker
 running it from the repository root fails with `No .csproj or .fsproj file found` even though the
 solution file parses correctly.
 
-No flags are needed and none should be added. Every value that affects the score lives in
-`src/stryker-config.json`, which is what makes a local run and the CI run comparable: CI passes
-nothing on the command line but the output location.
+No flags are needed locally and no **measurement-affecting** flag should be added. Every value that
+affects what gets measured lives in `src/stryker-config.json`, which is what makes a local run and
+the CI run comparable.
+
+CI does pass threshold flags — `--break-at`, `--threshold-low` and `--threshold-high`, computed
+from the stored high-water mark (see [The ratchet](#the-ratchet)). Those change the **verdict**,
+not the measurement, so the two runs remain comparable. Running `dotnet stryker` with no flags
+locally therefore measures the same thing CI does, but judges it against the committed floor rather
+than the current mark.
 
 > **Partly wired into CI.** The gate runs on every pull request and fails below the `break`
 > threshold (#180). The first hosted run has now been observed: it scored **46.58%**, the same
 > score the `42` threshold was calibrated against on a developer machine, so the headroom is
 > measured on both and not just locally
 > ([run 35577766467](https://github.com/bitbiter-dev/anichron/actions/runs/35577766467)). The
-> badge (#182), the published report (#181) and the weekly divergence check (#184) are all live.
-> The threshold ratchet (#183) is specified under #177 but not built.
+> badge (#182), the published report (#181), the weekly divergence check (#184) and the threshold
+> ratchet (#183) are all live.
 
 The run takes roughly one to one and a half minutes on a developer machine, with live progress as
 it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
@@ -76,8 +82,8 @@ do get skipped, since they need `Build & Test` to succeed.
 | --- | --- | --- |
 | `test-runner` | `mtp` | **Required.** See [ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md). |
 | `mutate` | excludes `Migrations/**` | See [ADR 0002](adr/0002-mutation-scope-excludes-generated-append-only-code.md). |
-| `thresholds.break` | `42`, against a measured 46.58% | Roughly five points of headroom. `low` is pinned equal to `break` because Stryker enforces `break <= low` and refuses to start otherwise. |
-| `thresholds.high` | `80` | Report colour-coding only; it gates nothing. |
+| `thresholds.break` | `42`, against a measured 46.58% | Roughly five points of headroom. `low` is pinned equal to `break` because Stryker enforces `break <= low` and refuses to start otherwise. Since the ratchet landed this is the **floor**, not the live gate — see [The ratchet](#the-ratchet). |
+| `thresholds.high` | `80` | Report colour-coding; it gates nothing directly, but the ratchet raises it when the gate would otherwise overtake it. |
 | `concurrency` | *unset* | Left at Stryker's default (half the logical processors). Pinning it above the default oversubscribes CI, and timeouts count as *detected*, so that inflates the score. |
 
 > **Do not change `test-runner` back to Stryker's default (`vstest`).** It cannot observe xUnit v3
@@ -161,7 +167,7 @@ MUTATION_BADGE=/path/to/mutation.json scripts/publish-badges.sh coverage/report/
 
 It **adds** to the branch rather than rebuilding it. The earlier inline version cleared the branch
 on every run, which was harmless while `coverage.svg` was the only artifact but would have deleted
-the mutation badge — and, once #183 lands, the ratchet's stored high-water mark.
+the mutation badge and the ratchet's stored high-water mark.
 
 The payload is **validated, not just existence-checked**: an absent, empty, truncated, or
 non-conforming `MUTATION_BADGE` leaves any existing `mutation.json` untouched. That matters because
@@ -260,6 +266,7 @@ run once.
 scripts/mutation-report.test.sh
 scripts/publish-badges.test.sh
 scripts/assemble-pages.test.sh
+scripts/mutation-ratchet.test.sh
 ```
 
 `mutation-report.test.sh` covers `badge`, `compare` and `tally`. The `tally` cases matter to the
@@ -268,7 +275,14 @@ the percentage, and `badge` is built **on top of** `tally` rather than beside it
 summary cannot disagree with the badge about either number, and a run with pending mutants is
 refused on that path too rather than reporting a score that reads better than reality.
 
-All three run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
+`mutation-ratchet.test.sh` covers the threshold arithmetic against fixtures rather than against a
+real sweep, because the cases worth pinning are the ones a real sweep will not reach for months: a
+mark whose derived gate falls below the committed floor, and a mark high enough that the derived
+`low` would overtake `threshold-high`. Both are asserted as *values*, and the `break <= low <= high`
+chain is asserted directly, since that inequality is what Stryker rejects before it mutates
+anything.
+
+All four run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
 run, if the build, tests, coverage or formatting steps have already failed.
 
 They are deliberately *not* isolated into their own job, even though `publish-badges.test.sh`
@@ -294,6 +308,123 @@ tiny and hand-written rather than real reports — a real one embeds the full so
 file and runs to megabytes. `divergent-a.json` and `divergent-b.json` both hold ten mutants with
 `Killed + Survived = 10` and differ only in the split (8/2 versus 5/5), reproducing the upstream
 defect's signature so the comparison is tested against the thing it exists to catch.
+
+## The ratchet
+
+The gate is not the number in `stryker-config.json`. It is derived on every run from a **high-water
+mark** stored on the `badges` branch as `mutation-highwater.json`, by `scripts/mutation-ratchet.sh`:
+
+```bash
+# what CI passes to Stryker, given a stored mark
+scripts/mutation-ratchet.sh thresholds src/stryker-config.json mark.json
+#   --break-at 57 --threshold-low 57 --threshold-high 80
+
+# the new mark, if this report beat the stored one; exit 3 if it did not
+scripts/mutation-ratchet.sh advance src/stryker-config.json report.json mark.json
+```
+
+A default-branch build that scores above the mark raises it. A pull-request build reads the mark and
+is gated against it but never raises it — otherwise one branch in flight would move the bar for
+every other open pull request.
+
+The mark lives on the badges branch rather than in the source tree so that raising it never requires
+CI to commit to the default branch or edit a tracked configuration file.
+
+### Why the gate is not simply `mark - 5`
+
+Two things the arithmetic has to survive, neither of them obvious from the rule:
+
+**The static threshold is a floor, not a starting point.** The first real mark is 46.58, and
+46.58 − 5 floors to 41 — *below* the committed `break` of 42. Applied literally, the ratchet's first
+advance would have **lowered** the gate. The derived value is therefore
+`max(committed break, floor(mark - 5))`, so the bar can only ever move up.
+
+**`high` has to rise too.** Stryker validates `break <= low <= high` *before* it mutates anything,
+and exits `1` when that fails — which reads as a broken tool, not a threshold event. The familiar
+half of that constraint is `break <= low`, which is why the two are always emitted as the same
+number. The other half bites later and harder: with `high` at 80, a mark of 88 derives a `low` of 83
+and Stryker refuses to start:
+
+```
+Threshold high must be higher than or equal to threshold low. Current high: 80, low: 83.
+```
+
+So `high` is raised to match whenever the gate would overtake it, and never lowered below its
+configured value.
+
+### When there is no mark — and when there is a broken one
+
+`thresholds` treats "no mark" and "unreadable mark" alike: **no flags are emitted and
+`stryker-config.json` governs**. A corrupt mark is reported on stderr; an absent one is not, because
+absent is the normal state before the first advance and after a deliberate reset.
+
+Emitting nothing is the point. The fallback does not re-state the static numbers, so there is
+exactly one place the committed thresholds are written down and the script cannot drift from it.
+It also means a bad file on an orphan branch degrades the gate to the committed floor rather than
+wedging every merge — and no threshold is ever emitted below its own committed value.
+
+**`advance` must not treat them alike, and does not.** Seeding from the committed floor is harmless
+when there is genuinely no mark — it is how the first build records a real score. On a mark that
+exists but cannot be read it is destructive: the emitted mark is force-pushed over the stored one,
+so a single corrupt byte plus one default-branch build would rewrite a mark of 88 down to whatever
+that build scored. `advance` exits `4` and writes nothing in that case. The only cost is that the
+mark does not move until someone looks at the file.
+
+Three independent guards keep the mark monotonic, because the consequence is irreversible and the
+branch is force-pushed:
+
+| Guard | Where | Catches |
+| --- | --- | --- |
+| Refuses to emit a lower mark | `mutation-ratchet.sh advance` | the ordinary case — this build scored less |
+| Refuses to seed over an unreadable mark | `mutation-ratchet.sh advance` | corruption, a botched hand-edit |
+| Refuses to publish a mark below the stored one | `publish-badges.sh` | anything that made the *read* come back empty |
+
+The third exists because the first two can only reason about the mark they were **handed**, and CI
+has to fetch that from the badges branch. If that read fails — an unreachable origin, a renamed
+branch — a seeded advance arrives at the publisher looking perfectly valid. The publisher is the
+last writer before the force-push and the only place that sees both numbers at once. CI also
+refuses to guess: an origin it cannot reach fails the gate step rather than being read as "no mark".
+
+An interrupted sweep cannot advance the mark either: `advance` goes through
+`mutation-report.sh tally`, so the pending-mutant guard applies. Recording a score from a run that
+did not finish would raise the bar permanently on a measurement that never happened.
+
+### ⚠️ Lowering the mark by hand
+
+Sometimes the mark should come down — a refactor that deletes well-tested code lowers the score
+without lowering quality. There is no automatic path for this, by design.
+
+**The badges branch is force-pushed by CI on every default-branch build.** Editing it is safe only
+because CI *adds* files rather than rebuilding the branch; a push of your own that races a CI run
+will be overwritten. Do it when no default-branch build is in flight, and check afterwards.
+
+```bash
+git fetch origin badges
+git checkout badges
+
+# lower it, or delete the file entirely to reset the ratchet to the committed floor
+jq '.mark = 44' mutation-highwater.json > tmp && mv tmp mutation-highwater.json
+
+git commit -am 'chore: lower the mutation high-water mark after <reason>'
+git push origin badges
+git checkout -        # do not leave the tree on badges; scripts/ does not exist there
+```
+
+Deleting `mutation-highwater.json` is the full reset: the next run falls back to
+`stryker-config.json` and the next default-branch build above that floor sets a fresh mark.
+
+Two things to know before editing by hand:
+
+- **Delete the file rather than leaving it broken.** A file whose `.mark` is not a number is not
+  treated as "no mark" — `advance` exits `4` and refuses to touch it, deliberately, so that
+  corruption cannot quietly reset the ratchet. That is a stuck ratchet until someone fixes it,
+  which is the intended trade.
+- **Lowering it by hand works; lowering it from CI does not.** `publish-badges.sh` refuses to
+  publish a mark below the one on the branch. Your edit is a direct commit to `badges` and is not
+  subject to that guard — which is exactly why lowering is a manual act.
+
+Record *why* in the commit message. The mark is a number nobody chose deliberately — that is the
+accepted cost of a ratchet, and the commit log is the only place the reasoning survives.
 
 ## The weekly divergence check
 
@@ -356,9 +487,11 @@ mean the build is broken — nothing merges differently because of it — so the
 investigate the measurement, not to rerun until it goes green.
 
 ⚠️ Note the job passes `--concurrency`, which is the one place in this repo that passes a
-score-affecting flag to Stryker. Everywhere else the rule is that every value affecting the score
-lives in `src/stryker-config.json`, so a local run and the CI run stay comparable. Here concurrency
-is the variable under test, so it has to come from the command line.
+**measurement-affecting** flag to Stryker. Everywhere else the rule is that every value affecting
+what gets measured lives in `src/stryker-config.json`, so a local run and the CI run stay
+comparable. Here concurrency is the variable under test, so it has to come from the command line.
+The ratchet's threshold flags are a separate category — they change the verdict, not the
+measurement; see [The ratchet](#the-ratchet).
 
 ## Known weak spots
 
