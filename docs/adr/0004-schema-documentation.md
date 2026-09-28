@@ -1,6 +1,6 @@
 # Schema documentation is generated, and its rationale lives in the schema
 
-Status: accepted — implemented, except the ER-diagram job
+Status: accepted — implemented
 
 We document the database in three layers, none of them hand-written prose about columns:
 
