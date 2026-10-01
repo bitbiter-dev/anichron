@@ -2,6 +2,7 @@ using Anichron.API.Services;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using NSubstitute.ExceptionExtensions;
 
 namespace Anichron.API.Tests.Unit.Services;
 
@@ -16,7 +17,44 @@ public sealed class AdminUserServiceTests
         public ITokenService TokenService { get; } = Substitute.For<ITokenService>();
         private readonly IClock _clock = Substitute.For<IClock>();
 
-        public TestFixture() => _clock.GetCurrentInstant().Returns(FixedNow);
+        // Record whether each write ran *while the transaction lambda was executing*, not merely
+        // that a transaction was opened somewhere: `Received().ExecuteInTransactionAsync(...)`
+        // alone would also pass on code that opened a transaction and wrote outside it.
+        public bool RevokedInsideTransaction { get; private set; }
+        public bool SavedInsideTransaction { get; private set; }
+        private bool insideTransaction;
+
+        public TestFixture()
+        {
+            _clock.GetCurrentInstant().Returns(FixedNow);
+
+            // The non-generic Func<Task> overload — the one AdminUserService uses. NSubstitute
+            // stubs per overload, so stubbing Func<Task<T>> here would leave the lambda
+            // silently un-invoked.
+            UnitOfWork
+                .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
+                .Returns(async callInfo =>
+                {
+                    insideTransaction = true;
+                    try
+                    {
+                        await callInfo.Arg<Func<Task>>()();
+                    }
+                    finally
+                    {
+                        insideTransaction = false;
+                    }
+                });
+
+            TokenService
+                .When(t => t.MarkAllSessionsRevokedAsync(
+                    Arg.Any<Guid>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
+                .Do(_ => RevokedInsideTransaction = insideTransaction);
+
+            UnitOfWork
+                .When(u => u.SaveChangesAsync(Arg.Any<CancellationToken>()))
+                .Do(_ => SavedInsideTransaction = insideTransaction);
+        }
 
         public AdminUserService CreateTestee() => new(Users, UnitOfWork, _clock, TokenService);
     }
@@ -82,6 +120,8 @@ public sealed class AdminUserServiceTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().BeSameAs(user);
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        // Nothing is written, so opening a transaction would be cost without purpose.
+        await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -109,6 +149,7 @@ public sealed class AdminUserServiceTests
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Be(AuthError.UserNotFound);
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -136,6 +177,11 @@ public sealed class AdminUserServiceTests
 
         await fixture.TokenService.Received(1).MarkAllSessionsRevokedAsync(user.Id, FixedNow, Arg.Any<CancellationToken>());
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.Received(1).ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
+        fixture.RevokedInsideTransaction.Should().BeTrue(
+            "revoking sessions outside the transaction cannot be rolled back when the save fails");
+        fixture.SavedInsideTransaction.Should().BeTrue(
+            "the user mutation must commit atomically with the revocation");
     }
 
     [Fact]
@@ -195,6 +241,7 @@ public sealed class AdminUserServiceTests
         result.Error.Should().Be(AuthError.UserNotFound);
         fixture.Users.DidNotReceive().Remove(Arg.Any<User>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -210,5 +257,40 @@ public sealed class AdminUserServiceTests
         await fixture.TokenService.Received(1).MarkAllSessionsRevokedAsync(user.Id, FixedNow, Arg.Any<CancellationToken>());
         fixture.Users.Received(1).Remove(user);
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.Received(1).ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
+        fixture.RevokedInsideTransaction.Should().BeTrue();
+        fixture.SavedInsideTransaction.Should().BeTrue();
+    }
+
+    // ==========================================================================
+    // Transactional integrity — issue #172
+    //
+    // Revoking sessions uses ExecuteUpdateAsync, which bypasses the change tracker and issues
+    // SQL immediately. Untransacted, a failing SaveChangesAsync therefore leaves the sessions
+    // revoked and the user mutation lost: an admin "disables" an account, the save fails, and
+    // the account is still enabled while its sessions are gone.
+    // ==========================================================================
+
+    [Fact]
+    public async Task UpdateAsync_SaveThrows_TheRevocationRanInsideTheFailedTransaction()
+    {
+        var fixture = new TestFixture();
+        var user = new User { Id = Guid.NewGuid(), IsDisabled = false, StorageConfigs = [] };
+        fixture.Users.FindByIdWithConfigsAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        fixture.UnitOfWork
+            .SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("constraint violation"));
+
+        var act = async () => await fixture.CreateTestee()
+            .UpdateAsync(Guid.NewGuid(), user.Id, isAdmin: null, isDisabled: true, CancellationToken.None);
+
+        // The throw propagating is not the interesting part — it did that before the fix too.
+        // What matters is that BOTH writes sat inside the transaction that failed, so the
+        // rollback covers them.
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.RevokedInsideTransaction.Should().BeTrue(
+            "otherwise the sessions stay revoked while the user mutation is lost — the #172 defect");
+        fixture.SavedInsideTransaction.Should().BeTrue(
+            "the save that failed must itself have been inside the transaction");
     }
 }

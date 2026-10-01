@@ -43,10 +43,17 @@ public sealed class AdminUserService(
         if (isDisabled.HasValue)
             user.IsDisabled = isDisabled.Value;
 
-        if (shouldRevokeSessions)
-            await tokenService.MarkAllSessionsRevokedAsync(targetId, clock.GetCurrentInstant(), ct);
+        // Both writes, or neither: revocation goes through ExecuteUpdateAsync, which bypasses the
+        // change tracker and commits immediately, so untransacted a failing save would leave the
+        // sessions revoked and the user mutation lost.
+        await unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            if (shouldRevokeSessions)
+                await tokenService.MarkAllSessionsRevokedAsync(targetId, clock.GetCurrentInstant(), ct);
 
-        await unitOfWork.SaveChangesAsync(ct);
+            await unitOfWork.SaveChangesAsync(ct);
+        }, ct);
+
         return AuthResult.Ok(user);
     }
 
@@ -59,9 +66,15 @@ public sealed class AdminUserService(
         if (user is null)
             return AuthResult.Fail(AuthError.UserNotFound);
 
-        await tokenService.MarkAllSessionsRevokedAsync(targetId, clock.GetCurrentInstant(), ct);
+        // Same revoke-then-save pairing as UpdateAsync, transacted for the same reason — here the
+        // loss would be a user whose sessions are all revoked but whose row was never deleted.
         users.Remove(user);
-        await unitOfWork.SaveChangesAsync(ct);
+        await unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await tokenService.MarkAllSessionsRevokedAsync(targetId, clock.GetCurrentInstant(), ct);
+            await unitOfWork.SaveChangesAsync(ct);
+        }, ct);
+
         return AuthResult.Ok();
     }
 }
