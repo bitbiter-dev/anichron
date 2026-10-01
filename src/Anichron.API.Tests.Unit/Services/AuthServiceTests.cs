@@ -18,7 +18,7 @@ public sealed class AuthServiceTests
         private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
         private readonly IClock _clock = Substitute.For<IClock>();
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
-        private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
+        internal readonly IPasswordHasher PasswordHasher = Substitute.For<IPasswordHasher>();
         private readonly IRegistrationValidator _validator = Substitute.For<IRegistrationValidator>();
         internal readonly ILockoutService Lockout = Substitute.For<ILockoutService>();
 
@@ -27,7 +27,7 @@ public sealed class AuthServiceTests
         public TestFixture()
         {
             _guidFactory.NewGuid().Returns(Guid.Empty);
-            _passwordHasher.Hash(Arg.Any<string>()).Returns("hashed_value");
+            PasswordHasher.Hash(Arg.Any<string>()).Returns("hashed_value");
             _clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 1, 1, 12, 0, 0));
             TokenService.IssueAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
                 .Returns(new AuthTokens("access_token", "refresh_token"));
@@ -58,7 +58,7 @@ public sealed class AuthServiceTests
 
         public TestFixture WithPasswordValid()
         {
-            _passwordHasher.Verify(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+            PasswordHasher.Verify(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
             return this;
         }
 
@@ -148,7 +148,7 @@ public sealed class AuthServiceTests
         }
 
         public AuthService CreateTestee() => new(
-            Users, _invites, _unitOfWork, _clock, _guidFactory, _passwordHasher, _validator, TokenService, Lockout);
+            Users, _invites, _unitOfWork, _clock, _guidFactory, PasswordHasher, _validator, TokenService, Lockout);
     }
 
     // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
@@ -463,6 +463,22 @@ public sealed class AuthServiceTests
             result.IsSuccess.Should().BeFalse();
             result.Error.Should().Be(AuthError.InvalidCredentials);
         });
+    }
+
+    // Issue #173: the equal-work guarantee now lives in the hasher, which spends a full Argon2
+    // pass on a null hash. This pins the call site's half of that bargain — it must hand the
+    // hasher a null rather than short-circuiting, and must not resurrect a precomputed dummy
+    // hash (the old field initializer cost 64 MiB on *every* request that resolved IAuthService,
+    // including ones that never logged anyone in).
+    [Fact]
+    public async Task LoginAsync_UnknownUser_VerifiesAgainstANullHashExactlyOnce()
+    {
+        var fixture = new TestFixture();
+
+        await fixture.CreateTestee().LoginAsync("ghost", "password", CancellationToken.None);
+
+        fixture.PasswordHasher.Received(1).Verify("password", null);
+        fixture.PasswordHasher.DidNotReceive().Hash(Arg.Any<string>());
     }
 
     [Fact]

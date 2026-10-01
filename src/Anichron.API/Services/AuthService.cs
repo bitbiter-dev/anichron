@@ -62,8 +62,6 @@ public sealed class AuthService(
     ILockoutService lockout)
     : IAuthService
 {
-    private readonly string dummyPasswordHash = passwordHasher.Hash(guidFactory.NewGuid().ToString());
-
     public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(username);
@@ -130,8 +128,16 @@ public sealed class AuthService(
         var normalized = usernameOrEmail.Trim().ToLowerInvariant();
         var user = await users.FindByCredentialAsync(normalized, ct);
 
-        // Prevent timing attack: Use dummy hash for non-existing accounts
-        var passwordValid = passwordHasher.Verify(password, user?.PasswordHash ?? dummyPasswordHash);
+        // A null hash means "no such account", and the hasher spends a full Argon2 pass on it
+        // rather than short-circuiting. That removes the hashing asymmetry; this call site's only
+        // job is not to defeat it by branching before the call.
+        //
+        // ⚠️ It does NOT make login constant-time end to end, and this comment deliberately does
+        // not claim that. A known user with a wrong password goes on to
+        // RecordFailedAttemptAsync below, which is a database write an unknown user never makes —
+        // milliseconds, far more than the hashing difference this removes. Username enumeration
+        // by timing is therefore still possible. Tracked separately; see the note on that call.
+        var passwordValid = passwordHasher.Verify(password, user?.PasswordHash);
 
         var now = clock.GetCurrentInstant();
 
