@@ -190,7 +190,8 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IFileSystem, FileSystem>();
             services.AddHealthChecks()
                     .AddDbContextCheck<AnichronDbContext>("database")
-                    .AddCheck<ProxyStorageHealthCheck>("proxyStorage");
+                    .AddCheck<ProxyStorageHealthCheck>("proxyStorage")
+                    .AddCheck<OriginalsStorageHealthCheck>("originalsStorage");
             return services;
         }
     }
