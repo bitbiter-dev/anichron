@@ -72,6 +72,10 @@ internal static class AppDefaults
     internal static class Storage
     {
         internal const string ProxyPath = "/data/proxies";
+
+        // The NAS mount. Mounted :ro by both the API and the Worker — the API serves originals
+        // on demand, the Worker reads them for ingestion, and neither ever writes them.
+        internal const string OriginalsPath = "/data/originals";
     }
 
     internal static class Startup
