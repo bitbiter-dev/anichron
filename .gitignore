@@ -450,3 +450,6 @@ src/Anichron.API/configuration/
 
 # Stryker.NET mutation testing reports
 StrykerOutput/
+
+# Six Labors licence key (credential)
+sixlabors.lic
