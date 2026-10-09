@@ -428,3 +428,5 @@ jobs:
           cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.repo }}:edge
           cache-to: type=inline
           provenance: false
+          secrets: |
+            sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}

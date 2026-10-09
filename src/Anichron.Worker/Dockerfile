@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # 1. Final Runtime Stage
 FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS base
 WORKDIR /app
@@ -36,12 +37,14 @@ COPY ["Anichron.Infrastructure/packages.lock.json", "Anichron.Infrastructure/"]
 RUN dotnet restore "./Anichron.Worker/Anichron.Worker.csproj"
 COPY . .
 WORKDIR "/src/Anichron.Worker"
-RUN dotnet build "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN --mount=type=secret,id=sixlabors_license,env=SixLaborsLicenseKey \
+    dotnet build "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # 3. Publish Stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN --mount=type=secret,id=sixlabors_license,env=SixLaborsLicenseKey \
+    dotnet publish "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 # 4. Final Stage
 FROM base AS final
