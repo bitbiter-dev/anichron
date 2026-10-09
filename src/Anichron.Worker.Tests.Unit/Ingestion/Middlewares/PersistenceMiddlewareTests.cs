@@ -30,7 +30,7 @@ public sealed class PersistenceMiddlewareTests
             {
                 ["/abs/photo.jpg"] = new MockFileData([])
                 {
-                    LastWriteTime = new DateTimeOffset(2023, 6, 15, 12, 0, 0, TimeSpan.Zero),
+                    LastWriteTime = new DateTimeOffset(new DateTime(2023, 6, 15, 12, 0, 0, DateTimeKind.Local)),
                 },
             });
         }

@@ -28,6 +28,11 @@
     <NuGetAuditLevel>moderate</NuGetAuditLevel>
     <NuGetAuditMode>all</NuGetAuditMode>
   </PropertyGroup>
+
+  <PropertyGroup Label="Six Labors licence"
+                 Condition="'$(SixLaborsLicenseKey)' == '' and Exists('$(MSBuildThisFileDirectory)../sixlabors.lic')">
+    <SixLaborsLicenseFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../sixlabors.lic'))</SixLaborsLicenseFile>
+  </PropertyGroup>
   
   <PropertyGroup Label="Project Properties Evaluation">
     <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">True</IsTestProject>
