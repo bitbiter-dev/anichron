@@ -125,6 +125,11 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IRegistrationValidator, RegistrationValidator>();
             services.AddScoped<ILockoutService, LockoutService>();
+            services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<ILoginResponseFloor>(sp => new LoginResponseFloor(
+                sp.GetRequiredService<TimeProvider>(),
+                TimeSpan.FromMilliseconds(configuration.GetValue(
+                    "Login:FailureFloorMilliseconds", AppDefaults.Login.FailureFloorMilliseconds))));
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddTransient<IBootstrapSeeder, BootstrapSeeder>();
