@@ -61,6 +61,11 @@ internal static class AppDefaults
         }
     }
 
+    internal static class Login
+    {
+        internal const int FailureFloorMilliseconds = 1_000;
+    }
+
     internal static class Lockout
     {
         internal const int AllowedAttempts = 3;

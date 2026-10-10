@@ -59,7 +59,8 @@ public sealed class AuthService(
     IPasswordHasher passwordHasher,
     IRegistrationValidator validator,
     ITokenService tokenService,
-    ILockoutService lockout)
+    ILockoutService lockout,
+    ILoginResponseFloor responseFloor)
     : IAuthService
 {
     public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct)
@@ -125,18 +126,22 @@ public sealed class AuthService(
         ArgumentNullException.ThrowIfNull(usernameOrEmail);
         ArgumentNullException.ThrowIfNull(password);
 
+        var startedAt = responseFloor.Start();
+        var result = await AuthenticateAsync(usernameOrEmail, password, ct);
+        if (!result.IsSuccess)
+            await responseFloor.PadAsync(startedAt, ct);
+
+        return result;
+    }
+
+    private async Task<AuthResult<AuthTokens>> AuthenticateAsync(string usernameOrEmail, string password, CancellationToken ct)
+    {
         var normalized = usernameOrEmail.Trim().ToLowerInvariant();
         var user = await users.FindByCredentialAsync(normalized, ct);
 
         // A null hash means "no such account", and the hasher spends a full Argon2 pass on it
         // rather than short-circuiting. That removes the hashing asymmetry; this call site's only
         // job is not to defeat it by branching before the call.
-        //
-        // ⚠️ It does NOT make login constant-time end to end, and this comment deliberately does
-        // not claim that. A known user with a wrong password goes on to
-        // RecordFailedAttemptAsync below, which is a database write an unknown user never makes —
-        // milliseconds, far more than the hashing difference this removes. Username enumeration
-        // by timing is therefore still possible. Tracked separately; see the note on that call.
         var passwordValid = passwordHasher.Verify(password, user?.PasswordHash);
 
         var now = clock.GetCurrentInstant();

@@ -23,6 +23,7 @@ public sealed class AuthServiceTests
         internal readonly ILockoutService Lockout = Substitute.For<ILockoutService>();
 
         internal readonly ITokenService TokenService = Substitute.For<ITokenService>();
+        internal readonly ILoginResponseFloor ResponseFloor = Substitute.For<ILoginResponseFloor>();
 
         public TestFixture()
         {
@@ -148,7 +149,7 @@ public sealed class AuthServiceTests
         }
 
         public AuthService CreateTestee() => new(
-            Users, _invites, _unitOfWork, _clock, _guidFactory, PasswordHasher, _validator, TokenService, Lockout);
+            Users, _invites, _unitOfWork, _clock, _guidFactory, PasswordHasher, _validator, TokenService, Lockout, ResponseFloor);
     }
 
     // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
@@ -600,6 +601,74 @@ public sealed class AuthServiceTests
             result.IsSuccess.Should().BeTrue();
             fixture.Lockout.Received(1).PrepareReset(user);
         });
+    }
+
+    [Fact]
+    public async Task LoginAsync_UnknownUser_PadsToTheFloorFromTheStartOfTheRequest()
+    {
+        var fixture = new TestFixture();
+        fixture.ResponseFloor.Start().Returns(42L);
+
+        await fixture.CreateTestee().LoginAsync("ghost", "password", CancellationToken.None);
+
+        Received.InOrder(() =>
+        {
+            fixture.ResponseFloor.Start();
+            _ = fixture.Users.FindByCredentialAsync("ghost", Arg.Any<CancellationToken>());
+            _ = fixture.ResponseFloor.PadAsync(42L, Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task LoginAsync_WrongPassword_PadsAfterRecordingTheFailedAttempt()
+    {
+        var user = new User { PasswordHash = "hashed_value" };
+        var fixture = new TestFixture().WithUser(user);
+        fixture.ResponseFloor.Start().Returns(42L);
+
+        await fixture.CreateTestee().LoginAsync("alice", "wrong", CancellationToken.None);
+
+        Received.InOrder(() =>
+        {
+            fixture.ResponseFloor.Start();
+            _ = fixture.Users.FindByCredentialAsync("alice", Arg.Any<CancellationToken>());
+            _ = fixture.Lockout.RecordFailedAttemptAsync(user, Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+            _ = fixture.ResponseFloor.PadAsync(42L, Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task LoginAsync_WrongPasswordDuringActiveLockout_PadsToTheFloor()
+    {
+        var user = new User { PasswordHash = "hashed_value" };
+        var fixture = new TestFixture().WithUser(user).WithLockedOut();
+
+        await fixture.CreateTestee().LoginAsync("alice", "wrong", CancellationToken.None);
+
+        await fixture.ResponseFloor.Received(1).PadAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoginAsync_AccountDisabled_PadsToTheFloor()
+    {
+        var user = new User { PasswordHash = "hashed_value", IsDisabled = true };
+        var fixture = new TestFixture().WithPasswordValid().WithUser(user);
+
+        await fixture.CreateTestee().LoginAsync("alice", "password", CancellationToken.None);
+
+        await fixture.ResponseFloor.Received(1).PadAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoginAsync_ValidCredentials_DoesNotPad()
+    {
+        var user = new User { PasswordHash = "hashed_value" };
+        var fixture = new TestFixture().WithPasswordValid().WithUser(user);
+
+        var result = await fixture.CreateTestee().LoginAsync("alice", "password", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        await fixture.ResponseFloor.DidNotReceive().PadAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
