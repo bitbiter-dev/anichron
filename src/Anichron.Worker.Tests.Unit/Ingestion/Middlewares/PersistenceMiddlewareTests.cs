@@ -298,6 +298,29 @@ public sealed class PersistenceMiddlewareTests
         movAsset!.Id.Should().Be(expectedId);
     }
 
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairWithMovAlreadyPersisted_PairsHeicToExistingMovAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+        var existingMov = new MediaAsset { Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), ContentHash = "cafebabe" };
+        fx.Repository.FindByHashAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>())
+            .Returns(existingMov);
+        var nextCalled = false;
+
+        await fx.Build().InvokeAsync(context, (_, _) =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+
+        fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
+        fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(a => a.Id == context.AssetId));
+        context.Asset!.PairedAssetId.Should().Be(existingMov.Id);
+        nextCalled.Should().BeTrue();
+    }
+
     // ==========================================================================
     // InvokeAsync — unique violations
     // ==========================================================================

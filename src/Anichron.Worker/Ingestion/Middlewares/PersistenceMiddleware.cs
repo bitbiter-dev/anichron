@@ -28,9 +28,18 @@ internal sealed partial class PersistenceMiddleware(
         if (context.Item.SecondaryFile is { } secondary)
         {
             // Ordering guarantees ContentHashingMiddleware ran first and set SecondaryHash; suppression is safe.
-            var secondaryAsset = BuildSecondaryAsset(secondary, context.SecondaryHash!, context);
-            asset.PairedAssetId = secondaryAsset.Id;
-            repository.Add(secondaryAsset);
+            var secondaryHash = context.SecondaryHash!;
+            var existingSecondary = await repository.FindByHashAsync(secondaryHash, context.Config.Id, ct);
+            if (existingSecondary is not null)
+            {
+                asset.PairedAssetId = existingSecondary.Id;
+            }
+            else
+            {
+                var secondaryAsset = BuildSecondaryAsset(secondary, secondaryHash, context);
+                asset.PairedAssetId = secondaryAsset.Id;
+                repository.Add(secondaryAsset);
+            }
         }
 
         repository.Add(asset);
