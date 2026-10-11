@@ -44,6 +44,9 @@ services:
       - Jwt__Audience=anichron
       # Uncomment and set to your UI's origin if not using a reverse proxy:
       # - CORS__ALLOWED_ORIGINS=http://localhost:3000
+      # Behind a reverse proxy: trust its address so X-Forwarded-For is honoured (comma-separated):
+      # - FORWARDEDHEADERS__KNOWNPROXIES=172.18.0.10
+      # - FORWARDEDHEADERS__KNOWNNETWORKS=172.18.0.0/16
     volumes:
       - /path/to/your/nas:/data/originals:ro
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:ro

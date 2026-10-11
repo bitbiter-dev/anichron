@@ -6,7 +6,7 @@ builder.AddAppConfiguration();
 builder.Services
     .AddOpenApi()
     .AddDatabase(builder.Configuration)
-    .AddForwardedHeadersSupport()
+    .AddForwardedHeadersSupport(builder.Configuration)
     .AddAuthServices(builder.Configuration)
     .AddAuthorizationPolicies()
     .AddRateLimiting()

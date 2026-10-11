@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IO.Abstractions;
+using System.Net;
 using System.Text;
 using System.Threading.RateLimiting;
 using static System.Globalization.CultureInfo;
@@ -27,15 +28,19 @@ public static class ServiceCollectionExtensions
                 options.UseNpgsql(connectionString, o => o.UseNodaTime()));
         }
 
-        public IServiceCollection AddForwardedHeadersSupport()
+        public IServiceCollection AddForwardedHeadersSupport(IConfiguration configuration)
         {
+            var knownProxies = ParseList(configuration["ForwardedHeaders:KnownProxies"], IPAddress.Parse);
+            var knownNetworks = ParseList(configuration["ForwardedHeaders:KnownNetworks"], System.Net.IPNetwork.Parse);
+
             return services.Configure<ForwardedHeadersOptions>(options =>
             {
                 options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-                // Clearing defaults ensures the Docker Compose gateway is trusted without
-                // listing its IP explicitly, while blocking header injection from the internet.
-                options.KnownIPNetworks.Clear();
-                options.KnownProxies.Clear();
+                options.ForwardLimit = 1;
+                foreach (var proxy in knownProxies)
+                    options.KnownProxies.Add(proxy);
+                foreach (var network in knownNetworks)
+                    options.KnownIPNetworks.Add(network);
             });
         }
 
@@ -200,4 +205,9 @@ public static class ServiceCollectionExtensions
             return services;
         }
     }
+
+    private static List<T> ParseList<T>(string? value, Func<string, T> parse)
+        => [.. (value ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(parse)];
 }
