@@ -60,7 +60,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
     // ==========================================================================
 
     [Fact]
-    public void AddIngestionServices_RegistersSevenMiddlewares_AsScoped()
+    public void AddIngestionServices_RegistersEightMiddlewares_AsScoped()
     {
         var services = new ServiceCollection();
 
@@ -69,7 +69,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
         services.Count(d =>
             d.ServiceType == typeof(IIngestionMiddleware) &&
             d.Lifetime == ServiceLifetime.Scoped)
-        .Should().Be(7);
+        .Should().Be(8);
     }
 
     [Fact]

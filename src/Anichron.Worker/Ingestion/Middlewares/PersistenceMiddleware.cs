@@ -1,4 +1,3 @@
-using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
@@ -15,7 +14,7 @@ internal sealed partial class PersistenceMiddleware(
     IUnitOfWork unitOfWork,
     IFileSystem fileSystem,
     IClock clock,
-    IGuidFactory guidFactory,
+    PairedMovResolver pairedMovResolver,
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Persistence;
@@ -28,18 +27,8 @@ internal sealed partial class PersistenceMiddleware(
         if (context.Item.SecondaryFile is { } secondary)
         {
             // Ordering guarantees ContentHashingMiddleware ran first and set SecondaryHash; suppression is safe.
-            var secondaryHash = context.SecondaryHash!;
-            var existingSecondary = await repository.FindByHashAsync(secondaryHash, context.Config.Id, ct);
-            if (existingSecondary is not null)
-            {
-                asset.PairedAssetId = existingSecondary.Id;
-            }
-            else
-            {
-                var secondaryAsset = BuildSecondaryAsset(secondary, secondaryHash, context);
-                asset.PairedAssetId = secondaryAsset.Id;
-                repository.Add(secondaryAsset);
-            }
+            asset.PairedAssetId = await pairedMovResolver.ResolveAsync(
+                secondary, context.SecondaryHash!, context.Config.Id, context.Exif!.DateCaptured, ct);
         }
 
         repository.Add(asset);
@@ -95,28 +84,6 @@ internal sealed partial class PersistenceMiddleware(
                 LensModel = exif.LensModel,
                 DurationInSeconds = exif.DurationInSeconds,
             },
-        };
-    }
-
-    private MediaAsset BuildSecondaryAsset(SecondaryFileDescriptor secondary, string hash, IngestionContext context)
-    {
-        var exif = context.Exif!;
-        var dateCaptured = exif.DateCaptured ?? FallbackDate(secondary.AbsolutePath);
-
-        return new MediaAsset
-        {
-            Id = guidFactory.NewGuid(),
-            StorageConfigId = context.Config.Id,
-            FilePath = secondary.RelativePath,
-            FileName = Path.GetFileName(secondary.RelativePath),
-            ContentHash = hash,
-            DateCaptured = dateCaptured,
-            Month = dateCaptured.Month,
-            Day = dateCaptured.Day,
-            Year = dateCaptured.Year,
-            MediaType = secondary.MediaType,
-            IsSoftDeleted = false,
-            LastSeenOnNas = clock.GetCurrentInstant(),
         };
     }
 

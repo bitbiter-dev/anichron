@@ -43,7 +43,9 @@ public sealed class PersistenceMiddlewareTests
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
 
         public PersistenceMiddleware Build()
-            => new(Repository, UnitOfWork, FileSystem, Clock, GuidFactory, Substitute.For<ILogger<PersistenceMiddleware>>());
+            => new(Repository, UnitOfWork, FileSystem, Clock,
+                new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
+                Substitute.For<ILogger<PersistenceMiddleware>>());
     }
 
     private static readonly ExifData DefaultExif =
