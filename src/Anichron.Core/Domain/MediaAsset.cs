@@ -12,8 +12,11 @@ public class MediaAsset
     public Guid? PairedAssetId { get; set; }
 
     // File Information
+    // Stryker disable once String
     public string FilePath { get; set; } = string.Empty; // Relative to StorageConfig Root
+    // Stryker disable once String
     public string FileName { get; set; } = string.Empty;
+    // Stryker disable once String
     public string ContentHash { get; set; } = string.Empty; // XXHash64 for move tracking
 
     // Temporal Data (Optimized for "On This Day")

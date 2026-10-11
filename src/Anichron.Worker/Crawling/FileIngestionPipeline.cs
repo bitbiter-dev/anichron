@@ -27,8 +27,10 @@ internal sealed partial class FileIngestionPipeline(
     public async Task RunAsync(UserStorageConfig config, CancellationToken ct)
     {
         var channel = Channel.CreateBounded<IngestionItem>(
+            // Stryker disable once Initializer
             new BoundedChannelOptions(settings.MaxConcurrentFiles * 2)
             {
+                // Stryker disable once Boolean
                 SingleWriter = true,
                 FullMode = BoundedChannelFullMode.Wait,
             });

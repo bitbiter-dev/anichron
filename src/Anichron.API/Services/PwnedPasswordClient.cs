@@ -34,6 +34,7 @@ public sealed partial class PwnedPasswordClient(HttpClient http, ILogger<PwnedPa
             Log.PwnedCheckUnavailable(logger, ex, ex.GetType().Name);
             return false;
         }
+        // Stryker disable once Block,Statement
         finally
         {
             CryptographicOperations.ZeroMemory(passwordBytes);

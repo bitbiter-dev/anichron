@@ -81,7 +81,8 @@ do get skipped, since they need `Build & Test` to succeed.
 | Setting | Value | Why |
 | --- | --- | --- |
 | `test-runner` | `mtp` | **Required.** See [ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md). |
-| `mutate` | excludes `Migrations/**` | See [ADR 0002](adr/0002-mutation-scope-excludes-generated-append-only-code.md). |
+| `mutate` | excludes `Migrations/**` and a short, explicit list of pure-wiring files | See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). Paths are listed one by one — never a wildcard. |
+| `ignore-methods` | `Log.*`, `UnreachableException.ctor` | Calls whose mutants no test can meaningfully kill. See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). |
 | `thresholds.break` | `42`, against a measured 46.58% | Roughly five points of headroom. `low` is pinned equal to `break` because Stryker enforces `break <= low` and refuses to start otherwise. Since the ratchet landed this is the **floor**, not the live gate — see [The ratchet](#the-ratchet). |
 | `thresholds.high` | `80` | Report colour-coding; it gates nothing directly, but the ratchet raises it when the gate would otherwise overtake it. |
 | `concurrency` | *unset* | Left at Stryker's default (half the logical processors). Pinning it above the default oversubscribes CI, and timeouts count as *detected*, so that inflates the score. |
