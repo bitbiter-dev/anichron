@@ -5,8 +5,11 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NodaTime;
+using Npgsql;
+using NSubstitute.ExceptionExtensions;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
@@ -62,6 +65,12 @@ public sealed class PersistenceMiddlewareTests
             Exif = exif ?? DefaultExif,
         };
     }
+
+    private static DbUpdateException UniqueViolation(string constraintName)
+        => new("duplicate key", new PostgresException(
+            "duplicate key", "ERROR", "ERROR", PostgresErrorCodes.UniqueViolation,
+            null, null, 0, 0, null, null, null, null, null, null,
+            constraintName, null, null, null));
 
     private static Task NoOpNextAsync(IngestionContext ctx, CancellationToken ct)
     {
@@ -287,5 +296,62 @@ public sealed class PersistenceMiddlewareTests
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         movAsset!.Id.Should().Be(expectedId);
+    }
+
+    // ==========================================================================
+    // InvokeAsync — unique violations
+    // ==========================================================================
+
+    [Fact]
+    public async Task InvokeAsync_ActiveHashConflictWithPersistedPrimary_SkipsWithoutThrowingAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>())
+            .Returns(new MediaAsset { ContentHash = "deadbeef" });
+        var nextCalled = false;
+
+        var act = () => fx.Build().InvokeAsync(context, (_, _) =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        nextCalled.Should().BeFalse();
+        context.Asset.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ActiveHashConflictWithoutPersistedPrimary_RethrowsAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        fx.Repository.FindByHashAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((MediaAsset?)null);
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_OtherUniqueViolation_RethrowsWithoutLookupAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        await fx.Repository.DidNotReceive()
+            .FindByHashAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 }

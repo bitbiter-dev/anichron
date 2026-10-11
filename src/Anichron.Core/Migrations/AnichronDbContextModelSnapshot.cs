@@ -202,7 +202,10 @@ namespace Anichron.Core.Migrations
                     b.HasIndex("Month", "Day")
                         .HasDatabaseName("IX_MediaAsset_Flashback");
 
-                    b.HasIndex("StorageConfigId", "ContentHash");
+                    b.HasIndex("StorageConfigId", "ContentHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mediaassets_storageconfigid_contenthash_active")
+                        .HasFilter("\"IsSoftDeleted\" = false");
 
                     b.HasIndex("StorageConfigId", "FilePath")
                         .IsUnique();

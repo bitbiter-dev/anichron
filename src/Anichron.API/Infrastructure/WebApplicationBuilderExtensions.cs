@@ -17,6 +17,8 @@ public static class WebApplicationBuilderExtensions
                 new IniEntry("Jwt", "Issuer", () => "anichron-api"),
                 new IniEntry("Jwt", "Audience", () => "anichron-client"),
                 new IniEntry("Cors", "AllowedOrigins", () => string.Empty),
+                new IniEntry("ForwardedHeaders", "KnownProxies", () => string.Empty),
+                new IniEntry("ForwardedHeaders", "KnownNetworks", () => string.Empty),
             ]);
             builder.Configuration.AddIniFile(iniPath, optional: false, reloadOnChange: false);
             builder.Configuration.AddEnvironmentVariables();

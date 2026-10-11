@@ -175,7 +175,7 @@ CREATE INDEX "IX_MediaAssets_BurstId" ON "MediaAssets" ("BurstId");
 CREATE INDEX "IX_MediaAssets_PairedAssetId" ON "MediaAssets" ("PairedAssetId");
 
 
-CREATE INDEX "IX_MediaAssets_StorageConfigId_ContentHash" ON "MediaAssets" ("StorageConfigId", "ContentHash");
+CREATE UNIQUE INDEX ix_mediaassets_storageconfigid_contenthash_active ON "MediaAssets" ("StorageConfigId", "ContentHash") WHERE "IsSoftDeleted" = false;
 
 
 CREATE UNIQUE INDEX "IX_MediaAssets_StorageConfigId_FilePath" ON "MediaAssets" ("StorageConfigId", "FilePath");
