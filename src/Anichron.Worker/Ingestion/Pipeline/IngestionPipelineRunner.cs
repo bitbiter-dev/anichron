@@ -87,9 +87,7 @@ internal sealed partial class IngestionPipelineRunner(
         }
     }
 
-    // Only when empty: the directory is keyed by storage config and content hash, so a duplicate
-    // asset can share it until the unique index in #159 lands, and a recursive delete would
-    // destroy that sibling's proxies.
+    // Only when empty: a concurrent attempt on the same content shares this directory.
     private void TryRemoveIfEmpty(string directory)
     {
         try

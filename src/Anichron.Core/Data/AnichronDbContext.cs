@@ -93,17 +93,13 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             // Composite Index for "On This Day" (Optimized for Flashbacks)
             entity.HasIndex(m => new { m.Month, m.Day }).HasDatabaseName("IX_MediaAsset_Flashback");
 
-            // Index for Move Tracking (scoped to storage config for efficient idempotency lookups).
-            // ⚠️ Deliberately NOT unique today, and that is a known defect (#159): nothing enforces
-            // the "one active asset per (config, hash)" invariant IdempotencyCheckMiddleware
-            // assumes, so concurrent consumers can create silent duplicates. The fix is a
-            // config-scoped PARTIAL unique index filtered to active rows — not a plain unique
-            // index, which would collide with soft-deleted history.
-            entity.HasIndex(m => new { m.StorageConfigId, m.ContentHash });
+            // One active asset per (config, hash)
+            entity.HasIndex(m => new { m.StorageConfigId, m.ContentHash })
+                  .IsUnique()
+                  .HasFilter(@"""IsSoftDeleted"" = false")
+                  .HasDatabaseName(MediaAssetIndexNames.ActiveContentHashUnique);
 
-            // Unique Constraint: One file path per storage config. Unlike the hash index above
-            // this one IS enforced, so re-ingesting the same path cannot produce a second row
-            // even while #159 is open.
+            // Unique Constraint: One file path per storage config
             entity.HasIndex(m => new { m.StorageConfigId, m.FilePath }).IsUnique();
 
             // Self-Reference (Paired Asset)

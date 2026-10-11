@@ -158,8 +158,7 @@ public sealed class IngestionPipelineRunnerTests
     public async Task RunAsync_StepThrows_KeepsDirectoryHoldingFilesItDidNotWriteAsync()
     {
         var fixture = new TestFixture();
-        // A duplicate asset shares the directory until the unique index in #159 lands, so
-        // compensation must never delete the directory wholesale.
+        // A concurrent attempt on the same content shares the directory.
         fixture.FileSystem.AddFile("/proxies/ab/cd/blurhash.txt", new MockFileData([0x01]));
         var runner = fixture.Build(
             new ProxyWritingMiddleware(10, fixture.FileSystem, "ab/cd/thumbnail.jpg"),

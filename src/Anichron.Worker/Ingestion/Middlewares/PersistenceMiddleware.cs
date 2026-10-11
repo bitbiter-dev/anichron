@@ -3,7 +3,9 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
+using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using Npgsql;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
@@ -32,7 +34,19 @@ internal sealed partial class PersistenceMiddleware(
         }
 
         repository.Add(asset);
-        await unitOfWork.SaveChangesAsync(ct);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsActiveContentHashConflict(ex))
+        {
+            if (await repository.FindByHashAsync(asset.ContentHash, asset.StorageConfigId, ct) is null)
+                throw;
+
+            Log.AlreadyPersisted(logger, context.Item.RelativePath);
+            return;
+        }
+
         context.Asset = asset;
         Log.Persisted(logger, context.Item.RelativePath, asset.Id);
         await next(context, ct);
@@ -97,6 +111,13 @@ internal sealed partial class PersistenceMiddleware(
         };
     }
 
+    private static bool IsActiveContentHashConflict(DbUpdateException ex)
+        => ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: MediaAssetIndexNames.ActiveContentHashUnique,
+        };
+
     private LocalDateTime FallbackDate(string absolutePath)
     {
         var lastWrite = fileSystem.FileInfo.New(absolutePath).LastWriteTime;
@@ -107,5 +128,8 @@ internal sealed partial class PersistenceMiddleware(
     {
         [LoggerMessage(Level = LogLevel.Information, Message = "Persisted {RelativePath} as asset {AssetId}")]
         public static partial void Persisted(ILogger logger, string relativePath, Guid assetId);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Content of {RelativePath} was persisted concurrently by another consumer, skipping.")]
+        public static partial void AlreadyPersisted(ILogger logger, string relativePath);
     }
 }
