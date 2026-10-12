@@ -270,7 +270,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "and let one user's config removal cascade away the other's rows.");
 
             entity.HasIndex(s => s.UserId);
-            entity.HasIndex(s => s.RootPath).IsUnique();
+            entity.HasIndex(s => s.RootPath).IsUnique().HasDatabaseName(StorageConfigIndexNames.RootPathUnique);
 
             // 1:N with MediaAsset
             entity.HasMany(s => s.Assets)

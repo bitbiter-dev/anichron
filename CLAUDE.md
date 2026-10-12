@@ -94,7 +94,7 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - `ProxyFile` — one row per generated artefact, each a file at `ProxyPath` on the local SSD. `ProxyType` is `Thumbnail`, `WebVideo`, `FullPreview` or `BlurHash` — note **BlurHash is a proxy row like any other**, not a string column on the asset
 - `Burst` — groups rapid-fire photos with a `PrimaryAssetId` cover; prevents duplicate memories in flashbacks
 - `AssetInteraction` — per-user state (starred, liked, hidden, view count, last viewed); unique on `(UserId, AssetId)`
-- `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users
+- `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users. Paths are stored canonical (absolute, `.`/`..`/`//` collapsed, no trailing slash) via `StoragePath.Canonicalize`, so `/p` and `/p/` cannot both be assigned
 - `User` — owns storage configs and interactions
 - `RefreshToken` — issued and cleaned up by the API; `TokenHash` unique
 - `Invite` — admin-issued registration tokens; `TokenHash` unique, and the only entity carrying an optimistic-concurrency token (`xmin`)
