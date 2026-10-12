@@ -36,7 +36,7 @@ public sealed partial class BootstrapSeeder(
         var user = new User
         {
             Id = guidFactory.NewGuid(),
-            Username = username.Trim().ToLowerInvariant(),
+            Username = IdentityNormalizer.Normalize(username),
             Email = AppDefaults.Startup.AdminDefaultMail,
             PasswordHash = passwordHasher.Hash(password),
             IsAdmin = true,

@@ -106,6 +106,7 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - Unique index on `(StorageConfigId, FilePath)` — one asset row per path within a config, soft-deleted rows included
 - Filtered index `IX_MediaAssets_Active` on `IsSoftDeleted`, filtered to `"IsSoftDeleted" = false` — excludes trashed assets from active gallery queries
 - Global query filter: soft-deleted `MediaAsset` records are hidden by default
+- `User.Username` and `User.Email` carry an EF value converter (`IdentityNormalizer.Normalize`: trim + lowercase) that applies to every write **and** to every equality comparison, so repository lookups need no manual normalization. ⚠️ The InMemory provider does not convert query parameters, so read-side behaviour is tested via `ToQueryString()` on the Npgsql provider, not InMemory
 - `MediaType` and `ProxyType` stored as strings (not integers)
 - **Never use `DateTime`** — NodaTime is used exclusively for all date/time values
 

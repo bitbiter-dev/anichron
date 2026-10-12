@@ -5,6 +5,11 @@ namespace Anichron.Core.Data;
 
 public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : DbContext(options), IUnitOfWork
 {
+    private const string identityNormalizedComment =
+        "Always stored trimmed and lowercased: an EF value converter applies "
+        + "IdentityNormalizer.Normalize on every write and to every equality comparison against "
+        + "this column, so the case-sensitive unique index cannot hold two spellings of one name.";
+
     public DbSet<User> Users => Set<User>();
     public DbSet<UserStorageConfig> StorageConfigs => Set<UserStorageConfig>();
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
@@ -243,6 +248,13 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.Property(u => u.MustChangePassword).HasComment(
                 "Set by an admin reset. MustChangePasswordMiddleware then 403s every route except "
                 + "the handful needed to change it.");
+
+            entity.Property(u => u.Username)
+                  .HasConversion(v => IdentityNormalizer.Normalize(v), v => v)
+                  .HasComment(identityNormalizedComment);
+            entity.Property(u => u.Email)
+                  .HasConversion(v => IdentityNormalizer.Normalize(v), v => v)
+                  .HasComment(identityNormalizedComment);
 
             entity.HasIndex(u => u.Username).IsUnique().HasDatabaseName(UserIndexNames.UsernameUnique);
             entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName(UserIndexNames.EmailUnique);

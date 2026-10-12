@@ -94,29 +94,6 @@ public sealed class WorkerInitializerTests
     }
 
     // ==========================================================================
-    // Credential normalization (trim + lowercase)
-    // ==========================================================================
-
-    [Fact]
-    public async Task StartAsync_CredentialNormalized_TrimsAndLowercasesAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        var user = new User { Id = Guid.NewGuid(), Username = "alice" };
-        fixture.UserRepository.FindByCredentialAsync("alice@example.com", Arg.Any<CancellationToken>())
-            .Returns(user);
-        var existingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/data" };
-        fixture.StorageConfigRepository.FindByRootPathAsync("/data", Arg.Any<CancellationToken>())
-            .Returns(existingConfig);
-        var initializer = fixture.Build(user: "  Alice@Example.COM  ", rootPath: "/data");
-
-        await initializer.StartAsync(ct);
-
-        await fixture.UserRepository.Received(1)
-            .FindByCredentialAsync("alice@example.com", Arg.Any<CancellationToken>());
-    }
-
-    // ==========================================================================
     // Existing config — same user (idempotent)
     // ==========================================================================
 

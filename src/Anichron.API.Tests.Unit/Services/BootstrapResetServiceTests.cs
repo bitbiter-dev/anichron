@@ -99,22 +99,6 @@ public sealed class BootstrapResetServiceTests
     }
 
     [Fact]
-    public async Task ResetIfRequestedAsync_TargetUsernameSet_NormalizesBeforeLookup()
-    {
-        var admin = new User { Username = "alice" };
-        var fixture = new TestFixture()
-            .WithResetPassword("new_password")
-            .WithTargetUsername("  ALICE  ")
-            .WithAdminByUsername("alice", admin);
-        var testee = fixture.CreateTestee();
-
-        await testee.ResetIfRequestedAsync(CancellationToken.None);
-
-        await fixture.Users.Received(1)
-            .FindAdminByUsernameAsync("alice", Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task ResetIfRequestedAsync_NoTargetUsername_NoAdmins_DoesNotSave()
     {
         var fixture = new TestFixture()

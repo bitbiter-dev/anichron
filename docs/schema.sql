@@ -11,6 +11,8 @@ CREATE TABLE "Users" (
     CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
 );
 COMMENT ON TABLE "Users" IS 'Owns storage configs and interactions. All identity writes happen in the API; the Worker only reads.';
+COMMENT ON COLUMN "Users"."Username" IS 'Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.';
+COMMENT ON COLUMN "Users"."Email" IS 'Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.';
 COMMENT ON COLUMN "Users"."PasswordHash" IS 'Argon2id. The parameters live with the hasher, not here, so rotating them does not require a migration.';
 COMMENT ON COLUMN "Users"."MustChangePassword" IS 'Set by an admin reset. MustChangePasswordMiddleware then 403s every route except the handful needed to change it.';
 

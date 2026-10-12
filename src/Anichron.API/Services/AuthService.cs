@@ -75,8 +75,8 @@ public sealed class AuthService(
         if (invite is null)
             return AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid);
 
-        var normalizedUsername = username.Trim().ToLowerInvariant();
-        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var normalizedUsername = IdentityNormalizer.Normalize(username);
+        var normalizedEmail = IdentityNormalizer.Normalize(email);
 
         var error = await validator.ValidateAsync(normalizedUsername, normalizedEmail, password, ct);
         if (error is not null)
@@ -136,8 +136,7 @@ public sealed class AuthService(
 
     private async Task<AuthResult<AuthTokens>> AuthenticateAsync(string usernameOrEmail, string password, CancellationToken ct)
     {
-        var normalized = usernameOrEmail.Trim().ToLowerInvariant();
-        var user = await users.FindByCredentialAsync(normalized, ct);
+        var user = await users.FindByCredentialAsync(usernameOrEmail, ct);
 
         // A null hash means "no such account", and the hasher spends a full Argon2 pass on it
         // rather than short-circuiting. That removes the hashing asymmetry; this call site's only
@@ -213,8 +212,8 @@ public sealed class AuthService(
         ArgumentNullException.ThrowIfNull(username);
         ArgumentNullException.ThrowIfNull(email);
 
-        var normalizedUsername = username.Trim().ToLowerInvariant();
-        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var normalizedUsername = IdentityNormalizer.Normalize(username);
+        var normalizedEmail = IdentityNormalizer.Normalize(email);
 
         var identityError = validator.ValidateIdentity(normalizedUsername, normalizedEmail);
         if (identityError is not null)

@@ -29,8 +29,7 @@ public sealed partial class WorkerInitializer(
         var storageConfigRepository = scope.ServiceProvider.GetRequiredService<IUserStorageConfigRepository>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var credential = settings.User.Trim().ToLowerInvariant();
-        var user = await userRepository.FindByCredentialAsync(credential, cancellationToken)
+        var user = await userRepository.FindByCredentialAsync(settings.User, cancellationToken)
             ?? throw new InvalidOperationException(
                 $"WORKER__USER '{settings.User}' not found in database.");
 

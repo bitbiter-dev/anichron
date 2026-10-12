@@ -338,7 +338,8 @@ namespace Anichron.Core.Migrations
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasComment("Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.");
 
                     b.Property<int>("FailedLoginAttempts")
                         .HasColumnType("integer");
@@ -363,7 +364,8 @@ namespace Anichron.Core.Migrations
 
                     b.Property<string>("Username")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasComment("Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.");
 
                     b.HasKey("Id");
 
@@ -401,7 +403,8 @@ namespace Anichron.Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("RootPath")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_StorageConfigs_RootPath");
 
                     b.HasIndex("UserId");
 
