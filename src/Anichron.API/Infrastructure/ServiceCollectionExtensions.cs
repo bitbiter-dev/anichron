@@ -92,7 +92,7 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddCorsPolicy(IConfiguration configuration)
         {
-            var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+            var allowedOrigins = GetAllowedOrigins(configuration);
 
             // Always register CORS services so UseCors() is valid in the middleware pipeline.
             // With no configured origins the default policy allows nothing (same-origin behavior).
@@ -116,7 +116,6 @@ public static class ServiceCollectionExtensions
             services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
             services.Configure<PasswordPolicy>(configuration.GetSection("PasswordPolicy"));
             services.Configure<UsernamePolicy>(configuration.GetSection("UsernamePolicy"));
-            services.Configure<CorsSettings>(configuration.GetSection("Cors"));
             services.AddSingleton<IClock>(SystemClock.Instance);
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IJwtFactory, JwtFactory>();
@@ -145,7 +144,7 @@ public static class ServiceCollectionExtensions
 
             // SameSite=None is required when the UI and API are on different origins so browsers
             // send the cookie on cross-origin requests. SameSite=Strict is safer for same-origin.
-            var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+            var allowedOrigins = GetAllowedOrigins(configuration);
             services.AddSingleton(new AuthCookieSettings
             {
                 SameSite = allowedOrigins.Length > 0 ? SameSiteMode.None : SameSiteMode.Strict,
@@ -205,6 +204,9 @@ public static class ServiceCollectionExtensions
             return services;
         }
     }
+
+    private static string[] GetAllowedOrigins(IConfiguration configuration)
+        => [.. ParseList(configuration["Cors:AllowedOrigins"], static origin => origin)];
 
     private static List<T> ParseList<T>(string? value, Func<string, T> parse)
         => [.. (value ?? string.Empty)
