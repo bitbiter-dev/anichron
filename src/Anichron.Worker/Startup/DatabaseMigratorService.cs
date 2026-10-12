@@ -1,38 +1,28 @@
+using Anichron.Infrastructure.Data;
 using Anichron.Worker.Settings;
 
 namespace Anichron.Worker.Startup;
 
 public sealed partial class DatabaseMigratorService(
     IServiceScopeFactory scopeFactory,
+    TimeProvider timeProvider,
     ILogger<DatabaseMigratorService> logger) : IHostedService
 {
     internal TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(WorkerDefaults.Migrator.RetryDelaySeconds);
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
+        => new DatabaseStartupRetry(timeProvider, WorkerDefaults.Migrator.MaxAttempts, RetryDelay).RunAsync(
+            MigrateAsync,
+            (ex, attempt) => Log.DatabaseNotReady(logger, ex, attempt, WorkerDefaults.Migrator.MaxAttempts, (int)RetryDelay.TotalSeconds),
+            ex => Log.DatabaseUnavailable(logger, ex, WorkerDefaults.Migrator.MaxAttempts),
+            cancellationToken);
+
+    private async Task MigrateAsync(CancellationToken ct)
     {
-        for (var attempt = 1; attempt <= WorkerDefaults.Migrator.MaxAttempts; attempt++)
-        {
-            try
-            {
-                await using var scope = scopeFactory.CreateAsyncScope();
-                var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
-                await migrator.MigrateAsync(cancellationToken);
-                Log.MigrationApplied(logger);
-                return;
-            }
-            catch (Exception ex) when (attempt < WorkerDefaults.Migrator.MaxAttempts)
-            {
-                Log.DatabaseNotReady(logger, ex, attempt, WorkerDefaults.Migrator.MaxAttempts, (int)RetryDelay.TotalSeconds);
-                await Task.Delay(RetryDelay, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                Log.DatabaseUnavailable(logger, ex, WorkerDefaults.Migrator.MaxAttempts);
-                throw new InvalidOperationException(
-                    $"Database unavailable after {WorkerDefaults.Migrator.MaxAttempts} attempts. Aborting.",
-                    ex);
-            }
-        }
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
+        await migrator.MigrateAsync(ct);
+        Log.MigrationApplied(logger);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

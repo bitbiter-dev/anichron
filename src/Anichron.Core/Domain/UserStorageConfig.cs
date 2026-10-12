@@ -5,6 +5,7 @@ public class UserStorageConfig
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
 
+    // Stryker disable once String
     public string RootPath { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 

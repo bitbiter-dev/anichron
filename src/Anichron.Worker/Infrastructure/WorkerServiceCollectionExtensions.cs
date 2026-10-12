@@ -29,6 +29,7 @@ internal static class WorkerServiceCollectionExtensions
                 .ValidateOnStart();
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IClock>(SystemClock.Instance);
+            services.AddSingleton(TimeProvider.System);
             services.AddSingleton<WorkerState>();
             return services;
         }

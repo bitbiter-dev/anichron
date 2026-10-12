@@ -1,6 +1,6 @@
 # Mutation scope: exclude generated, append-only code; include everything we author
 
-Status: accepted
+Status: superseded by [ADR 0005](0005-mutation-scope-excludes-unkillable-and-wiring-code.md)
 
 Mutation testing covers every project and every file we write. The only exclusion is code that
 is both auto-generated and append-only — today that means the EF migrations directory, and

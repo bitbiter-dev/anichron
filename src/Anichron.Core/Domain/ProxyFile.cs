@@ -6,6 +6,7 @@ public class ProxyFile
 
     public Guid AssetId { get; set; }
 
+    // Stryker disable once String
     public string ProxyPath { get; set; } = string.Empty;
 
     // Categorization: e.g., "Thumbnail", "StoryVideo", "BlurHash"

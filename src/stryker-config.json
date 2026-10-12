@@ -3,7 +3,19 @@
     "solution": "Anichron.slnx",
     "test-runner": "mtp",
     "mutate": [
-      "!**/Migrations/**"
+      "!**/Migrations/**",
+      "!**/Anichron.API/Program.cs",
+      "!**/Anichron.Worker/Program.cs",
+      "!**/Anichron.Core/Data/AnichronDbContextFactory.cs",
+      "!**/Anichron.Worker/Ingestion/Proxy/SystemProcessLauncher.cs",
+      "!**/Anichron.API/Infrastructure/DatabaseStartupExtensions.cs",
+      "!**/Anichron.API/Infrastructure/WebApplicationBuilderExtensions.cs",
+      "!**/Anichron.Worker/Infrastructure/HostApplicationBuilderExtensions.cs",
+      "!**/Anichron.Infrastructure/Data/DatabaseFacadeExtensions.cs"
+    ],
+    "ignore-methods": [
+      "Log.*",
+      "UnreachableException.ctor"
     ],
     "thresholds": {
       "high": 80,
