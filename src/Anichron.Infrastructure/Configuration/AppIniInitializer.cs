@@ -9,6 +9,9 @@ public sealed record IniEntry(string Section, string Key, Func<string> DefaultVa
 
 public sealed class AppIniInitializer(IFileSystem fileSystem)
 {
+    public static string PathUnder(string contentRootPath)
+        => Path.Combine(contentRootPath, "configuration", "app.ini");
+
     public void EnsureUpToDate(string iniPath, IReadOnlyList<IniEntry> expectedEntries)
     {
         fileSystem.Directory.CreateDirectory(fileSystem.Path.GetDirectoryName(iniPath)!);

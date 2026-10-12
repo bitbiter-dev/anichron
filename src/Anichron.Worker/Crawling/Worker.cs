@@ -9,6 +9,7 @@ internal sealed partial class Worker(
     IServiceScopeFactory scopeFactory,
     WorkerState workerState,
     IFileIngestionPipeline ingestionPipeline,
+    TimeProvider timeProvider,
     IOptions<WorkerSettings> options,
     ILogger<Worker> logger) : BackgroundService
 {
@@ -24,7 +25,7 @@ internal sealed partial class Worker(
         while (!stoppingToken.IsCancellationRequested)
         {
             await CrawlAllAsync(stoppingToken);
-            await Task.Delay(TimeSpan.FromHours(settings.CrawlIntervalHours), stoppingToken);
+            await Task.Delay(TimeSpan.FromHours(settings.CrawlIntervalHours), timeProvider, stoppingToken);
         }
     }
 

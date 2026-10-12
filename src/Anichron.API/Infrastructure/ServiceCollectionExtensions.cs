@@ -13,7 +13,6 @@ using System.IO.Abstractions;
 using System.Net;
 using System.Text;
 using System.Threading.RateLimiting;
-using static System.Globalization.CultureInfo;
 
 namespace Anichron.API.Infrastructure;
 
@@ -30,8 +29,8 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddForwardedHeadersSupport(IConfiguration configuration)
         {
-            var knownProxies = ParseList(configuration["ForwardedHeaders:KnownProxies"], IPAddress.Parse);
-            var knownNetworks = ParseList(configuration["ForwardedHeaders:KnownNetworks"], System.Net.IPNetwork.Parse);
+            var knownProxies = ConfigurationList.Parse(configuration["ForwardedHeaders:KnownProxies"], IPAddress.Parse);
+            var knownNetworks = ConfigurationList.Parse(configuration["ForwardedHeaders:KnownNetworks"], System.Net.IPNetwork.Parse);
 
             return services.Configure<ForwardedHeadersOptions>(options =>
             {
@@ -48,24 +47,11 @@ public static class ServiceCollectionExtensions
         {
             return services.AddRateLimiter(options =>
             {
-                options.OnRejected = async (context, token) =>
-                {
-                    context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                    if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-                    {
-                        context.HttpContext.Response.Headers.RetryAfter =
-                            ((int)retryAfter.TotalSeconds).ToString(InvariantCulture);
-                    }
+                options.OnRejected = RateLimiting.OnRejectedAsync;
 
-                    await context.HttpContext.Response.WriteAsJsonAsync(
-                        new { error = AuthMessages.TooManyRequests }, token);
-                };
-
-                // RemoteIpAddress is populated by UseForwardedHeaders before this middleware runs.
-                // Requests with no resolvable IP share a tight "unresolved" bucket to prevent IP-hiding abuse.
                 options.AddPolicy(AuthRateLimitPolicies.Sensitive, httpContext =>
                     RateLimitPartition.GetSlidingWindowLimiter(
-                        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unresolved",
+                        partitionKey: RateLimiting.PartitionKey(httpContext),
                         factory: _ => new SlidingWindowRateLimiterOptions
                         {
                             PermitLimit = AppDefaults.RateLimit.Sensitive.PermitLimit,
@@ -78,7 +64,7 @@ public static class ServiceCollectionExtensions
                 // Refresh tokens rotate on every use. Tighter policy required.
                 options.AddPolicy(AuthRateLimitPolicies.Refresh, httpContext =>
                     RateLimitPartition.GetSlidingWindowLimiter(
-                        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unresolved",
+                        partitionKey: RateLimiting.PartitionKey(httpContext),
                         factory: _ => new SlidingWindowRateLimiterOptions
                         {
                             PermitLimit = AppDefaults.RateLimit.Refresh.PermitLimit,
@@ -92,21 +78,10 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddCorsPolicy(IConfiguration configuration)
         {
-            var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+            var allowedOrigins = CorsOrigins.Read(configuration);
 
             // Always register CORS services so UseCors() is valid in the middleware pipeline.
-            // With no configured origins the default policy allows nothing (same-origin behavior).
-            services.AddCors(options =>
-            {
-                if (allowedOrigins.Length > 0)
-                {
-                    options.AddDefaultPolicy(policy =>
-                        policy.WithOrigins(allowedOrigins)
-                            .AllowAnyHeader()
-                            .AllowAnyMethod()
-                            .AllowCredentials());
-                }
-            });
+            services.AddCors(options => CorsOrigins.ConfigureDefaultPolicy(options, allowedOrigins));
 
             return services;
         }
@@ -143,12 +118,9 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAdminStorageConfigService, AdminStorageConfigService>();
             services.AddTransient<IBootstrapResetService, BootstrapResetService>();
 
-            // SameSite=None is required when the UI and API are on different origins so browsers
-            // send the cookie on cross-origin requests. SameSite=Strict is safer for same-origin.
-            var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
             services.AddSingleton(new AuthCookieSettings
             {
-                SameSite = allowedOrigins.Length > 0 ? SameSiteMode.None : SameSiteMode.Strict,
+                SameSite = CorsOrigins.RefreshCookieSameSite(CorsOrigins.Read(configuration)),
                 RefreshTokenDays = configuration.GetValue("Jwt:RefreshTokenDays", AppDefaults.Jwt.RefreshTokenDays),
             });
 
@@ -159,15 +131,7 @@ public static class ServiceCollectionExtensions
                 client.Timeout = TimeSpan.FromSeconds(AppDefaults.Pwned.TimeoutInSeconds);
             }).AddStandardResilienceHandler();
 
-            var jwtSecret = configuration["Jwt:Secret"]
-                            ?? throw new InvalidOperationException("Jwt:Secret configuration is missing.");
-            var jwtIssuer = configuration["Jwt:Issuer"]
-                            ?? throw new InvalidOperationException("Jwt:Issuer is missing.");
-            var jwtAudience = configuration["Jwt:Audience"]
-                              ?? throw new InvalidOperationException("Jwt:Audience is missing.");
-
-            if (Encoding.UTF8.GetByteCount(jwtSecret) < 32)
-                throw new InvalidOperationException("Jwt:Secret must be at least 32 bytes.");
+            var jwt = JwtConfiguration.Read(configuration);
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -175,11 +139,11 @@ public static class ServiceCollectionExtensions
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Secret)),
                         ValidateIssuer = true,
-                        ValidIssuer = jwtIssuer,
+                        ValidIssuer = jwt.Issuer,
                         ValidateAudience = true,
-                        ValidAudience = jwtAudience,
+                        ValidAudience = jwt.Audience,
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.Zero,
                     };
@@ -205,9 +169,4 @@ public static class ServiceCollectionExtensions
             return services;
         }
     }
-
-    private static List<T> ParseList<T>(string? value, Func<string, T> parse)
-        => [.. (value ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(parse)];
 }

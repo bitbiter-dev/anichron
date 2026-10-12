@@ -44,6 +44,10 @@ someone deliberately adds it here, and the rule above is what they must show.
 | `Anichron.Worker/Program.cs` | 2 | Top-level host composition. |
 | `Anichron.Core/Data/AnichronDbContextFactory.cs` | 2 | Used only by the EF design-time tools. |
 | `Anichron.Worker/Ingestion/Proxy/SystemProcessLauncher.cs` | 3 | The `IProcessLauncher` adapter over `System.Diagnostics.Process`. |
+| `Anichron.API/Infrastructure/DatabaseStartupExtensions.cs` | 2 | Scope-and-resolve sequencing for migrate, seed and reset. The retry lives in `DatabaseStartupRetry`, in scope. |
+| `Anichron.API/Infrastructure/WebApplicationBuilderExtensions.cs` | 2 | Loads `app.ini`. The defaults live in `ApiIniDefaults` and the path in `AppIniInitializer.PathUnder`, both in scope. |
+| `Anichron.Worker/Infrastructure/HostApplicationBuilderExtensions.cs` | 2 | As above, with `WorkerIniDefaults`. |
+| `Anichron.Infrastructure/Data/DatabaseFacadeExtensions.cs` | 3 | The PostgreSQL advisory-lock commands and connection handling. The polling loop lives in `AdvisoryLockMigrator`, in scope. |
 
 ### Calls (`ignore-methods`)
 
@@ -68,6 +72,13 @@ defaults and are tested.
 
 ## Consequences
 
+- **`Anichron.API/Infrastructure/ServiceCollectionExtensions.cs` is deliberately *not* excluded**,
+  although it is wiring. It carries security configuration whose mutants are cheap to kill
+  without a database: the JWT `TokenValidationParameters` flags, the admin authorization policy,
+  the forwarded-header trust settings and the rate-limit policies. Tests already kill several of
+  them. Its uncovered mutants are test debt for registration tests that build a
+  `ServiceCollection` and resolve the configured options.
+
 - **`Log.*` hides four mutants that existing tests do kill**: the two log calls in
   `LoggingMiddleware`, `TokenCleanupService`'s deleted-count log, and `PwnedPasswordClient`'s
   "check unavailable" warning. Accepted — the tests stay and still guard those lines; they just no
@@ -84,6 +95,15 @@ defaults and are tested.
 - A file exclusion removes that file's mutants and nothing else. Every change to this list should
   be checked by comparing the mutants killed before and after, and any killed mutant that leaves
   scope must be named here.
+- **Mutants inside `static readonly` initialisers are unreliable.** The field is initialised
+  once per test process, so a mutant there only takes effect if that process happened to
+  initialise it while the mutant was active. The same mutants are reported killed in one run and
+  survived in the next: on the same commit, the 16 extension mutants in `MediaTypeDetector`'s
+  dictionary flipped between runs and moved the score by 1.6 points. Code under a 100% target
+  should build such tables in a property or method, as `ApiIniDefaults` and `WorkerIniDefaults`
+  do.
+- After the wiring extraction in #210 the score is 63.05% (617 killed, 4 timeouts, 234
+  survived, 130 uncovered).
 - Every surviving mutant in scope is now a missing test or a missing entry in this ADR. There is
   no third category.
 - Suppressing a site requires amending this ADR. A bare directive with no entry here is a review

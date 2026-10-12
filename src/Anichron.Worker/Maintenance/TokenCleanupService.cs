@@ -8,6 +8,7 @@ namespace Anichron.Worker.Maintenance;
 public sealed partial class TokenCleanupService(
     IServiceScopeFactory scopeFactory,
     IClock clock,
+    TimeProvider timeProvider,
     IOptions<WorkerSettings> options,
     ILogger<TokenCleanupService> logger) : BackgroundService
 {
@@ -15,7 +16,7 @@ public sealed partial class TokenCleanupService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(settings.TokenCleanupIntervalHours));
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(settings.TokenCleanupIntervalHours), timeProvider);
         do
         {
             try

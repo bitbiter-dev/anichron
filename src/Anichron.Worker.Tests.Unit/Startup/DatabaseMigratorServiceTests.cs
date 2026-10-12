@@ -1,6 +1,8 @@
+using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Anichron.Worker.Tests.Unit.Startup;
 
@@ -25,10 +27,13 @@ public sealed class DatabaseMigratorServiceTests
         }
 
         public DatabaseMigratorService Build()
-            => new(_scopeFactory, Substitute.For<ILogger<DatabaseMigratorService>>())
+            => new(_scopeFactory, TimeProvider.System, Substitute.For<ILogger<DatabaseMigratorService>>())
             {
                 RetryDelay = TimeSpan.Zero,
             };
+
+        public DatabaseMigratorService BuildWithDefaultDelay(TimeProvider timeProvider)
+            => new(_scopeFactory, timeProvider, Substitute.For<ILogger<DatabaseMigratorService>>());
     }
 
     // ==========================================================================
@@ -67,6 +72,26 @@ public sealed class DatabaseMigratorServiceTests
         await service.StartAsync(ct);
 
         await fixture.Migrator.Received(3).MigrateAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StartAsync_DatabaseNotReady_WaitsTheDefaultRetryDelayBeforeRetryingAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        var time = new FakeTimeProvider();
+        var callCount = 0;
+        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => ++callCount == 1 ? throw new InvalidOperationException("DB not ready yet") : Task.CompletedTask);
+        var delay = TimeSpan.FromSeconds(WorkerDefaults.Migrator.RetryDelaySeconds);
+
+        var start = fixture.BuildWithDefaultDelay(time).StartAsync(ct);
+        time.Advance(delay - TimeSpan.FromTicks(1));
+        callCount.Should().Be(1);
+        time.Advance(TimeSpan.FromTicks(1));
+        await start.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        callCount.Should().Be(2);
     }
 
     // ==========================================================================
