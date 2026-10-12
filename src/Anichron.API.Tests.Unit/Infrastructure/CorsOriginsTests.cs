@@ -11,13 +11,9 @@ public sealed class CorsOriginsTests
         => new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
     [Fact]
-    public void Read_OriginsConfigured_ReturnsThemInOrder()
+    public void Read_CommaSeparatedOrigins_ReturnsThemTrimmedInOrder()
     {
-        var configuration = Configuration(new()
-        {
-            ["Cors:AllowedOrigins:0"] = "https://a.example",
-            ["Cors:AllowedOrigins:1"] = "https://b.example",
-        });
+        var configuration = Configuration(new() { ["Cors:AllowedOrigins"] = "https://a.example, https://b.example" });
 
         CorsOrigins.Read(configuration).Should().Equal("https://a.example", "https://b.example");
     }

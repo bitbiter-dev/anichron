@@ -91,7 +91,6 @@ public static class ServiceCollectionExtensions
             services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
             services.Configure<PasswordPolicy>(configuration.GetSection("PasswordPolicy"));
             services.Configure<UsernamePolicy>(configuration.GetSection("UsernamePolicy"));
-            services.Configure<CorsSettings>(configuration.GetSection("Cors"));
             services.AddSingleton<IClock>(SystemClock.Instance);
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IJwtFactory, JwtFactory>();

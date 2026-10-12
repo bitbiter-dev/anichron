@@ -43,7 +43,9 @@ public sealed class PersistenceMiddlewareTests
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
 
         public PersistenceMiddleware Build()
-            => new(Repository, UnitOfWork, FileSystem, Clock, GuidFactory, Substitute.For<ILogger<PersistenceMiddleware>>());
+            => new(Repository, UnitOfWork, FileSystem, Clock,
+                new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
+                Substitute.For<ILogger<PersistenceMiddleware>>());
     }
 
     private static readonly ExifData DefaultExif =
@@ -296,6 +298,29 @@ public sealed class PersistenceMiddlewareTests
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         movAsset!.Id.Should().Be(expectedId);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairWithMovAlreadyPersisted_PairsHeicToExistingMovAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+        var existingMov = new MediaAsset { Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), ContentHash = "cafebabe" };
+        fx.Repository.FindByHashAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>())
+            .Returns(existingMov);
+        var nextCalled = false;
+
+        await fx.Build().InvokeAsync(context, (_, _) =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+
+        fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
+        fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(a => a.Id == context.AssetId));
+        context.Asset!.PairedAssetId.Should().Be(existingMov.Id);
+        nextCalled.Should().BeTrue();
     }
 
     // ==========================================================================

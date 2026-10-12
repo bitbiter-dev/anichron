@@ -5,7 +5,7 @@ namespace Anichron.API.Infrastructure;
 internal static class CorsOrigins
 {
     internal static string[] Read(IConfiguration configuration)
-        => configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+        => [.. ConfigurationList.Parse(configuration["Cors:AllowedOrigins"], static origin => origin)];
 
     // With no configured origins the default policy allows nothing (same-origin behavior).
     internal static void ConfigureDefaultPolicy(CorsOptions options, string[] allowedOrigins)

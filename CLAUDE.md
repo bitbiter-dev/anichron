@@ -153,7 +153,7 @@ Each user has a private set of `UserStorageConfig` entries pointing to NAS roots
 
 ### Worker Processing Model
 
-Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `ContentHash`) are skipped.
+Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `ContentHash`) are skipped. One exception: when a Live Photo's HEIC is already stored without its MOV (the halves arrived in different crawls), `LivePhotoPairingMiddleware` attaches the MOV to the stored row instead of skipping; `PairedMovResolver` reuses an already-stored MOV rather than inserting a duplicate.
 
 ## Infrastructure
 
@@ -161,7 +161,7 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 - API Dockerfile uses Alpine (no GPU/FFmpeg needed)
 - CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel; tagged `sha-<hash>` on every build, `edge` on master, SemVer tags on releases
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
-- CORS allowed origins configured via `CORS__ALLOWED_ORIGINS` env var (comma-separated). Leave empty for same-origin / reverse proxy deployments.
+- CORS allowed origins configured via `CORS__ALLOWEDORIGINS` env var (comma-separated); the same value switches the refresh cookie to `SameSite=None`. Leave empty for same-origin / reverse proxy deployments.
 - `X-Forwarded-For` is honoured only from loopback or from addresses listed in `FORWARDEDHEADERS__KNOWNPROXIES` / `FORWARDEDHEADERS__KNOWNNETWORKS` (comma-separated IPs / CIDRs; `ForwardLimit = 1`). Rate limiting partitions on the resulting client IP, so a reverse-proxy deployment must set one of these or all clients share the proxy's bucket. Never trust the Docker bridge network for a directly published port — that lets any client spoof its IP.
 - Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.
 - Observability: structured JSON logging in production; `GET /api/v1/healthz` health endpoint; OpenTelemetry instrumented but no exporter configured by default (`OTEL_EXPORTER_OTLP_ENDPOINT` to enable).
