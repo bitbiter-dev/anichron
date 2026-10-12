@@ -1,3 +1,4 @@
+using Anichron.Core.Domain;
 using NodaTime;
 
 namespace Anichron.Worker.Ingestion;
@@ -5,7 +6,7 @@ namespace Anichron.Worker.Ingestion;
 internal sealed record ExifData(
     int Width,
     int Height,
-    int OrientationDegrees,
+    int Orientation,
     LocalDateTime? DateCaptured,
     double? Latitude,
     double? Longitude,
@@ -14,5 +15,5 @@ internal sealed record ExifData(
     string? LensModel,
     int? DurationInSeconds)
 {
-    internal static ExifData Empty { get; } = new(0, 0, 0, null, null, null, null, null, null, null);
+    internal static ExifData Empty { get; } = new(0, 0, ExifOrientation.Upright, null, null, null, null, null, null, null);
 }

@@ -144,9 +144,13 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                     + "Populated by ExifExtractionMiddleware; every field is best-effort, because a "
                     + "file may carry no EXIF at all."
                 ));
-            entity.Property(m => m.OrientationDegrees).HasComment(
-                "Rotation needed to display the image upright, already normalised from the raw "
-                + "EXIF orientation flag so consumers never interpret the flag themselves.");
+            entity.Property(m => m.Orientation)
+                  .HasDefaultValue(ExifOrientation.Upright)
+                  .HasComment(
+                      "Raw EXIF orientation tag, 1-8 (1 = upright, also used when absent or invalid). "
+                      + "Stored raw because 5 and 7 combine a rotation with a mirror and cannot be "
+                      + "expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. "
+                      + "Proxies keep this tag on unrotated pixels, so do not rotate them twice.");
             entity.HasKey(m => m.AssetId);
 
             // 1:1 with MediaAsset

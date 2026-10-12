@@ -26,6 +26,13 @@ public sealed class ExifExtractionMiddlewareTests
 
     private static readonly byte[] JpegWithoutExif = [0xFF, 0xD8, 0xFF, 0xD9];
 
+    private static byte[] JpegWithOrientation(byte orientation)
+    {
+        var bytes = JpegWithExif.ToArray();
+        bytes[Array.IndexOf(bytes, (byte)0x12) + 8] = orientation;
+        return bytes;
+    }
+
     private static IngestionContext MakeContext(string path = "/abs/photo.jpg", string? contentHash = "deadbeef") => new()
     {
         Item = new SingleFileItem(path, "photo.jpg", MediaType.Image),
@@ -90,18 +97,26 @@ public sealed class ExifExtractionMiddlewareTests
         context.Exif.Height.Should().Be(200);
     }
 
-    [Fact]
-    public async Task InvokeAsync_ExifOrientationSix_MapsToNinetyDegreesAsync()
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(3, 3)]
+    [InlineData(5, 5)]
+    [InlineData(6, 6)]
+    [InlineData(7, 7)]
+    [InlineData(8, 8)]
+    [InlineData(0, 1)]
+    [InlineData(9, 1)]
+    public async Task InvokeAsync_ExifOrientation_StoresRawTagOrDefaultsToUprightAsync(byte tag, int expected)
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
-            ["/abs/photo.jpg"] = new MockFileData(JpegWithExif),
+            ["/abs/photo.jpg"] = new MockFileData(JpegWithOrientation(tag)),
         });
         var context = MakeContext("/abs/photo.jpg");
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        context.Exif!.OrientationDegrees.Should().Be(90);
+        context.Exif!.Orientation.Should().Be(expected);
     }
 
     [Fact]
@@ -117,7 +132,7 @@ public sealed class ExifExtractionMiddlewareTests
 
         context.Exif!.Width.Should().Be(0);
         context.Exif.Height.Should().Be(0);
-        context.Exif.OrientationDegrees.Should().Be(0);
+        context.Exif.Orientation.Should().Be(1);
         context.Exif.DateCaptured.Should().BeNull();
         context.Exif.Latitude.Should().BeNull();
         context.Exif.Longitude.Should().BeNull();
@@ -136,7 +151,7 @@ public sealed class ExifExtractionMiddlewareTests
 
         context.Exif!.Width.Should().Be(0);
         context.Exif.Height.Should().Be(0);
-        context.Exif.OrientationDegrees.Should().Be(0);
+        context.Exif.Orientation.Should().Be(1);
         context.Exif.DateCaptured.Should().BeNull();
         context.Exif.Latitude.Should().BeNull();
         context.Exif.Longitude.Should().BeNull();

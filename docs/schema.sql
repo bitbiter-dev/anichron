@@ -116,7 +116,7 @@ CREATE TABLE "Metadata" (
     "AssetId" uuid NOT NULL,
     "Width" integer NOT NULL,
     "Height" integer NOT NULL,
-    "OrientationDegrees" integer NOT NULL,
+    "Orientation" integer NOT NULL DEFAULT 1,
     "Latitude" double precision,
     "Longitude" double precision,
     "CameraMake" text,
@@ -127,7 +127,7 @@ CREATE TABLE "Metadata" (
     CONSTRAINT "FK_Metadata_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "Metadata" IS 'EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by ExifExtractionMiddleware; every field is best-effort, because a file may carry no EXIF at all.';
-COMMENT ON COLUMN "Metadata"."OrientationDegrees" IS 'Rotation needed to display the image upright, already normalised from the raw EXIF orientation flag so consumers never interpret the flag themselves.';
+COMMENT ON COLUMN "Metadata"."Orientation" IS 'Raw EXIF orientation tag, 1-8 (1 = upright, also used when absent or invalid). Stored raw because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies keep this tag on unrotated pixels, so do not rotate them twice.';
 
 
 CREATE TABLE "ProxyFiles" (
