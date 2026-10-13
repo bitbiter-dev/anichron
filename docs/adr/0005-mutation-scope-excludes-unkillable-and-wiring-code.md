@@ -66,6 +66,19 @@ The directive is left bare — the reason lives here, not in the code.
 | `FfmpegVideoProcessor.DetectEncoderAsync`: `encoder != H264Encoder.Software` | Software is last in the priority list, so the guarded log line is the only thing the condition controls. |
 | `FileIngestionPipeline`: the `BoundedChannelOptions` initialiser and `SingleWriter = true` | Removing the initialiser leaves `FullMode` at its default, which is already `Wait`, and `SingleWriter` is an optimisation hint: either value produces the same results. The capacity arithmetic is **not** suppressed — `MaxConcurrentFiles / 2` is zero for a setting of `1`, which the channel rejects. |
 | `= string.Empty` initialisers on `User`, `Invite`, `MediaAsset`, `ProxyFile`, `RefreshToken`, `UserStorageConfig`, `JwtSettings` and `WorkerSettings.User` | Placeholders that satisfy nullable analysis. Every real instance has these assigned, and `JwtSettings` is validated at startup before any value is read. |
+| Relationship and index configuration in `AnichronDbContext` that restates EF Core's conventions: the seven `HasMany`/`HasOne` calls whose cascade and foreign key match what the convention infers, the two `HasIndex` calls on foreign-key columns (which get an index anyway), and `base.OnModelCreating` (empty in `DbContext`) | Removing any of them leaves the model, and therefore the DDL, unchanged. They stay as explicit statements of intent, and the schema snapshot test against `docs/schema.sql` catches any future drift in EF's conventions. |
+
+### Members that need real PostgreSQL (`// Stryker disable all` before each member)
+
+| Member | Why it is not unit-tested |
+| --- | --- |
+| `AnichronDbContext.ExecuteInTransactionAsync` (both overloads) | Commit versus no commit is only observable on a provider with real transactions. |
+| `EfRefreshTokenRepository.RevokeAllActiveByUserIdAsync` and `DeleteExpiredAsync` | `ExecuteUpdate`/`ExecuteDelete` are not supported by the EF InMemory provider. |
+
+These are **not** tested against a second SQL engine such as SQLite. A substitute engine
+diverges from PostgreSQL in exactly the places this model relies on (partial-index filters,
+`xmin`, NodaTime types, collation), so a green test there would claim coverage it does not
+have. They stay excluded until tests run against real PostgreSQL.
 
 `WorkerSettings.RootPath`, `ProxyPath` and `FfmpegPath` are **not** in that list. They are real
 defaults and are tested.
@@ -102,6 +115,13 @@ defaults and are tested.
   dictionary flipped between runs and moved the score by 1.6 points. Code under a 100% target
   should build such tables in a property or method, as `ApiIniDefaults` and `WorkerIniDefaults`
   do.
+- **Stryker.NET binds a directive comment to the next syntax node, not to the following lines.**
+  `// Stryker disable all` therefore covers one member, and `// Stryker restore all` has nothing to
+  restore: each excluded member carries its own directive.
+- **EF Core builds the model once per internal service provider and caches it.** A mutant in
+  `OnModelCreating` only takes effect if the model is built while it is active, which is the same
+  failure as a `static readonly` initialiser. Tests that assert on the model build their context
+  with `EnableServiceProviderCaching(false)` so each one gets a fresh model.
 - After the wiring extraction in #210 the score is 63.05% (617 killed, 4 timeouts, 234
   survived, 130 uncovered).
 - Every surviving mutant in scope is now a missing test or a missing entry in this ADR. There is

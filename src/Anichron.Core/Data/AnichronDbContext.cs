@@ -20,6 +20,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Invite> Invites => Set<Invite>();
 
+    // Stryker disable all
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken ct = default)
     {
         await using var tx = await Database.BeginTransactionAsync(ct);
@@ -28,6 +29,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         return result;
     }
 
+    // Stryker disable all
     public async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken ct = default)
     {
         await using var tx = await Database.BeginTransactionAsync(ct);
@@ -37,6 +39,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Stryker disable once Statement
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<AssetInteraction>(entity =>
@@ -120,12 +123,14 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .OnDelete(DeleteBehavior.SetNull); // Keeping the photo if the burst is dissolved
 
             // 1:N with ProxyFiles
+            // Stryker disable once Statement
             entity.HasMany(m => m.ProxyFiles)
                   .WithOne(p => p.Asset)
                   .HasForeignKey(p => p.AssetId)
                   .OnDelete(DeleteBehavior.Cascade);
 
             // 1:N with Interactions
+            // Stryker disable once Statement
             entity.HasMany(m => m.Interactions)
                   .WithOne(i => i.Asset)
                   .HasForeignKey(i => i.AssetId);
@@ -159,6 +164,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.HasKey(m => m.AssetId);
 
             // 1:1 with MediaAsset
+            // Stryker disable once Statement
             entity.HasOne(m => m.Asset)
                   .WithOne(a => a.Metadata)
                   .HasForeignKey<Metadata>(m => m.AssetId)
@@ -181,6 +187,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "is an ordinary proxy ROW whose content is a file — not a string column on the "
                 + "asset.");
 
+            // Stryker disable once Statement
             entity.HasIndex(p => p.AssetId);
             entity.Property(p => p.ProxyType).HasConversion<string>();
             entity.HasQueryFilter(e => !e.Asset.IsSoftDeleted);
@@ -199,6 +206,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.HasIndex(r => r.TokenHash).IsUnique();
             entity.HasIndex(r => new { r.UserId, r.ExpiresAt });
 
+            // Stryker disable once Statement
             entity.HasOne(r => r.User)
                   .WithMany(u => u.RefreshTokens)
                   .HasForeignKey(r => r.UserId)
@@ -260,11 +268,13 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName(UserIndexNames.EmailUnique);
 
             // 1:N with StorageConfig
+            // Stryker disable once Statement
             entity.HasMany(u => u.StorageConfigs)
                   .WithOne(s => s.User)
                   .HasForeignKey(s => s.UserId);
 
             // 1:N with Interactions
+            // Stryker disable once Statement
             entity.HasMany(u => u.Interactions)
                   .WithOne(i => i.User)
                   .HasForeignKey(i => i.UserId);
@@ -281,10 +291,12 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "all users. Two users indexing the same directory would duplicate every asset "
                 + "and let one user's config removal cascade away the other's rows.");
 
+            // Stryker disable once Statement
             entity.HasIndex(s => s.UserId);
             entity.HasIndex(s => s.RootPath).IsUnique().HasDatabaseName(StorageConfigIndexNames.RootPathUnique);
 
             // 1:N with MediaAsset
+            // Stryker disable once Statement
             entity.HasMany(s => s.Assets)
                   .WithOne(a => a.StorageConfig)
                   .HasForeignKey(a => a.StorageConfigId);
