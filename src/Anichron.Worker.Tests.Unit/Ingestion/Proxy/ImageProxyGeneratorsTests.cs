@@ -27,9 +27,9 @@ public sealed class ImageProxyGeneratorsTests
     public async Task ThumbnailGenerator_GenerateAsync_DelegatesToCreateThumbnailAsync()
     {
         var processor = Substitute.For<IImageProcessor>();
-        processor.CreateThumbnailAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+        processor.CreateThumbnailAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
             .Returns([0x01, 0x02]);
-        using var image = new Image<Rgba32>(1, 1);
+        using var image = new Image<Rgb24>(1, 1);
 
         var bytes = await new ThumbnailGenerator(processor).GenerateAsync(image, CancellationToken.None);
 
@@ -56,9 +56,9 @@ public sealed class ImageProxyGeneratorsTests
     public async Task FullPreviewGenerator_GenerateAsync_DelegatesToCreateFullPreviewAsync()
     {
         var processor = Substitute.For<IImageProcessor>();
-        processor.CreateFullPreviewAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+        processor.CreateFullPreviewAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
             .Returns([0x03, 0x04]);
-        using var image = new Image<Rgba32>(1, 1);
+        using var image = new Image<Rgb24>(1, 1);
 
         var bytes = await new FullPreviewGenerator(processor).GenerateAsync(image, CancellationToken.None);
 
@@ -73,9 +73,9 @@ public sealed class ImageProxyGeneratorsTests
     public async Task GenerateAsync_ReturnsUtf8EncodedHashBytesAsync()
     {
         var processor = Substitute.For<IImageProcessor>();
-        processor.ComputeBlurhashAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+        processor.ComputeBlurhashAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
             .Returns("HASH");
-        using var image = new Image<Rgba32>(1, 1);
+        using var image = new Image<Rgb24>(1, 1);
 
         var bytes = await new BlurhashGenerator(processor).GenerateAsync(image, CancellationToken.None);
 

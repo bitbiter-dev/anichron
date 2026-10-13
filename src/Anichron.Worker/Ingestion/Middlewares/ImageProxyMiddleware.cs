@@ -26,13 +26,14 @@ internal sealed partial class ImageProxyMiddleware(
         var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
 
         await using var ms = new MemoryStream(sourceBytes);
-        using var image = await Image.LoadAsync<Rgba32>(ms, ct);
+        using var image = await Image.LoadAsync<Rgb24>(ms, ct);
         image.Mutate(x => x.AutoOrient());
 
-        var writes = generators.Select(WriteProxyAsync).ToArray();
-        await Task.WhenAll(writes);
+        var chain = generators.OrderBy(g => g.Order).ToArray();
+        foreach (var generator in chain)
+            await WriteProxyAsync(generator);
 
-        Log.ProxiesGenerated(logger, writes.Length, context.Item.RelativePath);
+        Log.ProxiesGenerated(logger, chain.Length, context.Item.RelativePath);
         await next(context, ct);
 
         Task WriteProxyAsync(IImageProxyGenerator generator)
@@ -46,8 +47,7 @@ internal sealed partial class ImageProxyMiddleware(
 
             async Task ProduceAsync(string temporaryPath, CancellationToken token)
             {
-                using var clone = image.Clone();
-                var bytes = await generator.GenerateAsync(clone, token);
+                var bytes = await generator.GenerateAsync(image, token);
                 await fileSystem.File.WriteAllBytesAsync(temporaryPath, bytes, token);
             }
         }

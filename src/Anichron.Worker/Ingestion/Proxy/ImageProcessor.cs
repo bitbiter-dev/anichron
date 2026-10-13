@@ -10,16 +10,16 @@ namespace Anichron.Worker.Ingestion.Proxy;
 
 internal interface IImageProcessor
 {
-    Task<byte[]> CreateThumbnailAsync(Image<Rgba32> image, CancellationToken ct);
-    Task<byte[]> CreateFullPreviewAsync(Image<Rgba32> image, CancellationToken ct);
-    Task<string> ComputeBlurhashAsync(Image<Rgba32> image, CancellationToken ct);
+    Task<byte[]> CreateThumbnailAsync(Image<Rgb24> image, CancellationToken ct);
+    Task<byte[]> CreateFullPreviewAsync(Image<Rgb24> image, CancellationToken ct);
+    Task<string> ComputeBlurhashAsync(Image<Rgb24> image, CancellationToken ct);
 }
 
 internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : IImageProcessor
 {
     private readonly WorkerSettings settings = options.Value;
 
-    public async Task<byte[]> CreateThumbnailAsync(Image<Rgba32> image, CancellationToken ct)
+    public async Task<byte[]> CreateThumbnailAsync(Image<Rgb24> image, CancellationToken ct)
     {
         image.Mutate(x => x.Resize(new ResizeOptions
         {
@@ -32,7 +32,7 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
         return ms.ToArray();
     }
 
-    public async Task<byte[]> CreateFullPreviewAsync(Image<Rgba32> image, CancellationToken ct)
+    public async Task<byte[]> CreateFullPreviewAsync(Image<Rgb24> image, CancellationToken ct)
     {
         if (image.Width > settings.PreviewMaxWidth)
         {
@@ -48,7 +48,7 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
         return ms.ToArray();
     }
 
-    public Task<string> ComputeBlurhashAsync(Image<Rgba32> image, CancellationToken ct)
+    public Task<string> ComputeBlurhashAsync(Image<Rgb24> image, CancellationToken ct)
     {
         image.Mutate(x => x.Resize(new ResizeOptions
         {
