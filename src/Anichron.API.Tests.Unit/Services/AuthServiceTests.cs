@@ -142,12 +142,6 @@ public sealed class AuthServiceTests
             return this;
         }
 
-        public TestFixture WithUserFoundForCredential(string normalizedCredential, User user)
-        {
-            Users.FindByCredentialAsync(normalizedCredential, Arg.Any<CancellationToken>()).Returns(user);
-            return this;
-        }
-
         public AuthService CreateTestee() => new(
             Users, _invites, _unitOfWork, _clock, _guidFactory, PasswordHasher, _validator, TokenService, Lockout, ResponseFloor);
     }
@@ -669,20 +663,6 @@ public sealed class AuthServiceTests
 
         result.IsSuccess.Should().BeTrue();
         await fixture.ResponseFloor.DidNotReceive().PadAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task LoginAsync_InputNormalization_TrimsAndLowercasesBeforeLookup()
-    {
-        var user = new User { PasswordHash = "hashed_value" };
-        var fixture = new TestFixture()
-            .WithPasswordValid()
-            .WithUserFoundForCredential("alice@example.com", user);
-        var testee = fixture.CreateTestee();
-
-        var result = await testee.LoginAsync("  ALICE@EXAMPLE.COM  ", "password", CancellationToken.None);
-
-        result.IsSuccess.Should().BeTrue();
     }
 
     // ==========================================================================

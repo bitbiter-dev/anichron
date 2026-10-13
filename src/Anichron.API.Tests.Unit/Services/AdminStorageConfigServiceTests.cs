@@ -2,6 +2,9 @@ using Anichron.API.Services;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NSubstitute.ExceptionExtensions;
 
 namespace Anichron.API.Tests.Unit.Services;
 
@@ -60,7 +63,8 @@ public sealed class AdminStorageConfigServiceTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task AddAsync_WhitespaceRootPath_ReturnsPathInvalid(string rootPath)
+    [InlineData("nas/photos")]
+    public async Task AddAsync_BlankOrRelativeRootPath_ReturnsPathInvalid(string rootPath)
     {
         var fixture = new TestFixture();
 
@@ -125,6 +129,68 @@ public sealed class AdminStorageConfigServiceTests
         fixture.StorageConfigs.Received(1).Add(Arg.Is<UserStorageConfig>(c => c.Id == configId));
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task AddAsync_NonCanonicalPath_ChecksAndStoresCanonicalFormAsync()
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
+        fixture.StorageConfigs.FindByRootPathAsync("/nas/photos", Arg.Any<CancellationToken>())
+            .Returns(new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas/photos" });
+
+        var result = await fixture.CreateTestee().AddAsync(userId, "/nas//photos/", CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.PathAlreadyAssigned);
+        fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
+    [Fact]
+    public async Task AddAsync_ValidInput_StoresCanonicalRootPathAsync()
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
+
+        var result = await fixture.CreateTestee().AddAsync(userId, "/nas/photos/", CancellationToken.None);
+
+        result.Value!.RootPath.Should().Be("/nas/photos");
+    }
+
+    [Fact]
+    public async Task AddAsync_ConcurrentRootPathInsert_ReturnsPathAlreadyAssignedAsync()
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
+        fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation(StorageConfigIndexNames.RootPathUnique));
+
+        var result = await fixture.CreateTestee().AddAsync(userId, "/nas/photos", CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be(AuthError.PathAlreadyAssigned);
+    }
+
+    [Fact]
+    public async Task AddAsync_OtherUniqueViolation_RethrowsAsync()
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
+        fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation("some_other_index"));
+
+        var act = () => fixture.CreateTestee().AddAsync(userId, "/nas/photos", CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    private static DbUpdateException UniqueViolation(string constraintName)
+        => new("duplicate key", new PostgresException(
+            "duplicate key", "ERROR", "ERROR", PostgresErrorCodes.UniqueViolation,
+            null, null, 0, 0, null, null, null, null, null, null,
+            constraintName, null, null, null));
 
     // ==========================================================================
     // DeleteAsync

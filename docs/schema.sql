@@ -11,6 +11,8 @@ CREATE TABLE "Users" (
     CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
 );
 COMMENT ON TABLE "Users" IS 'Owns storage configs and interactions. All identity writes happen in the API; the Worker only reads.';
+COMMENT ON COLUMN "Users"."Username" IS 'Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.';
+COMMENT ON COLUMN "Users"."Email" IS 'Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.';
 COMMENT ON COLUMN "Users"."PasswordHash" IS 'Argon2id. The parameters live with the hasher, not here, so rotating them does not require a migration.';
 COMMENT ON COLUMN "Users"."MustChangePassword" IS 'Set by an admin reset. MustChangePasswordMiddleware then 403s every route except the handful needed to change it.';
 
@@ -116,7 +118,7 @@ CREATE TABLE "Metadata" (
     "AssetId" uuid NOT NULL,
     "Width" integer NOT NULL,
     "Height" integer NOT NULL,
-    "OrientationDegrees" integer NOT NULL,
+    "Orientation" integer NOT NULL DEFAULT 1,
     "Latitude" double precision,
     "Longitude" double precision,
     "CameraMake" text,
@@ -127,7 +129,7 @@ CREATE TABLE "Metadata" (
     CONSTRAINT "FK_Metadata_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "Metadata" IS 'EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by ExifExtractionMiddleware; every field is best-effort, because a file may carry no EXIF at all.';
-COMMENT ON COLUMN "Metadata"."OrientationDegrees" IS 'Rotation needed to display the image upright, already normalised from the raw EXIF orientation flag so consumers never interpret the flag themselves.';
+COMMENT ON COLUMN "Metadata"."Orientation" IS 'Raw EXIF orientation tag, 1-8 (1 = upright, also used when absent or invalid). Stored raw because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies keep this tag on unrotated pixels, so do not rotate them twice.';
 
 
 CREATE TABLE "ProxyFiles" (

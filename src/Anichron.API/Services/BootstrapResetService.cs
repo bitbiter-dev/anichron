@@ -23,10 +23,10 @@ public sealed partial class BootstrapResetService(
         if (string.IsNullOrEmpty(resetPassword))
             return;
 
-        var targetUsername = configuration["ADMIN_RESET_USERNAME"]?.Trim().ToLowerInvariant();
+        var targetUsername = configuration["ADMIN_RESET_USERNAME"];
         User? admin;
 
-        if (!string.IsNullOrEmpty(targetUsername))
+        if (!string.IsNullOrWhiteSpace(targetUsername))
         {
             admin = await users.FindAdminByUsernameAsync(targetUsername, ct);
             if (admin is null)

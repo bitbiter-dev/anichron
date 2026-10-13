@@ -90,11 +90,11 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 `StorageConfigs`):
 
 - `MediaAsset` — central entity: `FilePath`, `ContentHash` (XXHash64), `Month`/`Day`/`Year` integers, `MediaType`, `IsSoftDeleted`, and a `PairedAssetId` self-reference (HEIC parent → MOV child)
-- `Metadata` — 1:1 with `MediaAsset`; EXIF data (dimensions, GPS, orientation degrees, camera make/model/lens, video duration)
+- `Metadata` — 1:1 with `MediaAsset`; EXIF data (dimensions, GPS, raw EXIF orientation tag 1–8, camera make/model/lens, video duration)
 - `ProxyFile` — one row per generated artefact, each a file at `ProxyPath` on the local SSD. `ProxyType` is `Thumbnail`, `WebVideo`, `FullPreview` or `BlurHash` — note **BlurHash is a proxy row like any other**, not a string column on the asset
 - `Burst` — groups rapid-fire photos with a `PrimaryAssetId` cover; prevents duplicate memories in flashbacks
 - `AssetInteraction` — per-user state (starred, liked, hidden, view count, last viewed); unique on `(UserId, AssetId)`
-- `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users
+- `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users. Paths are stored canonical (absolute, `.`/`..`/`//` collapsed, no trailing slash) via `StoragePath.Canonicalize`, so `/p` and `/p/` cannot both be assigned
 - `User` — owns storage configs and interactions
 - `RefreshToken` — issued and cleaned up by the API; `TokenHash` unique
 - `Invite` — admin-issued registration tokens; `TokenHash` unique, and the only entity carrying an optimistic-concurrency token (`xmin`)
@@ -106,6 +106,7 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - Unique index on `(StorageConfigId, FilePath)` — one asset row per path within a config, soft-deleted rows included
 - Filtered index `IX_MediaAssets_Active` on `IsSoftDeleted`, filtered to `"IsSoftDeleted" = false` — excludes trashed assets from active gallery queries
 - Global query filter: soft-deleted `MediaAsset` records are hidden by default
+- `User.Username` and `User.Email` carry an EF value converter (`IdentityNormalizer.Normalize`: trim + lowercase) that applies to every write **and** to every equality comparison, so repository lookups need no manual normalization. ⚠️ The InMemory provider does not convert query parameters, so read-side behaviour is tested via `ToQueryString()` on the Npgsql provider, not InMemory
 - `MediaType` and `ProxyType` stored as strings (not integers)
 - **Never use `DateTime`** — NodaTime is used exclusively for all date/time values
 

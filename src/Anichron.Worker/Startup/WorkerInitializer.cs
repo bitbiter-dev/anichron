@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
@@ -28,21 +29,24 @@ public sealed partial class WorkerInitializer(
         var storageConfigRepository = scope.ServiceProvider.GetRequiredService<IUserStorageConfigRepository>();
         var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var credential = settings.User.Trim().ToLowerInvariant();
-        var user = await userRepository.FindByCredentialAsync(credential, cancellationToken)
+        var user = await userRepository.FindByCredentialAsync(settings.User, cancellationToken)
             ?? throw new InvalidOperationException(
                 $"WORKER__USER '{settings.User}' not found in database.");
 
-        var existing = await storageConfigRepository.FindByRootPathAsync(settings.RootPath, cancellationToken);
+        var rootPath = StoragePath.Canonicalize(settings.RootPath)
+            ?? throw new InvalidOperationException(
+                $"WORKER__ROOTPATH '{settings.RootPath}' must be an absolute path.");
+
+        var existing = await storageConfigRepository.FindByRootPathAsync(rootPath, cancellationToken);
         if (existing is not null)
         {
             if (existing.UserId != user.Id)
             {
                 throw new InvalidOperationException(
-                    $"Path '{settings.RootPath}' is already assigned to another user.");
+                    $"Path '{rootPath}' is already assigned to another user.");
             }
 
-            Log.StorageConfigExists(logger, user.Username, settings.RootPath);
+            Log.StorageConfigExists(logger, user.Username, rootPath);
             workerState.ResolvedUserId = user.Id;
             return;
         }
@@ -51,12 +55,12 @@ public sealed partial class WorkerInitializer(
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            RootPath = settings.RootPath,
+            RootPath = rootPath,
             IsActive = true,
         });
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        Log.StorageConfigCreated(logger, user.Username, settings.RootPath);
+        Log.StorageConfigCreated(logger, user.Username, rootPath);
         workerState.ResolvedUserId = user.Id;
     }
 

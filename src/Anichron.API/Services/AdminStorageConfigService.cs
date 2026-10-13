@@ -1,6 +1,8 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Anichron.API.Services;
 
@@ -30,14 +32,15 @@ public sealed class AdminStorageConfigService(
     public async Task<AuthResult<UserStorageConfig>> AddAsync(Guid userId, string rootPath, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(rootPath);
-        if (string.IsNullOrWhiteSpace(rootPath))
+        var canonicalPath = StoragePath.Canonicalize(rootPath);
+        if (canonicalPath is null)
             return AuthResult.Fail<UserStorageConfig>(AuthError.PathInvalid);
 
         var user = await users.FindByIdAsync(userId, ct);
         if (user is null)
             return AuthResult.Fail<UserStorageConfig>(AuthError.UserNotFound);
 
-        var existing = await storageConfigs.FindByRootPathAsync(rootPath, ct);
+        var existing = await storageConfigs.FindByRootPathAsync(canonicalPath, ct);
         if (existing is not null)
             return AuthResult.Fail<UserStorageConfig>(AuthError.PathAlreadyAssigned);
 
@@ -45,12 +48,24 @@ public sealed class AdminStorageConfigService(
         {
             Id = guidFactory.NewGuid(),
             UserId = userId,
-            RootPath = rootPath,
+            RootPath = canonicalPath,
             IsActive = true,
         };
 
         storageConfigs.Add(config);
-        await unitOfWork.SaveChangesAsync(ct);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: StorageConfigIndexNames.RootPathUnique,
+        })
+        {
+            return AuthResult.Fail<UserStorageConfig>(AuthError.PathAlreadyAssigned);
+        }
+
         return AuthResult.Ok(config);
     }
 

@@ -373,4 +373,50 @@ public sealed class UserRepositoryTests
         var found = await repository.FindByIdWithConfigsAsync(user.Id, ct);
         found.Should().BeNull();
     }
+
+    // ==========================================================================
+    // Identity normalization
+    // ==========================================================================
+
+    [Fact]
+    public async Task Add_UnnormalizedIdentity_IsStoredTrimmedAndLowercased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        new EfUserRepository(db).Add(MakeUser(" Bob ", " Bob@Example.COM "));
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+
+        var stored = await db.Users.AsNoTracking().SingleAsync(ct);
+
+        stored.Username.Should().Be("bob");
+        stored.Email.Should().Be("bob@example.com");
+    }
+
+    private static AnichronDbContext CreateNpgsqlModelOnlyDb()
+        => new(new DbContextOptionsBuilder<AnichronDbContext>()
+            .UseNpgsql("Host=unused", o => o.UseNodaTime())
+            .Options);
+
+    [Theory]
+    [InlineData(" BOB ")]
+    public void UsernameComparison_UnnormalizedInput_SendsNormalizedValue(string credential)
+    {
+        using var db = CreateNpgsqlModelOnlyDb();
+
+        var sql = db.Users.Where(u => u.Username == credential).ToQueryString();
+
+        sql.Should().Contain("'bob'").And.NotContain("BOB");
+    }
+
+    [Theory]
+    [InlineData("Bob@Example.COM ")]
+    public void EmailComparison_UnnormalizedInput_SendsNormalizedValue(string credential)
+    {
+        using var db = CreateNpgsqlModelOnlyDb();
+
+        var sql = db.Users.Where(u => u.Email == credential).ToQueryString();
+
+        sql.Should().Contain("'bob@example.com'").And.NotContain("Example");
+    }
 }
