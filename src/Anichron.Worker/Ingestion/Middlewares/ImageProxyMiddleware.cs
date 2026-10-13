@@ -29,11 +29,18 @@ internal sealed partial class ImageProxyMiddleware(
         using var image = await Image.LoadAsync<Rgb24>(ms, ct);
         image.Mutate(x => x.AutoOrient());
 
-        var chain = generators.OrderBy(g => g.Order).ToArray();
-        foreach (var generator in chain)
+        var steps = generators
+            .Select(g => (Generator: g, Target: g.Bound.FitTo(image.Size)))
+            .OrderByDescending(s => (long)s.Target.Width * s.Target.Height)
+            .ToArray();
+        foreach (var (generator, target) in steps)
+        {
+            if (image.Size != target)
+                image.Mutate(x => x.Resize(target));
             await WriteProxyAsync(generator);
+        }
 
-        Log.ProxiesGenerated(logger, chain.Length, context.Item.RelativePath);
+        Log.ProxiesGenerated(logger, steps.Length, context.Item.RelativePath);
         await next(context, ct);
 
         Task WriteProxyAsync(IImageProxyGenerator generator)
@@ -47,7 +54,8 @@ internal sealed partial class ImageProxyMiddleware(
 
             async Task ProduceAsync(string temporaryPath, CancellationToken token)
             {
-                var bytes = await generator.GenerateAsync(image, token);
+                using var copy = image.Clone();
+                var bytes = await generator.GenerateAsync(copy, token);
                 await fileSystem.File.WriteAllBytesAsync(temporaryPath, bytes, token);
             }
         }

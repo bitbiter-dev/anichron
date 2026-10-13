@@ -9,11 +9,11 @@ public sealed class WorkerSettingsValidatorTests
     {
         MaxConcurrentFiles = 4,
         CrawlIntervalHours = 4,
-        ThumbnailMaxWidth = 300,
+        ThumbnailShortEdge = 300,
         ThumbnailJpegQuality = 75,
-        PreviewMaxWidth = 1920,
+        PreviewLongEdge = 1920,
         PreviewJpegQuality = 85,
-        BlurhashSampleWidth = 64,
+        BlurhashSampleLongEdge = 64,
         VideoMaxHeight = 720,
         VideoBitrateKbps = 2000,
         TokenCleanupIntervalHours = 24,
@@ -62,25 +62,25 @@ public sealed class WorkerSettingsValidatorTests
     }
 
     // ==========================================================================
-    // ThumbnailMaxWidth / PreviewMaxWidth / BlurhashSampleWidth
+    // ThumbnailShortEdge / PreviewLongEdge / BlurhashSampleLongEdge
     // ==========================================================================
 
     [Fact]
-    public void Validate_ThumbnailMaxWidthZero_ReturnsFailed()
+    public void Validate_ThumbnailShortEdgeZero_ReturnsFailed()
     {
-        IsValid(ValidSettings with { ThumbnailMaxWidth = 0 }).Should().BeFalse();
+        IsValid(ValidSettings with { ThumbnailShortEdge = 0 }).Should().BeFalse();
     }
 
     [Fact]
-    public void Validate_PreviewMaxWidthZero_ReturnsFailed()
+    public void Validate_PreviewLongEdgeZero_ReturnsFailed()
     {
-        IsValid(ValidSettings with { PreviewMaxWidth = 0 }).Should().BeFalse();
+        IsValid(ValidSettings with { PreviewLongEdge = 0 }).Should().BeFalse();
     }
 
     [Fact]
-    public void Validate_BlurhashSampleWidthZero_ReturnsFailed()
+    public void Validate_BlurhashSampleLongEdgeZero_ReturnsFailed()
     {
-        IsValid(ValidSettings with { BlurhashSampleWidth = 0 }).Should().BeFalse();
+        IsValid(ValidSettings with { BlurhashSampleLongEdge = 0 }).Should().BeFalse();
     }
 
     // ==========================================================================
