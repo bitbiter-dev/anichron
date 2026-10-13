@@ -81,9 +81,9 @@ services:
       - POSTGRES_CONNECTION__PASSWORD=${DB_PW}
       - WORKER__USER=${WORKER_USER}  # Email or username of the user this worker processes
       # Optional overrides (defaults shown):
-      # - WORKER__ROOT=/data/originals
-      # - WORKER__CRAWL_INTERVAL_HOURS=4
-      # - WORKER__MAX_CONCURRENT_FILES=4
+      # - WORKER__ROOTPATH=/data/originals
+      # - WORKER__CRAWLINTERVALHOURS=4
+      # - WORKER__MAXCONCURRENTFILES=4
     volumes:
       - /path/to/your/nas:/data/originals:ro  # ← replace with this user's NAS folder
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:rw

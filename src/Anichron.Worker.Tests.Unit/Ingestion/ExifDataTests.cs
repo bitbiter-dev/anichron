@@ -5,11 +5,11 @@ namespace Anichron.Worker.Tests.Unit.Ingestion;
 public sealed class ExifDataTests
 {
     [Fact]
-    public void Empty_HasAllZeroAndNullFields()
+    public void Empty_HasZeroNullAndUprightFields()
     {
         ExifData.Empty.Width.Should().Be(0);
         ExifData.Empty.Height.Should().Be(0);
-        ExifData.Empty.OrientationDegrees.Should().Be(0);
+        ExifData.Empty.Orientation.Should().Be(1);
         ExifData.Empty.DateCaptured.Should().BeNull();
         ExifData.Empty.Latitude.Should().BeNull();
         ExifData.Empty.Longitude.Should().BeNull();

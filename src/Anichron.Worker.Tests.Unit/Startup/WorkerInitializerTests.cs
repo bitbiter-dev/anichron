@@ -94,29 +94,6 @@ public sealed class WorkerInitializerTests
     }
 
     // ==========================================================================
-    // Credential normalization (trim + lowercase)
-    // ==========================================================================
-
-    [Fact]
-    public async Task StartAsync_CredentialNormalized_TrimsAndLowercasesAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        var user = new User { Id = Guid.NewGuid(), Username = "alice" };
-        fixture.UserRepository.FindByCredentialAsync("alice@example.com", Arg.Any<CancellationToken>())
-            .Returns(user);
-        var existingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/data" };
-        fixture.StorageConfigRepository.FindByRootPathAsync("/data", Arg.Any<CancellationToken>())
-            .Returns(existingConfig);
-        var initializer = fixture.Build(user: "  Alice@Example.COM  ", rootPath: "/data");
-
-        await initializer.StartAsync(ct);
-
-        await fixture.UserRepository.Received(1)
-            .FindByCredentialAsync("alice@example.com", Arg.Any<CancellationToken>());
-    }
-
-    // ==========================================================================
     // Existing config — same user (idempotent)
     // ==========================================================================
 
@@ -183,6 +160,37 @@ public sealed class WorkerInitializerTests
                 storageConfig.IsActive));
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         fixture.WorkerState.ResolvedUserId.Should().Be(user.Id);
+    }
+
+    [Fact]
+    public async Task StartAsync_NonCanonicalRootPath_LooksUpAndStoresCanonicalFormAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        var user = new User { Id = Guid.NewGuid(), Username = "alice" };
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
+        var initializer = fixture.Build(user: "alice", rootPath: "/nas//photos/");
+
+        await initializer.StartAsync(ct);
+
+        await fixture.StorageConfigRepository.Received(1).FindByRootPathAsync("/nas/photos", Arg.Any<CancellationToken>());
+        fixture.StorageConfigRepository.Received(1).Add(
+            Arg.Is<UserStorageConfig>(storageConfig => storageConfig.RootPath == "/nas/photos"));
+    }
+
+    [Fact]
+    public async Task StartAsync_RelativeRootPath_ThrowsBeforeTouchingStorageConfigsAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>())
+            .Returns(new User { Id = Guid.NewGuid(), Username = "alice" });
+        var initializer = fixture.Build(user: "alice", rootPath: "data/originals");
+
+        var act = () => initializer.StartAsync(ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*data/originals*");
+        fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
     }
 
     // ==========================================================================

@@ -76,7 +76,7 @@ internal sealed partial class PersistenceMiddleware(
             {
                 Width = exif.Width,
                 Height = exif.Height,
-                OrientationDegrees = exif.OrientationDegrees,
+                Orientation = exif.Orientation,
                 Latitude = exif.Latitude,
                 Longitude = exif.Longitude,
                 CameraMake = exif.CameraMake,

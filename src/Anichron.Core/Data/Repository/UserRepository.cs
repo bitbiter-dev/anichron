@@ -9,7 +9,7 @@ public interface IUserRepository
     Task<bool> AnyByUsernameAsync(string username, CancellationToken ct);
     Task<bool> AnyByEmailAsync(string email, CancellationToken ct);
     Task<User?> FindByIdAsync(Guid id, CancellationToken ct);
-    Task<User?> FindByCredentialAsync(string normalizedCredential, CancellationToken ct);
+    Task<User?> FindByCredentialAsync(string credential, CancellationToken ct);
     Task<User?> FindAdminByUsernameAsync(string username, CancellationToken ct);
     Task<List<User>> FindAdminsAsync(int take, CancellationToken ct);
     Task<List<User>> GetAllAsync(CancellationToken ct);
@@ -32,9 +32,9 @@ public sealed class EfUserRepository(AnichronDbContext db) : IUserRepository
     public async Task<User?> FindByIdAsync(Guid id, CancellationToken ct)
         => await db.Users.FindAsync([id], ct);
 
-    public Task<User?> FindByCredentialAsync(string normalizedCredential, CancellationToken ct)
+    public Task<User?> FindByCredentialAsync(string credential, CancellationToken ct)
         => db.Users.FirstOrDefaultAsync(
-            u => u.Username == normalizedCredential || u.Email == normalizedCredential, ct);
+            u => u.Username == credential || u.Email == credential, ct);
 
     public Task<User?> FindAdminByUsernameAsync(string username, CancellationToken ct)
         => db.Users.FirstOrDefaultAsync(u => u.IsAdmin && u.Username == username, ct);

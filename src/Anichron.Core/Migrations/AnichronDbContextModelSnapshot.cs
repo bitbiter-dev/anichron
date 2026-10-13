@@ -242,9 +242,11 @@ namespace Anichron.Core.Migrations
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
-                    b.Property<int>("OrientationDegrees")
+                    b.Property<int>("Orientation")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasComment("Rotation needed to display the image upright, already normalised from the raw EXIF orientation flag so consumers never interpret the flag themselves.");
+                        .HasDefaultValue(1)
+                        .HasComment("Raw EXIF orientation tag, 1-8 (1 = upright, also used when absent or invalid). Stored raw because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies keep this tag on unrotated pixels, so do not rotate them twice.");
 
                     b.Property<int>("Width")
                         .HasColumnType("integer");
@@ -336,7 +338,8 @@ namespace Anichron.Core.Migrations
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasComment("Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.");
 
                     b.Property<int>("FailedLoginAttempts")
                         .HasColumnType("integer");
@@ -361,7 +364,8 @@ namespace Anichron.Core.Migrations
 
                     b.Property<string>("Username")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasComment("Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.");
 
                     b.HasKey("Id");
 
@@ -399,7 +403,8 @@ namespace Anichron.Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("RootPath")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_StorageConfigs_RootPath");
 
                     b.HasIndex("UserId");
 

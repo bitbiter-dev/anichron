@@ -9,7 +9,7 @@ public class Metadata
     // Dimensions & Transform
     public int Width { get; set; }
     public int Height { get; set; }
-    public int OrientationDegrees { get; set; }
+    public int Orientation { get; set; } = ExifOrientation.Upright;
 
     // Location
     public double? Latitude { get; set; }

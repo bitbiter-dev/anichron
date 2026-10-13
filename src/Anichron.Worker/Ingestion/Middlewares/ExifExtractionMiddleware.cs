@@ -53,7 +53,7 @@ internal sealed partial class ExifExtractionMiddleware(
         return new ExifData(
             Width: GetDimension(cameraInfo, ExifDirectoryBase.TagImageWidth, trackHeader, QuickTimeTrackHeaderDirectory.TagWidth),
             Height: GetDimension(cameraInfo, ExifDirectoryBase.TagImageHeight, trackHeader, QuickTimeTrackHeaderDirectory.TagHeight),
-            OrientationDegrees: GetOrientationDegrees(cameraInfo),
+            Orientation: GetOrientation(cameraInfo),
             DateCaptured: GetDateCaptured(captureDetails),
             Latitude: latitude,
             Longitude: longitude,
@@ -98,21 +98,12 @@ internal sealed partial class ExifExtractionMiddleware(
         return 0;
     }
 
-    private static int GetOrientationDegrees(ExifIfd0Directory? cameraInfo)
-    {
-        // Segment absent OR tag unreadable — assume upright (0°).
-        if (cameraInfo is null || !cameraInfo.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientation))
-            return 0;
-        // Raw EXIF orientation tag values per the EXIF 2.3 spec.
-        // Only rotations (no mirroring) are represented; mirrored variants map to 0.
-        return orientation switch
-        {
-            6 => 90,
-            3 => 180,
-            8 => 270,
-            _ => 0,
-        };
-    }
+    private static int GetOrientation(ExifIfd0Directory? cameraInfo)
+        => cameraInfo is not null
+           && cameraInfo.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientation)
+           && orientation is >= Core.Domain.ExifOrientation.Upright and <= Core.Domain.ExifOrientation.Max
+            ? orientation
+            : Core.Domain.ExifOrientation.Upright;
 
     private LocalDateTime? GetDateCaptured(ExifSubIfdDirectory? captureDetails)
     {

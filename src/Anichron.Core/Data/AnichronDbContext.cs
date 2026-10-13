@@ -5,6 +5,11 @@ namespace Anichron.Core.Data;
 
 public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : DbContext(options), IUnitOfWork
 {
+    private const string identityNormalizedComment =
+        "Always stored trimmed and lowercased: an EF value converter applies "
+        + "IdentityNormalizer.Normalize on every write and to every equality comparison against "
+        + "this column, so the case-sensitive unique index cannot hold two spellings of one name.";
+
     public DbSet<User> Users => Set<User>();
     public DbSet<UserStorageConfig> StorageConfigs => Set<UserStorageConfig>();
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
@@ -149,9 +154,13 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                     + "Populated by ExifExtractionMiddleware; every field is best-effort, because a "
                     + "file may carry no EXIF at all."
                 ));
-            entity.Property(m => m.OrientationDegrees).HasComment(
-                "Rotation needed to display the image upright, already normalised from the raw "
-                + "EXIF orientation flag so consumers never interpret the flag themselves.");
+            entity.Property(m => m.Orientation)
+                  .HasDefaultValue(ExifOrientation.Upright)
+                  .HasComment(
+                      "Raw EXIF orientation tag, 1-8 (1 = upright, also used when absent or invalid). "
+                      + "Stored raw because 5 and 7 combine a rotation with a mirror and cannot be "
+                      + "expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. "
+                      + "Proxies keep this tag on unrotated pixels, so do not rotate them twice.");
             entity.HasKey(m => m.AssetId);
 
             // 1:1 with MediaAsset
@@ -248,6 +257,13 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 "Set by an admin reset. MustChangePasswordMiddleware then 403s every route except "
                 + "the handful needed to change it.");
 
+            entity.Property(u => u.Username)
+                  .HasConversion(v => IdentityNormalizer.Normalize(v), v => v)
+                  .HasComment(identityNormalizedComment);
+            entity.Property(u => u.Email)
+                  .HasConversion(v => IdentityNormalizer.Normalize(v), v => v)
+                  .HasComment(identityNormalizedComment);
+
             entity.HasIndex(u => u.Username).IsUnique().HasDatabaseName(UserIndexNames.UsernameUnique);
             entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName(UserIndexNames.EmailUnique);
 
@@ -277,7 +293,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
 
             // Stryker disable once Statement
             entity.HasIndex(s => s.UserId);
-            entity.HasIndex(s => s.RootPath).IsUnique();
+            entity.HasIndex(s => s.RootPath).IsUnique().HasDatabaseName(StorageConfigIndexNames.RootPathUnique);
 
             // 1:N with MediaAsset
             // Stryker disable once Statement
