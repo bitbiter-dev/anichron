@@ -124,6 +124,7 @@ Proxy files follow a two-level shard path derived from **content, not from the i
 - Crawls NAS on a configurable interval (`Worker:CrawlIntervalHours`, default 4 h; immediate crawl on startup)
 - Extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `ContentHash` → writes `MediaAsset` + `Metadata`
 - Generates proxy types: `Thumbnail`, `FullPreview`, `WebVideo`, `BlurHash` (the `ProxyType` enum, persisted as text)
+- Image proxies are auto-oriented once after decoding: upright pixels, orientation tag 1. `Metadata.Orientation` applies only when serving originals — never rotate a proxy by it
 - FFmpeg transcodes video with runtime GPU detection: QuickSync (`h264_qsv`) → NVENC (`h264_nvenc`) → AMF (`h264_amf`) → software (`libx264`)
 - Burst detection (**planned, not yet implemented**): will group rapid-fire sequences and assign a `PrimaryAssetId` cover. The `Burst` entity and schema exist; no detection code is wired into the Worker yet.
 - Reconciliation: periodic NAS scan; soft-deletes missing files (preserves user interactions); hash match re-links moved files

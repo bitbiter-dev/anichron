@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -55,13 +56,14 @@ public sealed class ImageProxyMiddlewareTests
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
         public IProxyDirectoryStrategy DirectoryStrategy { get; } = Substitute.For<IProxyDirectoryStrategy>();
 
-        public ImageProxyMiddleware Build()
+        public ImageProxyMiddleware Build(IImageProcessor? imageProcessor = null)
         {
+            imageProcessor ??= ImageProcessor;
             IImageProxyGenerator[] generators =
             [
-                new ThumbnailGenerator(ImageProcessor),
-                new FullPreviewGenerator(ImageProcessor),
-                new BlurhashGenerator(ImageProcessor),
+                new ThumbnailGenerator(imageProcessor),
+                new FullPreviewGenerator(imageProcessor),
+                new BlurhashGenerator(imageProcessor),
             ];
             return new(generators,
                        DirectoryStrategy,
@@ -256,6 +258,91 @@ public sealed class ImageProxyMiddlewareTests
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
+    }
+
+    // ==========================================================================
+    // Orientation
+    // ==========================================================================
+
+    public enum Corner { TopLeft = 0, TopRight = 1, BottomRight = 2, BottomLeft = 3 }
+
+    private const int SourceWidth = 80;
+    private const int SourceHeight = 40;
+    private const int ThumbnailMaxWidth = 40;
+
+    public static TheoryData<string, ushort, int, int, Corner> OrientedProxies()
+    {
+        (ushort Orientation, bool Swapped, Corner Marker)[] orientations =
+        [
+            (ExifOrientationMode.TopLeft, false, Corner.TopLeft),
+            (ExifOrientationMode.TopRight, false, Corner.TopRight),
+            (ExifOrientationMode.BottomRight, false, Corner.BottomRight),
+            (ExifOrientationMode.BottomLeft, false, Corner.BottomLeft),
+            (ExifOrientationMode.LeftTop, true, Corner.TopLeft),
+            (ExifOrientationMode.RightTop, true, Corner.TopRight),
+            (ExifOrientationMode.RightBottom, true, Corner.BottomRight),
+            (ExifOrientationMode.LeftBottom, true, Corner.BottomLeft),
+        ];
+        var data = new TheoryData<string, ushort, int, int, Corner>();
+        foreach (var (orientation, swapped, marker) in orientations)
+        {
+            data.Add("thumbnail.jpg", orientation, ThumbnailMaxWidth, swapped ? ThumbnailMaxWidth * 2 : ThumbnailMaxWidth / 2, marker);
+            data.Add("preview.jpg", orientation, swapped ? SourceHeight : SourceWidth, swapped ? SourceWidth : SourceHeight, marker);
+        }
+
+        return data;
+    }
+
+    private static byte[] MarkedJpegWithOrientation(ushort orientation)
+    {
+        using var img = new Image<Rgba32>(SourceWidth, SourceHeight, Color.Black.ToPixel<Rgba32>());
+        img.ProcessPixelRows(rows =>
+        {
+            for (var y = 0; y < SourceHeight / 2; y++)
+                rows.GetRowSpan(y)[..(SourceWidth / 2)].Fill(Color.Red.ToPixel<Rgba32>());
+        });
+        img.Metadata.ExifProfile = new ExifProfile();
+        img.Metadata.ExifProfile.SetValue(ExifTag.Orientation, orientation);
+        using var ms = new MemoryStream();
+        img.SaveAsJpeg(ms);
+        return ms.ToArray();
+    }
+
+    private static Corner MarkedCorner(Image<Rgba32> image)
+    {
+        var (left, right) = (image.Width / 4, image.Width * 3 / 4);
+        var (top, bottom) = (image.Height / 4, image.Height * 3 / 4);
+        (Corner Corner, int X, int Y)[] centres =
+        [
+            (Corner.TopLeft, left, top),
+            (Corner.TopRight, right, top),
+            (Corner.BottomRight, right, bottom),
+            (Corner.BottomLeft, left, bottom),
+        ];
+        return centres.Single(c => image[c.X, c.Y].R > 128).Corner;
+    }
+
+    [Theory]
+    [MemberData(nameof(OrientedProxies))]
+    public async Task InvokeAsync_OrientedJpeg_WritesUprightProxyWithoutRotationTagAsync(
+        string proxyFileName, ushort orientation, int expectedWidth, int expectedHeight, Corner expectedMarker)
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(MarkedJpegWithOrientation(orientation)));
+        var processor = new ImageSharpProcessor(
+            Options.Create(new WorkerSettings { ThumbnailMaxWidth = ThumbnailMaxWidth }));
+
+        await fixture.Build(processor).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        var bytes = await fixture.FileSystem.File.ReadAllBytesAsync(
+            $"/proxies/ab/cd/{proxyFileName}", TestContext.Current.CancellationToken);
+        using var proxy = Image.Load<Rgba32>(bytes);
+        (proxy.Width, proxy.Height).Should().Be((expectedWidth, expectedHeight));
+        MarkedCorner(proxy).Should().Be(expectedMarker);
+        var tag = proxy.Metadata.ExifProfile?.TryGetValue(ExifTag.Orientation, out var value) == true
+            ? value.Value
+            : ExifOrientationMode.TopLeft;
+        tag.Should().Be(ExifOrientationMode.TopLeft);
     }
 
     // ==========================================================================
