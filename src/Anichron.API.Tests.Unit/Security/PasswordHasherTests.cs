@@ -21,6 +21,25 @@ public sealed class PasswordHasherTests
     }
 
     [Fact]
+    public void Hash_ThenVerify_RoundTrips()
+    {
+        var testee = new Argon2PasswordHasher();
+
+        var hash = testee.Hash("password");
+
+        testee.Verify("password", hash).Should().BeTrue();
+        testee.Verify("Password", hash).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Hash_SamePasswordTwice_UsesAFreshSaltEachTime()
+    {
+        var testee = new Argon2PasswordHasher();
+
+        testee.Hash("password").Should().NotBe(testee.Hash("password"));
+    }
+
+    [Fact]
     public void Verify_CorrectPassword_ReturnsTrue()
     {
         var testee = new Argon2PasswordHasher();

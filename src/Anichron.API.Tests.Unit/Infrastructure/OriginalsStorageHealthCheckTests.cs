@@ -56,6 +56,7 @@ public sealed class OriginalsStorageHealthCheckTests
 
         result.Status.Should().Be(HealthStatus.Unhealthy);
         result.Exception.Should().BeOfType<IOException>();
+        result.Description.Should().Be("Originals storage check failed.");
     }
 
     // ⭐ The check must read the ORIGINALS path, not the proxy one. Mirroring an existing class

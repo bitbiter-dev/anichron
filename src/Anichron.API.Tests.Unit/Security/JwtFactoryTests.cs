@@ -90,8 +90,8 @@ public sealed class JwtFactoryTests
 
         var jwt = Decode(testee.Create(user));
 
-        jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.UniqueName)?.Value
-            .Should().Be("alice");
+        jwt.Claims.Should().ContainSingle(c => c.Type == JwtRegisteredClaimNames.UniqueName)
+            .Which.Value.Should().Be("alice");
     }
 
     [Fact]
@@ -139,8 +139,8 @@ public sealed class JwtFactoryTests
 
         var jwt = Decode(testee.Create(user));
 
-        jwt.Claims.FirstOrDefault(c => c.Type == "must_change_password")?.Value
-            .Should().Be("true");
+        jwt.Claims.Should().ContainSingle(c => c.Type == "must_change_password")
+            .Which.Value.Should().Be("true");
     }
 
     [Fact]
@@ -162,8 +162,8 @@ public sealed class JwtFactoryTests
 
         var jwt = Decode(testee.Create(user));
 
-        jwt.Claims.FirstOrDefault(c => c.Type == "is_admin")?.Value
-            .Should().Be("true");
+        jwt.Claims.Should().ContainSingle(c => c.Type == "is_admin")
+            .Which.Value.Should().Be("true");
     }
 
     [Fact]
