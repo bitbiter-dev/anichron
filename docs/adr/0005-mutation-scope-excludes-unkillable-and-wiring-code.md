@@ -66,6 +66,8 @@ The directive is left bare — the reason lives here, not in the code.
 | `FfmpegVideoProcessor.DetectEncoderAsync`: `encoder != H264Encoder.Software` | Software is last in the priority list, so the guarded log line is the only thing the condition controls. |
 | `FileIngestionPipeline`: the `BoundedChannelOptions` initialiser and `SingleWriter = true` | Removing the initialiser leaves `FullMode` at its default, which is already `Wait`, and `SingleWriter` is an optimisation hint: either value produces the same results. The capacity arithmetic is **not** suppressed — `MaxConcurrentFiles / 2` is zero for a setting of `1`, which the channel rejects. |
 | `= string.Empty` initialisers on `User`, `Invite`, `MediaAsset`, `ProxyFile`, `RefreshToken`, `UserStorageConfig`, `JwtSettings` and `WorkerSettings.User` | Placeholders that satisfy nullable analysis. Every real instance has these assigned, and `JwtSettings` is validated at startup before any value is read. |
+| `ExifExtractionMiddleware.GetCoordinates`: the `catch` block | MetadataExtractor 2.9's `GetGeoLocation()` returns `null` for missing or malformed GPS tags rather than throwing, so no test input reaches it. Kept as a defensive guard: without it, a library change that throws would make the outer handler discard the file's entire EXIF. |
+| `ExifExtractionMiddleware.GetOrientation`: the `>= ExifOrientation.Upright` bound | Tightening it to `>` only changes the result for tag 1, which then falls back to `Upright` — also 1. The directive sits inside the pattern, so the upper bound's mutants stay in scope. |
 
 `WorkerSettings.RootPath`, `ProxyPath` and `FfmpegPath` are **not** in that list. They are real
 defaults and are tested.

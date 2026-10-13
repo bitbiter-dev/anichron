@@ -154,6 +154,74 @@ public sealed class FfmpegVideoProcessorTests
             Arg.Any<CancellationToken>());
     }
 
+    private static List<string[]> CaptureCalls(TestFixture fixture, int transcodeExitCode = 0)
+    {
+        var calls = new List<string[]>();
+        fixture.Launcher
+            .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var arguments = callInfo.ArgAt<IReadOnlyList<string>>(1).ToArray();
+                calls.Add(arguments);
+                return Task.FromResult(new ProcessResult(IsProbeCall(arguments) ? 0 : transcodeExitCode, "boom"));
+            });
+        return calls;
+    }
+
+    [Fact]
+    public async Task TranscodeAsync_ProbesTheEncoderWithATinySyntheticClipAsync()
+    {
+        var fixture = new TestFixture();
+        var calls = CaptureCalls(fixture);
+
+        await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video.mp4", CancellationToken.None);
+
+        calls[0].Should().Equal(
+            "-f", "lavfi",
+            "-i", "color=black:s=64x64:r=1:d=0.1",
+            "-c:v", H264Encoder.QuickSync,
+            "-f", "mp4",
+            "/dev/null",
+            "-y");
+    }
+
+    [Fact]
+    public async Task TranscodeAsync_TranscodesToBrowserCompatibleH264WithFaststartAsync()
+    {
+        var fixture = new TestFixture();
+        var calls = CaptureCalls(fixture);
+
+        await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video.mp4", CancellationToken.None);
+
+        calls[^1].Should().Equal(
+            "-i", "/src/video.mp4",
+            "-vf", "scale=-2:'min(720,ih)'",
+            "-c:v", H264Encoder.QuickSync,
+            "-pix_fmt", "yuv420p",
+            "-profile:v", "high",
+            "-level:v", "4.0",
+            "-b:v", "4000k",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-movflags", "+faststart",
+            "-y",
+            "/out/video.mp4");
+    }
+
+    [Fact]
+    public async Task TranscodeAsync_TranscodeFails_ExceptionCarriesTheSpaceJoinedCommandAndStderrAsync()
+    {
+        var fixture = new TestFixture();
+        CaptureCalls(fixture, transcodeExitCode: 3);
+
+        var act = () => fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video.mp4", CancellationToken.None);
+
+        var ex = (await act.Should().ThrowAsync<FfmpegException>()).Which;
+        ex.ExitCode.Should().Be(3);
+        ex.Stderr.Should().Be("boom");
+        ex.Message.Should().Contain("ffmpeg -i /src/video.mp4 -vf scale=-2:'min(720,ih)' -c:v h264_qsv ");
+    }
+
     // ==========================================================================
     // FfmpegException
     // ==========================================================================
@@ -180,6 +248,12 @@ public sealed class FfmpegVideoProcessorTests
         var ex = new FfmpegException("ffmpeg", "-i source.mp4", 2, "some error");
 
         ex.Message.Should().Contain("2").And.Contain("-i source.mp4");
+    }
+
+    [Fact]
+    public void FfmpegException_ParameterlessCtor_HasEmptyStderr()
+    {
+        new FfmpegException().Stderr.Should().BeEmpty();
     }
 
     // ==========================================================================
