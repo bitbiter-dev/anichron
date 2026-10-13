@@ -2,6 +2,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
+using Anichron.Worker.Tests.Unit.TestDoubles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,13 +37,59 @@ public sealed class WorkerTests
                 .Returns([]);
         }
 
+        public SignallingTimeProvider Time { get; } = new();
+
         public CrawlingWorker Build()
             => new(
                 scopeFactory,
                 WorkerState,
                 Pipeline,
+                Time,
                 Options.Create(new WorkerSettings()),
                 Substitute.For<ILogger<CrawlingWorker>>());
+    }
+
+    // ==========================================================================
+    // ExecuteAsync — crawl schedule
+    // ==========================================================================
+
+    [Fact]
+    public async Task ExecuteAsync_Started_CrawlsImmediatelyThenAgainAfterTheIntervalAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        using var crawls = new SemaphoreSlim(0);
+        fixture.ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => { crawls.Release(); return []; });
+        var interval = TimeSpan.FromHours(new WorkerSettings().CrawlIntervalHours);
+        var worker = fixture.Build();
+
+        await worker.StartAsync(ct);
+        await fixture.Time.WaitForTimerAsync(ct);
+        (await crawls.WaitAsync(0, ct)).Should().BeTrue();
+
+        fixture.Time.Advance(interval - TimeSpan.FromTicks(1));
+        (await crawls.WaitAsync(0, ct)).Should().BeFalse();
+        fixture.Time.Advance(TimeSpan.FromTicks(1));
+        (await crawls.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
+
+        await worker.StopAsync(ct);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Stopped_DoesNotCrawlAgainAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        var worker = fixture.Build();
+
+        await worker.StartAsync(ct);
+        await fixture.Time.WaitForTimerAsync(ct);
+        await worker.StopAsync(ct);
+        fixture.Time.Advance(TimeSpan.FromHours(new WorkerSettings().CrawlIntervalHours));
+
+        await fixture.ConfigRepository.Received(1).GetAllActiveAsync(Arg.Any<CancellationToken>());
+        worker.ExecuteTask!.IsCompleted.Should().BeTrue();
     }
 
     // ==========================================================================

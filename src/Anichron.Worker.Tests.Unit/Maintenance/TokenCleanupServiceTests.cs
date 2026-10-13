@@ -4,6 +4,7 @@ using Anichron.Worker.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NodaTime;
 
 namespace Anichron.Worker.Tests.Unit.Maintenance;
@@ -17,6 +18,7 @@ public sealed class TokenCleanupServiceTests
         public Instant Now { get; }
 
         public IServiceScopeFactory ScopeFactory { get; }
+        public FakeTimeProvider Time { get; } = new();
 
         public TestFixture()
         {
@@ -36,7 +38,7 @@ public sealed class TokenCleanupServiceTests
         public TokenCleanupService Build(double intervalHours = 24)
         {
             var settings = Options.Create(new WorkerSettings { TokenCleanupIntervalHours = intervalHours });
-            return new TokenCleanupService(ScopeFactory, Clock, settings, Substitute.For<ILogger<TokenCleanupService>>());
+            return new TokenCleanupService(ScopeFactory, Clock, Time, settings, Substitute.For<ILogger<TokenCleanupService>>());
         }
     }
 
@@ -63,7 +65,7 @@ public sealed class TokenCleanupServiceTests
         var fixture = new TestFixture();
         fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(deletedCount);
         var logger = new CapturingLogger();
-        var service = new TokenCleanupService(fixture.ScopeFactory, fixture.Clock, Options.Create(new WorkerSettings()), logger);
+        var service = new TokenCleanupService(fixture.ScopeFactory, fixture.Clock, fixture.Time, Options.Create(new WorkerSettings()), logger);
 
         await service.RunCleanupAsync(CancellationToken.None);
 
@@ -83,6 +85,72 @@ public sealed class TokenCleanupServiceTests
         var act = async () => await service.RunCleanupAsync(CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB error");
+    }
+
+    // ==========================================================================
+    // ExecuteAsync — schedule
+    // ==========================================================================
+
+    [Fact]
+    public async Task ExecuteAsync_Started_CleansUpImmediatelyThenOnEveryTickAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        using var cleanups = new SemaphoreSlim(0);
+        fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+            .Returns(_ => { cleanups.Release(); return 0; });
+        var service = fixture.Build(intervalHours: 2);
+
+        await service.StartAsync(ct);
+        (await cleanups.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
+
+        fixture.Time.Advance(TimeSpan.FromHours(2) - TimeSpan.FromTicks(1));
+        (await cleanups.WaitAsync(0, ct)).Should().BeFalse();
+        fixture.Time.Advance(TimeSpan.FromTicks(1));
+        (await cleanups.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
+
+        await service.StopAsync(ct);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CleanupFails_LogsAndRunsAgainOnTheNextTickAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        using var attempts = new SemaphoreSlim(0);
+        var calls = 0;
+        fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                attempts.Release();
+                return ++calls == 1 ? throw new InvalidOperationException("DB error") : 0;
+            });
+        var logger = new CapturingLogger();
+        var service = new TokenCleanupService(fixture.ScopeFactory, fixture.Clock, fixture.Time,
+            Options.Create(new WorkerSettings { TokenCleanupIntervalHours = 1 }), logger);
+
+        await service.StartAsync(ct);
+        (await attempts.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
+        fixture.Time.Advance(TimeSpan.FromHours(1));
+        (await attempts.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
+        await service.StopAsync(ct);
+
+        logger.Entries.Should().Contain(e => e.Level == LogLevel.Error);
+        service.ExecuteTask!.IsFaulted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Stopped_EndsWithoutFaultingAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        var service = fixture.Build();
+
+        await service.StartAsync(ct);
+        await service.StopAsync(ct);
+
+        service.ExecuteTask!.IsCompleted.Should().BeTrue();
+        service.ExecuteTask.IsFaulted.Should().BeFalse();
     }
 
     private sealed class CapturingLogger : ILogger<TokenCleanupService>

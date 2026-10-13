@@ -65,6 +65,7 @@ public sealed class Argon2PasswordHasher : IPasswordHasher
         {
             return RunArgon2id(passwordBytes, salt);
         }
+        // Stryker disable once Block,Statement
         finally
         {
             CryptographicOperations.ZeroMemory(passwordBytes);

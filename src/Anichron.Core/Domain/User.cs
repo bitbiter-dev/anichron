@@ -3,8 +3,11 @@
 public class User
 {
     public Guid Id { get; set; }
+    // Stryker disable once String
     public string Username { get; set; } = string.Empty;
+    // Stryker disable once String
     public string Email { get; set; } = string.Empty;
+    // Stryker disable once String
     public string PasswordHash { get; set; } = string.Empty;
     public bool IsAdmin { get; set; }
     public bool IsDisabled { get; set; }

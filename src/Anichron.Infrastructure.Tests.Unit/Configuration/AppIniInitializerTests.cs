@@ -362,4 +362,10 @@ public sealed class AppIniInitializerTests
         var line = content.Split('\n').First(l => l.TrimStart().StartsWith($"{key} =", StringComparison.Ordinal));
         return line.Split('=', 2)[1].Trim();
     }
+
+    [Fact]
+    public void PathUnder_ContentRoot_IsConfigurationAppIni()
+    {
+        AppIniInitializer.PathUnder("/app").Should().Be("/app/configuration/app.ini");
+    }
 }

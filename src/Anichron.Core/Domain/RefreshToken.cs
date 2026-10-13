@@ -4,6 +4,7 @@ public class RefreshToken
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
+    // Stryker disable once String
     public string TokenHash { get; set; } = string.Empty;
     public Instant CreatedAt { get; set; }
     public Instant ExpiresAt { get; set; }

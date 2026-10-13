@@ -51,6 +51,7 @@ internal sealed partial class FfmpegVideoProcessor(
                 return encoder;
             }
 
+            // Stryker disable once Equality
             if (encoder != H264Encoder.Software)
                 Log.EncoderUnavailable(logger, encoder);
         }

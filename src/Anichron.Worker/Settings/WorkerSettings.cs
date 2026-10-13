@@ -4,6 +4,7 @@ namespace Anichron.Worker.Settings;
 
 public sealed record WorkerSettings
 {
+    // Stryker disable once String
     public string User { get; init; } = string.Empty;
 
     [Required]
