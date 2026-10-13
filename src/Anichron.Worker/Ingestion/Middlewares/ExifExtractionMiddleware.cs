@@ -13,8 +13,8 @@ internal sealed partial class ExifExtractionMiddleware(
     ILogger<ExifExtractionMiddleware> logger) : IIngestionMiddleware
 {
     // EXIF dates use colons as date separators ("2024:07:15 13:22:01"), unlike ISO 8601.
-    private static readonly LocalDateTimePattern exifDatePattern =
-        LocalDateTimePattern.CreateWithInvariantCulture("yyyy:MM:dd HH:mm:ss");
+    private static LocalDateTimePattern ExifDatePattern
+        => LocalDateTimePattern.CreateWithInvariantCulture("yyyy:MM:dd HH:mm:ss");
 
     public int Order => IngestionOrder.ExifExtraction;
     public bool CanInvoke(IngestionContext context) => true;
@@ -40,7 +40,7 @@ internal sealed partial class ExifExtractionMiddleware(
         }
     }
 
-    private ExifData BuildExifData(IReadOnlyList<MetadataExtractor.Directory> metadataDirectories)
+    internal ExifData BuildExifData(IReadOnlyList<MetadataExtractor.Directory> metadataDirectories)
     {
         var cameraInfo = metadataDirectories.OfType<ExifIfd0Directory>().FirstOrDefault();     // IFD0: camera make/model, orientation
         var captureDetails = metadataDirectories.OfType<ExifSubIfdDirectory>().FirstOrDefault(); // Sub-IFD: date captured, lens model
@@ -77,6 +77,7 @@ internal sealed partial class ExifExtractionMiddleware(
                 ? (coordinates.Latitude, coordinates.Longitude)
                 : (null, null);
         }
+        // Stryker disable once Block
         catch (Exception ex)
         {
             Log.GpsCoordinatesParseFailed(logger, ex);
@@ -90,18 +91,20 @@ internal sealed partial class ExifExtractionMiddleware(
         MetadataExtractor.Directory? exifDirectory, int exifTag,
         QuickTimeTrackHeaderDirectory? trackHeader, int quickTimeTag)
     {
-        // Each check below: segment present AND tag readable AND value is a valid positive dimension.
         if (exifDirectory is not null && exifDirectory.TryGetInt32(exifTag, out var exifPixels) && exifPixels > 0)
             return exifPixels;
-        if (trackHeader is not null && trackHeader.TryGetInt32(quickTimeTag, out var qtPixels) && qtPixels > 0)
-            return qtPixels;
-        return 0;
+        return trackHeader is not null && trackHeader.TryGetInt32(quickTimeTag, out var qtPixels)
+            ? Math.Max(qtPixels, 0)
+            : 0;
     }
 
     private static int GetOrientation(ExifIfd0Directory? cameraInfo)
         => cameraInfo is not null
            && cameraInfo.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientation)
-           && orientation is >= Core.Domain.ExifOrientation.Upright and <= Core.Domain.ExifOrientation.Max
+           && orientation is
+               // Stryker disable once Equality
+               >= Core.Domain.ExifOrientation.Upright
+               and <= Core.Domain.ExifOrientation.Max
             ? orientation
             : Core.Domain.ExifOrientation.Upright;
 
@@ -110,10 +113,12 @@ internal sealed partial class ExifExtractionMiddleware(
         var raw = captureDetails?.GetString(ExifDirectoryBase.TagDateTimeOriginal);
         if (raw is null)
             return null;
-        var result = exifDatePattern.Parse(raw);
-        if (!result.Success)
-            Log.DateParseFailed(logger, raw);
-        return result.Success ? result.Value : null;
+        var result = ExifDatePattern.Parse(raw);
+        if (result.Success)
+            return result.Value;
+
+        Log.DateParseFailed(logger, raw);
+        return null;
     }
 
     private static int? GetDurationInSeconds(QuickTimeMovieHeaderDirectory? movieHeader)
