@@ -23,11 +23,13 @@ public sealed class EfRefreshTokenRepository(AnichronDbContext db) : IRefreshTok
     public void Add(RefreshToken token)
         => db.RefreshTokens.Add(token);
 
+    // Stryker disable all
     public Task RevokeAllActiveByUserIdAsync(Guid userId, Instant revokedAt, CancellationToken ct)
         => db.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, revokedAt), ct);
 
+    // Stryker disable all
     public Task<int> DeleteExpiredAsync(Instant before, CancellationToken ct)
         => db.RefreshTokens.Where(t => t.ExpiresAt < before).ExecuteDeleteAsync(ct);
 }

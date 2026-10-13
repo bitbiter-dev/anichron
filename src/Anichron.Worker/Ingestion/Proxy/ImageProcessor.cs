@@ -21,11 +21,7 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
 
     public async Task<byte[]> CreateThumbnailAsync(Image<Rgba32> image, CancellationToken ct)
     {
-        image.Mutate(x => x.Resize(new ResizeOptions
-        {
-            Size = new Size(settings.ThumbnailMaxWidth, 0),
-            Mode = ResizeMode.Max,
-        }));
+        DownscaleToWidth(image, settings.ThumbnailMaxWidth);
 
         await using var ms = new MemoryStream();
         await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = settings.ThumbnailJpegQuality }, ct);
@@ -34,27 +30,19 @@ internal sealed class ImageSharpProcessor(IOptions<WorkerSettings> options) : II
 
     public async Task<byte[]> CreateFullPreviewAsync(Image<Rgba32> image, CancellationToken ct)
     {
-        if (image.Width > settings.PreviewMaxWidth)
-        {
-            image.Mutate(x => x.Resize(new ResizeOptions
-            {
-                Size = new Size(settings.PreviewMaxWidth, 0),
-                Mode = ResizeMode.Max,
-            }));
-        }
+        DownscaleToWidth(image, settings.PreviewMaxWidth);
 
         await using var ms = new MemoryStream();
         await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = settings.PreviewJpegQuality }, ct);
         return ms.ToArray();
     }
 
+    private static void DownscaleToWidth(Image<Rgba32> image, int maxWidth)
+        => image.Mutate(x => x.Resize(Math.Min(image.Width, maxWidth), 0));
+
     public Task<string> ComputeBlurhashAsync(Image<Rgba32> image, CancellationToken ct)
     {
-        image.Mutate(x => x.Resize(new ResizeOptions
-        {
-            Size = new Size(settings.BlurhashSampleWidth, 0),
-            Mode = ResizeMode.Max,
-        }));
+        image.Mutate(x => x.Resize(settings.BlurhashSampleWidth, 0));
 
         // Blurhasher.Encode is CPU-bound and synchronous; no overload accepts a CancellationToken.
         return Task.FromResult(Blurhasher.Encode(image, 4, 3));
