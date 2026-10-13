@@ -61,6 +61,19 @@ public sealed class InviteRepositoryTests
     }
 
     [Fact]
+    public async Task FindValidByHashAsync_ExpiringExactlyNow_IsStillValid()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = CreateDb();
+        db.Invites.Add(MakeInvite("edgehash", expiresAt: Epoch));
+        await db.SaveChangesAsync(ct);
+
+        var result = await new EfInviteRepository(db).FindValidByHashAsync("edgehash", Epoch, ct);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task FindValidByHashAsync_AlreadyUsedToken_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
