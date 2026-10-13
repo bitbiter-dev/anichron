@@ -3,6 +3,7 @@ using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
@@ -26,6 +27,7 @@ internal sealed partial class ImageProxyMiddleware(
 
         await using var ms = new MemoryStream(sourceBytes);
         using var image = await Image.LoadAsync<Rgba32>(ms, ct);
+        image.Mutate(x => x.AutoOrient());
 
         var writes = generators.Select(WriteProxyAsync).ToArray();
         await Task.WhenAll(writes);
