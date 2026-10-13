@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -55,13 +56,14 @@ public sealed class ImageProxyMiddlewareTests
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
         public IProxyDirectoryStrategy DirectoryStrategy { get; } = Substitute.For<IProxyDirectoryStrategy>();
 
-        public ImageProxyMiddleware Build()
+        public ImageProxyMiddleware Build(IImageProcessor? imageProcessor = null)
         {
+            imageProcessor ??= ImageProcessor;
             IImageProxyGenerator[] generators =
             [
-                new ThumbnailGenerator(ImageProcessor),
-                new FullPreviewGenerator(ImageProcessor),
-                new BlurhashGenerator(ImageProcessor),
+                new ThumbnailGenerator(imageProcessor),
+                new FullPreviewGenerator(imageProcessor),
+                new BlurhashGenerator(imageProcessor),
             ];
             return new(generators,
                        DirectoryStrategy,
@@ -256,6 +258,70 @@ public sealed class ImageProxyMiddlewareTests
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
+    }
+
+    // ==========================================================================
+    // Orientation
+    // ==========================================================================
+
+    private static byte[] LandscapeJpegWithOrientation(ushort orientation)
+    {
+        using var img = new Image<Rgba32>(40, 20);
+        img.Metadata.ExifProfile = new ExifProfile();
+        img.Metadata.ExifProfile.SetValue(ExifTag.Orientation, orientation);
+        using var ms = new MemoryStream();
+        img.SaveAsJpeg(ms);
+        return ms.ToArray();
+    }
+
+    private static async Task<(int Width, int Height, ushort Orientation)> ReadProxyAsync(
+        MockFileSystem fileSystem, string path)
+    {
+        var bytes = await fileSystem.File.ReadAllBytesAsync(path);
+        using var proxy = Image.Load(bytes);
+        var orientation = proxy.Metadata.ExifProfile?.TryGetValue(ExifTag.Orientation, out var tag) == true
+            ? tag.Value
+            : (ushort)1;
+        return (proxy.Width, proxy.Height, orientation);
+    }
+
+    [Theory]
+    [InlineData((ushort)1, 10, 5)]
+    [InlineData((ushort)3, 10, 5)]
+    [InlineData((ushort)5, 10, 20)]
+    [InlineData((ushort)6, 10, 20)]
+    [InlineData((ushort)7, 10, 20)]
+    [InlineData((ushort)8, 10, 20)]
+    public async Task InvokeAsync_OrientedJpeg_WritesUprightThumbnailWithoutRotationTagAsync(
+        ushort orientation, int expectedWidth, int expectedHeight)
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(LandscapeJpegWithOrientation(orientation)));
+        var processor = new ImageSharpProcessor(Options.Create(new WorkerSettings { ThumbnailMaxWidth = 10 }));
+
+        await fixture.Build(processor).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        var (width, height, tag) = await ReadProxyAsync(fixture.FileSystem, "/proxies/ab/cd/thumbnail.jpg");
+        (width, height).Should().Be((expectedWidth, expectedHeight));
+        tag.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData((ushort)1, 40, 20)]
+    [InlineData((ushort)6, 20, 40)]
+    [InlineData((ushort)7, 20, 40)]
+    public async Task InvokeAsync_OrientedJpeg_WritesUprightPreviewWithoutRotationTagAsync(
+        ushort orientation, int expectedWidth, int expectedHeight)
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(LandscapeJpegWithOrientation(orientation)));
+        var processor = new ImageSharpProcessor(Options.Create(new WorkerSettings()));
+
+        await fixture.Build(processor).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        var (width, height, tag) = await ReadProxyAsync(fixture.FileSystem, "/proxies/ab/cd/preview.jpg");
+        (width, height).Should().Be((expectedWidth, expectedHeight));
+        tag.Should().Be(1);
     }
 
     // ==========================================================================
