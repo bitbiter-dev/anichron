@@ -30,7 +30,7 @@
   <ItemGroup Label="Analyzers">
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.35.0.4138" />
-    <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23" />
+    <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.12.1" />
   </ItemGroup>
   <ItemGroup Label="Test utilities">
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
