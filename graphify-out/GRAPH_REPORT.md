@@ -1,7 +1,7 @@
-# Graph Report - mutation-pipeline  (2026-10-15)
+# Graph Report - mutation-gate  (2026-10-15)
 
 ## Corpus Check
-- 283 files · ~99,566 words
+- 283 files · ~100,174 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 7, .props 2, .example 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `368fdc87`
+- Built from commit: `1d321ec5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
