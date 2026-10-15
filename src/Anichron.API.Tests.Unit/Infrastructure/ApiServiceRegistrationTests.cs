@@ -136,7 +136,7 @@ public sealed class ApiServiceRegistrationTests
     }
 
     [Fact]
-    public void AddAuthServices_PwnedClientTargetsTheRangeApiWithPaddingAndATimeout()
+    public void AddAuthServices_PwnedClientTargetsTheRangeApiWithPadding()
     {
         using var provider = AuthServices().BuildServiceProvider();
 
@@ -155,7 +155,7 @@ public sealed class ApiServiceRegistrationTests
             .Get($"{nameof(IPwnedPasswordClient)}-standard");
 
         resilience.TotalRequestTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(5));
-        resilience.AttemptTimeout.Timeout.Should().BeLessThanOrEqualTo(resilience.TotalRequestTimeout.Timeout);
+        resilience.AttemptTimeout.Timeout.Should().Be(TimeSpan.FromSeconds(5));
     }
 
     // ==========================================================================

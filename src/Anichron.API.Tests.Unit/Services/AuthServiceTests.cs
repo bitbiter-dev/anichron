@@ -442,7 +442,7 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_ValidCredentials_PersistsTheLockoutResetAsync()
+    public async Task LoginAsync_ValidCredentials_SavesChangesAsync()
     {
         var fixture = new TestFixture()
             .WithPasswordValid()
@@ -846,7 +846,7 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task ChangePasswordAsync_ValidPasswords_PersistsTheNewHashAsync()
+    public async Task ChangePasswordAsync_ValidPasswords_SavesChangesAsync()
     {
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var fixture = new TestFixture()
