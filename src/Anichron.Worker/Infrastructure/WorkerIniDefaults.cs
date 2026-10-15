@@ -6,6 +6,7 @@ internal static class WorkerIniDefaults
 {
     internal static IReadOnlyList<IniEntry> Entries => [
         new IniEntry("Worker", "User", () => string.Empty),
+        new IniEntry("Worker", "ExcludedDirectories", () => string.Empty),
         new IniEntry("Worker", "CrawlIntervalHours", () => "4"),
         new IniEntry("Worker", "MaxConcurrentFiles", () => "4"),
         new IniEntry("Worker", "TokenCleanupIntervalHours", () => "24"),

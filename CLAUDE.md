@@ -138,6 +138,7 @@ Proxy files follow a two-level shard path derived from **content, not from the i
 ### Worker Media Processing
 
 - Crawls NAS on a configurable interval (`Worker:CrawlIntervalHours`, default 4 h; immediate crawl on startup)
+- The crawl walks folder by folder and never enters `CrawlExclusions`: any dot-folder or dot-file (macOS/Linux/QNAP/ZFS/sync-tool metadata), NAS and OS system folders (`@eaDir`, `#recycle`, `@Recycle`, `$RECYCLE.BIN`, `lost+found`, Nextcloud `files_trashbin`/`files_versions`, …) and app library packages (`*.photoslibrary`, `*.lrdata`, …, which hold thumbnails and renders). `Worker:ExcludedDirectories` adds comma-separated folder names (not paths; rejected at startup) on top. An unreadable subfolder is logged and skipped; an unreadable or missing root still fails the crawl
 - Extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `ContentHash` → writes `MediaAsset` + `Metadata`
 - Generates proxy types: `Thumbnail`, `FullPreview`, `WebVideo`, `BlurHash` (the `ProxyType` enum, persisted as text)
 - Image proxies are auto-oriented once after decoding: upright pixels, orientation tag 1. `Metadata.Orientation` applies only when serving originals — never rotate a proxy by it

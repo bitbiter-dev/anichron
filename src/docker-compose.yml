@@ -98,6 +98,7 @@ services:
       # Optional overrides (defaults shown):
       # - WORKER__CRAWLINTERVALHOURS=4
       # - WORKER__MAXCONCURRENTFILES=4
+      # - WORKER__EXCLUDEDDIRECTORIES=Lightroom Previews,tmp  # extra folder names to skip
     volumes:
       - /path/to/alice/photos:/data/originals/alice:ro  # ← this user's NAS folder only
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:rw

@@ -10,6 +10,9 @@ public sealed record WorkerSettings
     // Stryker disable once String
     public string RootPath { get; init; } = string.Empty;
 
+    [RegularExpression(@"^[^/\\]*$", ErrorMessage = "Worker:ExcludedDirectories takes folder names, not paths.")]
+    public string ExcludedDirectories { get; init; } = string.Empty;
+
     [Range(1, int.MaxValue)]
     public int CrawlIntervalHours { get; init; } = 4;
 

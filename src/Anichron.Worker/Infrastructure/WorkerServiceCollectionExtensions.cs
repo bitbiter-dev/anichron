@@ -52,6 +52,7 @@ internal static class WorkerServiceCollectionExtensions
         {
             services.AddSingleton<IFileSystem, FileSystem>();
             services.AddSingleton<ILivePhotoLinker, LivePhotoLinker>();
+            services.AddSingleton<CrawlExclusions>();
             services.AddSingleton<IFileIngestionPipeline, FileIngestionPipeline>();
             services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();
             services.AddSingleton<ProxyStagingWriter>();
