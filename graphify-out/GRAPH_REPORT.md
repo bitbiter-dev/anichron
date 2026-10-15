@@ -1,7 +1,7 @@
 # Graph Report - ci-parallelize  (2026-10-15)
 
 ## Corpus Check
-- 285 files · ~101,130 words
+- 285 files · ~101,754 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 7, .props 2, .example 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `48912a79`
+- Built from commit: `d7c9b279`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

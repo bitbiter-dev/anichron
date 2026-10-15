@@ -21,6 +21,22 @@ assert_contains() {
   esac
 }
 
+# Asserts a non-zero exit AND that the message explains which failure it was.
+# Exit status alone is too weak: a usage error also exits non-zero, so every
+# one of these would pass against a script that simply rejected its arguments.
+assert_fails() {
+  local name="$1" expected="$2"; shift 2
+  local out
+  if out=$("$@" 2>&1); then
+    fail "$name" "non-zero exit mentioning '$expected'" "exit 0 — $out"
+    return
+  fi
+  case "$out" in
+    *"$expected"*) pass "$name" ;;
+    *) fail "$name" "message containing '$expected'" "$out" ;;
+  esac
+}
+
 echo "badge"
 
 out=$("$script" badge "$fixtures/passing.json")
@@ -101,21 +117,6 @@ assert_contains "names the second detected count" '5' "$out"
 echo
 echo "failing loudly"
 
-# Asserts a non-zero exit AND that the message explains which failure it was.
-# Exit status alone is too weak: a usage error also exits non-zero, so every
-# one of these would pass against a script that simply rejected its arguments.
-assert_fails() {
-  local name="$1" expected="$2"; shift 2
-  local out
-  if out=$("$@" 2>&1); then
-    fail "$name" "non-zero exit mentioning '$expected'" "exit 0 — $out"
-    return
-  fi
-  case "$out" in
-    *"$expected"*) pass "$name" ;;
-    *) fail "$name" "message containing '$expected'" "$out" ;;
-  esac
-}
 
 assert_fails "a missing report is named, not silently scored" 'report not found' "$script" badge "$fixtures/does-not-exist.json"
 assert_fails "malformed JSON is reported as a parse failure" 'parse error' "$script" badge "$fixtures/malformed.json"

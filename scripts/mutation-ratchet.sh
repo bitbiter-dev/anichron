@@ -27,9 +27,10 @@ EOF
   exit 2
 }
 
-# How far below the mark the gate sits. A build that loses a few mutants to
-# ordinary churn should not fail; one that loses a chunk should.
-readonly SLACK=5
+# How far below the mark the gate sits. Zero: once the score is 100%, any slack
+# the floored integer gate can express already hides about 1% of all mutants.
+# See docs/mutation-testing.md, "Why there is no slack".
+readonly SLACK=0
 
 # The committed thresholds. These are the floor the derived gate is taken
 # against, never merely a starting point — see cmd_thresholds.
@@ -93,8 +94,8 @@ cmd_thresholds() {
   # break = max(committed break, floor(mark - SLACK)).
   #
   # The max() is not in the ticket, and without it the feature regresses on its
-  # first run: the real mark is 46.58, so mark - 5 floors to 41, under the
-  # committed 42. Acceptance criterion 4 read literally would LOWER the gate,
+  # first run: the real mark was 46.58, and with the slack of 5 it had then
+  # that floored to 41, under the committed 42. Acceptance criterion 4 read literally would LOWER the gate,
   # which is what the issue's opening line rules out. Floor rather than round
   # because rounding up can only cause a spurious failure.
   #
