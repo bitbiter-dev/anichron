@@ -5,6 +5,7 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Infrastructure.Configuration;
+using Anichron.Infrastructure.FileSystem;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -165,7 +166,7 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddApiHealthChecks()
         {
-            services.AddSingleton<IFileSystem, FileSystem>();
+            services.AddSingleton<IFileSystem>(static _ => new ReadOnlyFileSystem(new FileSystem()));
             services.AddHealthChecks()
                     .AddDbContextCheck<AnichronDbContext>("database")
                     .AddCheck<ProxyStorageHealthCheck>("proxyStorage")
