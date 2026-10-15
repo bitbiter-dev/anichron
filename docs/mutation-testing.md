@@ -82,9 +82,8 @@ do get skipped, since they need `Build & Test` to succeed.
 | --- | --- | --- |
 | `test-runner` | `mtp` | **Required.** See [ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md). |
 | `mutate` | excludes `Migrations/**` and a short, explicit list of pure-wiring files | See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). Paths are listed one by one — never a wildcard. |
-| `ignore-methods` | `Log.*`, `UnreachableException.ctor` | Calls whose mutants no test can meaningfully kill. See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). |
-| `thresholds.break` | `42`, against a measured 46.58% | Roughly five points of headroom. `low` is pinned equal to `break` because Stryker enforces `break <= low` and refuses to start otherwise. Since the ratchet landed this is the **floor**, not the live gate — see [The ratchet](#the-ratchet). |
-| `thresholds.high` | `80` | Report colour-coding; it gates nothing directly, but the ratchet raises it when the gate would otherwise overtake it. |
+| `ignore-methods` | `Log.*`, `*BeginScope`, `UnreachableException.ctor` | Calls whose mutants no test can meaningfully kill. See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). |
+| `thresholds` | `break`, `low` and `high` all `100` | The target since ADR 0005, reached with #233. All three move together because Stryker validates `break <= low <= high` before it mutates anything. They are also the **floor** the ratchet derives its gate from, so a run with no stored mark gates at 100 as well — see [The ratchet](#the-ratchet). |
 | `concurrency` | *unset* | Left at Stryker's default (half the logical processors). Pinning it above the default oversubscribes CI, and timeouts count as *detected*, so that inflates the score. |
 
 > **Do not change `test-runner` back to Stryker's default (`vstest`).** It cannot observe xUnit v3
@@ -318,7 +317,7 @@ mark** stored on the `badges` branch as `mutation-highwater.json`, by `scripts/m
 ```bash
 # what CI passes to Stryker, given a stored mark
 scripts/mutation-ratchet.sh thresholds src/stryker-config.json mark.json
-#   --break-at 57 --threshold-low 57 --threshold-high 80
+#   --break-at 100 --threshold-low 100 --threshold-high 100
 
 # the new mark, if this report beat the stored one; exit 3 if it did not
 scripts/mutation-ratchet.sh advance src/stryker-config.json report.json mark.json
@@ -331,23 +330,45 @@ every other open pull request.
 The mark lives on the badges branch rather than in the source tree so that raising it never requires
 CI to commit to the default branch or edit a tracked configuration file.
 
-### Why the gate is not simply `mark - 5`
+### Why there is no slack
 
-Two things the arithmetic has to survive, neither of them obvious from the rule:
+The gate is `max(committed break, floor(mark - SLACK))`, and `SLACK` is **0**. It was 5 while the
+score climbed from 46.58%; at 100% any slack does more harm than good.
 
-**The static threshold is a floor, not a starting point.** The first real mark is 46.58, and
-46.58 − 5 floors to 41 — *below* the committed `break` of 42. Applied literally, the ratchet's first
-advance would have **lowered** the gate. The derived value is therefore
-`max(committed break, floor(mark - 5))`, so the bar can only ever move up.
+**The smallest slack the gate can express already hides about 1% of all mutants.** Thresholds are
+whole percentages (the derived value is floored), so the only gates above 99 are 100 and nothing.
+With 983 mutants in scope, one mutant is 0.10 points:
+
+| `SLACK` | Gate | Survivors that still pass |
+| --- | --- | --- |
+| 0 | 100 | 0 |
+| 0.5 or 1 | 99 | 9 (974/983 = 99.08%) |
+| 5 | 95 | 49 |
+
+That count grows with the codebase — about 1% of it — so slack cannot be tuned to "a couple".
+
+**Slack only buys anything if the measurement is noisy, and it is not.** The variance seen while
+reaching 100% came from `static readonly` initialisers and EF's cached model (up to 16 mutants
+between runs), both removed. The MTP under-reporting defect showed no divergence and is watched by
+the weekly job, and timeouts count as detected. Every remaining source of noise can only lower the
+score — a spurious failure, never a false pass — and slack does not cure that; it only hides real
+regressions. If flakiness returns, fix its cause rather than reintroducing slack.
+
+**Equivalent mutants in new code do not need slack either.** ADR 0005 already gives them a route:
+a bare `// Stryker disable once` plus an ADR row with the reason, which review can see.
+
+**The static threshold is still a floor, not a starting point.** A mark of 41.58 floors to 41 —
+*below* a committed `break` of 42. Applied literally, the ratchet would **lower** the gate. The
+`max()` keeps the bar from ever moving down.
 
 **`high` has to rise too.** Stryker validates `break <= low <= high` *before* it mutates anything,
 and exits `1` when that fails — which reads as a broken tool, not a threshold event. The familiar
 half of that constraint is `break <= low`, which is why the two are always emitted as the same
-number. The other half bites later and harder: with `high` at 80, a mark of 88 derives a `low` of 83
+number. The other half bites later and harder: with `high` at 80, a mark of 88 derives a `low` of 88
 and Stryker refuses to start:
 
 ```
-Threshold high must be higher than or equal to threshold low. Current high: 80, low: 83.
+Threshold high must be higher than or equal to threshold low. Current high: 80, low: 88.
 ```
 
 So `high` is raised to match whenever the gate would overtake it, and never lowered below its

@@ -134,5 +134,6 @@ defaults and are tested.
   no third category.
 - Suppressing a site requires amending this ADR. A bare directive with no entry here is a review
   finding.
-- The ratchet still gates at the stored mark minus five points. Raising it to enforce 100% is a
-  separate change, made once the in-scope survivors are gone.
+- The gate enforces 100%: the ratchet's slack is 0 and `break`, `low` and `high` are all 100. Any
+  surviving or uncovered mutant fails the build. The reasoning, including why no smaller allowance
+  is possible, is in `docs/mutation-testing.md` under "Why there is no slack".
