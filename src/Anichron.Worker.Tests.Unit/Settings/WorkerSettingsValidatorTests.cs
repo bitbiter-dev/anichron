@@ -190,6 +190,7 @@ public sealed class WorkerSettingsValidatorTests
         var settings = new WorkerSettings();
 
         settings.RootPath.Should().BeEmpty();
+        settings.ExcludedDirectories.Should().BeEmpty();
         settings.ProxyPath.Should().Be("/data/proxies");
         settings.FfmpegPath.Should().Be("ffmpeg");
     }

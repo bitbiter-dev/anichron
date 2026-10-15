@@ -6,26 +6,14 @@ namespace Anichron.Worker.Crawling;
 
 internal sealed class CrawlExclusions(IOptions<WorkerSettings> options)
 {
-    private static readonly string[] builtInDirectoryNames =
-    [
-        "@eaDir", "#recycle", "#snapshot", "@tmp",
-        "@Recycle", "@Recently-Snapshot",
-        "$RECYCLE.BIN", "System Volume Information", "RECYCLER",
-        "lost+found",
-        "files_trashbin", "files_versions",
-    ];
-
-    private static readonly string[] appLibrarySuffixes =
-    [
-        ".photoslibrary", ".photolibrary", ".lrdata", ".fcpbundle", ".imovielibrary",
-    ];
-
     private readonly HashSet<string> directoryNames = new(
         [
-            .. builtInDirectoryNames,
+            .. BuiltInDirectoryNames(),
             .. ConfigurationList.Parse(options.Value.ExcludedDirectories, static name => name),
         ],
         StringComparer.OrdinalIgnoreCase);
+
+    private readonly string[] appLibrarySuffixes = AppLibrarySuffixes();
 
     public bool IsExcludedDirectory(string name)
         => name.StartsWith('.')
@@ -34,4 +22,21 @@ internal sealed class CrawlExclusions(IOptions<WorkerSettings> options)
 
     public static bool IsExcludedFile(string name)
         => name.StartsWith('.');
+
+    private static string[] BuiltInDirectoryNames()
+    {
+        return
+        [
+            "@eaDir", "#recycle", "#snapshot", "@tmp",
+            "@Recycle", "@Recently-Snapshot",
+            "$RECYCLE.BIN", "System Volume Information", "RECYCLER",
+            "lost+found",
+            "files_trashbin", "files_versions",
+        ];
+    }
+
+    private static string[] AppLibrarySuffixes()
+    {
+        return [".photoslibrary", ".photolibrary", ".lrdata", ".fcpbundle", ".imovielibrary"];
+    }
 }

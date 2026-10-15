@@ -93,6 +93,18 @@ public sealed class WorkerServiceCollectionExtensionsTests
             d.Lifetime == ServiceLifetime.Scoped);
     }
 
+    [Fact]
+    public void AddIngestionServices_RegistersCrawlExclusions_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIngestionServices();
+
+        services.Should().ContainSingle(d =>
+            d.ServiceType == typeof(CrawlExclusions) &&
+            d.Lifetime == ServiceLifetime.Singleton);
+    }
+
     // ==========================================================================
     // AddIngestionServices — proxy generators
     // ==========================================================================

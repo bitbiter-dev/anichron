@@ -55,29 +55,35 @@ internal sealed partial class FileIngestionPipeline(
             var pending = new Stack<string>([config.RootPath]);
             while (pending.TryPop(out var directory))
             {
-                List<string> files;
-                List<string> subdirectories;
-                try
-                {
-                    files = [.. fileSystem.Directory.EnumerateFiles(directory)
-                        .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)))];
-                    subdirectories = [.. fileSystem.Directory.EnumerateDirectories(directory)
-                        .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory)))];
-                }
-                catch (Exception ex) when (directory != config.RootPath && ex is UnauthorizedAccessException or IOException)
-                {
-                    Log.DirectoryUnreadable(logger, directory, ex);
+                var listing = ListDirectory(directory, config.RootPath);
+                if (listing is null)
                     continue;
-                }
 
-                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, ct);
-                foreach (var subdirectory in subdirectories)
+                await EnqueueDirectoryItemsAsync(listing.Value.Files, config.RootPath, writer, ct);
+                foreach (var subdirectory in listing.Value.Subdirectories)
                     pending.Push(subdirectory);
             }
         }
         finally
         {
             writer.TryComplete();
+        }
+    }
+
+    private (List<string> Files, List<string> Subdirectories)? ListDirectory(string directory, string rootPath)
+    {
+        try
+        {
+            return (
+                [.. fileSystem.Directory.EnumerateFiles(directory)
+                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)))],
+                [.. fileSystem.Directory.EnumerateDirectories(directory)
+                    .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory)))]);
+        }
+        catch (Exception ex) when (directory != rootPath && ex is UnauthorizedAccessException or IOException)
+        {
+            Log.DirectoryUnreadable(logger, directory, ex);
+            return null;
         }
     }
 
