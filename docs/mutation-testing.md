@@ -22,7 +22,8 @@ solution file parses correctly.
 
 No flags are needed locally and no **measurement-affecting** flag should be added. Every value that
 affects what gets measured lives in `src/stryker-config.json`, which is what makes a local run and
-the CI run comparable.
+the CI run comparable. The one local exception is the scoped run below, which deliberately measures
+less and is never compared with CI.
 
 CI does pass threshold flags — `--break-at`, `--threshold-low` and `--threshold-high`, computed
 from the stored high-water mark (see [The ratchet](#the-ratchet)). Those change the **verdict**,
@@ -38,10 +39,47 @@ than the current mark.
 > badge (#182), the published report (#181), the weekly divergence check (#184) and the threshold
 > ratchet (#183) are all live.
 
-The run takes roughly one to one and a half minutes on a developer machine, with live progress as
-it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
+A full sweep takes about eight minutes on a developer machine, with live progress as it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
 to for the detail — it shows each surviving mutant in its source context, which is how you find the
 line that needs a test. The markdown report beside it has the per-file breakdown.
+
+### The scoped local run
+
+A full sweep now takes about eight minutes, and the CI `Mutation` job runs one on every pull
+request anyway. While working on a change, run only the files it touches:
+
+```bash
+scripts/mutation-changed.sh                     # changed since the merge-base with origin/master
+scripts/mutation-changed.sh --base <ref>        # a different base
+scripts/mutation-changed.sh --print             # show the Stryker arguments, run nothing
+scripts/mutation-changed.sh Anichron.API/Endpoints/AdminUserEndpoints.cs   # add source files
+```
+
+It collects every changed `.cs` file under `src/` — committed, staged, unstaged and untracked —
+and passes each one to Stryker as `--mutate`, together with the exclusions from
+`stryker-config.json`. Mutants outside those files are reported as `Removed by mutate filter`, so
+the score and the `break` threshold apply to the changed files alone. Stryker still builds the
+solution, creates every mutant and captures per-test coverage for the whole suite, which is the
+fixed cost of roughly a minute and a half. The run then tests only the selected mutants, and each
+of them against every test that covers it, so a file's result matches what the full sweep reports
+for that file.
+
+A changed test file `<Name>Tests.cs` selects `<Name>.cs` in the matching production project. About
+a fifth of the test files are not named after one source file (endpoint and registration tests,
+test doubles), and a change to one of those exits `1` and lists them, because silently mutating
+nothing would read as a pass. Pass the source files they cover as arguments, relative to `src/`.
+
+What the scoped run cannot see, and the full sweep in CI catches:
+
+- a change in one file that weakens the tests of a file it did not touch
+- a change to `stryker-config.json`, a shared base class or a test double, whose effect is not
+  confined to the files in the diff — run `dotnet stryker` for those
+
+**Why not Stryker's own `--since`.** It is the obvious tool and it is unusable here: Stryker
+resolves the repository through its main working directory, so inside a git worktree — where every
+agent works — it diffs the main checkout against the target instead. Measured on a worktree with an
+untested method: it listed the main checkout's changed files, tested 0 mutants, printed "unable to
+calculate a mutation score" and **exited `0`**. `--with-baseline` builds on the same diff.
 
 ## Reading the result
 
