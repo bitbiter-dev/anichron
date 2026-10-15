@@ -74,6 +74,20 @@ public sealed class LoginResponseFloorTests
     }
 
     [Fact]
+    public async Task PadAsync_FloorAlreadyReachedExactly_CompletesEvenIfCancelled()
+    {
+        var testee = CreateTestee();
+        var startedAt = testee.Start();
+        timeProvider.Advance(Floor);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var pad = testee.PadAsync(startedAt, cts.Token);
+
+        pad.IsCompletedSuccessfully.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task PadAsync_WhenCancelled_DoesNotWait()
     {
         var testee = CreateTestee();

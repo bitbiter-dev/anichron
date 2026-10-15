@@ -73,6 +73,33 @@ public sealed class RegistrationValidatorTests
     }
 
     [Fact]
+    public async Task ValidateAsync_PasswordExactlyAtMaxLength_IsAccepted()
+    {
+        var testee = new TestFixture()
+            .WithPasswordPolicy(new PasswordPolicy { MinLength = 4, MaxLength = 10 })
+            .WithPwnedPassword(isPwned: false)
+            .CreateTestee();
+
+        var result = await testee.ValidateAsync(ValidUsername, ValidEmail, "1234567890", CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_EmailExactlyAtMaxLength_IsAccepted()
+    {
+        var testee = new TestFixture()
+            .WithPwnedPassword(isPwned: false)
+            .CreateTestee();
+        var email = new string('a', 244) + "@example.com";
+
+        var result = await testee.ValidateAsync(ValidUsername, email, ValidPassword, CancellationToken.None);
+
+        email.Should().HaveLength(256);
+        result.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ValidateAsync_PasswordTooLong_ReturnsPasswordTooLong()
     {
         var testee = new TestFixture()

@@ -15,7 +15,7 @@ public sealed class AuthServiceTests
     {
         internal readonly IUserRepository Users = Substitute.For<IUserRepository>();
         private readonly IInviteRepository _invites = Substitute.For<IInviteRepository>();
-        private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+        internal IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
         private readonly IClock _clock = Substitute.For<IClock>();
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
         internal readonly IPasswordHasher PasswordHasher = Substitute.For<IPasswordHasher>();
@@ -32,10 +32,10 @@ public sealed class AuthServiceTests
             _clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 1, 1, 12, 0, 0));
             TokenService.IssueAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
                 .Returns(new AuthTokens("access_token", "refresh_token"));
-            _unitOfWork
+            UnitOfWork
                 .ExecuteInTransactionAsync(Arg.Any<Func<Task<AuthTokens>>>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo => callInfo.Arg<Func<Task<AuthTokens>>>()());
-            _unitOfWork
+            UnitOfWork
                 .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo => callInfo.Arg<Func<Task>>()());
             // Default: return a valid invite so existing register tests are unaffected
@@ -97,7 +97,7 @@ public sealed class AuthServiceTests
 
         public TestFixture WithSaveChangesThrows(Exception exception)
         {
-            _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
                 .Returns(Task.FromException<int>(exception));
             return this;
         }
@@ -143,7 +143,7 @@ public sealed class AuthServiceTests
         }
 
         public AuthService CreateTestee() => new(
-            Users, _invites, _unitOfWork, _clock, _guidFactory, PasswordHasher, _validator, TokenService, Lockout, ResponseFloor);
+            Users, _invites, UnitOfWork, _clock, _guidFactory, PasswordHasher, _validator, TokenService, Lockout, ResponseFloor);
     }
 
     // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
@@ -172,6 +172,18 @@ public sealed class AuthServiceTests
             result.Value!.AccessToken.Should().Be("acc");
             result.Value.RefreshToken.Should().Be("ref");
         });
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ValidInput_AddsTheNewUserWithAHashedPassword()
+    {
+        var fixture = new TestFixture();
+        var testee = fixture.CreateTestee();
+
+        await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
+
+        fixture.Users.Received(1).Add(Arg.Is<User>(u =>
+            u.Username == "alice" && u.Email == "alice@example.com" && u.PasswordHash == "hashed_value"));
     }
 
     [Fact]
@@ -414,6 +426,32 @@ public sealed class AuthServiceTests
             result.Value!.AccessToken.Should().Be("acc");
             result.Value.RefreshToken.Should().Be("ref");
         });
+    }
+
+    [Fact]
+    public async Task LoginAsync_ValidCredentials_DoesNotRecordAFailedAttempt()
+    {
+        var fixture = new TestFixture()
+            .WithPasswordValid()
+            .WithUser(new User { PasswordHash = "hashed_value" });
+        var testee = fixture.CreateTestee();
+
+        await testee.LoginAsync("alice", "correct_password", CancellationToken.None);
+
+        await fixture.Lockout.DidNotReceive().RecordFailedAttemptAsync(Arg.Any<User>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoginAsync_ValidCredentials_SavesChangesAsync()
+    {
+        var fixture = new TestFixture()
+            .WithPasswordValid()
+            .WithUser(new User { PasswordHash = "hashed_value" });
+        var testee = fixture.CreateTestee();
+
+        await testee.LoginAsync("alice", "correct_password", CancellationToken.None);
+
+        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -805,6 +843,20 @@ public sealed class AuthServiceTests
             user.PasswordHash.Should().Be("hashed_value");
             user.MustChangePassword.Should().BeFalse();
         });
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ValidPasswords_SavesChangesAsync()
+    {
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var fixture = new TestFixture()
+            .WithUserById(userId, new User { Id = userId, PasswordHash = "stored_hash" })
+            .WithPasswordValid();
+        var testee = fixture.CreateTestee();
+
+        await testee.ChangePasswordAsync(userId, "current_password", "new_password", CancellationToken.None);
+
+        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

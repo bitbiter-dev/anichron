@@ -18,14 +18,14 @@ public sealed class BootstrapSeederTests
         public IUserRepository Users { get; } = Substitute.For<IUserRepository>();
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
-        private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
+        public IPasswordHasher PasswordHasher { get; } = Substitute.For<IPasswordHasher>();
         private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
         private readonly ILogger<BootstrapSeeder> _logger = Substitute.For<ILogger<BootstrapSeeder>>();
 
         public TestFixture()
         {
             _guidFactory.NewGuid().Returns(Guid.Parse("00000000-0000-0000-0000-000000000001"));
-            _passwordHasher.Hash(Arg.Any<string>()).Returns("hashed_password");
+            PasswordHasher.Hash(Arg.Any<string>()).Returns("hashed_password");
             _configuration[Arg.Any<string>()].Returns((string?)null);
         }
 
@@ -55,7 +55,7 @@ public sealed class BootstrapSeederTests
         }
 
         public BootstrapSeeder CreateTestee() => new(
-            Users, UnitOfWork, _guidFactory, _passwordHasher, _configuration, _logger);
+            Users, UnitOfWork, _guidFactory, PasswordHasher, _configuration, _logger);
     }
 
     private static DbUpdateException UniqueViolation()
@@ -112,6 +112,19 @@ public sealed class BootstrapSeederTests
             captured!.Username.Should().Be(AppDefaults.Startup.AdminDefaultUsername);
             captured.PasswordHash.Should().Be("hashed_password");
         });
+        fixture.PasswordHasher.Received(1).Hash("admin");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task SeedAsync_NoUsers_BlankConfiguredPasswordFallsBackToTheDefault(string configured)
+    {
+        var fixture = new TestFixture().WithConfig("BOOTSTRAP_ADMIN_PASSWORD", configured);
+
+        await fixture.CreateTestee().SeedAsync(CancellationToken.None);
+
+        fixture.PasswordHasher.Received(1).Hash("admin");
     }
 
     [Fact]
@@ -127,6 +140,7 @@ public sealed class BootstrapSeederTests
         await testee.SeedAsync(CancellationToken.None);
 
         captured!.Username.Should().Be("superadmin");
+        fixture.PasswordHasher.Received(1).Hash("SecurePass!");
     }
 
     [Fact]
