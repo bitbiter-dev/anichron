@@ -45,6 +45,21 @@ public sealed class WorkerSettingsValidatorTests
     // CrawlIntervalHours
     // ==========================================================================
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("Lightroom Previews, tmp")]
+    public void Validate_ExcludedDirectoriesAsFolderNames_ReturnsSuccess(string excludedDirectories)
+        => IsValid(ValidSettings with { ExcludedDirectories = excludedDirectories }).Should().BeTrue();
+
+    [Theory]
+    [InlineData("2024/Private")]
+    [InlineData("tmp, Lightroom Previews/")]
+    [InlineData(@"Exports\\Old")]
+    public void Validate_ExcludedDirectoriesContainingAPath_ReturnsFailedNamingTheSetting(string excludedDirectories)
+        => GetFailures(ValidSettings with { ExcludedDirectories = excludedDirectories })
+            .Should().ContainSingle()
+            .Which.MemberNames.Should().Equal(nameof(WorkerSettings.ExcludedDirectories));
+
     [Fact]
     public void Validate_CrawlIntervalHoursZero_ReturnsFailed()
     {

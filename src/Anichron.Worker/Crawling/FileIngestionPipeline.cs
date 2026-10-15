@@ -55,13 +55,22 @@ internal sealed partial class FileIngestionPipeline(
             var pending = new Stack<string>([config.RootPath]);
             while (pending.TryPop(out var directory))
             {
-                var files = fileSystem.Directory.EnumerateFiles(directory)
-                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)))
-                    .ToList();
-                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, ct);
+                List<string> files;
+                List<string> subdirectories;
+                try
+                {
+                    files = [.. fileSystem.Directory.EnumerateFiles(directory)
+                        .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)))];
+                    subdirectories = [.. fileSystem.Directory.EnumerateDirectories(directory)
+                        .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory)))];
+                }
+                catch (Exception ex) when (directory != config.RootPath && ex is UnauthorizedAccessException or IOException)
+                {
+                    Log.DirectoryUnreadable(logger, directory, ex);
+                    continue;
+                }
 
-                var subdirectories = fileSystem.Directory.EnumerateDirectories(directory)
-                    .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory)));
+                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, ct);
                 foreach (var subdirectory in subdirectories)
                     pending.Push(subdirectory);
             }
@@ -138,5 +147,8 @@ internal sealed partial class FileIngestionPipeline(
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Failed to ingest {Path}.")]
         public static partial void ItemFailed(ILogger logger, string path, Exception ex);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping unreadable folder {Path}.")]
+        public static partial void DirectoryUnreadable(ILogger logger, string path, Exception ex);
     }
 }

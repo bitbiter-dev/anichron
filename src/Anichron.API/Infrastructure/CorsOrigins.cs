@@ -1,3 +1,4 @@
+using Anichron.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 
 namespace Anichron.API.Infrastructure;
