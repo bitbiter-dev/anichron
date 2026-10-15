@@ -204,7 +204,8 @@ public sealed class WorkerInitializerTests
 
         var act = () => initializer.StartAsync(ct);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*/volume1/homes/Mira/Photos*/data/originals*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(
+            "WORKER__ROOTPATH '/volume1/homes/Mira/Photos' must be a folder inside /data/originals: use the container path, not the host path.");
         await fixture.StorageConfigRepository.DidNotReceive().FindByRootPathAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
     }
