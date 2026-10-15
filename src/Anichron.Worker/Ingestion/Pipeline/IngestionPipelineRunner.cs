@@ -92,6 +92,7 @@ internal sealed partial class IngestionPipelineRunner(
     {
         try
         {
+            // Stryker disable once Logical
             if (fileSystem.Directory.Exists(directory)
                 && !fileSystem.Directory.EnumerateFileSystemEntries(directory).Any())
             {

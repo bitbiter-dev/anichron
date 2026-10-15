@@ -56,7 +56,22 @@ public sealed class IngestionPipelineRunnerTests
 
         var act = () => new TestFixture().Build(first, second);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*10*");
+        act.Should().Throw<InvalidOperationException>().WithMessage("Duplicate middleware orders: 10");
+    }
+
+    [Fact]
+    public void Constructor_SeveralDuplicateOrders_ListsThemAll()
+    {
+        static IIngestionMiddleware Middleware(int order)
+        {
+            var middleware = Substitute.For<IIngestionMiddleware>();
+            middleware.Order.Returns(order);
+            return middleware;
+        }
+
+        var act = () => new TestFixture().Build(Middleware(10), Middleware(10), Middleware(20), Middleware(20));
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("Duplicate middleware orders: 10, 20");
     }
 
     [Fact]
@@ -249,6 +264,33 @@ public sealed class IngestionPipelineRunnerTests
     // ==========================================================================
     // RunAsync — cleanup never masks the original failure
     // ==========================================================================
+
+    [Theory]
+    [InlineData("io")]
+    [InlineData("access")]
+    public async Task RunAsync_DirectoryCleanupFails_StillPropagatesTheOriginalExceptionAsync(string failure)
+    {
+        Exception cleanupFailure = failure == "io" ? new IOException("io") : new UnauthorizedAccessException("access");
+        var fixture = new TestFixture { FileSystem = new EnumerationFailingFileSystem(() => cleanupFailure) };
+        fixture.FileSystem.AddDirectory("/proxies/ab/cd");
+        var runner = fixture.Build(new ThrowingMiddleware(20, new InvalidOperationException("original")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("original");
+    }
+
+    [Fact]
+    public async Task RunAsync_DirectoryCleanupFailsUnexpectedly_SurfacesThatFailureAsync()
+    {
+        var fixture = new TestFixture { FileSystem = new EnumerationFailingFileSystem(() => new FormatException("unexpected")) };
+        fixture.FileSystem.AddDirectory("/proxies/ab/cd");
+        var runner = fixture.Build(new ThrowingMiddleware(20, new InvalidOperationException("original")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<FormatException>();
+    }
 
     [Fact]
     public async Task RunAsync_DeleteFails_StillPropagatesTheOriginalExceptionAsync()
