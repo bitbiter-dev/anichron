@@ -34,6 +34,8 @@ public sealed class ForwardedHeadersRateLimitTests
         app.UseRateLimiter();
         app.MapGet("/probe", (HttpContext context) => context.Connection.RemoteIpAddress!.ToString())
             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        app.MapGet("/probe-refresh", () => "ok")
+            .RequireRateLimiting(AuthRateLimitPolicies.Refresh);
 
         await app.StartAsync(TestContext.Current.CancellationToken);
         return app;
@@ -90,6 +92,25 @@ public sealed class ForwardedHeadersRateLimitTests
 
         (await responses[0].Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
             .Should().Be("198.51.100.1");
+    }
+
+    [Fact]
+    public async Task RefreshPolicy_AllowsItsPermitLimitThenRejectsAsync()
+    {
+        await using var app = await StartAsync([]);
+        using var client = app.GetTestClient();
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 6; i++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/probe-refresh");
+            request.Headers.Add(PeerHeader, UntrustedPeer);
+            using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.Should().Equal(
+            HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK,
+            HttpStatusCode.TooManyRequests);
     }
 
     [Fact]

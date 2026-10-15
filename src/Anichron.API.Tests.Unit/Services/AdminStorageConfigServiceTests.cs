@@ -60,6 +60,14 @@ public sealed class AdminStorageConfigServiceTests
     // AddAsync
     // ==========================================================================
 
+    [Fact]
+    public async Task AddAsync_NullRootPath_ThrowsArgumentNullException()
+    {
+        var act = () => new TestFixture().CreateTestee().AddAsync(Guid.NewGuid(), null!, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

@@ -182,6 +182,18 @@ public sealed class TokenServiceTests
     }
 
     [Fact]
+    public async Task RefreshAsync_TokenExpiringExactlyNow_ReturnsTokenInvalid()
+    {
+        var token = ActiveToken(new User());
+        token.ExpiresAt = FixedNow;
+        var fixture = new TestFixture().WithToken(token);
+
+        var result = await fixture.CreateTestee().RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.TokenInvalid);
+    }
+
+    [Fact]
     public async Task RefreshAsync_UserDisabled_ReturnsAccountDisabled()
     {
         var user = new User { IsDisabled = true };
