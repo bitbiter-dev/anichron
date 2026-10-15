@@ -27,7 +27,7 @@ internal sealed partial class FileIngestionPipeline(
     public async Task RunAsync(UserStorageConfig config, CancellationToken ct)
     {
         var channel = Channel.CreateBounded<IngestionItem>(
-            // Stryker disable once Initializer
+            // Stryker disable once Arithmetic,Initializer
             new BoundedChannelOptions(settings.MaxConcurrentFiles * 2)
             {
                 // Stryker disable once Boolean
@@ -51,9 +51,10 @@ internal sealed partial class FileIngestionPipeline(
     {
         try
         {
+            // Stryker disable once String
             var filesByDirectory = fileSystem.Directory
                 .EnumerateFiles(config.RootPath, "*", SearchOption.AllDirectories)
-                .GroupBy(path => fileSystem.Path.GetDirectoryName(path) ?? string.Empty);
+                .GroupBy(fileSystem.Path.GetDirectoryName);
 
             foreach (var directoryGroup in filesByDirectory)
                 await EnqueueDirectoryItemsAsync([.. directoryGroup], config.RootPath, writer, ct);

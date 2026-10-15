@@ -226,6 +226,19 @@ public sealed class FileIngestionPipelineTests
     // ==========================================================================
 
     [Fact]
+    public async Task RunAsync_SingleConsumer_StillIngestsEveryFileAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData("a"));
+        fixture.FileSystem.AddFile("/nas/sub/b.jpg", new MockFileData("b"));
+
+        await fixture.Build(maxConcurrentFiles: 1).RunAsync(MakeConfig(), CancellationToken.None);
+
+        fixture.ProcessedContexts.Select(c => c.Item.RelativePath)
+            .Should().BeEquivalentTo("a.jpg", Path.Combine("sub", "b.jpg"));
+    }
+
+    [Fact]
     public async Task RunAsync_EmptyDirectory_CompletesWithoutExceptionAsync()
     {
         var fixture = new TestFixture();

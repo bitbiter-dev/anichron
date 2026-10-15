@@ -143,6 +143,23 @@ public sealed class DatabaseConfigurationTests
     }
 
     [Fact]
+    public void GetConnectionString_PasswordFileExists_WinsOverTheConfigKey()
+    {
+        const string filePath = "/run/secrets/db_password";
+        var fs = new MockFileSystem(new Dictionary<string, MockFileData>
+        {
+            { filePath, new MockFileData("from-file") },
+        });
+        var entries = BaseConfig();
+        entries["POSTGRES_CONNECTION:PASSWORD_FILE"] = filePath;
+        var config = BuildConfig(entries);
+
+        var parsed = new NpgsqlConnectionStringBuilder(DatabaseConfiguration.GetConnectionString(config, fs));
+
+        parsed.Password.Should().Be("from-file");
+    }
+
+    [Fact]
     public void GetConnectionString_SecretFileContent_IsTrimmed()
     {
         const string filePath = "/run/secrets/db_user";

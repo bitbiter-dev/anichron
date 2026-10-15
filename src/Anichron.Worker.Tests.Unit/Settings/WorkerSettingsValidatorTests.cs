@@ -168,4 +168,14 @@ public sealed class WorkerSettingsValidatorTests
 
         failures.Should().HaveCount(2);
     }
+
+    [Fact]
+    public void Defaults_PointAtTheDocumentedLocationsAndTools()
+    {
+        var settings = new WorkerSettings();
+
+        settings.RootPath.Should().BeEmpty();
+        settings.ProxyPath.Should().Be("/data/proxies");
+        settings.FfmpegPath.Should().Be("ffmpeg");
+    }
 }
