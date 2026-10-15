@@ -2,6 +2,8 @@ namespace Anichron.Core;
 
 public static class StoragePath
 {
+    public const string OriginalsRoot = "/data/originals";
+
     public static string? Canonicalize(string path)
     {
         var trimmed = path.Trim();
@@ -9,4 +11,15 @@ public static class StoragePath
             ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(trimmed))
             : null;
     }
+
+    public static bool IsWithinOriginals(string canonicalPath)
+        => IsSameOrDescendant(canonicalPath, OriginalsRoot);
+
+    public static bool Overlaps(string firstCanonicalPath, string secondCanonicalPath)
+        => IsSameOrDescendant(firstCanonicalPath, secondCanonicalPath)
+           || IsSameOrDescendant(secondCanonicalPath, firstCanonicalPath);
+
+    private static bool IsSameOrDescendant(string path, string ancestor)
+        => path.Equals(ancestor, StringComparison.Ordinal)
+           || path.StartsWith(ancestor + "/", StringComparison.Ordinal);
 }

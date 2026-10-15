@@ -103,10 +103,10 @@ public sealed class WorkerInitializerTests
         var ct = TestContext.Current.CancellationToken;
         var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
-        var existingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/nas" };
+        var existingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/data/originals/alice" };
         fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
-        fixture.StorageConfigRepository.FindByRootPathAsync("/nas", Arg.Any<CancellationToken>()).Returns(existingConfig);
-        var initializer = fixture.Build(user: "alice", rootPath: "/nas");
+        fixture.StorageConfigRepository.FindByRootPathAsync("/data/originals/alice", Arg.Any<CancellationToken>()).Returns(existingConfig);
+        var initializer = fixture.Build(user: "alice", rootPath: "/data/originals/alice");
 
         await initializer.StartAsync(ct);
 
@@ -125,15 +125,15 @@ public sealed class WorkerInitializerTests
         var ct = TestContext.Current.CancellationToken;
         var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
-        var conflictingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/shared" };
+        var conflictingConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/data/originals/shared" };
         fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
-        fixture.StorageConfigRepository.FindByRootPathAsync("/shared", Arg.Any<CancellationToken>()).Returns(conflictingConfig);
-        var initializer = fixture.Build(user: "alice", rootPath: "/shared");
+        fixture.StorageConfigRepository.FindByRootPathAsync("/data/originals/shared", Arg.Any<CancellationToken>()).Returns(conflictingConfig);
+        var initializer = fixture.Build(user: "alice", rootPath: "/data/originals/shared");
 
         var act = async () => await initializer.StartAsync(ct);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*/shared*");
+            .WithMessage("*/data/originals/shared*");
     }
 
     // ==========================================================================
@@ -147,16 +147,16 @@ public sealed class WorkerInitializerTests
         var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
         fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
-        fixture.StorageConfigRepository.FindByRootPathAsync("/nas", Arg.Any<CancellationToken>())
+        fixture.StorageConfigRepository.FindByRootPathAsync("/data/originals/alice", Arg.Any<CancellationToken>())
             .Returns((UserStorageConfig?)null);
-        var initializer = fixture.Build(user: "alice", rootPath: "/nas");
+        var initializer = fixture.Build(user: "alice", rootPath: "/data/originals/alice");
 
         await initializer.StartAsync(ct);
 
         fixture.StorageConfigRepository.Received(1).Add(
             Arg.Is<UserStorageConfig>(storageConfig =>
                 storageConfig.UserId == user.Id &&
-                storageConfig.RootPath == "/nas" &&
+                storageConfig.RootPath == "/data/originals/alice" &&
                 storageConfig.IsActive));
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         fixture.WorkerState.ResolvedUserId.Should().Be(user.Id);
@@ -169,13 +169,13 @@ public sealed class WorkerInitializerTests
         var fixture = new TestFixture();
         var user = new User { Id = Guid.NewGuid(), Username = "alice" };
         fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
-        var initializer = fixture.Build(user: "alice", rootPath: "/nas//photos/");
+        var initializer = fixture.Build(user: "alice", rootPath: "/data//originals/alice/");
 
         await initializer.StartAsync(ct);
 
-        await fixture.StorageConfigRepository.Received(1).FindByRootPathAsync("/nas/photos", Arg.Any<CancellationToken>());
+        await fixture.StorageConfigRepository.Received(1).FindByRootPathAsync("/data/originals/alice", Arg.Any<CancellationToken>());
         fixture.StorageConfigRepository.Received(1).Add(
-            Arg.Is<UserStorageConfig>(storageConfig => storageConfig.RootPath == "/nas/photos"));
+            Arg.Is<UserStorageConfig>(storageConfig => storageConfig.RootPath == "/data/originals/alice"));
     }
 
     [Fact]
@@ -191,6 +191,56 @@ public sealed class WorkerInitializerTests
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*data/originals*");
         fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
+    [Fact]
+    public async Task StartAsync_RootPathOutsideOriginalsRoot_ThrowsBeforeTouchingStorageConfigsAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>())
+            .Returns(new User { Id = Guid.NewGuid(), Username = "alice" });
+        var initializer = fixture.Build(user: "alice", rootPath: "/volume1/homes/mira/Photos");
+
+        var act = () => initializer.StartAsync(ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*/volume1/homes/mira/Photos*/data/originals*");
+        await fixture.StorageConfigRepository.DidNotReceive().FindByRootPathAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
+    [Theory]
+    [InlineData("/data/originals")]
+    [InlineData("/data/originals/alice/2024")]
+    public async Task StartAsync_RootPathNestedWithAnotherConfig_ThrowsNamingBothPathsAsync(string existing)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>())
+            .Returns(new User { Id = Guid.NewGuid(), Username = "alice" });
+        fixture.StorageConfigRepository.GetAllRootPathsAsync(Arg.Any<CancellationToken>()).Returns([existing]);
+        var initializer = fixture.Build(user: "alice", rootPath: "/data/originals/alice");
+
+        var act = () => initializer.StartAsync(ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"*/data/originals/alice*{existing}*");
+        fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
+    [Fact]
+    public async Task StartAsync_SiblingConfigSharingANamePrefix_CreatesConfigAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>())
+            .Returns(new User { Id = Guid.NewGuid(), Username = "alice" });
+        fixture.StorageConfigRepository.GetAllRootPathsAsync(Arg.Any<CancellationToken>()).Returns(["/data/originals/alice2"]);
+        var initializer = fixture.Build(user: "alice", rootPath: "/data/originals/alice");
+
+        await initializer.StartAsync(ct);
+
+        fixture.StorageConfigRepository.Received(1).Add(Arg.Any<UserStorageConfig>());
     }
 
     // ==========================================================================

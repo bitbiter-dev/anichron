@@ -94,7 +94,7 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - `ProxyFile` — one row per generated artefact, each a file at `ProxyPath` on the local SSD. `ProxyType` is `Thumbnail`, `WebVideo`, `FullPreview` or `BlurHash` — note **BlurHash is a proxy row like any other**, not a string column on the asset
 - `Burst` — groups rapid-fire photos with a `PrimaryAssetId` cover; prevents duplicate memories in flashbacks
 - `AssetInteraction` — per-user state (starred, liked, hidden, view count, last viewed); unique on `(UserId, AssetId)`
-- `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users. Paths are stored canonical (absolute, `.`/`..`/`//` collapsed, no trailing slash) via `StoragePath.Canonicalize`, so `/p` and `/p/` cannot both be assigned
+- `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users. Paths are stored canonical (absolute, `.`/`..`/`//` collapsed, no trailing slash) via `StoragePath.Canonicalize`, so `/p` and `/p/` cannot both be assigned. A `RootPath` must be `StoragePath.OriginalsRoot` (`/data/originals`) or inside it, and may not contain or be contained by another config's root (`StoragePath.Overlaps`) — nested roots would index the same files twice
 - `User` — owns storage configs and interactions
 - `RefreshToken` — issued and cleaned up by the API; `TokenHash` unique
 - `Invite` — admin-issued registration tokens; `TokenHash` unique, and the only entity carrying an optimistic-concurrency token (`xmin`)
@@ -114,6 +114,7 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 
 ```
 /data/originals/   ← NAS (mounted :ro by both API and Worker — originals are never modified)
+  <user>/          ← one mount per user, at the SAME container path in the API and that user's worker
 /data/proxies/     ← Local SSD (Worker writes; API reads for serving)
 ```
 
@@ -153,7 +154,7 @@ Proxy files follow a two-level shard path derived from **content, not from the i
 
 ## Multi-User Design
 
-Each user has a private set of `UserStorageConfig` entries pointing to NAS roots. `RootPath` is globally unique — a path cannot be assigned to more than one storage config across all users. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. Multiple worker instances can each monitor a separate config. Each user has private `AssetInteraction` state — never shared.
+Each user has a private set of `UserStorageConfig` entries pointing to NAS roots. `RootPath` is globally unique — a path cannot be assigned to more than one storage config across all users. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. `RootPath` is a **container** path read by both the Worker (crawling) and the API (serving originals), so it must resolve to the same folder in every container: each user's NAS folder is mounted at `/data/originals/<user>` everywhere, and only the host side of the mount varies with the NAS layout. Either one worker per user (`WORKER__USER` + `WORKER__ROOTPATH=/data/originals/<user>`, mounting only that user's folder) or one all-user worker (no `WORKER__USER`, configs added through the admin API). Each user has private `AssetInteraction` state — never shared.
 
 ### Worker Processing Model
 

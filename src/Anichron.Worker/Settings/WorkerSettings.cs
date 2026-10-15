@@ -1,3 +1,4 @@
+using Anichron.Core;
 using System.ComponentModel.DataAnnotations;
 
 namespace Anichron.Worker.Settings;
@@ -8,7 +9,7 @@ public sealed record WorkerSettings
     public string User { get; init; } = string.Empty;
 
     [Required]
-    public string RootPath { get; init; } = "/data/originals";
+    public string RootPath { get; init; } = StoragePath.OriginalsRoot;
 
     [Range(1, int.MaxValue)]
     public int CrawlIntervalHours { get; init; } = 4;

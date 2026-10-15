@@ -178,6 +178,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 AuthError.UserNotFound => Results.NotFound(),
                 AuthError.PathInvalid => Results.UnprocessableEntity(new { error = AuthMessages.PathInvalid }),
                 AuthError.PathAlreadyAssigned => Results.Conflict(new { error = AuthMessages.PathAlreadyAssigned }),
+                AuthError.PathOverlaps => Results.Conflict(new { error = AuthMessages.PathOverlaps }),
                 _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateStorageConfig: {result.Error}"),
             };
         }
