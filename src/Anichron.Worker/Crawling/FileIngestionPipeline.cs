@@ -55,12 +55,9 @@ internal sealed partial class FileIngestionPipeline(
             var pending = new Stack<string>([config.RootPath]);
             while (pending.TryPop(out var directory))
             {
-                var listing = ListDirectory(directory, config.RootPath);
-                if (listing is null)
-                    continue;
-
-                await EnqueueDirectoryItemsAsync(listing.Value.Files, config.RootPath, writer, ct);
-                foreach (var subdirectory in listing.Value.Subdirectories)
+                var (files, subdirectories) = ListDirectory(directory, config.RootPath);
+                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, ct);
+                foreach (var subdirectory in subdirectories)
                     pending.Push(subdirectory);
             }
         }
@@ -70,7 +67,7 @@ internal sealed partial class FileIngestionPipeline(
         }
     }
 
-    private (List<string> Files, List<string> Subdirectories)? ListDirectory(string directory, string rootPath)
+    private (List<string> Files, List<string> Subdirectories) ListDirectory(string directory, string rootPath)
     {
         try
         {
@@ -83,7 +80,7 @@ internal sealed partial class FileIngestionPipeline(
         catch (Exception ex) when (directory != rootPath && ex is UnauthorizedAccessException or IOException)
         {
             Log.DirectoryUnreadable(logger, directory, ex);
-            return null;
+            return ([], []);
         }
     }
 
