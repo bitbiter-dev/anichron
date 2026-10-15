@@ -11,7 +11,6 @@ public sealed class WorkerIniDefaultsTests
 
         entries.Should().Equal(
             ("Worker", "User", ""),
-            ("Worker", "RootPath", "/data/originals"),
             ("Worker", "CrawlIntervalHours", "4"),
             ("Worker", "MaxConcurrentFiles", "4"),
             ("Worker", "TokenCleanupIntervalHours", "24"),

@@ -1,4 +1,3 @@
-using Anichron.API.Settings;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.IO.Abstractions;
 
@@ -19,7 +18,7 @@ internal sealed class OriginalsStorageHealthCheck(IFileSystem fileSystem) : IHea
         try
         {
             return Task.FromResult(
-                fileSystem.Directory.Exists(AppDefaults.Storage.OriginalsPath)
+                fileSystem.Directory.Exists(StoragePath.OriginalsRoot)
                     ? HealthCheckResult.Healthy("Originals storage directory found.")
                     : HealthCheckResult.Degraded("Originals storage directory not found."));
         }

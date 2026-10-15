@@ -7,8 +7,8 @@ public sealed record WorkerSettings
     // Stryker disable once String
     public string User { get; init; } = string.Empty;
 
-    [Required]
-    public string RootPath { get; init; } = "/data/originals";
+    // Stryker disable once String
+    public string RootPath { get; init; } = string.Empty;
 
     [Range(1, int.MaxValue)]
     public int CrawlIntervalHours { get; init; } = 4;

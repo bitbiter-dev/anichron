@@ -66,7 +66,7 @@ The directive is left bare — the reason lives here, not in the code.
 | The `finally { CryptographicOperations.ZeroMemory(passwordBytes); }` clauses in `Argon2PasswordHasher` and `PwnedPasswordClient` | Clears a buffer nothing reads afterwards; removing the statement or the whole block is equally unobservable. Suppressed per site rather than through `ignore-methods`, because `PasswordHasher` also wraps the timing-equalising throwaway Argon2 run in `ZeroMemory(...)`, and that call's mutant is killed and must stay in scope. |
 | `FfmpegVideoProcessor.DetectEncoderAsync`: `encoder != H264Encoder.Software` | Software is last in the priority list, so the guarded log line is the only thing the condition controls. |
 | `FileIngestionPipeline`: the channel capacity (`MaxConcurrentFiles * 2`), the `BoundedChannelOptions` initialiser and `SingleWriter = true` | Throughput only. Removing the initialiser leaves `FullMode` at its default, which is already `Wait`; `SingleWriter` is an optimisation hint; and any capacity produces the same results — including 0, which .NET 10 accepts as a rendezvous channel (measured; an earlier version of this ADR wrongly said it was rejected). |
-| `= string.Empty` initialisers on `User`, `Invite`, `MediaAsset`, `ProxyFile`, `RefreshToken`, `UserStorageConfig`, `JwtSettings` and `WorkerSettings.User` | Placeholders that satisfy nullable analysis. Every real instance has these assigned, and `JwtSettings` is validated at startup before any value is read. |
+| `= string.Empty` initialisers on `User`, `Invite`, `MediaAsset`, `ProxyFile`, `RefreshToken`, `UserStorageConfig`, `JwtSettings`, `WorkerSettings.User` and `WorkerSettings.RootPath` | Placeholders that satisfy nullable analysis. Every real instance has these assigned, `JwtSettings` is validated at startup before any value is read, and `WorkerInitializer` rejects a blank `RootPath` whenever `User` is set. |
 | `ExifExtractionMiddleware.GetCoordinates`: the `catch` block | MetadataExtractor 2.9's `GetGeoLocation()` returns `null` for missing or malformed GPS tags rather than throwing, so no test input reaches it. Kept as a defensive guard: without it, a library change that throws would make the outer handler discard the file's entire EXIF. |
 | `ExifExtractionMiddleware.GetOrientation`: the `>= ExifOrientation.Upright` bound | Tightening it to `>` only changes the result for tag 1, which then falls back to `Upright` — also 1. The directive sits inside the pattern, so the upper bound's mutants stay in scope. |
 | `FileIngestionPipeline`: the `"*"` search pattern | .NET treats an empty pattern as match-all, on the real file system and `MockFileSystem` alike (measured), so `"*"` → `""` changes nothing. |
@@ -86,8 +86,9 @@ diverges from PostgreSQL in exactly the places this model relies on (partial-ind
 `xmin`, NodaTime types, collation), so a green test there would claim coverage it does not
 have. They stay excluded until tests run against real PostgreSQL.
 
-`WorkerSettings.RootPath`, `ProxyPath` and `FfmpegPath` are **not** in that list. They are real
-defaults and are tested.
+`WorkerSettings.ProxyPath` and `FfmpegPath` are **not** in that list. They are real defaults and are
+tested. `RootPath` lost its default in #221: it names one user's folder inside `/data/originals`,
+so no value is right for every deployment.
 
 ## Consequences
 

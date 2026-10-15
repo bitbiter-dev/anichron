@@ -46,7 +46,7 @@ public sealed class AdminStorageConfigServiceTests
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
         var configs = new List<UserStorageConfig>
         {
-            new() { Id = Guid.NewGuid(), UserId = userId, RootPath = "/nas/photos", IsActive = true },
+            new() { Id = Guid.NewGuid(), UserId = userId, RootPath = "/data/originals/photos", IsActive = true },
         };
         fixture.StorageConfigs.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(configs);
 
@@ -84,6 +84,51 @@ public sealed class AdminStorageConfigServiceTests
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
     }
 
+    [Theory]
+    [InlineData("/volume1/homes/Mira/Photos")]
+    [InlineData("/data/originals")]
+    [InlineData("/data")]
+    [InlineData("/data/originals2/mira")]
+    public async Task AddAsync_PathOutsideOriginalsRoot_ReturnsPathInvalidAsync(string rootPath)
+    {
+        var fixture = new TestFixture();
+
+        var result = await fixture.CreateTestee().AddAsync(Guid.NewGuid(), rootPath, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.PathInvalid);
+        fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
+    [Theory]
+    [InlineData("/data/originals/mira/2024", "/data/originals/mira")]
+    [InlineData("/data/originals/mira", "/data/originals/mira/2024")]
+    public async Task AddAsync_PathNestedWithExistingConfig_ReturnsPathOverlapsAsync(string existing, string rootPath)
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
+        fixture.StorageConfigs.GetAllRootPathsAsync(Arg.Any<CancellationToken>()).Returns([existing]);
+
+        var result = await fixture.CreateTestee().AddAsync(userId, rootPath, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.PathOverlaps);
+        fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AddAsync_SiblingSharingANamePrefix_AddsConfigAsync()
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
+        fixture.StorageConfigs.GetAllRootPathsAsync(Arg.Any<CancellationToken>()).Returns(["/data/originals/mira"]);
+
+        var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/mira2", CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+    }
+
     [Fact]
     public async Task AddAsync_UserNotFound_ReturnsUserNotFound()
     {
@@ -91,7 +136,7 @@ public sealed class AdminStorageConfigServiceTests
         var userId = Guid.NewGuid();
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        var result = await fixture.CreateTestee().AddAsync(userId, "/nas/photos", CancellationToken.None);
+        var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Be(AuthError.UserNotFound);
@@ -105,10 +150,10 @@ public sealed class AdminStorageConfigServiceTests
         var fixture = new TestFixture();
         var userId = Guid.NewGuid();
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
-        fixture.StorageConfigs.FindByRootPathAsync("/nas/photos", Arg.Any<CancellationToken>())
-            .Returns(new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas/photos" });
+        fixture.StorageConfigs.GetAllRootPathsAsync(Arg.Any<CancellationToken>())
+            .Returns(["/data/originals/photos"]);
 
-        var result = await fixture.CreateTestee().AddAsync(userId, "/nas/photos", CancellationToken.None);
+        var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Be(AuthError.PathAlreadyAssigned);
@@ -123,16 +168,14 @@ public sealed class AdminStorageConfigServiceTests
         var userId = Guid.NewGuid();
         var configId = Guid.NewGuid();
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
-        fixture.StorageConfigs.FindByRootPathAsync("/nas/photos", Arg.Any<CancellationToken>())
-            .Returns((UserStorageConfig?)null);
         fixture.GuidFactory.NewGuid().Returns(configId);
 
-        var result = await fixture.CreateTestee().AddAsync(userId, "/nas/photos", CancellationToken.None);
+        var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Id.Should().Be(configId);
         result.Value.UserId.Should().Be(userId);
-        result.Value.RootPath.Should().Be("/nas/photos");
+        result.Value.RootPath.Should().Be("/data/originals/photos");
         result.Value.IsActive.Should().BeTrue();
         fixture.StorageConfigs.Received(1).Add(Arg.Is<UserStorageConfig>(c => c.Id == configId));
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
@@ -144,10 +187,10 @@ public sealed class AdminStorageConfigServiceTests
         var fixture = new TestFixture();
         var userId = Guid.NewGuid();
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
-        fixture.StorageConfigs.FindByRootPathAsync("/nas/photos", Arg.Any<CancellationToken>())
-            .Returns(new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas/photos" });
+        fixture.StorageConfigs.GetAllRootPathsAsync(Arg.Any<CancellationToken>())
+            .Returns(["/data/originals/photos"]);
 
-        var result = await fixture.CreateTestee().AddAsync(userId, "/nas//photos/", CancellationToken.None);
+        var result = await fixture.CreateTestee().AddAsync(userId, "/data//originals/photos/", CancellationToken.None);
 
         result.Error.Should().Be(AuthError.PathAlreadyAssigned);
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
@@ -160,9 +203,9 @@ public sealed class AdminStorageConfigServiceTests
         var userId = Guid.NewGuid();
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
 
-        var result = await fixture.CreateTestee().AddAsync(userId, "/nas/photos/", CancellationToken.None);
+        var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos/", CancellationToken.None);
 
-        result.Value!.RootPath.Should().Be("/nas/photos");
+        result.Value!.RootPath.Should().Be("/data/originals/photos");
     }
 
     [Fact]
@@ -174,7 +217,7 @@ public sealed class AdminStorageConfigServiceTests
         fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(UniqueViolation(StorageConfigIndexNames.RootPathUnique));
 
-        var result = await fixture.CreateTestee().AddAsync(userId, "/nas/photos", CancellationToken.None);
+        var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Be(AuthError.PathAlreadyAssigned);
@@ -189,7 +232,7 @@ public sealed class AdminStorageConfigServiceTests
         fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(UniqueViolation("some_other_index"));
 
-        var act = () => fixture.CreateTestee().AddAsync(userId, "/nas/photos", CancellationToken.None);
+        var act = () => fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         await act.Should().ThrowAsync<DbUpdateException>();
     }
@@ -226,7 +269,7 @@ public sealed class AdminStorageConfigServiceTests
         var fixture = new TestFixture();
         var userId = Guid.NewGuid();
         var configId = Guid.NewGuid();
-        var config = new UserStorageConfig { Id = configId, UserId = Guid.NewGuid(), RootPath = "/nas/photos" };
+        var config = new UserStorageConfig { Id = configId, UserId = Guid.NewGuid(), RootPath = "/data/originals/photos" };
         fixture.StorageConfigs.FindByIdAsync(configId, Arg.Any<CancellationToken>()).Returns(config);
 
         var result = await fixture.CreateTestee().DeleteAsync(userId, configId, CancellationToken.None);
@@ -243,7 +286,7 @@ public sealed class AdminStorageConfigServiceTests
         var fixture = new TestFixture();
         var userId = Guid.NewGuid();
         var configId = Guid.NewGuid();
-        var config = new UserStorageConfig { Id = configId, UserId = userId, RootPath = "/nas/photos" };
+        var config = new UserStorageConfig { Id = configId, UserId = userId, RootPath = "/data/originals/photos" };
         fixture.StorageConfigs.FindByIdAsync(configId, Arg.Any<CancellationToken>()).Returns(config);
 
         var result = await fixture.CreateTestee().DeleteAsync(userId, configId, CancellationToken.None);
