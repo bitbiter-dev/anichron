@@ -51,5 +51,6 @@ public sealed class ProxyStorageHealthCheckTests
 
         result.Status.Should().Be(HealthStatus.Unhealthy);
         result.Exception.Should().BeOfType<IOException>();
+        result.Description.Should().Be("Proxy storage check failed.");
     }
 }

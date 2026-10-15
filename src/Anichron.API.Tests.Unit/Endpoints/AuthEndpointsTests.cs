@@ -174,9 +174,35 @@ public sealed class AuthEndpointsTests
         mapper.Received(1).GetRefreshResult(Arg.Any<AuthResult<AuthTokens>>(), Arg.Any<HttpContext>(), setCookie: false);
     }
 
+    [Fact]
+    public async Task RefreshAsync_TokenInCookieAndBody_TheCookieWins()
+    {
+        var auth = Substitute.For<IAuthService>();
+        var mapper = Substitute.For<IAuthResponseMapper>();
+        var http = NewHttpWithCookie("refresh_token", "cookie_tok");
+
+        await AuthEndpoints.RefreshAsync(http, auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
+
+        await auth.Received(1).RefreshAsync("cookie_tok", Arg.Any<CancellationToken>());
+        await auth.DidNotReceive().RefreshAsync("body_tok", Arg.Any<CancellationToken>());
+    }
+
     // ==========================================================================
     // LogoutAsync
     // ==========================================================================
+
+    [Fact]
+    public async Task LogoutAsync_TokenInCookieAndBody_RevokesTheCookieToken()
+    {
+        var auth = Substitute.For<IAuthService>();
+        var mapper = Substitute.For<IAuthResponseMapper>();
+        var http = NewHttpWithCookie("refresh_token", "cookie_tok");
+
+        await AuthEndpoints.LogoutAsync(http, auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
+
+        await auth.Received(1).RevokeAsync("cookie_tok", Arg.Any<CancellationToken>());
+        await auth.DidNotReceive().RevokeAsync("body_tok", Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task LogoutAsync_NoCookieAndNoBody_ClearsCookieDoesNotRevokeAndReturns204()
