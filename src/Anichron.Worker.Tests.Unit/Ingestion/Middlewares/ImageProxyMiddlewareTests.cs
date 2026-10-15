@@ -23,7 +23,7 @@ public sealed class ImageProxyMiddlewareTests
 
         private static byte[] CreateMinimalPng()
         {
-            using var img = new Image<Rgba32>(1, 1);
+            using var img = new Image<Rgb24>(1, 1);
             using var ms = new MemoryStream();
             img.SaveAsPng(ms);
             return ms.ToArray();
@@ -42,11 +42,11 @@ public sealed class ImageProxyMiddlewareTests
             clock.GetCurrentInstant().Returns(Now);
             Clock = clock;
 
-            ImageProcessor.CreateThumbnailAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+            ImageProcessor.EncodeThumbnailAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
                 .Returns([0x01, 0x02]);
-            ImageProcessor.CreateFullPreviewAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+            ImageProcessor.EncodeFullPreviewAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
                 .Returns([0x03, 0x04]);
-            ImageProcessor.ComputeBlurhashAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+            ImageProcessor.ComputeBlurhashAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
                 .Returns("LGFFaXYk^6#M@-5c,1J5@[or[Q6.");
 
             DirectoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
@@ -56,15 +56,20 @@ public sealed class ImageProxyMiddlewareTests
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
         public IProxyDirectoryStrategy DirectoryStrategy { get; } = Substitute.For<IProxyDirectoryStrategy>();
 
-        public ImageProxyMiddleware Build(IImageProcessor? imageProcessor = null)
+        public ImageProxyMiddleware Build(IImageProcessor? imageProcessor = null, WorkerSettings? settings = null)
         {
             imageProcessor ??= ImageProcessor;
-            IImageProxyGenerator[] generators =
+            var options = Options.Create(settings ?? new WorkerSettings());
+            return Build(
             [
-                new ThumbnailGenerator(imageProcessor),
-                new FullPreviewGenerator(imageProcessor),
-                new BlurhashGenerator(imageProcessor),
-            ];
+                new ThumbnailGenerator(imageProcessor, options),
+                new FullPreviewGenerator(imageProcessor, options),
+                new BlurhashGenerator(imageProcessor, options),
+            ]);
+        }
+
+        public ImageProxyMiddleware Build(IEnumerable<IImageProxyGenerator> generators)
+        {
             return new(generators,
                        DirectoryStrategy,
                        new ProxyStagingWriter(
@@ -251,7 +256,7 @@ public sealed class ImageProxyMiddlewareTests
     public async Task InvokeAsync_GeneratorThrows_DropsTemporaryFileAsync()
     {
         var fixture = new TestFixture();
-        fixture.ImageProcessor.CreateThumbnailAsync(Arg.Any<Image<Rgba32>>(), Arg.Any<CancellationToken>())
+        fixture.ImageProcessor.EncodeThumbnailAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
             .Returns<byte[]>(_ => throw new InvalidOperationException("boom"));
 
         var act = () => fixture.Build().InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
@@ -261,18 +266,70 @@ public sealed class ImageProxyMiddlewareTests
     }
 
     // ==========================================================================
-    // Orientation
+    // Downscale chain
+    // ==========================================================================
+
+    private const int SourceWidth = 160;
+    private const int SourceHeight = 80;
+
+    private sealed class RecordingGenerator(
+        string fileName, ProxyBound bound, List<string> events, List<(string Name, Size Size, Corner Marker)> received)
+        : IImageProxyGenerator
+    {
+        public string FileName => fileName;
+        public ProxyType ProxyType => ProxyType.Thumbnail;
+        public ProxyBound Bound => bound;
+
+        public async Task<byte[]> GenerateAsync(Image<Rgb24> image, CancellationToken ct)
+        {
+            events.Add($"start {fileName}");
+            received.Add((fileName, image.Size, MarkedCorner(image)));
+            image.ProcessPixelRows(rows =>
+            {
+                for (var y = 0; y < rows.Height; y++)
+                    rows.GetRowSpan(y).Fill(Color.Blue.ToPixel<Rgb24>());
+            });
+            await Task.Yield();
+            events.Add($"end {fileName}");
+            return [0x01];
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_Generators_RunOneAtATimeLargestFirstEachOnItsOwnShrunkCopyAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(MarkedJpegWithOrientation(ExifOrientationMode.TopLeft)));
+        var events = new List<string>();
+        var received = new List<(string Name, Size Size, Corner Marker)>();
+        IImageProxyGenerator[] generators =
+        [
+            new RecordingGenerator("small", new ProxyBound(ProxyEdge.LongEdge, 8), events, received),
+            new RecordingGenerator("large", new ProxyBound(ProxyEdge.LongEdge, 60), events, received),
+            new RecordingGenerator("medium", new ProxyBound(ProxyEdge.ShortEdge, 10), events, received),
+        ];
+
+        await fixture.Build(generators).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        events.Should().Equal(
+            "start large", "end large", "start medium", "end medium", "start small", "end small");
+        received.Should().Equal(
+            ("large", new Size(60, 30), Corner.TopLeft),
+            ("medium", new Size(20, 10), Corner.TopLeft),
+            ("small", new Size(8, 4), Corner.TopLeft));
+    }
+
+    // ==========================================================================
+    // Sizing and orientation (real processor)
     // ==========================================================================
 
     public enum Corner { TopLeft = 0, TopRight = 1, BottomRight = 2, BottomLeft = 3 }
 
-    private const int SourceWidth = 80;
-    private const int SourceHeight = 40;
-    private const int ThumbnailMaxWidth = 40;
+    private static readonly WorkerSettings SmallProxySettings = new() { PreviewLongEdge = 100, ThumbnailShortEdge = 40 };
 
     public static TheoryData<string, ushort, int, int, Corner> OrientedProxies()
     {
-        (ushort Orientation, bool Swapped, Corner Marker)[] orientations =
+        (ushort Orientation, bool Portrait, Corner Marker)[] orientations =
         [
             (ExifOrientationMode.TopLeft, false, Corner.TopLeft),
             (ExifOrientationMode.TopRight, false, Corner.TopRight),
@@ -284,22 +341,22 @@ public sealed class ImageProxyMiddlewareTests
             (ExifOrientationMode.LeftBottom, true, Corner.BottomLeft),
         ];
         var data = new TheoryData<string, ushort, int, int, Corner>();
-        foreach (var (orientation, swapped, marker) in orientations)
+        foreach (var (orientation, portrait, marker) in orientations)
         {
-            data.Add("thumbnail.jpg", orientation, ThumbnailMaxWidth, swapped ? ThumbnailMaxWidth * 2 : ThumbnailMaxWidth / 2, marker);
-            data.Add("preview.jpg", orientation, swapped ? SourceHeight : SourceWidth, swapped ? SourceWidth : SourceHeight, marker);
+            data.Add("thumbnail.jpg", orientation, portrait ? 40 : 80, portrait ? 80 : 40, marker);
+            data.Add("preview.jpg", orientation, portrait ? 50 : 100, portrait ? 100 : 50, marker);
         }
 
         return data;
     }
 
-    private static byte[] MarkedJpegWithOrientation(ushort orientation)
+    private static byte[] MarkedJpegWithOrientation(ushort orientation, int width = SourceWidth, int height = SourceHeight)
     {
-        using var img = new Image<Rgba32>(SourceWidth, SourceHeight, Color.Black.ToPixel<Rgba32>());
+        using var img = new Image<Rgb24>(width, height, Color.Black.ToPixel<Rgb24>());
         img.ProcessPixelRows(rows =>
         {
-            for (var y = 0; y < SourceHeight / 2; y++)
-                rows.GetRowSpan(y)[..(SourceWidth / 2)].Fill(Color.Red.ToPixel<Rgba32>());
+            for (var y = 0; y < height / 2; y++)
+                rows.GetRowSpan(y)[..(width / 2)].Fill(Color.Red.ToPixel<Rgb24>());
         });
         img.Metadata.ExifProfile = new ExifProfile();
         img.Metadata.ExifProfile.SetValue(ExifTag.Orientation, orientation);
@@ -308,7 +365,7 @@ public sealed class ImageProxyMiddlewareTests
         return ms.ToArray();
     }
 
-    private static Corner MarkedCorner(Image<Rgba32> image)
+    private static Corner MarkedCorner(Image<Rgb24> image)
     {
         var (left, right) = (image.Width / 4, image.Width * 3 / 4);
         var (top, bottom) = (image.Height / 4, image.Height * 3 / 4);
@@ -322,27 +379,59 @@ public sealed class ImageProxyMiddlewareTests
         return centres.Single(c => image[c.X, c.Y].R > 128).Corner;
     }
 
-    [Theory]
-    [MemberData(nameof(OrientedProxies))]
-    public async Task InvokeAsync_OrientedJpeg_WritesUprightProxyWithoutRotationTagAsync(
-        string proxyFileName, ushort orientation, int expectedWidth, int expectedHeight, Corner expectedMarker)
+    private static async Task<Image<Rgb24>> GenerateWithRealProcessorAsync(
+        byte[] source, WorkerSettings settings, string proxyFileName)
     {
         var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(MarkedJpegWithOrientation(orientation)));
-        var processor = new ImageSharpProcessor(
-            Options.Create(new WorkerSettings { ThumbnailMaxWidth = ThumbnailMaxWidth }));
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(source));
+        var processor = new ImageSharpProcessor(Options.Create(settings));
 
-        await fixture.Build(processor).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+        await fixture.Build(processor, settings).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
 
         var bytes = await fixture.FileSystem.File.ReadAllBytesAsync(
             $"/proxies/ab/cd/{proxyFileName}", TestContext.Current.CancellationToken);
-        using var proxy = Image.Load<Rgba32>(bytes);
-        (proxy.Width, proxy.Height).Should().Be((expectedWidth, expectedHeight));
+        return Image.Load<Rgb24>(bytes);
+    }
+
+    [Theory]
+    [MemberData(nameof(OrientedProxies))]
+    public async Task InvokeAsync_OrientedJpeg_WritesUprightProxyBoundedOnItsEdgeAsync(
+        string proxyFileName, ushort orientation, int expectedWidth, int expectedHeight, Corner expectedMarker)
+    {
+        using var proxy = await GenerateWithRealProcessorAsync(
+            MarkedJpegWithOrientation(orientation), SmallProxySettings, proxyFileName);
+
+        proxy.Size.Should().Be(new Size(expectedWidth, expectedHeight));
         MarkedCorner(proxy).Should().Be(expectedMarker);
         var tag = proxy.Metadata.ExifProfile?.TryGetValue(ExifTag.Orientation, out var value) == true
             ? value.Value
             : ExifOrientationMode.TopLeft;
         tag.Should().Be(ExifOrientationMode.TopLeft);
+    }
+
+    [Theory]
+    [InlineData("thumbnail.jpg", 120, 60)]
+    [InlineData("preview.jpg", 100, 50)]
+    public async Task InvokeAsync_ThumbnailLargerThanPreview_StillSizesEachFromEnoughPixelsAsync(
+        string proxyFileName, int expectedWidth, int expectedHeight)
+    {
+        var settings = new WorkerSettings { PreviewLongEdge = 100, ThumbnailShortEdge = 60 };
+
+        using var proxy = await GenerateWithRealProcessorAsync(
+            MarkedJpegWithOrientation(ExifOrientationMode.TopLeft), settings, proxyFileName);
+
+        proxy.Size.Should().Be(new Size(expectedWidth, expectedHeight));
+    }
+
+    [Theory]
+    [InlineData("thumbnail.jpg")]
+    [InlineData("preview.jpg")]
+    public async Task InvokeAsync_SourceSmallerThanBounds_KeepsSourceSizeAsync(string proxyFileName)
+    {
+        using var proxy = await GenerateWithRealProcessorAsync(
+            MarkedJpegWithOrientation(ExifOrientationMode.TopLeft, 32, 16), new WorkerSettings(), proxyFileName);
+
+        proxy.Size.Should().Be(new Size(32, 16));
     }
 
     // ==========================================================================
