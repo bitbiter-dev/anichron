@@ -1,6 +1,7 @@
 using Microsoft.Win32.SafeHandles;
 using System.IO.Abstractions;
 using System.Text;
+using static Anichron.Infrastructure.FileSystem.ReadOnlyFileSystem;
 
 namespace Anichron.Infrastructure.FileSystem;
 
@@ -46,6 +47,16 @@ public sealed class ReadOnlyFileSystem : FileSystemBase
         }
     }
 
+    internal static void EnsureReadOnly(FileMode mode, FileAccess access, FileOptions options)
+    {
+        if ((options & FileOptions.DeleteOnClose) != 0)
+        {
+            throw ReadOnlyViolation();
+        }
+
+        EnsureReadOnly(mode, access);
+    }
+
     internal static void EnsureReadOnly(FileAccess access)
     {
         if ((access & FileAccess.Write) != 0)
@@ -57,59 +68,59 @@ public sealed class ReadOnlyFileSystem : FileSystemBase
 
 internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem) : FileBase(fileSystem)
 {
-    public override void AppendAllBytes(string path, byte[] bytes) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllBytes(string path, byte[] bytes) => throw ReadOnlyViolation();
 
-    public override void AppendAllBytes(string path, ReadOnlySpan<byte> bytes) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllBytes(string path, ReadOnlySpan<byte> bytes) => throw ReadOnlyViolation();
 
-    public override Task AppendAllBytesAsync(string path, byte[] bytes, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllBytesAsync(string path, byte[] bytes, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task AppendAllBytesAsync(string path, ReadOnlyMemory<byte> bytes, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllBytesAsync(string path, ReadOnlyMemory<byte> bytes, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override void AppendAllLines(string path, IEnumerable<string> contents) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllLines(string path, IEnumerable<string> contents) => throw ReadOnlyViolation();
 
-    public override void AppendAllLines(string path, IEnumerable<string> contents, Encoding encoding) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllLines(string path, IEnumerable<string> contents, Encoding encoding) => throw ReadOnlyViolation();
 
-    public override Task AppendAllLinesAsync(string path, IEnumerable<string> contents, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllLinesAsync(string path, IEnumerable<string> contents, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task AppendAllLinesAsync(string path, IEnumerable<string> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllLinesAsync(string path, IEnumerable<string> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override void AppendAllText(string path, string contents) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllText(string path, string contents) => throw ReadOnlyViolation();
 
-    public override void AppendAllText(string path, ReadOnlySpan<char> contents) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllText(string path, ReadOnlySpan<char> contents) => throw ReadOnlyViolation();
 
-    public override void AppendAllText(string path, string contents, Encoding encoding) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllText(string path, string contents, Encoding encoding) => throw ReadOnlyViolation();
 
-    public override void AppendAllText(string path, ReadOnlySpan<char> contents, Encoding encoding) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void AppendAllText(string path, ReadOnlySpan<char> contents, Encoding encoding) => throw ReadOnlyViolation();
 
-    public override Task AppendAllTextAsync(string path, string contents, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllTextAsync(string path, string contents, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task AppendAllTextAsync(string path, ReadOnlyMemory<char> contents, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllTextAsync(string path, ReadOnlyMemory<char> contents, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task AppendAllTextAsync(string path, string contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllTextAsync(string path, string contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task AppendAllTextAsync(string path, ReadOnlyMemory<char> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task AppendAllTextAsync(string path, ReadOnlyMemory<char> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override StreamWriter AppendText(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override StreamWriter AppendText(string path) => throw ReadOnlyViolation();
 
-    public override void Copy(string sourceFileName, string destFileName) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Copy(string sourceFileName, string destFileName) => throw ReadOnlyViolation();
 
-    public override void Copy(string sourceFileName, string destFileName, bool overwrite) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Copy(string sourceFileName, string destFileName, bool overwrite) => throw ReadOnlyViolation();
 
-    public override FileSystemStream Create(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override FileSystemStream Create(string path) => throw ReadOnlyViolation();
 
-    public override FileSystemStream Create(string path, int bufferSize) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override FileSystemStream Create(string path, int bufferSize) => throw ReadOnlyViolation();
 
-    public override FileSystemStream Create(string path, int bufferSize, FileOptions options) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override FileSystemStream Create(string path, int bufferSize, FileOptions options) => throw ReadOnlyViolation();
 
-    public override IFileSystemInfo CreateSymbolicLink(string path, string pathToTarget) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override IFileSystemInfo CreateSymbolicLink(string path, string pathToTarget) => throw ReadOnlyViolation();
 
-    public override StreamWriter CreateText(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override StreamWriter CreateText(string path) => throw ReadOnlyViolation();
 
-    public override void Decrypt(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Decrypt(string path) => throw ReadOnlyViolation();
 
-    public override void Delete(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Delete(string path) => throw ReadOnlyViolation();
 
-    public override void Encrypt(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Encrypt(string path) => throw ReadOnlyViolation();
 
     public override bool Exists(string path) => throw new NotImplementedException();
 
@@ -145,11 +156,11 @@ internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem) : FileBase(fil
 
     public override UnixFileMode GetUnixFileMode(SafeFileHandle fileHandle) => throw new NotImplementedException();
 
-    public override void Move(string sourceFileName, string destFileName) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Move(string sourceFileName, string destFileName) => throw ReadOnlyViolation();
 
-    public override void Move(string sourceFileName, string destFileName, bool overwrite) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Move(string sourceFileName, string destFileName, bool overwrite) => throw ReadOnlyViolation();
 
-    public override FileSystemStream Open(string path, FileMode mode) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override FileSystemStream Open(string path, FileMode mode) => throw ReadOnlyViolation();
 
     public override FileSystemStream Open(string path, FileStreamOptions options) => FileSystem.FileStream.New(path, options);
 
@@ -161,7 +172,7 @@ internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem) : FileBase(fil
 
     public override StreamReader OpenText(string path) => throw new NotImplementedException();
 
-    public override FileSystemStream OpenWrite(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override FileSystemStream OpenWrite(string path) => throw ReadOnlyViolation();
 
     public override byte[] ReadAllBytes(string path) => throw new NotImplementedException();
 
@@ -191,94 +202,94 @@ internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem) : FileBase(fil
 
     public override IAsyncEnumerable<string> ReadLinesAsync(string path, Encoding encoding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-    public override void Replace(string sourceFileName, string destinationFileName, string destinationBackupFileName) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Replace(string sourceFileName, string destinationFileName, string destinationBackupFileName) => throw ReadOnlyViolation();
 
-    public override void Replace(string sourceFileName, string destinationFileName, string destinationBackupFileName, bool ignoreMetadataErrors) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Replace(string sourceFileName, string destinationFileName, string destinationBackupFileName, bool ignoreMetadataErrors) => throw ReadOnlyViolation();
 
     public override IFileSystemInfo ResolveLinkTarget(string linkPath, bool returnFinalTarget) => throw new NotImplementedException();
 
-    public override void SetAttributes(string path, FileAttributes fileAttributes) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetAttributes(string path, FileAttributes fileAttributes) => throw ReadOnlyViolation();
 
-    public override void SetAttributes(SafeFileHandle fileHandle, FileAttributes fileAttributes) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetAttributes(SafeFileHandle fileHandle, FileAttributes fileAttributes) => throw ReadOnlyViolation();
 
-    public override void SetCreationTime(string path, DateTime creationTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetCreationTime(string path, DateTime creationTime) => throw ReadOnlyViolation();
 
-    public override void SetCreationTime(SafeFileHandle fileHandle, DateTime creationTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetCreationTime(SafeFileHandle fileHandle, DateTime creationTime) => throw ReadOnlyViolation();
 
-    public override void SetCreationTimeUtc(string path, DateTime creationTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetCreationTimeUtc(string path, DateTime creationTimeUtc) => throw ReadOnlyViolation();
 
-    public override void SetCreationTimeUtc(SafeFileHandle fileHandle, DateTime creationTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetCreationTimeUtc(SafeFileHandle fileHandle, DateTime creationTimeUtc) => throw ReadOnlyViolation();
 
-    public override void SetLastAccessTime(string path, DateTime lastAccessTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastAccessTime(string path, DateTime lastAccessTime) => throw ReadOnlyViolation();
 
-    public override void SetLastAccessTime(SafeFileHandle fileHandle, DateTime lastAccessTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastAccessTime(SafeFileHandle fileHandle, DateTime lastAccessTime) => throw ReadOnlyViolation();
 
-    public override void SetLastAccessTimeUtc(string path, DateTime lastAccessTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastAccessTimeUtc(string path, DateTime lastAccessTimeUtc) => throw ReadOnlyViolation();
 
-    public override void SetLastAccessTimeUtc(SafeFileHandle fileHandle, DateTime lastAccessTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastAccessTimeUtc(SafeFileHandle fileHandle, DateTime lastAccessTimeUtc) => throw ReadOnlyViolation();
 
-    public override void SetLastWriteTime(string path, DateTime lastWriteTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastWriteTime(string path, DateTime lastWriteTime) => throw ReadOnlyViolation();
 
-    public override void SetLastWriteTime(SafeFileHandle fileHandle, DateTime lastWriteTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastWriteTime(SafeFileHandle fileHandle, DateTime lastWriteTime) => throw ReadOnlyViolation();
 
-    public override void SetLastWriteTimeUtc(string path, DateTime lastWriteTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastWriteTimeUtc(string path, DateTime lastWriteTimeUtc) => throw ReadOnlyViolation();
 
-    public override void SetLastWriteTimeUtc(SafeFileHandle fileHandle, DateTime lastWriteTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastWriteTimeUtc(SafeFileHandle fileHandle, DateTime lastWriteTimeUtc) => throw ReadOnlyViolation();
 
-    public override void SetUnixFileMode(string path, UnixFileMode mode) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetUnixFileMode(string path, UnixFileMode mode) => throw ReadOnlyViolation();
 
-    public override void SetUnixFileMode(SafeFileHandle fileHandle, UnixFileMode mode) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetUnixFileMode(SafeFileHandle fileHandle, UnixFileMode mode) => throw ReadOnlyViolation();
 
-    public override void WriteAllBytes(string path, byte[] bytes) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllBytes(string path, byte[] bytes) => throw ReadOnlyViolation();
 
-    public override void WriteAllBytes(string path, ReadOnlySpan<byte> bytes) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllBytes(string path, ReadOnlySpan<byte> bytes) => throw ReadOnlyViolation();
 
-    public override Task WriteAllBytesAsync(string path, byte[] bytes, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllBytesAsync(string path, byte[] bytes, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task WriteAllBytesAsync(string path, ReadOnlyMemory<byte> bytes, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllBytesAsync(string path, ReadOnlyMemory<byte> bytes, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override void WriteAllLines(string path, IEnumerable<string> contents) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllLines(string path, IEnumerable<string> contents) => throw ReadOnlyViolation();
 
-    public override void WriteAllLines(string path, string[] contents) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllLines(string path, string[] contents) => throw ReadOnlyViolation();
 
-    public override void WriteAllLines(string path, IEnumerable<string> contents, Encoding encoding) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllLines(string path, IEnumerable<string> contents, Encoding encoding) => throw ReadOnlyViolation();
 
-    public override void WriteAllLines(string path, string[] contents, Encoding encoding) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllLines(string path, string[] contents, Encoding encoding) => throw ReadOnlyViolation();
 
-    public override Task WriteAllLinesAsync(string path, IEnumerable<string> contents, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllLinesAsync(string path, IEnumerable<string> contents, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task WriteAllLinesAsync(string path, IEnumerable<string> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllLinesAsync(string path, IEnumerable<string> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override void WriteAllText(string path, string contents) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllText(string path, string contents) => throw ReadOnlyViolation();
 
-    public override void WriteAllText(string path, ReadOnlySpan<char> contents) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllText(string path, ReadOnlySpan<char> contents) => throw ReadOnlyViolation();
 
-    public override void WriteAllText(string path, string contents, Encoding encoding) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllText(string path, string contents, Encoding encoding) => throw ReadOnlyViolation();
 
-    public override void WriteAllText(string path, ReadOnlySpan<char> contents, Encoding encoding) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void WriteAllText(string path, ReadOnlySpan<char> contents, Encoding encoding) => throw ReadOnlyViolation();
 
-    public override Task WriteAllTextAsync(string path, string contents, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllTextAsync(string path, string contents, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task WriteAllTextAsync(string path, ReadOnlyMemory<char> contents, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllTextAsync(string path, ReadOnlyMemory<char> contents, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task WriteAllTextAsync(string path, string contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllTextAsync(string path, string contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 
-    public override Task WriteAllTextAsync(string path, ReadOnlyMemory<char> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override Task WriteAllTextAsync(string path, ReadOnlyMemory<char> contents, Encoding encoding, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 }
 
 internal sealed class ReadOnlyDirectory(ReadOnlyFileSystem fileSystem, IFileSystem inner) : DirectoryBase(fileSystem)
 {
-    public override IDirectoryInfo CreateDirectory(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override IDirectoryInfo CreateDirectory(string path) => throw ReadOnlyViolation();
 
-    public override IDirectoryInfo CreateDirectory(string path, UnixFileMode unixCreateMode) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override IDirectoryInfo CreateDirectory(string path, UnixFileMode unixCreateMode) => throw ReadOnlyViolation();
 
-    public override IFileSystemInfo CreateSymbolicLink(string path, string pathToTarget) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override IFileSystemInfo CreateSymbolicLink(string path, string pathToTarget) => throw ReadOnlyViolation();
 
-    public override IDirectoryInfo CreateTempSubdirectory(string? prefix = null) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override IDirectoryInfo CreateTempSubdirectory(string? prefix = null) => throw ReadOnlyViolation();
 
-    public override void Delete(string path) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Delete(string path) => throw ReadOnlyViolation();
 
-    public override void Delete(string path, bool recursive) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Delete(string path, bool recursive) => throw ReadOnlyViolation();
 
     public override IEnumerable<string> EnumerateDirectories(string path) => throw new NotImplementedException();
 
@@ -350,23 +361,23 @@ internal sealed class ReadOnlyDirectory(ReadOnlyFileSystem fileSystem, IFileSyst
 
     public override IDirectoryInfo GetParent(string path) => throw new NotImplementedException();
 
-    public override void Move(string sourceDirName, string destDirName) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void Move(string sourceDirName, string destDirName) => throw ReadOnlyViolation();
 
     public override IFileSystemInfo ResolveLinkTarget(string linkPath, bool returnFinalTarget) => throw new NotImplementedException();
 
-    public override void SetCreationTime(string path, DateTime creationTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetCreationTime(string path, DateTime creationTime) => throw ReadOnlyViolation();
 
-    public override void SetCreationTimeUtc(string path, DateTime creationTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetCreationTimeUtc(string path, DateTime creationTimeUtc) => throw ReadOnlyViolation();
 
     public override void SetCurrentDirectory(string path) => throw new NotImplementedException();
 
-    public override void SetLastAccessTime(string path, DateTime lastAccessTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastAccessTime(string path, DateTime lastAccessTime) => throw ReadOnlyViolation();
 
-    public override void SetLastAccessTimeUtc(string path, DateTime lastAccessTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastAccessTimeUtc(string path, DateTime lastAccessTimeUtc) => throw ReadOnlyViolation();
 
-    public override void SetLastWriteTime(string path, DateTime lastWriteTime) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastWriteTime(string path, DateTime lastWriteTime) => throw ReadOnlyViolation();
 
-    public override void SetLastWriteTimeUtc(string path, DateTime lastWriteTimeUtc) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public override void SetLastWriteTimeUtc(string path, DateTime lastWriteTimeUtc) => throw ReadOnlyViolation();
 }
 
 internal sealed class ReadOnlyFileStreamFactory(ReadOnlyFileSystem fileSystem, IFileSystem inner) : IFileStreamFactory
@@ -375,57 +386,57 @@ internal sealed class ReadOnlyFileStreamFactory(ReadOnlyFileSystem fileSystem, I
 
     public FileSystemStream New(SafeFileHandle handle, FileAccess access)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(access);
+        EnsureReadOnly(access);
         return inner.FileStream.New(handle, access);
     }
 
     public FileSystemStream New(SafeFileHandle handle, FileAccess access, int bufferSize)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(access);
+        EnsureReadOnly(access);
         return inner.FileStream.New(handle, access, bufferSize);
     }
 
     public FileSystemStream New(SafeFileHandle handle, FileAccess access, int bufferSize, bool isAsync)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(access);
+        EnsureReadOnly(access);
         return inner.FileStream.New(handle, access, bufferSize, isAsync);
     }
 
-    public FileSystemStream New(string path, FileMode mode) => throw ReadOnlyFileSystem.ReadOnlyViolation();
+    public FileSystemStream New(string path, FileMode mode) => throw ReadOnlyViolation();
 
     public FileSystemStream New(string path, FileStreamOptions options)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(options.Mode, options.Access);
+        EnsureReadOnly(options.Mode, options.Access, options.Options);
         return inner.FileStream.New(path, options);
     }
 
     public FileSystemStream New(string path, FileMode mode, FileAccess access)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(mode, access);
+        EnsureReadOnly(mode, access);
         return inner.FileStream.New(path, mode, access);
     }
 
     public FileSystemStream New(string path, FileMode mode, FileAccess access, FileShare share)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(mode, access);
+        EnsureReadOnly(mode, access);
         return inner.FileStream.New(path, mode, access, share);
     }
 
     public FileSystemStream New(string path, FileMode mode, FileAccess access, FileShare share, int bufferSize)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(mode, access);
+        EnsureReadOnly(mode, access);
         return inner.FileStream.New(path, mode, access, share, bufferSize);
     }
 
     public FileSystemStream New(string path, FileMode mode, FileAccess access, FileShare share, int bufferSize, bool useAsync)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(mode, access);
+        EnsureReadOnly(mode, access);
         return inner.FileStream.New(path, mode, access, share, bufferSize, useAsync);
     }
 
     public FileSystemStream New(string path, FileMode mode, FileAccess access, FileShare share, int bufferSize, FileOptions options)
     {
-        ReadOnlyFileSystem.EnsureReadOnly(mode, access);
+        EnsureReadOnly(mode, access, options);
         return inner.FileStream.New(path, mode, access, share, bufferSize, options);
     }
 

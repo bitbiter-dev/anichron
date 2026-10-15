@@ -8,8 +8,8 @@ namespace Anichron.Infrastructure.Tests.Unit.FileSystem;
 
 public sealed class ReadOnlyFileSystemTests
 {
-    private const string P = "/data/originals/a.jpg";
-    private const string Q = "/data/originals/b.jpg";
+    private const string Source = "/data/originals/a.jpg";
+    private const string Destination = "/data/originals/b.jpg";
 
     private static readonly DateTime When = new(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly SafeFileHandle Handle = new(IntPtr.Zero, ownsHandle: false);
@@ -17,94 +17,97 @@ public sealed class ReadOnlyFileSystemTests
 
     private static readonly Dictionary<string, Action<IFileSystem>> WriteCalls = new()
     {
-        { "File.AppendAllBytes(byte[])", fs => fs.File.AppendAllBytes(P, [1]) },
-        { "File.AppendAllBytes(span)", fs => fs.File.AppendAllBytes(P, []) },
-        { "File.AppendAllBytesAsync(byte[])", fs => _ = fs.File.AppendAllBytesAsync(P, [1]) },
-        { "File.AppendAllBytesAsync(memory)", fs => _ = fs.File.AppendAllBytesAsync(P, ReadOnlyMemory<byte>.Empty) },
-        { "File.AppendAllLines", fs => fs.File.AppendAllLines(P, Lines) },
-        { "File.AppendAllLines(encoding)", fs => fs.File.AppendAllLines(P, Lines, Encoding.UTF8) },
-        { "File.AppendAllLinesAsync", fs => _ = fs.File.AppendAllLinesAsync(P, Lines) },
-        { "File.AppendAllLinesAsync(encoding)", fs => _ = fs.File.AppendAllLinesAsync(P, Lines, Encoding.UTF8) },
-        { "File.AppendAllText", fs => fs.File.AppendAllText(P, "x") },
-        { "File.AppendAllText(span)", fs => fs.File.AppendAllText(P, "x".AsSpan()) },
-        { "File.AppendAllText(encoding)", fs => fs.File.AppendAllText(P, "x", Encoding.UTF8) },
-        { "File.AppendAllText(span, encoding)", fs => fs.File.AppendAllText(P, "x".AsSpan(), Encoding.UTF8) },
-        { "File.AppendAllTextAsync", fs => _ = fs.File.AppendAllTextAsync(P, "x") },
-        { "File.AppendAllTextAsync(memory)", fs => _ = fs.File.AppendAllTextAsync(P, "x".AsMemory()) },
-        { "File.AppendAllTextAsync(encoding)", fs => _ = fs.File.AppendAllTextAsync(P, "x", Encoding.UTF8) },
-        { "File.AppendAllTextAsync(memory, encoding)", fs => _ = fs.File.AppendAllTextAsync(P, "x".AsMemory(), Encoding.UTF8) },
-        { "File.AppendText", fs => fs.File.AppendText(P) },
-        { "File.Copy", fs => fs.File.Copy(P, Q) },
-        { "File.Copy(overwrite)", fs => fs.File.Copy(P, Q, overwrite: true) },
-        { "File.Create", fs => fs.File.Create(P) },
-        { "File.Create(bufferSize)", fs => fs.File.Create(P, 4096) },
-        { "File.Create(options)", fs => fs.File.Create(P, 4096, FileOptions.None) },
-        { "File.CreateSymbolicLink", fs => fs.File.CreateSymbolicLink(P, Q) },
-        { "File.CreateText", fs => fs.File.CreateText(P) },
-        { "File.Delete", fs => fs.File.Delete(P) },
-        { "File.Move", fs => fs.File.Move(P, Q) },
-        { "File.Move(overwrite)", fs => fs.File.Move(P, Q, overwrite: true) },
-        { "File.Open(mode)", fs => fs.File.Open(P, FileMode.Open) },
-        { "File.Open(write access)", fs => fs.File.Open(P, FileMode.Open, FileAccess.Write) },
-        { "File.Open(write access, share)", fs => fs.File.Open(P, FileMode.Open, FileAccess.Write, FileShare.Read) },
-        { "File.Open(write options)", fs => fs.File.Open(P, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.Write }) },
-        { "File.OpenWrite", fs => fs.File.OpenWrite(P) },
-        { "File.Replace", fs => fs.File.Replace(P, Q, null) },
-        { "File.Replace(ignoreMetadataErrors)", fs => fs.File.Replace(P, Q, null, ignoreMetadataErrors: true) },
-        { "File.SetAttributes", fs => fs.File.SetAttributes(P, FileAttributes.Normal) },
+        { "File.AppendAllBytes(byte[])", fs => fs.File.AppendAllBytes(Source, [1]) },
+        { "File.AppendAllBytes(span)", fs => fs.File.AppendAllBytes(Source, []) },
+        { "File.AppendAllBytesAsync(byte[])", fs => _ = fs.File.AppendAllBytesAsync(Source, [1]) },
+        { "File.AppendAllBytesAsync(memory)", fs => _ = fs.File.AppendAllBytesAsync(Source, ReadOnlyMemory<byte>.Empty) },
+        { "File.AppendAllLines", fs => fs.File.AppendAllLines(Source, Lines) },
+        { "File.AppendAllLines(encoding)", fs => fs.File.AppendAllLines(Source, Lines, Encoding.UTF8) },
+        { "File.AppendAllLinesAsync", fs => _ = fs.File.AppendAllLinesAsync(Source, Lines) },
+        { "File.AppendAllLinesAsync(encoding)", fs => _ = fs.File.AppendAllLinesAsync(Source, Lines, Encoding.UTF8) },
+        { "File.AppendAllText", fs => fs.File.AppendAllText(Source, "x") },
+        { "File.AppendAllText(span)", fs => fs.File.AppendAllText(Source, "x".AsSpan()) },
+        { "File.AppendAllText(encoding)", fs => fs.File.AppendAllText(Source, "x", Encoding.UTF8) },
+        { "File.AppendAllText(span, encoding)", fs => fs.File.AppendAllText(Source, "x".AsSpan(), Encoding.UTF8) },
+        { "File.AppendAllTextAsync", fs => _ = fs.File.AppendAllTextAsync(Source, "x") },
+        { "File.AppendAllTextAsync(memory)", fs => _ = fs.File.AppendAllTextAsync(Source, "x".AsMemory()) },
+        { "File.AppendAllTextAsync(encoding)", fs => _ = fs.File.AppendAllTextAsync(Source, "x", Encoding.UTF8) },
+        { "File.AppendAllTextAsync(memory, encoding)", fs => _ = fs.File.AppendAllTextAsync(Source, "x".AsMemory(), Encoding.UTF8) },
+        { "File.AppendText", fs => fs.File.AppendText(Source) },
+        { "File.Copy", fs => fs.File.Copy(Source, Destination) },
+        { "File.Copy(overwrite)", fs => fs.File.Copy(Source, Destination, overwrite: true) },
+        { "File.Create", fs => fs.File.Create(Source) },
+        { "File.Create(bufferSize)", fs => fs.File.Create(Source, 4096) },
+        { "File.Create(options)", fs => fs.File.Create(Source, 4096, FileOptions.None) },
+        { "File.CreateSymbolicLink", fs => fs.File.CreateSymbolicLink(Source, Destination) },
+        { "File.CreateText", fs => fs.File.CreateText(Source) },
+        { "File.Delete", fs => fs.File.Delete(Source) },
+        { "File.Move", fs => fs.File.Move(Source, Destination) },
+        { "File.Move(overwrite)", fs => fs.File.Move(Source, Destination, overwrite: true) },
+        { "File.Open(mode)", fs => fs.File.Open(Source, FileMode.Open) },
+        { "File.Open(write access)", fs => fs.File.Open(Source, FileMode.Open, FileAccess.Write) },
+        { "File.Open(write access, share)", fs => fs.File.Open(Source, FileMode.Open, FileAccess.Write, FileShare.Read) },
+        { "File.Open(write options)", fs => fs.File.Open(Source, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.Write }) },
+        { "File.OpenWrite", fs => fs.File.OpenWrite(Source) },
+        { "File.Replace", fs => fs.File.Replace(Source, Destination, null) },
+        { "File.Replace(ignoreMetadataErrors)", fs => fs.File.Replace(Source, Destination, null, ignoreMetadataErrors: true) },
+        { "File.SetAttributes", fs => fs.File.SetAttributes(Source, FileAttributes.Normal) },
         { "File.SetAttributes(handle)", fs => fs.File.SetAttributes(Handle, FileAttributes.Normal) },
-        { "File.SetCreationTime", fs => fs.File.SetCreationTime(P, When) },
+        { "File.SetCreationTime", fs => fs.File.SetCreationTime(Source, When) },
         { "File.SetCreationTime(handle)", fs => fs.File.SetCreationTime(Handle, When) },
-        { "File.SetCreationTimeUtc", fs => fs.File.SetCreationTimeUtc(P, When) },
+        { "File.SetCreationTimeUtc", fs => fs.File.SetCreationTimeUtc(Source, When) },
         { "File.SetCreationTimeUtc(handle)", fs => fs.File.SetCreationTimeUtc(Handle, When) },
-        { "File.SetLastAccessTime", fs => fs.File.SetLastAccessTime(P, When) },
+        { "File.SetLastAccessTime", fs => fs.File.SetLastAccessTime(Source, When) },
         { "File.SetLastAccessTime(handle)", fs => fs.File.SetLastAccessTime(Handle, When) },
-        { "File.SetLastAccessTimeUtc", fs => fs.File.SetLastAccessTimeUtc(P, When) },
+        { "File.SetLastAccessTimeUtc", fs => fs.File.SetLastAccessTimeUtc(Source, When) },
         { "File.SetLastAccessTimeUtc(handle)", fs => fs.File.SetLastAccessTimeUtc(Handle, When) },
-        { "File.SetLastWriteTime", fs => fs.File.SetLastWriteTime(P, When) },
+        { "File.SetLastWriteTime", fs => fs.File.SetLastWriteTime(Source, When) },
         { "File.SetLastWriteTime(handle)", fs => fs.File.SetLastWriteTime(Handle, When) },
-        { "File.SetLastWriteTimeUtc", fs => fs.File.SetLastWriteTimeUtc(P, When) },
+        { "File.SetLastWriteTimeUtc", fs => fs.File.SetLastWriteTimeUtc(Source, When) },
         { "File.SetLastWriteTimeUtc(handle)", fs => fs.File.SetLastWriteTimeUtc(Handle, When) },
-        { "File.WriteAllBytes", fs => fs.File.WriteAllBytes(P, [1]) },
-        { "File.WriteAllBytes(span)", fs => fs.File.WriteAllBytes(P, []) },
-        { "File.WriteAllBytesAsync", fs => _ = fs.File.WriteAllBytesAsync(P, [1]) },
-        { "File.WriteAllBytesAsync(memory)", fs => _ = fs.File.WriteAllBytesAsync(P, ReadOnlyMemory<byte>.Empty) },
-        { "File.WriteAllLines(enumerable)", fs => fs.File.WriteAllLines(P, Lines.AsEnumerable()) },
-        { "File.WriteAllLines(array)", fs => fs.File.WriteAllLines(P, Lines) },
-        { "File.WriteAllLines(enumerable, encoding)", fs => fs.File.WriteAllLines(P, Lines.AsEnumerable(), Encoding.UTF8) },
-        { "File.WriteAllLines(array, encoding)", fs => fs.File.WriteAllLines(P, Lines, Encoding.UTF8) },
-        { "File.WriteAllLinesAsync", fs => _ = fs.File.WriteAllLinesAsync(P, Lines) },
-        { "File.WriteAllLinesAsync(encoding)", fs => _ = fs.File.WriteAllLinesAsync(P, Lines, Encoding.UTF8) },
-        { "File.WriteAllText", fs => fs.File.WriteAllText(P, "x") },
-        { "File.WriteAllText(span)", fs => fs.File.WriteAllText(P, "x".AsSpan()) },
-        { "File.WriteAllText(encoding)", fs => fs.File.WriteAllText(P, "x", Encoding.UTF8) },
-        { "File.WriteAllText(span, encoding)", fs => fs.File.WriteAllText(P, "x".AsSpan(), Encoding.UTF8) },
-        { "File.WriteAllTextAsync", fs => _ = fs.File.WriteAllTextAsync(P, "x") },
-        { "File.WriteAllTextAsync(memory)", fs => _ = fs.File.WriteAllTextAsync(P, "x".AsMemory()) },
-        { "File.WriteAllTextAsync(encoding)", fs => _ = fs.File.WriteAllTextAsync(P, "x", Encoding.UTF8) },
-        { "File.WriteAllTextAsync(memory, encoding)", fs => _ = fs.File.WriteAllTextAsync(P, "x".AsMemory(), Encoding.UTF8) },
-        { "Directory.CreateDirectory", fs => fs.Directory.CreateDirectory(P) },
-        { "Directory.CreateDirectory(mode)", fs => fs.Directory.CreateDirectory(P, UnixFileMode.UserRead) },
-        { "Directory.CreateSymbolicLink", fs => fs.Directory.CreateSymbolicLink(P, Q) },
+        { "File.WriteAllBytes", fs => fs.File.WriteAllBytes(Source, [1]) },
+        { "File.WriteAllBytes(span)", fs => fs.File.WriteAllBytes(Source, []) },
+        { "File.WriteAllBytesAsync", fs => _ = fs.File.WriteAllBytesAsync(Source, [1]) },
+        { "File.WriteAllBytesAsync(memory)", fs => _ = fs.File.WriteAllBytesAsync(Source, ReadOnlyMemory<byte>.Empty) },
+        { "File.WriteAllLines(enumerable)", fs => fs.File.WriteAllLines(Source, Lines.AsEnumerable()) },
+        { "File.WriteAllLines(array)", fs => fs.File.WriteAllLines(Source, Lines) },
+        { "File.WriteAllLines(enumerable, encoding)", fs => fs.File.WriteAllLines(Source, Lines.AsEnumerable(), Encoding.UTF8) },
+        { "File.WriteAllLines(array, encoding)", fs => fs.File.WriteAllLines(Source, Lines, Encoding.UTF8) },
+        { "File.WriteAllLinesAsync", fs => _ = fs.File.WriteAllLinesAsync(Source, Lines) },
+        { "File.WriteAllLinesAsync(encoding)", fs => _ = fs.File.WriteAllLinesAsync(Source, Lines, Encoding.UTF8) },
+        { "File.WriteAllText", fs => fs.File.WriteAllText(Source, "x") },
+        { "File.WriteAllText(span)", fs => fs.File.WriteAllText(Source, "x".AsSpan()) },
+        { "File.WriteAllText(encoding)", fs => fs.File.WriteAllText(Source, "x", Encoding.UTF8) },
+        { "File.WriteAllText(span, encoding)", fs => fs.File.WriteAllText(Source, "x".AsSpan(), Encoding.UTF8) },
+        { "File.WriteAllTextAsync", fs => _ = fs.File.WriteAllTextAsync(Source, "x") },
+        { "File.WriteAllTextAsync(memory)", fs => _ = fs.File.WriteAllTextAsync(Source, "x".AsMemory()) },
+        { "File.WriteAllTextAsync(encoding)", fs => _ = fs.File.WriteAllTextAsync(Source, "x", Encoding.UTF8) },
+        { "File.WriteAllTextAsync(memory, encoding)", fs => _ = fs.File.WriteAllTextAsync(Source, "x".AsMemory(), Encoding.UTF8) },
+        { "Directory.CreateDirectory", fs => fs.Directory.CreateDirectory(Source) },
+        { "Directory.CreateDirectory(mode)", fs => fs.Directory.CreateDirectory(Source, UnixFileMode.UserRead) },
+        { "Directory.CreateSymbolicLink", fs => fs.Directory.CreateSymbolicLink(Source, Destination) },
         { "Directory.CreateTempSubdirectory", fs => fs.Directory.CreateTempSubdirectory() },
-        { "Directory.Delete", fs => fs.Directory.Delete(P) },
-        { "Directory.Delete(recursive)", fs => fs.Directory.Delete(P, recursive: true) },
-        { "Directory.Move", fs => fs.Directory.Move(P, Q) },
-        { "Directory.SetCreationTime", fs => fs.Directory.SetCreationTime(P, When) },
-        { "Directory.SetCreationTimeUtc", fs => fs.Directory.SetCreationTimeUtc(P, When) },
-        { "Directory.SetLastAccessTime", fs => fs.Directory.SetLastAccessTime(P, When) },
-        { "Directory.SetLastAccessTimeUtc", fs => fs.Directory.SetLastAccessTimeUtc(P, When) },
-        { "Directory.SetLastWriteTime", fs => fs.Directory.SetLastWriteTime(P, When) },
-        { "Directory.SetLastWriteTimeUtc", fs => fs.Directory.SetLastWriteTimeUtc(P, When) },
-        { "FileStream.New(mode)", fs => fs.FileStream.New(P, FileMode.Open) },
-        { "FileStream.New(write access)", fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Write) },
-        { "FileStream.New(read access, creating mode)", fs => fs.FileStream.New(P, FileMode.OpenOrCreate, FileAccess.Read) },
-        { "FileStream.New(write options)", fs => fs.FileStream.New(P, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.ReadWrite }) },
-        { "FileStream.New(read options, creating mode)", fs => fs.FileStream.New(P, new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Read }) },
-        { "FileStream.New(share)", fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Write, FileShare.Read) },
-        { "FileStream.New(bufferSize)", fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Write, FileShare.Read, 4096) },
-        { "FileStream.New(useAsync)", fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Write, FileShare.Read, 4096, useAsync: true) },
-        { "FileStream.New(options)", fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Write, FileShare.Read, 4096, FileOptions.None) },
+        { "Directory.Delete", fs => fs.Directory.Delete(Source) },
+        { "Directory.Delete(recursive)", fs => fs.Directory.Delete(Source, recursive: true) },
+        { "Directory.Move", fs => fs.Directory.Move(Source, Destination) },
+        { "Directory.SetCreationTime", fs => fs.Directory.SetCreationTime(Source, When) },
+        { "Directory.SetCreationTimeUtc", fs => fs.Directory.SetCreationTimeUtc(Source, When) },
+        { "Directory.SetLastAccessTime", fs => fs.Directory.SetLastAccessTime(Source, When) },
+        { "Directory.SetLastAccessTimeUtc", fs => fs.Directory.SetLastAccessTimeUtc(Source, When) },
+        { "Directory.SetLastWriteTime", fs => fs.Directory.SetLastWriteTime(Source, When) },
+        { "Directory.SetLastWriteTimeUtc", fs => fs.Directory.SetLastWriteTimeUtc(Source, When) },
+        { "FileStream.New(mode)", fs => fs.FileStream.New(Source, FileMode.Open) },
+        { "FileStream.New(write access)", fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Write) },
+        { "FileStream.New(read access, creating mode)", fs => fs.FileStream.New(Source, FileMode.OpenOrCreate, FileAccess.Read) },
+        { "FileStream.New(write options)", fs => fs.FileStream.New(Source, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.ReadWrite }) },
+        { "FileStream.New(read options, creating mode)", fs => fs.FileStream.New(Source, new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Read }) },
+        { "FileStream.New(share)", fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Write, FileShare.Read) },
+        { "FileStream.New(bufferSize)", fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Write, FileShare.Read, 4096) },
+        { "FileStream.New(useAsync)", fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Write, FileShare.Read, 4096, useAsync: true) },
+        { "FileStream.New(options)", fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Write, FileShare.Read, 4096, FileOptions.None) },
+        { "FileStream.New(delete-on-close options)", fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.DeleteOnClose) },
+        { "FileStream.New(delete-on-close stream options)", fs => fs.FileStream.New(Source, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.Read, Options = FileOptions.DeleteOnClose }) },
+        { "File.Open(delete-on-close stream options)", fs => fs.File.Open(Source, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.Read, Options = FileOptions.DeleteOnClose }) },
         { "FileStream.New(handle)", fs => fs.FileStream.New(Handle, FileAccess.Write) },
         { "FileStream.New(handle, bufferSize)", fs => fs.FileStream.New(Handle, FileAccess.ReadWrite, 4096) },
         { "FileStream.New(handle, isAsync)", fs => fs.FileStream.New(Handle, FileAccess.Write, 4096, isAsync: true) },
@@ -148,48 +151,48 @@ public sealed class ReadOnlyFileSystemTests
     {
         {
             "File.Open(read access)",
-            (fs => fs.File.Open(P, FileMode.Open, FileAccess.Read),
-                fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.None))
+            (fs => fs.File.Open(Source, FileMode.Open, FileAccess.Read),
+                fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.None))
         },
         {
             "File.Open(read access, share)",
-            (fs => fs.File.Open(P, FileMode.Open, FileAccess.Read, FileShare.Read),
-                fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read))
+            (fs => fs.File.Open(Source, FileMode.Open, FileAccess.Read, FileShare.Read),
+                fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read))
         },
         {
             "File.Open(read options)",
-            (fs => fs.File.Open(P, ReadOptions),
-                fs => fs.FileStream.New(P, ReadOptions))
+            (fs => fs.File.Open(Source, ReadOptions),
+                fs => fs.FileStream.New(Source, ReadOptions))
         },
         {
             "FileStream.New(read access)",
-            (fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read),
-                fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read))
+            (fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read),
+                fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read))
         },
         {
             "FileStream.New(read options)",
-            (fs => fs.FileStream.New(P, ReadOptions),
-                fs => fs.FileStream.New(P, ReadOptions))
+            (fs => fs.FileStream.New(Source, ReadOptions),
+                fs => fs.FileStream.New(Source, ReadOptions))
         },
         {
             "FileStream.New(share)",
-            (fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read),
-                fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read))
+            (fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read),
+                fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read))
         },
         {
             "FileStream.New(bufferSize)",
-            (fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read, 4096),
-                fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read, 4096))
+            (fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read, 4096),
+                fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read, 4096))
         },
         {
             "FileStream.New(useAsync)",
-            (fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true),
-                fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true))
+            (fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true),
+                fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true))
         },
         {
             "FileStream.New(options)",
-            (fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous),
-                fs => fs.FileStream.New(P, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous))
+            (fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous),
+                fs => fs.FileStream.New(Source, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous))
         },
         {
             "FileStream.New(handle)",
@@ -216,7 +219,7 @@ public sealed class ReadOnlyFileSystemTests
     {
         var (open, expectOnInner) = ReadCalls[member];
         var inner = Substitute.For<IFileSystem>();
-        using var stream = Substitute.For<FileSystemStream>(Stream.Null, P, false);
+        using var stream = Substitute.For<FileSystemStream>(Stream.Null, Source, false);
         expectOnInner(inner).Returns(stream);
         var testee = new ReadOnlyFileSystem(inner);
 
@@ -225,15 +228,15 @@ public sealed class ReadOnlyFileSystemTests
 
     private static readonly Dictionary<string, Action<IFileSystem>> UnimplementedReadCalls = new()
     {
-        { "File.Exists", fs => fs.File.Exists(P) },
-        { "File.OpenRead", fs => fs.File.OpenRead(P) },
-        { "File.ReadAllBytes", fs => fs.File.ReadAllBytes(P) },
-        { "Directory.EnumerateFiles", fs => fs.Directory.EnumerateFiles(P) },
-        { "Directory.GetFiles", fs => fs.Directory.GetFiles(P) },
+        { "File.Exists", fs => fs.File.Exists(Source) },
+        { "File.OpenRead", fs => fs.File.OpenRead(Source) },
+        { "File.ReadAllBytes", fs => fs.File.ReadAllBytes(Source) },
+        { "Directory.EnumerateFiles", fs => fs.Directory.EnumerateFiles(Source) },
+        { "Directory.GetFiles", fs => fs.Directory.GetFiles(Source) },
         { "FileStream.Wrap", fs => fs.FileStream.Wrap(null!) },
-        { "FileInfo.New", fs => fs.FileInfo.New(P) },
+        { "FileInfo.New", fs => fs.FileInfo.New(Source) },
         { "FileInfo.Wrap", fs => fs.FileInfo.Wrap(null) },
-        { "DirectoryInfo.New", fs => fs.DirectoryInfo.New(P) },
+        { "DirectoryInfo.New", fs => fs.DirectoryInfo.New(Source) },
         { "DirectoryInfo.Wrap", fs => fs.DirectoryInfo.Wrap(null) },
     };
 
