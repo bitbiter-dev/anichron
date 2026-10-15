@@ -45,10 +45,11 @@ Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-appl
 
 ```bash
 dotnet tool restore
-cd src && dotnet stryker      # must run from src/, not the repo root
+scripts/mutation-changed.sh   # scoped: only C# files changed since origin/master (~2 min)
+cd src && dotnet stryker      # full sweep (~8 min); must run from src/, not the repo root
 ```
 
-All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **One deliberate exception, and only one**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test. Anywhere else, a measurement-affecting flag is a bug.
+All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **Two deliberate exceptions, and only two**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test; and `scripts/mutation-changed.sh` passes `--mutate` to scope a local pre-check to the changed files, whose score covers only those files and is never compared with the CI score. Anywhere else, a measurement-affecting flag is a bug. **Never use `--since` or `--with-baseline`**: inside a git worktree they diff the main checkout instead of the worktree, test 0 mutants and exit `0` — a false green.
 
 Threshold flags are a separate category and are *not* covered by that rule: `--break-at`, `--threshold-low` and `--threshold-high` change the **verdict**, not the measurement, so passing them does not make two runs incomparable. `ci.yml` passes all three, computed by `scripts/mutation-ratchet.sh` from the stored high-water mark. They are always passed **together** — Stryker validates `break <= low <= high` before mutating and exits `1` if it fails, which reads as a broken tool rather than a threshold event. Never raise one by hand without the others.
 
@@ -56,7 +57,7 @@ Threshold flags are a separate category and are *not* covered by that rule: `--b
 
 #### Surviving mutants: test first, exclude only when equivalent
 
-The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishing any change to production code, run `dotnet stryker` and work through every undetected mutant in the files you touched:
+The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishing any change to production code, run `scripts/mutation-changed.sh` and work through every undetected mutant in the files you touched. It maps a changed `<Name>Tests.cs` to `<Name>.cs` and exits `1` for a changed test file it cannot map; pass the source files that test covers, relative to `src/`, as arguments. The full sweep in CI is the authority; run `dotnet stryker` locally as well only when the change reaches beyond the files it touches (`stryker-config.json`, a shared base class, test doubles):
 
 1. **Write a test.** A survivor is a missing test until proven otherwise. The test asserts behaviour that the mutant changes, with an expected value from an independent source (a literal, the spec), never recomputed the way the code does.
 2. **Question an exclusion only for an *equivalent* mutant**: one where no input can make the original and the mutant behave differently. Prove it by naming why every input agrees (a square image, a value exactly at the bound, a branch that only logs), or by measuring it. "Hard to test" is not equivalence.
@@ -64,7 +65,7 @@ The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishi
 4. **Suppress narrowly.** Add a bare `// Stryker disable once <Mutator>` before the statement, and a row in ADR 0005 saying why. The directive binds to the next syntax node and disables *every* mutation of that mutator on it, so first confirm no killable sibling mutation on the same node gets hidden; if one would, restructure instead. A whole-file exclusion is only for pure wiring with no branching logic, listed by path in `stryker-config.json` and in ADR 0005.
 5. **Code that only real PostgreSQL can exercise** (transactions, `ExecuteUpdate`/`ExecuteDelete`) gets a per-member `// Stryker disable all` and an ADR 0005 row. It is not tested on SQLite or another stand-in engine.
 
-Done when Stryker reports `100.00%` and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds or `SLACK` is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
+Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds or `SLACK` is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
 
 Mutants that flip between runs come from `static readonly` initialisers and EF's cached model: build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)`. An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
 
@@ -180,7 +181,8 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 
 - Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver` installed on `amd64` only; GPU fallback handles its absence at runtime.
 - API Dockerfile uses Alpine (no GPU/FFmpeg needed)
-- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel; tagged `sha-<hash>` on every build, `edge` on master, SemVer tags on releases
+- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel; pushed only after `CI gate` passes, tagged `sha-<hash>` on every master build, `edge` on master, SemVer tags on releases
+- Branch protection requires only `CI gate` and `CodeQL`. To make a new job required, add it to the gate's `needs`, never to branch protection. The gate's rule is `scripts/ci-gate.sh`
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
 - CORS allowed origins configured via `CORS__ALLOWEDORIGINS` env var (comma-separated); the same value switches the refresh cookie to `SameSite=None`. Leave empty for same-origin / reverse proxy deployments.
 - `X-Forwarded-For` is honoured only from loopback or from addresses listed in `FORWARDEDHEADERS__KNOWNPROXIES` / `FORWARDEDHEADERS__KNOWNNETWORKS` (comma-separated IPs / CIDRs; `ForwardLimit = 1`). Rate limiting partitions on the resulting client IP, so a reverse-proxy deployment must set one of these or all clients share the proxy's bucket. Never trust the Docker bridge network for a directly published port — that lets any client spoof its IP.
