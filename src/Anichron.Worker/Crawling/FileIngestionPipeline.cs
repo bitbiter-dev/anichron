@@ -18,6 +18,7 @@ internal sealed partial class FileIngestionPipeline(
     IServiceScopeFactory scopeFactory,
     IFileSystem fileSystem,
     ILivePhotoLinker livePhotoLinker,
+    CrawlExclusions exclusions,
     IOptions<WorkerSettings> workerOptions,
     IGuidFactory guidFactory,
     ILogger<FileIngestionPipeline> logger) : IFileIngestionPipeline
@@ -51,17 +52,35 @@ internal sealed partial class FileIngestionPipeline(
     {
         try
         {
-            // Stryker disable once String
-            var filesByDirectory = fileSystem.Directory
-                .EnumerateFiles(config.RootPath, "*", SearchOption.AllDirectories)
-                .GroupBy(fileSystem.Path.GetDirectoryName);
-
-            foreach (var directoryGroup in filesByDirectory)
-                await EnqueueDirectoryItemsAsync([.. directoryGroup], config.RootPath, writer, ct);
+            var pending = new Stack<string>([config.RootPath]);
+            while (pending.TryPop(out var directory))
+            {
+                var (files, subdirectories) = ListDirectory(directory, config.RootPath);
+                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, ct);
+                foreach (var subdirectory in subdirectories)
+                    pending.Push(subdirectory);
+            }
         }
         finally
         {
             writer.TryComplete();
+        }
+    }
+
+    private (List<string> Files, List<string> Subdirectories) ListDirectory(string directory, string rootPath)
+    {
+        try
+        {
+            return (
+                [.. fileSystem.Directory.EnumerateFiles(directory)
+                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)))],
+                [.. fileSystem.Directory.EnumerateDirectories(directory)
+                    .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory)))]);
+        }
+        catch (Exception ex) when (directory != rootPath && ex is UnauthorizedAccessException or IOException)
+        {
+            Log.DirectoryUnreadable(logger, directory, ex);
+            return ([], []);
         }
     }
 
@@ -131,5 +150,8 @@ internal sealed partial class FileIngestionPipeline(
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Failed to ingest {Path}.")]
         public static partial void ItemFailed(ILogger logger, string path, Exception ex);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping unreadable folder {Path}.")]
+        public static partial void DirectoryUnreadable(ILogger logger, string path, Exception ex);
     }
 }
