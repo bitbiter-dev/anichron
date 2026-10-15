@@ -58,23 +58,26 @@ Stryker exits `2` when the score is below the `break` threshold in the config �
 what its documentation says — so CI treats any non-zero value as failure rather than matching on a
 specific code.
 
-In CI the sweep runs with `continue-on-error` and the job's **last** step fails on the outcome.
-Three constraints force that shape, and changing any part of it tends to break one of the others:
+In CI the sweep runs in its own `Mutation` job, in parallel with `Checks`, with
+`continue-on-error` on the sweep and the job's **last** step failing on the outcome. Three
+constraints force that shape, and changing any part of it tends to break one of the others:
 
 - GitHub applies an implicit `success()` to any `if:` without a status-check function. A step that
-  aborted mid-job would therefore silently skip the formatting result, the coverage badge push and
-  the Pages upload — so enforcement has to be deferred to the end.
-- Enforcement must stay **inside the `Build & Test` job**, because that job is a required status
-  check on the default branch. A separate gate job would turn the workflow red but could not block
-  a merge until someone added it to the required-checks list.
+  aborted mid-job would therefore silently skip the summary, the report upload and the badge and
+  high-water payloads — so enforcement has to be deferred to the end.
+- The `Mutation` job is not itself a required check. It blocks a merge through `CI gate`, the one
+  required check this workflow reports, which fails unless `Checks`, `Mutation` and the pull-request
+  Docker builds all succeeded (`scripts/ci-gate.sh`).
 - A job-level `if:` does **not** relax a `needs:` success requirement — only `always()` or
-  `!cancelled()` does. So `deploy-pages` uses `!cancelled()`, guarded on the Pages artifact
-  actually having been uploaded, which keeps the coverage report deploying when the gate fails
-  while still skipping cleanly when an earlier failure meant no artifact was produced.
+  `!cancelled()` does, and the implicit `success()` looks at *every* upstream job, not only the
+  direct ones. So `publish` uses `!cancelled()` plus an explicit `needs.checks.result`, and
+  `deploy-pages` uses `!cancelled()` guarded on the Pages artifact actually having been uploaded.
+  That keeps the reports publishing when the gate fails, while still skipping cleanly when an
+  earlier failure meant no artifact was produced.
 
-A mutation regression therefore fails a required check and blocks the merge, without suppressing
-the formatting result, the coverage artifact, the badge or the Pages deployment. The Docker jobs
-do get skipped, since they need `Build & Test` to succeed.
+A mutation regression therefore fails `CI gate` and blocks the merge, without suppressing the
+coverage artifact, the badge or the Pages deployment. Image pushes do get skipped: they run only
+after `CI gate` succeeds.
 
 ## Configuration
 
@@ -183,8 +186,10 @@ scratch and wipe every artifact on it. The fetch is forcing, so a local `badges`
 earlier run cannot diverge and then be pushed over the top of the remote.
 
 Note the ordering constraint in CI: the badge payload is generated **before** this script runs,
-because checking out `badges` removes `scripts/` from the work tree. The payload goes to
-`$RUNNER_TEMP`, outside the repository entirely.
+because checking out `badges` removes `scripts/` from the work tree. The `Mutation` job writes the
+payload and any new high-water mark, and hands them to the `publish` job as the `mutation-state`
+artifact, which is downloaded into `$RUNNER_TEMP`, outside the repository entirely. A file missing
+from that artifact means "nothing new", exactly as an absent path does.
 
 ## Publishing the report
 
@@ -221,8 +226,8 @@ page says the mutation report is unavailable *for this build*, naming the distin
 the sweep **failed** rather than scored badly.
 
 An earlier draft of this script enforced "both reports or neither" and failed when either was
-missing. That was wrong in two ways. It would fail the required `Build & Test` check a second time
-for a reason that is only about publishing, when the mutation gate had already reported the real
+missing. That was wrong in two ways. It would fail CI a second time for a reason that is only
+about publishing, when the mutation gate had already reported the real
 problem. And it would publish *nothing* — losing the coverage report, which used to ship regardless
 of the mutation outcome. A missing report is honest; a stale one is misleading; neither is worth
 blocking a merge over.
@@ -283,16 +288,15 @@ mark whose derived gate falls below the committed floor, and a mark high enough 
 chain is asserted directly, since that inequality is what Stryker rejects before it mutates
 anything.
 
-All four run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
-run, if the build, tests, coverage or formatting steps have already failed.
+All four run in CI, in the `Checks` job — so they are skipped, not run, if the build, tests,
+coverage or formatting steps have already failed.
 
-They are deliberately *not* isolated into their own job, even though `publish-badges.test.sh`
-executes real `git push` commands inside a checkout that holds push credentials. A separate job
-would not gate a merge: branch protection requires `Build & Test`, and adding a new required check
-is a repository-settings change. The test script instead guards itself twice — every setup step is
-checked, and it refuses to run at all unless `origin` resolves inside its own temp directory.
+`publish-badges.test.sh` executes real `git push` commands, but the `Checks` job's checkout holds
+only a read token; push rights exist only in the master-only `publish` job. The test script still
+guards itself twice — every setup step is checked, and it refuses to run at all unless `origin`
+resolves inside its own temp directory.
 
-One consequence worth knowing: because the badge publishing step runs after these tests, a failing
+One consequence worth knowing: because the `publish` job needs `Checks` to succeed, a failing
 helper test stops the coverage badge and the Pages upload too. That is intended for the badge — a
 publisher whose tests fail should not publish — but it does mean the Pages site can go stale on a
 failure unrelated to coverage.
