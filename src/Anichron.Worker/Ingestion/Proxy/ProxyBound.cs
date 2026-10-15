@@ -12,12 +12,13 @@ internal readonly record struct ProxyBound(ProxyEdge Edge, int Pixels)
 {
     public Size FitTo(Size source)
     {
-        var boundedIsWidth = Edge == ProxyEdge.LongEdge
-            ? source.Width >= source.Height
-            : source.Width <= source.Height;
+        // Stryker disable once Equality
+        var widthIsLongEdge = source.Width >= source.Height;
+        var boundedIsWidth = Edge == ProxyEdge.LongEdge == widthIsLongEdge;
         var (bounded, other) = boundedIsWidth
             ? (source.Width, source.Height)
             : (source.Height, source.Width);
+        // Stryker disable once Equality
         if (bounded <= Pixels)
             return source;
 

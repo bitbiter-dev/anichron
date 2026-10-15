@@ -17,10 +17,9 @@ internal sealed partial class Worker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var mode = workerState.ResolvedUserId is { } userId
+        Log.Starting(logger, workerState.ResolvedUserId is { } userId
             ? $"dedicated (userId={userId})"
-            : "all-user";
-        Log.Starting(logger, mode);
+            : "all-user");
 
         while (!stoppingToken.IsCancellationRequested)
         {

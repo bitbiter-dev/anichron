@@ -147,6 +147,30 @@ public sealed class PersistenceMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ExifDateDiffersFromTheFileDate_TheExifDateWinsAsync()
+    {
+        var fx = new TestFixture();
+        var exifDate = new LocalDateTime(2020, 1, 2, 3, 4, 5);
+        var context = MakeContext(exif: DefaultExif with { DateCaptured = exifDate });
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.DateCaptured.Should().Be(exifDate);
+        (context.Asset.Year, context.Asset.Month, context.Asset.Day).Should().Be((2020, 1, 2));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_NewAsset_IsNotSoftDeletedAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.IsSoftDeleted.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task InvokeAsync_WithNullDateCaptured_FallsBackToFileLastWriteTimeAsync()
     {
         var fx = new TestFixture();
@@ -242,6 +266,7 @@ public sealed class PersistenceMiddlewareTests
 
         movAsset.Should().NotBeNull();
         movAsset.ContentHash.Should().Be("cafebabe");
+        movAsset.IsSoftDeleted.Should().BeFalse();
     }
 
     [Fact]
