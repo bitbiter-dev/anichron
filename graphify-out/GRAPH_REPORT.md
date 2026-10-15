@@ -1,7 +1,7 @@
 # Graph Report - fix-221-originals-namespace  (2026-10-15)
 
 ## Corpus Check
-- 287 files · ~102,465 words
+- 287 files · ~102,462 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 7, .props 2, .example 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `98d90408`
+- Built from commit: `89284c8d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -2133,7 +2133,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `Individual sites (`// Stryker disable once <Mutator>`)` connect `ExifExtractionMiddleware` to `JwtFactoryTests`, `IngestionPipelineRunner`, `FfmpegVideoProcessorTests`, `EnumerationFailingFileSystem`, `WorkerInitializer`, `UserStorageConfig`, `TestFixture`, `FileIngestionPipeline`, `LoginResponseFloor`, `TestFixture`, `ProxyFile`, `Invite`, `MediaAsset`, `Argon2PasswordHasher`, `AnichronDbContext`, `.ExecuteInTransactionAsync`, `User`?**
   _High betweenness centrality (0.034) - this node is a cross-community bridge._
 - **Why does `Anichron.Core.Domain` connect `Anichron.Core.Domain` to `TestFixture`, `Metadata`, `AssetInteraction`, `Consequences`, `Schema documentation is generated, and its rationale lives in the schema`, `Anichron.API.Infrastructure`, `IngestionContext`, `UserStorageConfig`, `ProxyFile`, `SingleFileItem`, `Anichron.Worker.Ingestion.Pipeline`, `Invite`, `MediaAsset`, `microsoft_extensions_options`, `IVideoProxyGenerator`, `Image`, `LivePhotoLinker.cs`, `Burst`, `IImageProcessor`, `User`?**
-  _High betweenness centrality (0.031) - this node is a cross-community bridge._
+  _High betweenness centrality (0.032) - this node is a cross-community bridge._
 - **Are the 31 inferred relationships involving `UserStorageConfig` (e.g. with `Individual sites (`// Stryker disable once <Mutator>`)` and `.CreateStorageConfigAsync_CallsServiceWithUserIdAndRootPathAndReturnsMapperResult()`) actually correct?**
   _`UserStorageConfig` has 31 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 3 inferred relationships involving `IngestionContext` (e.g. with `.ConsumeAsync()` and `.Asset_CanBeSetAndRead()`) actually correct?**

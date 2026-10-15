@@ -5315,7 +5315,7 @@
       },
       "norm_label": "log",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L149"
+      "source_location": "L146"
     },
     {
       "id": "src_anichron_worker_ingestion_pipeline_ingestionpipelinebuilder_anichron_worker_ingestion_pipeline_ingestionpipelinebuilder",
@@ -21632,25 +21632,25 @@
             "callee": "ReadAllAsync",
             "receiver_type": "ChannelReader",
             "lang": "csharp",
-            "line": "L124"
+            "line": "L121"
           },
           {
             "callee": "BeginScope",
             "receiver_type": "ILogger",
             "lang": "csharp",
-            "line": "L127"
+            "line": "L124"
           },
           {
             "callee": "CreateScope",
             "receiver_type": "IServiceScopeFactory",
             "lang": "csharp",
-            "line": "L130"
+            "line": "L127"
           }
         ]
       },
       "norm_label": ".consumeasync()",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L118"
+      "source_location": "L115"
     },
     {
       "id": "src_anichron_worker_crawling_fileingestionpipeline_anichron_worker_crawling_fileingestionpipeline_enqueuedirectoryitemsasync",
@@ -21670,13 +21670,13 @@
             "callee": "WriteAsync",
             "receiver_type": "ChannelWriter",
             "lang": "csharp",
-            "line": "L99"
+            "line": "L96"
           }
         ]
       },
       "norm_label": ".enqueuedirectoryitemsasync()",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L90"
+      "source_location": "L87"
     },
     {
       "id": "src_anichron_worker_crawling_fileingestionpipeline_anichron_worker_crawling_fileingestionpipeline_listdirectory",
@@ -21694,7 +21694,7 @@
       },
       "norm_label": ".listdirectory()",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L73"
+      "source_location": "L70"
     },
     {
       "id": "src_anichron_worker_crawling_fileingestionpipeline_anichron_worker_crawling_fileingestionpipeline_produceasync",
@@ -21720,13 +21720,13 @@
             "callee": "Push",
             "receiver_type": "Stack",
             "lang": "csharp",
-            "line": "L64"
+            "line": "L61"
           },
           {
             "callee": "TryComplete",
             "receiver_type": "ChannelWriter",
             "lang": "csharp",
-            "line": "L69"
+            "line": "L66"
           }
         ]
       },
@@ -31678,7 +31678,7 @@
       },
       "norm_label": ".directoryunreadable()",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L157"
+      "source_location": "L154"
     },
     {
       "id": "src_anichron_worker_crawling_fileingestionpipeline_anichron_worker_crawling_log_itemfailed",
@@ -31696,7 +31696,7 @@
       },
       "norm_label": ".itemfailed()",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L154"
+      "source_location": "L151"
     },
     {
       "id": "src_anichron_worker_crawling_fileingestionpipeline_anichron_worker_crawling_log_unsupportedfile",
@@ -31714,7 +31714,7 @@
       },
       "norm_label": ".unsupportedfile()",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L151"
+      "source_location": "L148"
     },
     {
       "id": "src_anichron_worker_ingestion_pipeline_ingestionpipelinebuilder_anichron_worker_ingestion_pipeline_log_stepskipped",
@@ -107650,7 +107650,7 @@
         "ref_token": "LoggerMessage"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L157",
+      "source_location": "L154",
       "weight": 1.0
     },
     {
@@ -107665,7 +107665,7 @@
         "ref_token": "LoggerMessage"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L154",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -107680,7 +107680,7 @@
         "ref_token": "LoggerMessage"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L151",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -122752,7 +122752,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L137",
+      "source_location": "L134",
       "weight": 1.0
     },
     {
@@ -122764,7 +122764,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L106",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -122776,7 +122776,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L79",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -122800,7 +122800,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L62",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -146555,7 +146555,7 @@
         "ref_token": "IIngestionPipelineRunner"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L131",
+      "source_location": "L128",
       "weight": 1.0
     },
     {
@@ -148445,7 +148445,7 @@
         "ref_token": "IngestionItem"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L118",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -148460,7 +148460,7 @@
         "ref_token": "IngestionItem"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L90",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -173966,7 +173966,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L118",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -173981,7 +173981,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L90",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -174986,7 +174986,7 @@
         "ref_token": "ChannelReader"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L118",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -175001,7 +175001,7 @@
         "ref_token": "ChannelWriter"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L90",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -175436,7 +175436,7 @@
         "ref_token": "Exception"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L157",
+      "source_location": "L154",
       "weight": 1.0
     },
     {
@@ -175451,7 +175451,7 @@
         "ref_token": "Exception"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L154",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -177881,7 +177881,7 @@
         "ref_token": "IList"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L90",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -178046,7 +178046,7 @@
         "ref_token": "ILogger"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L157",
+      "source_location": "L154",
       "weight": 1.0
     },
     {
@@ -178061,7 +178061,7 @@
         "ref_token": "ILogger"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L154",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -178076,7 +178076,7 @@
         "ref_token": "ILogger"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L151",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -181691,7 +181691,7 @@
         "ref_token": "UserStorageConfig"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L118",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -182621,7 +182621,7 @@
         "ref_token": "Files"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L73",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -183746,7 +183746,7 @@
         "ref_token": "List"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L73",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -184166,7 +184166,7 @@
         "ref_token": "Subdirectories"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L73",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -190676,7 +190676,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L118",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -190691,7 +190691,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L90",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -224290,7 +224290,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L149",
+      "source_location": "L146",
       "weight": 1.0
     },
     {
@@ -248254,7 +248254,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L118",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -248287,7 +248287,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L73",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -248298,7 +248298,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L90",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -248320,7 +248320,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L151",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -248331,7 +248331,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L154",
+      "source_location": "L151",
       "weight": 1.0
     },
     {
@@ -248342,7 +248342,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L157",
+      "source_location": "L154",
       "weight": 1.0
     },
     {
@@ -256525,7 +256525,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L134",
+      "source_location": "L131",
       "weight": 1.0
     },
     {
@@ -256537,7 +256537,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L96",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -256549,7 +256549,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L81",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -258961,7 +258961,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L134",
+      "source_location": "L131",
       "weight": 1.0
     },
     {
@@ -258973,7 +258973,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/Anichron.Worker/Crawling/FileIngestionPipeline.cs",
-      "source_location": "L114",
+      "source_location": "L111",
       "weight": 1.0
     },
     {
@@ -262757,5 +262757,5 @@
       "source_file": "CLAUDE.md"
     }
   ],
-  "built_at_commit": "98d9040841d36b114ed4b6bdc067056627748e47"
+  "built_at_commit": "89284c8dac90de0b8e45503a5e25b4c1996b9bdb"
 }
