@@ -26,6 +26,8 @@ public sealed class FileIngestionPipelineTests
         public MockFileSystem FileSystem { get; } = new();
         public List<IngestionContext> ProcessedContexts { get; } = [];
 
+        public string ExcludedDirectories { get; init; } = string.Empty;
+
         public FileIngestionPipeline Build(int maxConcurrentFiles = 2)
         {
             var capturingMiddleware = Substitute.For<IIngestionMiddleware>();
@@ -68,15 +70,70 @@ public sealed class FileIngestionPipelineTests
             var scopeFactory = Substitute.For<IServiceScopeFactory>();
             scopeFactory.CreateScope().Returns(_ => scope);
 
-            var options = Options.Create(new WorkerSettings { MaxConcurrentFiles = maxConcurrentFiles });
+            var options = Options.Create(new WorkerSettings
+            {
+                MaxConcurrentFiles = maxConcurrentFiles,
+                ExcludedDirectories = ExcludedDirectories,
+            });
             return new FileIngestionPipeline(
                 scopeFactory,
                 FileSystem,
                 new LivePhotoLinker(FileSystem),
+                new CrawlExclusions(options),
                 options,
                 Substitute.For<IGuidFactory>(),
                 Substitute.For<ILogger<FileIngestionPipeline>>());
         }
+    }
+
+    // ==========================================================================
+    // Exclusions
+    // ==========================================================================
+
+    private static IEnumerable<string> ProcessedRelativePaths(TestFixture fixture)
+        => fixture.ProcessedContexts.Select(c => c.Item.RelativePath).Order(StringComparer.Ordinal);
+
+    [Fact]
+    public async Task RunAsync_NasSystemFoldersAndDotFiles_OnlyRealPhotosAreProcessedAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/IMG_0001.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/2024/IMG_0002.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/@eaDir/IMG_0001.jpg/SYNOPHOTO_THUMB_XL.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/2024/@eaDir/IMG_0002.jpg/SYNOPHOTO_THUMB_M.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/#recycle/old.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/.hidden/x.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/._IMG_0001.jpg", new MockFileData([]));
+
+        await fixture.Build().RunAsync(MakeConfig(), CancellationToken.None);
+
+        ProcessedRelativePaths(fixture).Should().Equal("2024/IMG_0002.jpg", "IMG_0001.jpg");
+    }
+
+    [Fact]
+    public async Task RunAsync_ConfiguredExcludedDirectory_IsSkippedAsync()
+    {
+        var fixture = new TestFixture { ExcludedDirectories = "Lightroom Previews" };
+        fixture.FileSystem.AddFile("/nas/IMG_0001.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/Lightroom Previews/preview.jpg", new MockFileData([]));
+
+        await fixture.Build().RunAsync(MakeConfig(), CancellationToken.None);
+
+        ProcessedRelativePaths(fixture).Should().Equal("IMG_0001.jpg");
+    }
+
+    [Fact]
+    public async Task RunAsync_LivePhotoInNestedFolderNextToEaDir_IsStillPairedAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/2024/06/IMG_0001.HEIC", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/2024/06/IMG_0001.MOV", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/2024/06/@eaDir/IMG_0001.HEIC/SYNOPHOTO_THUMB_XL.jpg", new MockFileData([]));
+
+        await fixture.Build().RunAsync(MakeConfig(), CancellationToken.None);
+
+        fixture.ProcessedContexts.Should().ContainSingle()
+            .Which.Item.Should().BeOfType<LivePhotoPairItem>();
     }
 
     // ==========================================================================

@@ -18,6 +18,7 @@ internal sealed partial class FileIngestionPipeline(
     IServiceScopeFactory scopeFactory,
     IFileSystem fileSystem,
     ILivePhotoLinker livePhotoLinker,
+    CrawlExclusions exclusions,
     IOptions<WorkerSettings> workerOptions,
     IGuidFactory guidFactory,
     ILogger<FileIngestionPipeline> logger) : IFileIngestionPipeline
@@ -51,13 +52,19 @@ internal sealed partial class FileIngestionPipeline(
     {
         try
         {
-            // Stryker disable once String
-            var filesByDirectory = fileSystem.Directory
-                .EnumerateFiles(config.RootPath, "*", SearchOption.AllDirectories)
-                .GroupBy(fileSystem.Path.GetDirectoryName);
+            var pending = new Stack<string>([config.RootPath]);
+            while (pending.TryPop(out var directory))
+            {
+                var files = fileSystem.Directory.EnumerateFiles(directory)
+                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)))
+                    .ToList();
+                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, ct);
 
-            foreach (var directoryGroup in filesByDirectory)
-                await EnqueueDirectoryItemsAsync([.. directoryGroup], config.RootPath, writer, ct);
+                var subdirectories = fileSystem.Directory.EnumerateDirectories(directory)
+                    .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory)));
+                foreach (var subdirectory in subdirectories)
+                    pending.Push(subdirectory);
+            }
         }
         finally
         {
