@@ -75,6 +75,7 @@ jobs:
           scripts/mutation-ratchet.test.sh
           scripts/derive-db-docs.test.sh
           scripts/ci-gate.test.sh
+          scripts/mutation-changed.test.sh
 
       # Regenerates docs/schema.sql and fails if anything moved. No database is needed —
       # `dotnet ef dbcontext script` works off the model — so this stays in this job rather
