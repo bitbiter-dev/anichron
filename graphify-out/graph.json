@@ -24676,19 +24676,19 @@
             "callee": "NewGuid",
             "receiver_type": "Guid",
             "lang": "csharp",
-            "line": "L249"
+            "line": "L250"
           },
           {
             "callee": "Any",
             "receiver_type": "Arg",
             "lang": "csharp",
-            "line": "L250"
+            "line": "L251"
           }
         ]
       },
       "norm_label": ".startasync_existingconfigsameuser_resumeswithoutcheckingoverlapasync()",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L244"
+      "source_location": "L245"
     },
     {
       "id": "src_anichron_worker_tests_unit_startup_workerinitializertests_anichron_worker_tests_unit_startup_workerinitializertests_startasync_existingconfigsameuser_skipssaveandsetsresolveduseridasync",
@@ -24848,19 +24848,19 @@
             "callee": "Any",
             "receiver_type": "Arg",
             "lang": "csharp",
-            "line": "L234"
+            "line": "L235"
           },
           {
             "callee": "NewGuid",
             "receiver_type": "Guid",
             "lang": "csharp",
-            "line": "L235"
+            "line": "L236"
           }
         ]
       },
       "norm_label": ".startasync_rootpathistheoriginalsrootitself_throwsasync()",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L229"
+      "source_location": "L230"
     },
     {
       "id": "src_anichron_worker_tests_unit_startup_workerinitializertests_anichron_worker_tests_unit_startup_workerinitializertests_startasync_rootpathnestedwithanotherconfig_throwsnamingbothpathsasync",
@@ -24880,19 +24880,19 @@
             "callee": "Any",
             "receiver_type": "Arg",
             "lang": "csharp",
-            "line": "L269"
+            "line": "L270"
           },
           {
             "callee": "NewGuid",
             "receiver_type": "Guid",
             "lang": "csharp",
-            "line": "L270"
+            "line": "L271"
           }
         ]
       },
       "norm_label": ".startasync_rootpathnestedwithanotherconfig_throwsnamingbothpathsasync()",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L262"
+      "source_location": "L263"
     },
     {
       "id": "src_anichron_worker_tests_unit_startup_workerinitializertests_anichron_worker_tests_unit_startup_workerinitializertests_startasync_rootpathoutsideoriginalsroot_throwsbeforetouchingstorageconfigsasync",
@@ -24944,19 +24944,19 @@
             "callee": "Any",
             "receiver_type": "Arg",
             "lang": "csharp",
-            "line": "L286"
+            "line": "L287"
           },
           {
             "callee": "NewGuid",
             "receiver_type": "Guid",
             "lang": "csharp",
-            "line": "L287"
+            "line": "L288"
           }
         ]
       },
       "norm_label": ".startasync_siblingconfigsharinganameprefix_createsconfigasync()",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L281"
+      "source_location": "L282"
     },
     {
       "id": "src_anichron_worker_tests_unit_startup_workerinitializertests_anichron_worker_tests_unit_startup_workerinitializertests_startasync_unknownuser_throwsinvalidoperationexceptionwithuserinmessageasync",
@@ -25054,19 +25054,19 @@
             "callee": "Any",
             "receiver_type": "Arg",
             "lang": "csharp",
-            "line": "L219"
+            "line": "L220"
           },
           {
             "callee": "NewGuid",
             "receiver_type": "Guid",
             "lang": "csharp",
-            "line": "L220"
+            "line": "L221"
           }
         ]
       },
       "norm_label": ".startasync_usersetwithoutrootpath_throwsnamingthesettingasync()",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L212"
+      "source_location": "L213"
     },
     {
       "id": "src_anichron_worker_tests_unit_startup_workerinitializertests_anichron_worker_tests_unit_startup_workerinitializertests_stopasync_alwayscompletessuccessfullyasync",
@@ -25084,7 +25084,7 @@
       },
       "norm_label": ".stopasync_alwayscompletessuccessfullyasync()",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L300"
+      "source_location": "L301"
     },
     {
       "id": "src_anichron_worker_tests_unit_ingestion_pipeline_ingestionpipelinerunnertests_anichron_worker_tests_unit_ingestion_pipeline_ingestionpipelinerunnertests_constructor_duplicateorders_throwsinvalidoperationexception",
@@ -43061,7 +43061,7 @@
       "node_kind": "heading",
       "norm_label": "known weak spots",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L497"
+      "source_location": "L518"
     },
     {
       "id": "docs_mutation_testing_lowering_the_mark_by_hand",
@@ -43073,7 +43073,7 @@
       "node_kind": "heading",
       "norm_label": "\u26a0\ufe0f lowering the mark by hand",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L393"
+      "source_location": "L414"
     },
     {
       "id": "docs_mutation_testing_mutation_testing",
@@ -43097,7 +43097,7 @@
       "node_kind": "heading",
       "norm_label": "post-processing the report",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L119"
+      "source_location": "L118"
     },
     {
       "id": "docs_mutation_testing_publishing_the_badge",
@@ -43109,7 +43109,7 @@
       "node_kind": "heading",
       "norm_label": "publishing the badge",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L159"
+      "source_location": "L158"
     },
     {
       "id": "docs_mutation_testing_publishing_the_report",
@@ -43121,7 +43121,7 @@
       "node_kind": "heading",
       "norm_label": "publishing the report",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L189"
+      "source_location": "L188"
     },
     {
       "id": "docs_mutation_testing_reading_the_result",
@@ -43157,7 +43157,7 @@
       "node_kind": "heading",
       "norm_label": "the output guard, and why it is a sentinel rather than a blocklist",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L244"
+      "source_location": "L243"
     },
     {
       "id": "docs_mutation_testing_the_ratchet",
@@ -43169,7 +43169,7 @@
       "node_kind": "heading",
       "norm_label": "the ratchet",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L313"
+      "source_location": "L312"
     },
     {
       "id": "docs_mutation_testing_the_weekly_divergence_check",
@@ -43181,7 +43181,7 @@
       "node_kind": "heading",
       "norm_label": "the weekly divergence check",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L430"
+      "source_location": "L451"
     },
     {
       "id": "docs_mutation_testing_verifying_the_scripts",
@@ -43193,7 +43193,7 @@
       "node_kind": "heading",
       "norm_label": "verifying the scripts",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L264"
+      "source_location": "L263"
     },
     {
       "id": "docs_mutation_testing_what_not_to_reach_for_when_a_run_looks_wrong",
@@ -43205,7 +43205,7 @@
       "node_kind": "heading",
       "norm_label": "what not to reach for when a run looks wrong",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L465"
+      "source_location": "L486"
     },
     {
       "id": "docs_mutation_testing_when_it_fails",
@@ -43217,7 +43217,7 @@
       "node_kind": "heading",
       "norm_label": "when it fails",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L475"
+      "source_location": "L496"
     },
     {
       "id": "docs_mutation_testing_when_there_is_no_mark_and_when_there_is_a_broken_one",
@@ -43229,7 +43229,7 @@
       "node_kind": "heading",
       "norm_label": "when there is no mark \u2014 and when there is a broken one",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L356"
+      "source_location": "L377"
     },
     {
       "id": "docs_mutation_testing_when_to_re_measure_the_baseline",
@@ -43241,7 +43241,7 @@
       "node_kind": "heading",
       "norm_label": "when to re-measure the baseline",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L94"
+      "source_location": "L93"
     },
     {
       "id": "docs_mutation_testing_when_to_run_it_by_hand_rather_than_waiting_for_monday",
@@ -43253,7 +43253,7 @@
       "node_kind": "heading",
       "norm_label": "\u26a0\ufe0f when to run it by hand, rather than waiting for monday",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L440"
+      "source_location": "L461"
     },
     {
       "id": "docs_mutation_testing_why_it_compares_counts_rather_than_scores",
@@ -43265,7 +43265,7 @@
       "node_kind": "heading",
       "norm_label": "why it compares counts rather than scores",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L454"
+      "source_location": "L475"
     },
     {
       "id": "docs_mutation_testing_why_it_runs_before_the_badge_step",
@@ -43277,19 +43277,7 @@
       "node_kind": "heading",
       "norm_label": "why it runs before the badge step",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L230"
-    },
-    {
-      "id": "docs_mutation_testing_why_the_gate_is_not_simply_mark_5",
-      "label": "Why the gate is not simply `mark - 5`",
-      "_origin": "ast",
-      "community": 115,
-      "community_name": "Mutation testing",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "why the gate is not simply `mark - 5`",
-      "source_file": "docs/mutation-testing.md",
-      "source_location": "L334"
+      "source_location": "L229"
     },
     {
       "id": "docs_mutation_testing_why_the_mutation_report_is_optional_and_the_earlier_rule_that_got_reversed",
@@ -43301,7 +43289,19 @@
       "node_kind": "heading",
       "norm_label": "why the mutation report is optional, and the earlier rule that got reversed",
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L217"
+      "source_location": "L216"
+    },
+    {
+      "id": "docs_mutation_testing_why_there_is_no_slack",
+      "label": "Why there is no slack",
+      "_origin": "ast",
+      "community": 115,
+      "community_name": "Mutation testing",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "why there is no slack",
+      "source_file": "docs/mutation-testing.md",
+      "source_location": "L333"
     },
     {
       "id": "src_anichron_infrastructure_packages_lock_dependencies",
@@ -58589,7 +58589,7 @@
       },
       "norm_label": "assert_fails()",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L107"
+      "source_location": "L27"
     },
     {
       "id": "scripts_mutation_report_test_fail",
@@ -79447,7 +79447,7 @@
       },
       "norm_label": "cmd_advance()",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L127"
+      "source_location": "L128"
     },
     {
       "id": "scripts_mutation_ratchet_cmd_thresholds",
@@ -79462,7 +79462,7 @@
       },
       "norm_label": "cmd_thresholds()",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L70"
+      "source_location": "L71"
     },
     {
       "id": "scripts_mutation_ratchet_config_threshold",
@@ -79477,7 +79477,7 @@
       },
       "norm_label": "config_threshold()",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L36"
+      "source_location": "L37"
     },
     {
       "id": "scripts_mutation_ratchet_read_mark",
@@ -79492,7 +79492,7 @@
       },
       "norm_label": "read_mark()",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L64"
+      "source_location": "L65"
     },
     {
       "id": "scripts_mutation_ratchet_sh__entry",
@@ -79522,7 +79522,7 @@
       },
       "norm_label": "slack",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L32"
+      "source_location": "L33"
     },
     {
       "id": "scripts_mutation_ratchet_usage",
@@ -105296,7 +105296,7 @@
         "ref_token": "Fact"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L244",
+      "source_location": "L245",
       "weight": 1.0
     },
     {
@@ -105371,7 +105371,7 @@
         "ref_token": "Fact"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L229",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
@@ -105401,7 +105401,7 @@
         "ref_token": "Fact"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L281",
+      "source_location": "L282",
       "weight": 1.0
     },
     {
@@ -105461,7 +105461,7 @@
         "ref_token": "Fact"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L300",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -106331,7 +106331,7 @@
         "ref_token": "InlineData"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L262",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -106346,7 +106346,7 @@
         "ref_token": "InlineData"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L212",
+      "source_location": "L213",
       "weight": 1.0
     },
     {
@@ -107876,7 +107876,7 @@
         "ref_token": "Theory"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L262",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -107891,7 +107891,7 @@
         "ref_token": "Theory"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L212",
+      "source_location": "L213",
       "weight": 1.0
     },
     {
@@ -108191,7 +108191,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L128",
+      "source_location": "L129",
       "weight": 1.0
     },
     {
@@ -108203,7 +108203,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L138",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -108215,7 +108215,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L143",
+      "source_location": "L144",
       "weight": 1.0
     },
     {
@@ -108227,7 +108227,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L71",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -108239,7 +108239,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L74",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -108251,7 +108251,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L85",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -108263,7 +108263,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L172",
+      "source_location": "L173",
       "weight": 1.0
     },
     {
@@ -108275,7 +108275,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L173",
+      "source_location": "L174",
       "weight": 1.0
     },
     {
@@ -108287,7 +108287,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L174",
+      "source_location": "L175",
       "weight": 1.0
     },
     {
@@ -108371,7 +108371,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.test.sh",
-      "source_location": "L111",
+      "source_location": "L110",
       "weight": 1.0
     },
     {
@@ -108407,7 +108407,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.test.sh",
-      "source_location": "L96",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -108419,7 +108419,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-ratchet.test.sh",
-      "source_location": "L97",
+      "source_location": "L96",
       "weight": 1.0
     },
     {
@@ -108599,7 +108599,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L111",
+      "source_location": "L31",
       "weight": 1.0
     },
     {
@@ -108611,31 +108611,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L115",
-      "weight": 1.0
-    },
-    {
-      "source": "scripts_mutation_report_test_sh__entry",
-      "target": "scripts_mutation_report_test_assert_eq",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L27",
-      "weight": 1.0
-    },
-    {
-      "source": "scripts_mutation_report_test_sh__entry",
-      "target": "scripts_mutation_report_test_assert_fails",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L80",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -108647,7 +108623,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L86",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -108659,7 +108635,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L88",
+      "source_location": "L104",
       "weight": 1.0
     },
     {
@@ -108671,7 +108647,31 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L98",
+      "source_location": "L114",
+      "weight": 1.0
+    },
+    {
+      "source": "scripts_mutation_report_test_sh__entry",
+      "target": "scripts_mutation_report_test_assert_eq",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "scripts/mutation-report.test.sh",
+      "source_location": "L43",
+      "weight": 1.0
+    },
+    {
+      "source": "scripts_mutation_report_test_sh__entry",
+      "target": "scripts_mutation_report_test_assert_fails",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "scripts/mutation-report.test.sh",
+      "source_location": "L96",
       "weight": 1.0
     },
     {
@@ -127319,7 +127319,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L248",
+      "source_location": "L249",
       "weight": 1.0
     },
     {
@@ -127379,7 +127379,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L233",
+      "source_location": "L234",
       "weight": 1.0
     },
     {
@@ -127391,7 +127391,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L268",
+      "source_location": "L269",
       "weight": 1.0
     },
     {
@@ -127415,7 +127415,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L285",
+      "source_location": "L286",
       "weight": 1.0
     },
     {
@@ -127463,7 +127463,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L218",
+      "source_location": "L219",
       "weight": 1.0
     },
     {
@@ -127475,7 +127475,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L303",
+      "source_location": "L304",
       "weight": 1.0
     },
     {
@@ -127487,7 +127487,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L303",
+      "source_location": "L304",
       "weight": 1.0
     },
     {
@@ -141588,7 +141588,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L253",
+      "source_location": "L254",
       "weight": 1.0
     },
     {
@@ -141663,7 +141663,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L234",
+      "source_location": "L235",
       "weight": 1.0
     },
     {
@@ -141678,7 +141678,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L271",
+      "source_location": "L272",
       "weight": 1.0
     },
     {
@@ -141693,7 +141693,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L208",
+      "source_location": "L209",
       "weight": 1.0
     },
     {
@@ -141708,7 +141708,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L288",
+      "source_location": "L289",
       "weight": 1.0
     },
     {
@@ -141768,7 +141768,7 @@
         "ref_token": "CancellationToken"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L219",
+      "source_location": "L220",
       "weight": 1.0
     },
     {
@@ -147648,7 +147648,7 @@
         "ref_token": "InvalidOperationException"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L240",
+      "source_location": "L241",
       "weight": 1.0
     },
     {
@@ -147663,7 +147663,7 @@
         "ref_token": "InvalidOperationException"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L276",
+      "source_location": "L277",
       "weight": 1.0
     },
     {
@@ -147708,7 +147708,7 @@
         "ref_token": "InvalidOperationException"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L225",
+      "source_location": "L226",
       "weight": 1.0
     },
     {
@@ -151443,7 +151443,7 @@
         "ref_token": "UserStorageConfig"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L241",
+      "source_location": "L242",
       "weight": 1.0
     },
     {
@@ -151458,7 +151458,7 @@
         "ref_token": "UserStorageConfig"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L278",
+      "source_location": "L279",
       "weight": 1.0
     },
     {
@@ -151473,7 +151473,7 @@
         "ref_token": "UserStorageConfig"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L209",
+      "source_location": "L210",
       "weight": 1.0
     },
     {
@@ -151488,7 +151488,7 @@
         "ref_token": "UserStorageConfig"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L293",
+      "source_location": "L294",
       "weight": 1.0
     },
     {
@@ -151503,7 +151503,7 @@
         "ref_token": "UserStorageConfig"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0
     },
     {
@@ -192023,7 +192023,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L244",
+      "source_location": "L245",
       "weight": 1.0
     },
     {
@@ -192098,7 +192098,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L229",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
@@ -192113,7 +192113,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L262",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -192143,7 +192143,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L281",
+      "source_location": "L282",
       "weight": 1.0
     },
     {
@@ -192203,7 +192203,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L212",
+      "source_location": "L213",
       "weight": 1.0
     },
     {
@@ -192218,7 +192218,7 @@
         "ref_token": "Task"
       },
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L300",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -194935,7 +194935,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L119",
+      "source_location": "L118",
       "weight": 1.0
     },
     {
@@ -194946,7 +194946,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L159",
+      "source_location": "L158",
       "weight": 1.0
     },
     {
@@ -194957,7 +194957,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L189",
+      "source_location": "L188",
       "weight": 1.0
     },
     {
@@ -194968,7 +194968,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L313",
+      "source_location": "L312",
       "weight": 1.0
     },
     {
@@ -194979,7 +194979,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L430",
+      "source_location": "L451",
       "weight": 1.0
     },
     {
@@ -195001,7 +195001,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L497",
+      "source_location": "L518",
       "weight": 1.0
     },
     {
@@ -195034,7 +195034,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L94",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -195045,7 +195045,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L217",
+      "source_location": "L216",
       "weight": 1.0
     },
     {
@@ -195056,7 +195056,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L230",
+      "source_location": "L229",
       "weight": 1.0
     },
     {
@@ -195067,7 +195067,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L244",
+      "source_location": "L243",
       "weight": 1.0
     },
     {
@@ -195078,18 +195078,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L264",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
       "source": "docs_mutation_testing_the_ratchet",
-      "target": "docs_mutation_testing_why_the_gate_is_not_simply_mark_5",
+      "target": "docs_mutation_testing_why_there_is_no_slack",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L334",
+      "source_location": "L333",
       "weight": 1.0
     },
     {
@@ -195100,7 +195100,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L356",
+      "source_location": "L377",
       "weight": 1.0
     },
     {
@@ -195111,7 +195111,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L393",
+      "source_location": "L414",
       "weight": 1.0
     },
     {
@@ -195122,7 +195122,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L440",
+      "source_location": "L461",
       "weight": 1.0
     },
     {
@@ -195133,7 +195133,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L454",
+      "source_location": "L475",
       "weight": 1.0
     },
     {
@@ -195144,7 +195144,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L465",
+      "source_location": "L486",
       "weight": 1.0
     },
     {
@@ -195155,7 +195155,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/mutation-testing.md",
-      "source_location": "L475",
+      "source_location": "L496",
       "weight": 1.0
     },
     {
@@ -235682,7 +235682,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L127",
+      "source_location": "L128",
       "weight": 1.0
     },
     {
@@ -235704,7 +235704,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L32",
+      "source_location": "L33",
       "weight": 1.0
     },
     {
@@ -235715,7 +235715,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0
     },
     {
@@ -235726,7 +235726,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L64",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -235737,7 +235737,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "scripts/mutation-ratchet.sh",
-      "source_location": "L70",
+      "source_location": "L71",
       "weight": 1.0
     },
     {
@@ -235874,17 +235874,6 @@
     },
     {
       "source": "scripts_mutation_report_test",
-      "target": "scripts_mutation_report_test_assert_fails",
-      "relation": "defines",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L107",
-      "weight": 1.0
-    },
-    {
-      "source": "scripts_mutation_report_test",
       "target": "scripts_mutation_report_test_fail",
       "relation": "defines",
       "_origin": "ast",
@@ -235914,6 +235903,17 @@
       "confidence_score": 1.0,
       "source_file": "scripts/mutation-report.test.sh",
       "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "scripts_mutation_report_test",
+      "target": "scripts_mutation_report_test_assert_fails",
+      "relation": "defines",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "scripts/mutation-report.test.sh",
+      "source_location": "L27",
       "weight": 1.0
     },
     {
@@ -251253,7 +251253,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L212",
+      "source_location": "L213",
       "weight": 1.0
     },
     {
@@ -251264,7 +251264,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L229",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
@@ -251275,7 +251275,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L244",
+      "source_location": "L245",
       "weight": 1.0
     },
     {
@@ -251286,7 +251286,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L262",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -251297,7 +251297,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L281",
+      "source_location": "L282",
       "weight": 1.0
     },
     {
@@ -251308,7 +251308,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L300",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -257813,7 +257813,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "src/Anichron.Worker.Tests.Unit/Startup/WorkerInitializerTests.cs",
-      "source_location": "L252",
+      "source_location": "L253",
       "weight": 1.0
     },
     {
@@ -260121,5 +260121,5 @@
       "source_file": "CLAUDE.md"
     }
   ],
-  "built_at_commit": "23a13655686d746d1c65b3b914b798b84f240703"
+  "built_at_commit": "c44b95fc46a75159afda38e4ce1dce093ed0769e"
 }
