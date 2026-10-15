@@ -58235,7 +58235,7 @@
       },
       "norm_label": "assert_fails()",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L107"
+      "source_location": "L27"
     },
     {
       "id": "scripts_mutation_report_test_fail",
@@ -107615,7 +107615,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L111",
+      "source_location": "L31",
       "weight": 1.0
     },
     {
@@ -107627,31 +107627,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L115",
-      "weight": 1.0
-    },
-    {
-      "source": "scripts_mutation_report_test_sh__entry",
-      "target": "scripts_mutation_report_test_assert_eq",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L27",
-      "weight": 1.0
-    },
-    {
-      "source": "scripts_mutation_report_test_sh__entry",
-      "target": "scripts_mutation_report_test_assert_fails",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L80",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -107663,7 +107639,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L86",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -107675,7 +107651,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L88",
+      "source_location": "L104",
       "weight": 1.0
     },
     {
@@ -107687,7 +107663,31 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L98",
+      "source_location": "L114",
+      "weight": 1.0
+    },
+    {
+      "source": "scripts_mutation_report_test_sh__entry",
+      "target": "scripts_mutation_report_test_assert_eq",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "scripts/mutation-report.test.sh",
+      "source_location": "L43",
+      "weight": 1.0
+    },
+    {
+      "source": "scripts_mutation_report_test_sh__entry",
+      "target": "scripts_mutation_report_test_assert_fails",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "scripts/mutation-report.test.sh",
+      "source_location": "L96",
       "weight": 1.0
     },
     {
@@ -234081,17 +234081,6 @@
     },
     {
       "source": "scripts_mutation_report_test",
-      "target": "scripts_mutation_report_test_assert_fails",
-      "relation": "defines",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "scripts/mutation-report.test.sh",
-      "source_location": "L107",
-      "weight": 1.0
-    },
-    {
-      "source": "scripts_mutation_report_test",
       "target": "scripts_mutation_report_test_fail",
       "relation": "defines",
       "_origin": "ast",
@@ -234121,6 +234110,17 @@
       "confidence_score": 1.0,
       "source_file": "scripts/mutation-report.test.sh",
       "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "scripts_mutation_report_test",
+      "target": "scripts_mutation_report_test_assert_fails",
+      "relation": "defines",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "scripts/mutation-report.test.sh",
+      "source_location": "L27",
       "weight": 1.0
     },
     {
@@ -258039,5 +258039,5 @@
       "source_file": "CLAUDE.md"
     }
   ],
-  "built_at_commit": "1d321ec5cf777d81a9615a13053340fff70a7172"
+  "built_at_commit": "606aed7e8ebb61fa89cbca191bc129d0927cbfc2"
 }
