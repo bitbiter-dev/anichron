@@ -7,7 +7,7 @@ namespace Anichron.API.Tests.Unit.Infrastructure;
 
 public sealed class OriginalsStorageHealthCheckTests
 {
-    private const string OriginalsPath = AppDefaults.Storage.OriginalsPath;
+    private const string OriginalsPath = StoragePath.OriginalsRoot;
 
     private static HealthCheckContext BuildContext() => new()
     {
