@@ -24,20 +24,20 @@ public sealed class StoragePathTests
         => StoragePath.OriginalsRoot.Should().Be("/data/originals");
 
     [Theory]
-    [InlineData("/data/originals")]
     [InlineData("/data/originals/mira")]
     [InlineData("/data/originals/mira/2024")]
-    public void IsWithinOriginals_RootOrDescendant_ReturnsTrue(string canonicalPath)
-        => StoragePath.IsWithinOriginals(canonicalPath).Should().BeTrue();
+    public void IsInsideOriginals_Descendant_ReturnsTrue(string canonicalPath)
+        => StoragePath.IsInsideOriginals(canonicalPath).Should().BeTrue();
 
     [Theory]
+    [InlineData("/data/originals")]
     [InlineData("/")]
     [InlineData("/data")]
     [InlineData("/data/originals2")]
     [InlineData("/volume1/homes/Mira/Photos")]
     [InlineData("/data/Originals/mira")]
-    public void IsWithinOriginals_OutsideRoot_ReturnsFalse(string canonicalPath)
-        => StoragePath.IsWithinOriginals(canonicalPath).Should().BeFalse();
+    public void IsInsideOriginals_RootItselfOrOutside_ReturnsFalse(string canonicalPath)
+        => StoragePath.IsInsideOriginals(canonicalPath).Should().BeFalse();
 
     [Theory]
     [InlineData("/data/originals/mira", "/data/originals/mira")]
@@ -54,4 +54,14 @@ public sealed class StoragePathTests
     [InlineData("/data/originals/Mira", "/data/originals/mira")]
     public void Overlaps_Disjoint_ReturnsFalse(string first, string second)
         => StoragePath.Overlaps(first, second).Should().BeFalse();
+
+    [Fact]
+    public void FindOverlap_NestedRootAmongOthers_ReturnsIt()
+        => StoragePath.FindOverlap(["/data/originals/anna", "/data/originals/mira/2024"], "/data/originals/mira")
+            .Should().Be("/data/originals/mira/2024");
+
+    [Fact]
+    public void FindOverlap_OnlyDisjointRoots_ReturnsNull()
+        => StoragePath.FindOverlap(["/data/originals/anna", "/data/originals/mira2"], "/data/originals/mira")
+            .Should().BeNull();
 }

@@ -78,6 +78,7 @@ public sealed class AdminStorageConfigServiceTests
 
     [Theory]
     [InlineData("/volume1/homes/Mira/Photos")]
+    [InlineData("/data/originals")]
     [InlineData("/data")]
     [InlineData("/data/originals2/mira")]
     public async Task AddAsync_PathOutsideOriginalsRoot_ReturnsPathInvalidAsync(string rootPath)
@@ -91,9 +92,8 @@ public sealed class AdminStorageConfigServiceTests
     }
 
     [Theory]
-    [InlineData("/data/originals/mira", "/data/originals")]
-    [InlineData("/data/originals", "/data/originals/mira")]
     [InlineData("/data/originals/mira/2024", "/data/originals/mira")]
+    [InlineData("/data/originals/mira", "/data/originals/mira/2024")]
     public async Task AddAsync_PathNestedWithExistingConfig_ReturnsPathOverlapsAsync(string existing, string rootPath)
     {
         var fixture = new TestFixture();

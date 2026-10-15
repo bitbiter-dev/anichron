@@ -1,4 +1,3 @@
-using Anichron.Core;
 using Anichron.Infrastructure.Configuration;
 
 namespace Anichron.Worker.Infrastructure;
@@ -7,7 +6,6 @@ internal static class WorkerIniDefaults
 {
     internal static IReadOnlyList<IniEntry> Entries => [
         new IniEntry("Worker", "User", () => string.Empty),
-        new IniEntry("Worker", "RootPath", () => StoragePath.OriginalsRoot),
         new IniEntry("Worker", "CrawlIntervalHours", () => "4"),
         new IniEntry("Worker", "MaxConcurrentFiles", () => "4"),
         new IniEntry("Worker", "TokenCleanupIntervalHours", () => "24"),

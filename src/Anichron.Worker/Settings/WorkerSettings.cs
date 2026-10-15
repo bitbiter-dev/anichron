@@ -1,4 +1,3 @@
-using Anichron.Core;
 using System.ComponentModel.DataAnnotations;
 
 namespace Anichron.Worker.Settings;
@@ -8,8 +7,8 @@ public sealed record WorkerSettings
     // Stryker disable once String
     public string User { get; init; } = string.Empty;
 
-    [Required]
-    public string RootPath { get; init; } = StoragePath.OriginalsRoot;
+    // Stryker disable once String
+    public string RootPath { get; init; } = string.Empty;
 
     [Range(1, int.MaxValue)]
     public int CrawlIntervalHours { get; init; } = 4;

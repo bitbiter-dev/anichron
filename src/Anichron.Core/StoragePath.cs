@@ -12,8 +12,11 @@ public static class StoragePath
             : null;
     }
 
-    public static bool IsWithinOriginals(string canonicalPath)
-        => IsSameOrDescendant(canonicalPath, OriginalsRoot);
+    public static bool IsInsideOriginals(string canonicalPath)
+        => canonicalPath.StartsWith(OriginalsRoot + "/", StringComparison.Ordinal);
+
+    public static string? FindOverlap(IEnumerable<string> canonicalRoots, string canonicalPath)
+        => canonicalRoots.FirstOrDefault(root => Overlaps(root, canonicalPath));
 
     public static bool Overlaps(string firstCanonicalPath, string secondCanonicalPath)
         => IsSameOrDescendant(firstCanonicalPath, secondCanonicalPath)

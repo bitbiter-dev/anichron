@@ -33,7 +33,7 @@ public sealed class AdminStorageConfigService(
     {
         ArgumentNullException.ThrowIfNull(rootPath);
         var canonicalPath = StoragePath.Canonicalize(rootPath);
-        if (canonicalPath is null || !StoragePath.IsWithinOriginals(canonicalPath))
+        if (canonicalPath is null || !StoragePath.IsInsideOriginals(canonicalPath))
             return AuthResult.Fail<UserStorageConfig>(AuthError.PathInvalid);
 
         var user = await users.FindByIdAsync(userId, ct);
@@ -43,7 +43,7 @@ public sealed class AdminStorageConfigService(
         var existingRootPaths = await storageConfigs.GetAllRootPathsAsync(ct);
         if (existingRootPaths.Contains(canonicalPath, StringComparer.Ordinal))
             return AuthResult.Fail<UserStorageConfig>(AuthError.PathAlreadyAssigned);
-        if (existingRootPaths.Any(existing => StoragePath.Overlaps(existing, canonicalPath)))
+        if (StoragePath.FindOverlap(existingRootPaths, canonicalPath) is not null)
             return AuthResult.Fail<UserStorageConfig>(AuthError.PathOverlaps);
 
         var config = new UserStorageConfig

@@ -35,7 +35,7 @@ public sealed class WorkerInitializerTests
             serviceProvider.GetService(typeof(IUnitOfWork)).Returns(UnitOfWork);
         }
 
-        public WorkerInitializer Build(string user = "", string rootPath = "/data/originals")
+        public WorkerInitializer Build(string user = "", string rootPath = "")
             => new(
                 Options.Create(new WorkerSettings { User = user, RootPath = rootPath }),
                 _scopeFactory,
@@ -200,18 +200,68 @@ public sealed class WorkerInitializerTests
         var fixture = new TestFixture();
         fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>())
             .Returns(new User { Id = Guid.NewGuid(), Username = "alice" });
-        var initializer = fixture.Build(user: "alice", rootPath: "/volume1/homes/mira/Photos");
+        var initializer = fixture.Build(user: "alice", rootPath: "/volume1/homes/Mira/Photos");
 
         var act = () => initializer.StartAsync(ct);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*/volume1/homes/mira/Photos*/data/originals*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*/volume1/homes/Mira/Photos*/data/originals*");
         await fixture.StorageConfigRepository.DidNotReceive().FindByRootPathAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
     }
 
     [Theory]
-    [InlineData("/data/originals")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task StartAsync_UserSetWithoutRootPath_ThrowsNamingTheSettingAsync(string rootPath)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>())
+            .Returns(new User { Id = Guid.NewGuid(), Username = "alice" });
+        var initializer = fixture.Build(user: "alice", rootPath: rootPath);
+
+        var act = () => initializer.StartAsync(ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*WORKER__ROOTPATH*required*");
+        fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
+    [Fact]
+    public async Task StartAsync_RootPathIsTheOriginalsRootItself_ThrowsAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>())
+            .Returns(new User { Id = Guid.NewGuid(), Username = "alice" });
+        var initializer = fixture.Build(user: "alice", rootPath: "/data/originals");
+
+        var act = () => initializer.StartAsync(ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.StorageConfigRepository.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
+    }
+
+    [Fact]
+    public async Task StartAsync_ExistingConfigSameUser_ResumesWithoutCheckingOverlapAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = new TestFixture();
+        var user = new User { Id = Guid.NewGuid(), Username = "alice" };
+        fixture.UserRepository.FindByCredentialAsync("alice", Arg.Any<CancellationToken>()).Returns(user);
+        fixture.StorageConfigRepository.FindByRootPathAsync("/data/originals/alice", Arg.Any<CancellationToken>())
+            .Returns(new UserStorageConfig { Id = Guid.NewGuid(), UserId = user.Id, RootPath = "/data/originals/alice" });
+        fixture.StorageConfigRepository.GetAllRootPathsAsync(Arg.Any<CancellationToken>())
+            .Returns(["/data/originals/alice", "/data/originals/alice/2024"]);
+        var initializer = fixture.Build(user: "alice", rootPath: "/data/originals/alice");
+
+        await initializer.StartAsync(ct);
+
+        fixture.WorkerState.ResolvedUserId.Should().Be(user.Id);
+    }
+
+    [Theory]
     [InlineData("/data/originals/alice/2024")]
+    [InlineData("/data/originals/alice/2024/raw")]
     public async Task StartAsync_RootPathNestedWithAnotherConfig_ThrowsNamingBothPathsAsync(string existing)
     {
         var ct = TestContext.Current.CancellationToken;
