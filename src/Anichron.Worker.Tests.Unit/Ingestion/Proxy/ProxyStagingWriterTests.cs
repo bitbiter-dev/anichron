@@ -39,11 +39,13 @@ public sealed class ProxyStagingWriterTests
 
     private static readonly Guid OwnerId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
+    private static readonly Guid AttemptId = Guid.Parse("abababab-abab-abab-abab-abababababab");
+
     private static IngestionContext MakeContext() => new()
     {
         Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
-        AssetId = Guid.NewGuid(),
+        AssetId = AttemptId,
         ContentHash = "0123456789abcdef",
     };
 
@@ -55,10 +57,16 @@ public sealed class ProxyStagingWriterTests
     // ==========================================================================
 
     [Fact]
-    public void TemporaryPathFor_AppendsTheTemporarySuffix()
+    public void TemporaryPathFor_AppendsTheAttemptAndTheTemporarySuffix()
     {
-        ProxyStagingWriter.TemporaryPathFor("/proxies/ab/cd/thumbnail.jpg")
-            .Should().Be("/proxies/ab/cd/thumbnail.jpg.tmp");
+        ProxyStagingWriter.TemporaryPathFor("/proxies/ab/cd/thumbnail.jpg", AttemptId)
+            .Should().Be("/proxies/ab/cd/thumbnail.jpg.abababababababababababababababab.tmp");
+    }
+
+    [Fact]
+    public void TemporaryFilesOf_MatchesOnlyThatAttemptsTemporaryFiles()
+    {
+        ProxyStagingWriter.TemporaryFilesOf(AttemptId).Should().Be("*.abababababababababababababababab.tmp");
     }
 
     // ==========================================================================
@@ -82,7 +90,7 @@ public sealed class ProxyStagingWriterTests
             },
             CancellationToken.None);
 
-        producedPath.Should().Be("/proxies/ab/cd/thumbnail.jpg.tmp");
+        producedPath.Should().Be("/proxies/ab/cd/thumbnail.jpg.abababababababababababababababab.tmp");
     }
 
     [Fact]
@@ -95,7 +103,7 @@ public sealed class ProxyStagingWriterTests
             Writing(fixture.FileSystem, [0x01, 0x02]), CancellationToken.None);
 
         fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
-        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg.tmp").Should().BeFalse();
+        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg.abababababababababababababababab.tmp").Should().BeFalse();
     }
 
     [Fact]
@@ -162,7 +170,7 @@ public sealed class ProxyStagingWriterTests
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("boom");
         fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg").Should().BeFalse();
-        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg.tmp").Should().BeFalse();
+        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg.abababababababababababababababab.tmp").Should().BeFalse();
         context.ProxyFiles.Should().BeEmpty();
     }
 
@@ -171,7 +179,7 @@ public sealed class ProxyStagingWriterTests
     {
         var fixture = new TestFixture
         {
-            FileSystem = new DeleteFailingFileSystem("/proxies/ab/cd/thumbnail.jpg.tmp"),
+            FileSystem = new DeleteFailingFileSystem("/proxies/ab/cd/thumbnail.jpg.abababababababababababababababab.tmp"),
         };
 
         var act = () => fixture.Build().WriteAsync(

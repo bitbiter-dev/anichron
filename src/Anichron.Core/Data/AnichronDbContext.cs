@@ -187,8 +187,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "is an ordinary proxy ROW whose content is a file — not a string column on the "
                 + "asset.");
 
-            // Stryker disable once Statement
-            entity.HasIndex(p => p.AssetId);
+            entity.HasIndex(p => new { p.AssetId, p.ProxyType })
+                  .IsUnique()
+                  .HasDatabaseName(ProxyFileIndexNames.OnePerAssetAndType);
             entity.Property(p => p.ProxyType).HasConversion<string>();
             entity.HasQueryFilter(e => !e.Asset.IsSoftDeleted);
         });

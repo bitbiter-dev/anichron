@@ -25,8 +25,11 @@ internal sealed partial class ProxyStagingWriter(
     // re-express how this writer names them.
     internal const string TemporaryFileSearchPattern = "*" + TemporaryFileSuffix;
 
-    internal static string TemporaryPathFor(string proxyAbsolutePath)
-        => proxyAbsolutePath + TemporaryFileSuffix;
+    internal static string TemporaryPathFor(string proxyAbsolutePath, Guid attemptId)
+        => $"{proxyAbsolutePath}.{attemptId:N}{TemporaryFileSuffix}";
+
+    internal static string TemporaryFilesOf(Guid attemptId)
+        => $"*.{attemptId:N}{TemporaryFileSuffix}";
 
     // The one place a proxy reaches its final name: produceAsync writes the bytes to the temporary
     // path it is handed, and only a complete file is renamed into place and registered on the
@@ -40,7 +43,7 @@ internal sealed partial class ProxyStagingWriter(
         CancellationToken ct)
     {
         var proxyAbsolutePath = fileSystem.Path.Combine(settings.Value.ProxyPath, relativePath);
-        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath);
+        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath, context.AssetId);
         try
         {
             if (fileSystem.Path.GetDirectoryName(proxyAbsolutePath) is { } directory)

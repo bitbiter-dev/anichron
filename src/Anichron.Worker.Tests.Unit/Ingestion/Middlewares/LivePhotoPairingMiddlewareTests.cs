@@ -7,9 +7,12 @@ using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
+using Npgsql;
+using NSubstitute.ExceptionExtensions;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
@@ -223,6 +226,59 @@ public sealed class LivePhotoPairingMiddlewareTests
 
         await fx.DidNotTranscodeAsync();
         await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    private static DbUpdateException UniqueViolation(string constraintName)
+        => new("duplicate key", new PostgresException(
+            "duplicate key", "ERROR", "ERROR", PostgresErrorCodes.UniqueViolation,
+            null, null, 0, 0, null, null, null, null, null, null,
+            constraintName, null, null, null));
+
+    [Fact]
+    public async Task InvokeAsync_LatePairingLosesTheRaceForTheMov_ReleasesItsProxiesBeforeRethrowingAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakePairContext();
+        fx.GuidFactory.NewGuid().Returns(Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"));
+        fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>()).Returns(StoredHeic());
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        context.ProxyFiles.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_BackfillLosesTheRaceForTheProxyRow_ReleasesItsProxiesBeforeRethrowingAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakePairContext();
+        fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>()).Returns(StoredHeic(PairedMovId));
+        fx.Repository.FindByHashWithProxyFilesAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>())
+            .Returns(StoredMov(PairedMovId));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation(ProxyFileIndexNames.OnePerAssetAndType));
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        context.ProxyFiles.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LatePairingFailsForAnotherReason_KeepsTheProxiesForCompensationAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakePairContext();
+        fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>()).Returns(StoredHeic());
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new DbUpdateException("down"));
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        context.ProxyFiles.Should().ContainSingle();
     }
 
     [Fact]

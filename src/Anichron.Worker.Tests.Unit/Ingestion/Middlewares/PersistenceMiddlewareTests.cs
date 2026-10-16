@@ -456,6 +456,43 @@ public sealed class PersistenceMiddlewareTests
         await act.Should().ThrowAsync<DbUpdateException>();
     }
 
+    [Theory]
+    [InlineData(MediaAssetIndexNames.ActiveContentHashUnique)]
+    [InlineData(ProxyFileIndexNames.OnePerAssetAndType)]
+    public async Task InvokeAsync_PairLosesTheRaceForItsMov_ReleasesTheMovsProxiesBeforeRethrowingAsync(string constraintName)
+    {
+        var fx = new TestFixture();
+        var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        fx.GuidFactory.NewGuid().Returns(movId);
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+        var heicProxy = new ProxyFile { AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
+        context.AddProxyFile(heicProxy);
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(UniqueViolation(constraintName));
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(heicProxy);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PairFailsForAnotherReason_KeepsTheMovsProxiesForCompensationAsync()
+    {
+        var fx = new TestFixture();
+        var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        fx.GuidFactory.NewGuid().Returns(movId);
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        context.ProxyFiles.Should().ContainSingle(p => p.AssetId == movId);
+    }
+
     [Fact]
     public async Task InvokeAsync_OtherUniqueViolation_RethrowsWithoutLookupAsync()
     {

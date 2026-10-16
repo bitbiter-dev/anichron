@@ -183,7 +183,7 @@ CREATE UNIQUE INDEX ix_mediaassets_storageconfigid_contenthash_active ON "MediaA
 CREATE UNIQUE INDEX "IX_MediaAssets_StorageConfigId_FilePath" ON "MediaAssets" ("StorageConfigId", "FilePath");
 
 
-CREATE INDEX "IX_ProxyFiles_AssetId" ON "ProxyFiles" ("AssetId");
+CREATE UNIQUE INDEX ix_proxyfiles_assetid_proxytype ON "ProxyFiles" ("AssetId", "ProxyType");
 
 
 CREATE UNIQUE INDEX "IX_RefreshTokens_TokenHash" ON "RefreshTokens" ("TokenHash");

@@ -286,7 +286,9 @@ namespace Anichron.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssetId");
+                    b.HasIndex("AssetId", "ProxyType")
+                        .IsUnique()
+                        .HasDatabaseName("ix_proxyfiles_assetid_proxytype");
 
                     b.ToTable("ProxyFiles", t =>
                         {

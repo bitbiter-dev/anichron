@@ -2,6 +2,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
+using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
 
@@ -37,7 +38,7 @@ internal sealed partial class LivePhotoPairingMiddleware(
             context.Item.SecondaryFile!, context.SecondaryHash!, context.Config.Id, stored.DateCaptured, ct);
         await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
         stored.PairedAssetId = mov.Id;
-        await unitOfWork.SaveChangesAsync(ct);
+        await SaveAsync(context, mov.Id, ct);
         Log.Paired(logger, context.Item.RelativePath, stored.Id);
     }
 
@@ -48,7 +49,20 @@ internal sealed partial class LivePhotoPairingMiddleware(
             return;
 
         if (await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct))
+            await SaveAsync(context, mov.Id, ct);
+    }
+
+    private async Task SaveAsync(IngestionContext context, Guid movId, CancellationToken ct)
+    {
+        try
+        {
             await unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex))
+        {
+            context.ReleaseProxyFiles(movId);
+            throw;
+        }
     }
 
     private static partial class Log
