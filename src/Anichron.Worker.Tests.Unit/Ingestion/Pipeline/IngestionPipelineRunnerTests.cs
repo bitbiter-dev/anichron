@@ -216,6 +216,23 @@ public sealed class IngestionPipelineRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_LivePhotoPairStepThrows_CleansThePairedMovsDirectoryTooAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.DirectoryStrategy.GetDirectory(Arg.Any<Guid>(), "fedcba9876543210").Returns("fe/mov");
+        fixture.FileSystem.AddFile("/proxies/fe/mov/video_720p.mp4.tmp", new MockFileData([0x01]));
+        var context = MakeContext();
+        context.SecondaryHash = "fedcba9876543210";
+        var runner = fixture.Build(new ThrowingMiddleware(10, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(context, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.FileExists("/proxies/fe/mov/video_720p.mp4.tmp").Should().BeFalse();
+        fixture.FileSystem.Directory.Exists("/proxies/fe/mov").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task RunAsync_Succeeds_DeletesNothingAsync()
     {
         var fixture = new TestFixture();

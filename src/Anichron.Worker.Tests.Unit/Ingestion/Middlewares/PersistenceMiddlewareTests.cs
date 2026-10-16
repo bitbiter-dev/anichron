@@ -5,8 +5,11 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
+using Anichron.Worker.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using Npgsql;
 using NSubstitute.ExceptionExtensions;
@@ -42,10 +45,31 @@ public sealed class PersistenceMiddlewareTests
 
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
 
+        public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
+
         public PersistenceMiddleware Build()
-            => new(Repository, UnitOfWork, FileSystem, Clock,
+        {
+            MovGenerator.FileName.Returns("video_720p.mp4");
+            MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
+            MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    FileSystem.File.WriteAllBytes(call.ArgAt<string>(1), [0x01]);
+                    return Task.CompletedTask;
+                });
+            var stagingWriter = new ProxyStagingWriter(
+                FileSystem,
+                Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
+                Clock,
+                GuidFactory,
+                Substitute.For<ILogger<ProxyStagingWriter>>());
+            return new(Repository, UnitOfWork, FileSystem, Clock,
                 new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
+                new PairedMovProxyWriter(
+                    [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
+                    Substitute.For<ILogger<PairedMovProxyWriter>>()),
                 Substitute.For<ILogger<PersistenceMiddleware>>());
+        }
     }
 
     private static readonly ExifData DefaultExif =
@@ -331,8 +355,13 @@ public sealed class PersistenceMiddlewareTests
         var fx = new TestFixture();
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-        var existingMov = new MediaAsset { Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), ContentHash = "cafebabe" };
-        fx.Repository.FindByHashAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>())
+        var existingMov = new MediaAsset
+        {
+            Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            ContentHash = "cafebabe",
+            ProxyFiles = [new ProxyFile { ProxyType = ProxyType.WebVideo }],
+        };
+        fx.Repository.FindByHashWithProxyFilesAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>())
             .Returns(existingMov);
         var nextCalled = false;
 
@@ -346,6 +375,43 @@ public sealed class PersistenceMiddlewareTests
         fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(a => a.Id == context.AssetId));
         context.Asset!.PairedAssetId.Should().Be(existingMov.Id);
         nextCalled.Should().BeTrue();
+        await fx.MovGenerator.DidNotReceive().TranscodeAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        fx.Repository.DidNotReceive().AddProxyFile(Arg.Any<ProxyFile>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoPairItem_TranscodesTheMovAsTheMovsOwnProxyAsync()
+    {
+        var fx = new TestFixture();
+        var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        fx.GuidFactory.NewGuid().Returns(movId, Guid.Parse("99999999-9999-9999-9999-999999999999"));
+        var added = new List<ProxyFile>();
+        fx.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        var row = added.Should().ContainSingle().Which;
+        row.AssetId.Should().Be(movId);
+        row.ProxyType.Should().Be(ProxyType.WebVideo);
+        context.Asset!.ProxyFiles.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_Always_CopiesOnlyTheAssetsOwnProxyFilesToItAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+        var own = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
+        context.AddProxyFile(own);
+        context.AddProxyFile(new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo });
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(own);
     }
 
     // ==========================================================================

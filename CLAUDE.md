@@ -181,7 +181,7 @@ Each user has a private set of `UserStorageConfig` entries pointing to NAS roots
 
 ### Worker Processing Model
 
-Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `(StorageConfigId, ContentHash)`) are skipped, including moved files until #35 re-links them. One exception: when a Live Photo's HEIC is already stored without its MOV (the halves arrived in different crawls), `LivePhotoPairingMiddleware` attaches the MOV to the stored row instead of skipping; `PairedMovResolver` reuses an already-stored MOV rather than inserting a duplicate.
+Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `(StorageConfigId, ContentHash)`) are skipped, including moved files until #35 re-links them. One exception: when a Live Photo's HEIC is already stored without its MOV (the halves arrived in different crawls), `LivePhotoPairingMiddleware` attaches the MOV to the stored row instead of skipping; `PairedMovResolver` reuses an already-stored MOV rather than inserting a duplicate. The paired MOV is its own asset and owns its `WebVideo` proxy, written into the MOV's own content-hash directory by `PairedMovProxyWriter` only when that MOV has none yet — on first ingest, on late pairing, and on any later crawl of an already-paired HEIC whose MOV still lacks it (self-heal).
 
 ## Infrastructure
 

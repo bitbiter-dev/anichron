@@ -47,14 +47,19 @@ internal sealed partial class IngestionPipelineRunner(
         // path rule in one place, and covers the attempt that failed in its first generator: it
         // registered no proxy at all, but the step had already created the directory.
         if (context.ContentHash is { } contentHash)
-        {
-            var directory = fileSystem.Path.Combine(
-                proxyRoot, proxyDirectoryStrategy.GetDirectory(context.Config.Id, contentHash));
-            DiscardTemporaryFiles(directory);
-            TryRemoveIfEmpty(directory);
-        }
+            CleanUpDirectory(proxyRoot, context.Config.Id, contentHash);
+        if (context.SecondaryHash is { } secondaryHash)
+            CleanUpDirectory(proxyRoot, context.Config.Id, secondaryHash);
 
         Log.Compensated(logger, proxies.Count, context.Item.RelativePath);
+    }
+
+    private void CleanUpDirectory(string proxyRoot, Guid storageConfigId, string contentHash)
+    {
+        var directory = fileSystem.Path.Combine(
+            proxyRoot, proxyDirectoryStrategy.GetDirectory(storageConfigId, contentHash));
+        DiscardTemporaryFiles(directory);
+        TryRemoveIfEmpty(directory);
     }
 
     // Deletion runs while the original exception is in flight, so a file that cannot be deleted is

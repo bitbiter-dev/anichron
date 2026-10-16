@@ -47,6 +47,7 @@ internal sealed partial class ImageProxyMiddleware(
         {
             return stagingWriter.WriteAsync(
                 context,
+                context.AssetId,
                 $"{proxyDirectoryName}/{generator.FileName}",
                 generator.ProxyType,
                 ProduceAsync,

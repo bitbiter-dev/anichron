@@ -2,6 +2,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Npgsql;
@@ -15,6 +16,7 @@ internal sealed partial class PersistenceMiddleware(
     IFileSystem fileSystem,
     IClock clock,
     PairedMovResolver pairedMovResolver,
+    PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Persistence;
@@ -27,8 +29,10 @@ internal sealed partial class PersistenceMiddleware(
         if (context.Item.SecondaryFile is { } secondary)
         {
             // Ordering guarantees ContentHashingMiddleware ran first and set SecondaryHash; suppression is safe.
-            asset.PairedAssetId = await pairedMovResolver.ResolveAsync(
+            var mov = await pairedMovResolver.ResolveAsync(
                 secondary, context.SecondaryHash!, context.Config.Id, context.Exif!.DateCaptured, ct);
+            await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
+            asset.PairedAssetId = mov.Id;
         }
 
         repository.Add(asset);
@@ -71,7 +75,7 @@ internal sealed partial class PersistenceMiddleware(
             MediaType = mediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
-            ProxyFiles = [.. context.ProxyFiles],
+            ProxyFiles = [.. context.ProxyFiles.Where(proxy => proxy.AssetId == context.AssetId)],
             Metadata = new Metadata
             {
                 Width = exif.Width,

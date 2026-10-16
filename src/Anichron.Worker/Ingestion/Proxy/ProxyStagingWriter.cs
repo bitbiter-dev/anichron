@@ -33,6 +33,7 @@ internal sealed partial class ProxyStagingWriter(
     // context. The rename stays within one directory, so it is atomic.
     internal async Task WriteAsync(
         IngestionContext context,
+        Guid ownerAssetId,
         string relativePath,
         ProxyType proxyType,
         Func<string, CancellationToken, Task> produceAsync,
@@ -52,7 +53,7 @@ internal sealed partial class ProxyStagingWriter(
             // Registered at the moment it lands, so the context always reflects what is on disk
             // and compensation can delete precisely the files this attempt wrote.
             context.AddProxyFile(
-                ProxyFileBuilder.Build(context, relativePath, proxyType, sizeBytes, guidFactory, clock));
+                ProxyFileBuilder.Build(ownerAssetId, relativePath, proxyType, sizeBytes, guidFactory, clock));
             Log.ProxyWritten(logger, proxyType, sizeBytes, context.Item.RelativePath);
         }
         finally

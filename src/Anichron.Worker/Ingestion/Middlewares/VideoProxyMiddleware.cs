@@ -30,6 +30,7 @@ internal sealed partial class VideoProxyMiddleware(
         Task ProcessGeneratorAsync(IVideoProxyGenerator generator)
             => stagingWriter.WriteAsync(
                 context,
+                context.AssetId,
                 $"{proxyDirectoryName}/{generator.FileName}",
                 generator.ProxyType,
                 (temporaryPath, token) => generator.TranscodeAsync(context.Item.AbsolutePath, temporaryPath, token),

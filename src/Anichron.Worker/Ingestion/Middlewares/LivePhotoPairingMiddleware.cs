@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
 
@@ -8,6 +9,7 @@ internal sealed partial class LivePhotoPairingMiddleware(
     IMediaAssetRepository repository,
     IUnitOfWork unitOfWork,
     PairedMovResolver pairedMovResolver,
+    PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<LivePhotoPairingMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.LivePhotoPairing;
@@ -17,17 +19,36 @@ internal sealed partial class LivePhotoPairingMiddleware(
     {
         // Ordering guarantees ContentHashingMiddleware ran first and set both hashes; suppression is safe.
         var stored = await repository.FindByHashAsync(context.ContentHash!, context.Config.Id, ct);
-        if (stored is null || stored.PairedAssetId is not null)
+        if (stored is null)
         {
             await next(context, ct);
             return;
         }
 
+        if (stored.PairedAssetId is { } pairedAssetId)
+        {
+            await BackfillPairedMovProxiesAsync(context, pairedAssetId, ct);
+            await next(context, ct);
+            return;
+        }
+
         stored.MediaType = context.Item.PrimaryMediaType;
-        stored.PairedAssetId = await pairedMovResolver.ResolveAsync(
+        var mov = await pairedMovResolver.ResolveAsync(
             context.Item.SecondaryFile!, context.SecondaryHash!, context.Config.Id, stored.DateCaptured, ct);
+        await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
+        stored.PairedAssetId = mov.Id;
         await unitOfWork.SaveChangesAsync(ct);
         Log.Paired(logger, context.Item.RelativePath, stored.Id);
+    }
+
+    private async Task BackfillPairedMovProxiesAsync(IngestionContext context, Guid pairedAssetId, CancellationToken ct)
+    {
+        var mov = await repository.FindByHashWithProxyFilesAsync(context.SecondaryHash!, context.Config.Id, ct);
+        if (mov?.Id != pairedAssetId)
+            return;
+
+        if (await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct))
+            await unitOfWork.SaveChangesAsync(ct);
     }
 
     private static partial class Log

@@ -37,6 +37,8 @@ public sealed class ProxyStagingWriterTests
                    Substitute.For<ILogger<ProxyStagingWriter>>());
     }
 
+    private static readonly Guid OwnerId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
     private static IngestionContext MakeContext() => new()
     {
         Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", MediaType.Image),
@@ -70,7 +72,7 @@ public sealed class ProxyStagingWriterTests
         var producedPath = string.Empty;
 
         await fixture.Build().WriteAsync(
-            MakeContext(),
+            MakeContext(), OwnerId,
             "ab/cd/thumbnail.jpg",
             ProxyType.Thumbnail,
             (temporaryPath, token) =>
@@ -89,7 +91,7 @@ public sealed class ProxyStagingWriterTests
         var fixture = new TestFixture();
 
         await fixture.Build().WriteAsync(
-            MakeContext(), "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
+            MakeContext(), OwnerId, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             Writing(fixture.FileSystem, [0x01, 0x02]), CancellationToken.None);
 
         fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
@@ -102,7 +104,7 @@ public sealed class ProxyStagingWriterTests
         var fixture = new TestFixture();
 
         await fixture.Build().WriteAsync(
-            MakeContext(), "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
+            MakeContext(), OwnerId, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             Writing(fixture.FileSystem, [0x01]), CancellationToken.None);
 
         fixture.FileSystem.Directory.Exists("/proxies/ab/cd").Should().BeTrue();
@@ -115,7 +117,7 @@ public sealed class ProxyStagingWriterTests
         fixture.FileSystem.AddFile("/proxies/ab/cd/thumbnail.jpg", new MockFileData([0xFF, 0xFF, 0xFF]));
 
         await fixture.Build().WriteAsync(
-            MakeContext(), "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
+            MakeContext(), OwnerId, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             Writing(fixture.FileSystem, [0x01]), CancellationToken.None);
 
         var written = await fixture.FileSystem.File.ReadAllBytesAsync(
@@ -131,12 +133,12 @@ public sealed class ProxyStagingWriterTests
         var context = MakeContext();
 
         await fixture.Build().WriteAsync(
-            context, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
+            context, OwnerId, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             Writing(fixture.FileSystem, [0x01, 0x02, 0x03]), CancellationToken.None);
 
         var proxy = context.ProxyFiles.Should().ContainSingle().Subject;
         proxy.Id.Should().Be(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
-        proxy.AssetId.Should().Be(context.AssetId);
+        proxy.AssetId.Should().Be(OwnerId);
         proxy.ProxyPath.Should().Be("ab/cd/thumbnail.jpg");
         proxy.ProxyType.Should().Be(ProxyType.Thumbnail);
         proxy.SizeBytes.Should().Be(3);
@@ -150,7 +152,7 @@ public sealed class ProxyStagingWriterTests
         var context = MakeContext();
 
         var act = () => fixture.Build().WriteAsync(
-            context, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
+            context, OwnerId, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             async (temporaryPath, token) =>
             {
                 await fixture.FileSystem.File.WriteAllBytesAsync(temporaryPath, [0x01], token);
@@ -173,7 +175,7 @@ public sealed class ProxyStagingWriterTests
         };
 
         var act = () => fixture.Build().WriteAsync(
-            MakeContext(), "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
+            MakeContext(), OwnerId, "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             async (temporaryPath, token) =>
             {
                 await fixture.FileSystem.File.WriteAllBytesAsync(temporaryPath, [0x01], token);
