@@ -1,8 +1,6 @@
 using Anichron.Core;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
-using Anichron.Worker.Settings;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions;
 
@@ -10,7 +8,6 @@ namespace Anichron.Worker.Ingestion.Proxy;
 
 internal sealed partial class ProxyStagingWriter(
     IFileSystem fileSystem,
-    IOptions<WorkerSettings> settings,
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<ProxyStagingWriter> logger)
@@ -38,7 +35,7 @@ internal sealed partial class ProxyStagingWriter(
         Func<string, CancellationToken, Task> produceAsync,
         CancellationToken ct)
     {
-        var proxyAbsolutePath = fileSystem.Path.Combine(settings.Value.ProxyPath, relativePath);
+        var proxyAbsolutePath = fileSystem.Path.Combine(StoragePath.ProxiesRoot, relativePath);
         var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath);
         try
         {

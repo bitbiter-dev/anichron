@@ -1,10 +1,5 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Infrastructure;
-using Anichron.API.Services;
-using Anichron.Core.Data.Repository;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
@@ -15,15 +10,8 @@ public sealed class HealthzEndpointTests
     public async Task Healthz_RespondsWithTheJsonReportAndNoCachingAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var builder = WebApplication.CreateSlimBuilder();
+        var builder = ApiTestHost.CreateBuilder();
         builder.WebHost.UseTestServer();
-        builder.Services.AddHealthChecks();
-        builder.Services.AddSingleton(Substitute.For<IAuthService>());
-        builder.Services.AddSingleton(Substitute.For<IAuthResponseMapper>());
-        builder.Services.AddSingleton(Substitute.For<IAdminResetService>());
-        builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
-        builder.Services.AddSingleton(Substitute.For<IAdminStorageConfigService>());
-        builder.Services.AddSingleton(Substitute.For<IUserRepository>());
         await using var app = builder.Build();
         app.MapApiEndpoints();
         await app.StartAsync(ct);

@@ -1,5 +1,4 @@
 using Anichron.API.Infrastructure;
-using Anichron.API.Settings;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -7,7 +6,7 @@ namespace Anichron.API.Tests.Unit.Infrastructure;
 
 public sealed class ProxyStorageHealthCheckTests
 {
-    private const string ProxyPath = AppDefaults.Storage.ProxyPath;
+    private const string ProxyPath = StoragePath.ProxiesRoot;
 
     private static HealthCheckContext BuildContext() => new()
     {

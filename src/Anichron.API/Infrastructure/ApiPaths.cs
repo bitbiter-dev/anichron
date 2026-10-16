@@ -44,6 +44,7 @@ internal static class ApiPaths
     internal static class Assets
     {
         internal const string Group = "assets";
+        internal const string Proxy = "{assetId:guid}/proxies/{type}";
 
         internal const string ThumbnailProxy = "thumbnail";
         internal const string PreviewProxy = "preview";
