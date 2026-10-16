@@ -1,5 +1,4 @@
 using Anichron.API.Infrastructure;
-using Anichron.API.Settings;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -67,7 +66,7 @@ public sealed class OriginalsStorageHealthCheckTests
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>(),
             new MockFileSystemOptions { CurrentDirectory = "/" });
-        fs.Directory.CreateDirectory(AppDefaults.Storage.ProxyPath);
+        fs.Directory.CreateDirectory(StoragePath.ProxiesRoot);
         var testee = new OriginalsStorageHealthCheck(fs);
 
         var result = await testee.CheckHealthAsync(BuildContext(), CancellationToken.None);

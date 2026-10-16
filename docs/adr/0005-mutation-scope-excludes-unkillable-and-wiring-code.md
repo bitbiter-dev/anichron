@@ -86,9 +86,10 @@ diverges from PostgreSQL in exactly the places this model relies on (partial-ind
 `xmin`, NodaTime types, collation), so a green test there would claim coverage it does not
 have. They stay excluded until tests run against real PostgreSQL.
 
-`WorkerSettings.ProxyPath` and `FfmpegPath` are **not** in that list. They are real defaults and are
-tested. `RootPath` lost its default in #221: it names one user's folder inside `/data/originals`,
-so no value is right for every deployment.
+`WorkerSettings.FfmpegPath` is **not** in that list. It is a real default and is tested. `RootPath`
+lost its default in #221: it names one user's folder inside `/data/originals`, so no value is right
+for every deployment. The proxy root is no longer a setting at all since #43: it is the fixed
+`StoragePath.ProxiesRoot`, shared by the Worker and the API.
 
 ## Consequences
 
