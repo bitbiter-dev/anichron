@@ -78,13 +78,14 @@ Four projects with strict separation of concerns:
 | Project | Role |
 |---------|------|
 | `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects. |
-| `Anichron.Infrastructure` | DI wiring; reads DB connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets |
-| `Anichron.API` | ASP.NET Core Minimal APIs — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data; DTO mapping, proxy file serving, originals on demand. All routes prefixed `/api/v1/`. |
-| `Anichron.Worker` | `BackgroundService` — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, reconciliation |
+| `Anichron.Infrastructure` | Shared host plumbing used by API and Worker: configuration (`DatabaseConfiguration` reads the connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets; INI bootstrap; `ConfigurationList`), migration under a PostgreSQL advisory lock, and the API's `ReadOnlyFileSystem`. Each host wires its own DI. |
+| `Anichron.API` | ASP.NET Core Minimal APIs — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data. Media endpoints (DTOs #242, proxy serving #43, originals #44, On This Day #38) are not built yet. All routes prefixed `/api/v1/`. |
+| `Anichron.Worker` | `BackgroundService`s — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, expired-refresh-token cleanup; reconciliation is planned (Epic 4) |
 
 **Write ownership is split by domain, not centralized.**
-- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media.
-- **API owns all *identity/auth/admin* writes** — registration, login/refresh-token issuance and cleanup, lockout state, invites, and admin user/storage-config CRUD all persist through API services (`AuthService`, `AdminUserService`, `AdminStorageConfigService`, `TokenService`, etc.) via `IUnitOfWork.SaveChangesAsync`. The API is read-only *only with respect to media*.
+- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media. Its one identity-side write is `TokenCleanupService` deleting expired refresh tokens.
+- **API owns all *identity/auth/admin* writes** — registration, login/refresh-token issuance and revocation, lockout state, invites, and admin user/storage-config CRUD all persist through API services (`AuthService`, `AdminUserService`, `AdminStorageConfigService`, `TokenService`, etc.) via `IUnitOfWork.SaveChangesAsync`. The API is read-only *only with respect to media*. The one exception is `AssetInteraction` (star/like/hide, #46): per-user state, to be written by the API.
+- Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
 A planned `Anichron.UI` (NextJS/React) for the Instagram Story-style flashback experience is documented but not yet in the solution.
 
@@ -113,16 +114,16 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - `AssetInteraction` — per-user state (starred, liked, hidden, view count, last viewed); unique on `(UserId, AssetId)`
 - `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users. Paths are stored canonical (absolute, `.`/`..`/`//` collapsed, no trailing slash) via `StoragePath.Canonicalize`, so `/p` and `/p/` cannot both be assigned. A `RootPath` must be a folder strictly inside `StoragePath.OriginalsRoot` (`/data/originals`), never the root itself, and may not contain or be contained by another config's root (`StoragePath.Overlaps`) — nested roots would index the same files twice
 - `User` — owns storage configs and interactions
-- `RefreshToken` — issued and cleaned up by the API; `TokenHash` unique
+- `RefreshToken` — issued and revoked by the API, expired rows deleted by the Worker's `TokenCleanupService`; `TokenHash` unique
 - `Invite` — admin-issued registration tokens; `TokenHash` unique, and the only entity carrying an optimistic-concurrency token (`xmin`)
 
 ### Key EF Core / Database Decisions
 
 - `Month` and `Day` stored as separate integers on `MediaAsset` with a **composite index** (`IX_MediaAsset_Flashback`) — enables "On This Day" queries as direct index lookups instead of `EXTRACT()` scans
-- Partial unique index on `(StorageConfigId, ContentHash)` filtered to `"IsSoftDeleted" = false` (`MediaAssetIndexNames.ActiveContentHashUnique`) — enforces one *active* asset per content within a storage config, and detects renames/moves without breaking references. Dedup is **config-scoped**: the same bytes under two storage configs are two assets, which is what makes multi-user work. A *global* unique index on `ContentHash` alone would break that and must not be added. When two consumers race on the same content, the loser's insert hits this index and `PersistenceMiddleware` skips the file without throwing, so pipeline compensation never deletes the winner's shared proxies
+- Partial unique index on `(StorageConfigId, ContentHash)` filtered to `"IsSoftDeleted" = false` (`MediaAssetIndexNames.ActiveContentHashUnique`) — enforces one *active* asset per content within a storage config; it is what lets a moved file be re-linked to its existing row by hash (#35). Dedup is **config-scoped**: the same bytes under two storage configs are two assets, which is what makes multi-user work. A *global* unique index on `ContentHash` alone would break that and must not be added. When two consumers race on the same content, the loser's insert hits this index and `PersistenceMiddleware` skips the file without throwing, so pipeline compensation never deletes the winner's shared proxies
 - Unique index on `(StorageConfigId, FilePath)` — one asset row per path within a config, soft-deleted rows included
 - Filtered index `IX_MediaAssets_Active` on `IsSoftDeleted`, filtered to `"IsSoftDeleted" = false` — excludes trashed assets from active gallery queries
-- Global query filter: soft-deleted `MediaAsset` records are hidden by default
+- Global query filters hide soft-deleted assets: on `MediaAsset`, and on `AssetInteraction` and `Burst` through their asset. This is the **only** global filter — per-user rules (hidden, ownership) are query-level, because the Worker shares `AnichronDbContext` and has no user
 - `User.Username` and `User.Email` carry an EF value converter (`IdentityNormalizer.Normalize`: trim + lowercase) that applies to every write **and** to every equality comparison, so repository lookups need no manual normalization. ⚠️ The InMemory provider does not convert query parameters, so read-side behaviour is tested via `ToQueryString()` on the Npgsql provider, not InMemory
 - `MediaType` and `ProxyType` stored as strings (not integers)
 - **Never use `DateTime`** — NodaTime is used exclusively for all date/time values
@@ -143,22 +144,22 @@ The API's DI-registered `IFileSystem` is a `ReadOnlyFileSystem` (`Anichron.Infra
 
 - Crawls NAS on a configurable interval (`Worker:CrawlIntervalHours`, default 4 h; immediate crawl on startup)
 - The crawl walks folder by folder and never enters `CrawlExclusions`: any dot-folder or dot-file (macOS/Linux/QNAP/ZFS/sync-tool metadata), NAS and OS system folders (`@eaDir`, `#recycle`, `@Recycle`, `$RECYCLE.BIN`, `lost+found`, Nextcloud `files_trashbin`/`files_versions`, …) and app library packages (`*.photoslibrary`, `*.lrdata`, …, which hold thumbnails and renders). `Worker:ExcludedDirectories` adds comma-separated folder names (not paths; rejected at startup) on top. An unreadable subfolder is logged and skipped; an unreadable or missing root still fails the crawl
-- Extracts EXIF via ExifLib/ImageSharp → computes XXHash64 `ContentHash` → writes `MediaAsset` + `Metadata`
+- Computes XXHash64 `ContentHash` → extracts EXIF via MetadataExtractor → writes `MediaAsset` + `Metadata`
 - Generates proxy types: `Thumbnail`, `FullPreview`, `WebVideo`, `BlurHash` (the `ProxyType` enum, persisted as text)
 - Image proxies are auto-oriented once after decoding: upright pixels, orientation tag 1. `Metadata.Orientation` applies only when serving originals — never rotate a proxy by it
 - Image proxy sizes are edge-based, so portrait and landscape get the same treatment: preview long edge `PreviewLongEdge` (1920), thumbnail short edge `ThumbnailShortEdge` (300), blurhash sample long edge `BlurhashSampleLongEdge` (64). Nothing is ever upscaled
 - Each `IImageProxyGenerator` declares a `ProxyBound`; `ImageProxyMiddleware` decodes once to `Rgb24`, shrinks the shared image to each bound largest-first, and hands every generator **its own copy** at that size. Generators may crop/recolour/resize their copy freely; only the middleware resizes the shared image
 - FFmpeg transcodes video with runtime GPU detection: QuickSync (`h264_qsv`) → NVENC (`h264_nvenc`) → AMF (`h264_amf`) → software (`libx264`)
 - Burst detection (**planned, not yet implemented**): will group rapid-fire sequences and assign a `PrimaryAssetId` cover. The `Burst` entity and schema exist; no detection code is wired into the Worker yet.
-- Reconciliation: periodic NAS scan; soft-deletes missing files (preserves user interactions); hash match re-links moved files
+- Reconciliation (**planned, Epic 4**): a periodic scan soft-deletes assets whose file is gone (interactions survive) and restores them when it reappears (#33, #34, #37). Until #35 lands, a moved or renamed file keeps its **old** `FilePath` (the hash match skips it) and `LastSeenOnNas` is written only at first ingest
 - Failure ownership: `ProxyStagingWriter` is the single place a proxy reaches its final name — it writes under a `.tmp` suffix, renames into place once complete, and registers the proxy on the `IngestionContext` at that moment; the proxy middlewares only supply the bytes. If a step throws, `IngestionPipelineRunner` deletes exactly those registered proxies plus any `.tmp` siblings, and removes the directory only if it is left empty — never recursively, since a concurrent attempt on the same content shares it until one of them persists. A clean shutdown is treated differently: the in-flight temporary file is dropped, but proxies already completed in that run are kept, and the consumer loop re-throws the cancellation instead of recording an item failure and draining the queue. A hard kill or the storage-config cascade delete is out of reach in-process and belongs to the orphan sweeper (#174).
 
 ### Flashback Interaction Rules
 
-`AssetInteraction` state affects flashback queries (Epic 5+):
-- `hidden = true` → excluded from all flashback queries (global filter, same layer as soft-delete)
+`AssetInteraction` state is per user and shapes that user's flashback queries (Epic 5+):
+- `hidden = true` → excluded from the user's flashback queries. Applied **at query level** through one shared composition (#48), not a global filter; other users still see the asset
 - `starred = true` → always included; sorted first within its year group
-- `liked = true` → sets `DisplayWeight = 2.0`; used for candidate weighting when a date has many assets across years
+- `liked = true` → `DisplayWeight` 2.0 (otherwise 1.0), used for candidate weighting when a date has many assets across years. `DisplayWeight` is **computed**, never stored — there is no such column (#46)
 
 ## Conventions
 
@@ -168,7 +169,7 @@ The API's DI-registered `IFileSystem` is a `ReadOnlyFileSystem` (`Anichron.Infra
 - **Private fields**: plain `camelCase` for instance — **no underscore prefix**; `PascalCase` for static
 - **Interfaces**: Prefixed with `I`
 - **Indentation**: 4 spaces, **LF** line endings (`src/.editorconfig` sets `end_of_line = lf`)
-- **Analyzers**: Run at `Recommended` severity during build — fix warnings, don't suppress
+- **Analyzers**: `AnalysisMode=Recommended` with `TreatWarningsAsErrors`, so every analyzer warning fails the build — fix the code rather than suppress the rule
 - **NuGet versions**: Centralized in `Directory.Packages.props` — never specify a version in individual `.csproj` files
 - **XML doc comments**: Do not add `/// <summary>` unless it meaningfully adds information beyond what the name already communicates. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) do not need them. Override the global rule requiring docs on every public member.
 
@@ -176,15 +177,15 @@ The API's DI-registered `IFileSystem` is a `ReadOnlyFileSystem` (`Anichron.Infra
 
 Each user has a private set of `UserStorageConfig` entries pointing to NAS roots. `RootPath` is globally unique — a path cannot be assigned to more than one storage config across all users. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. `RootPath` is a **container** path read by both the Worker (crawling) and the API (serving originals), so it must resolve to the same folder in every container: each user's NAS folder is mounted at `/data/originals/<user>` everywhere, and only the host side of the mount varies with the NAS layout. Either one worker per user (`WORKER__USER` + `WORKER__ROOTPATH=/data/originals/<user>`, which has no default and is required with `WORKER__USER`, mounting only that user's folder) or one all-user worker (no `WORKER__USER`, configs added through the admin API). Each user has private `AssetInteraction` state — never shared.
 
-**Every media read goes through one visibility rule** (`MediaAssetVisibility.VisibleTo(userId)` for queries, `IMediaAssetReadRepository.FindVisibleAsync` for a single asset): an asset is visible only to the owner of its storage config, only while that config is active, and never once soft-deleted — `VisibleTo` checks all three itself, so it holds even under `IgnoreQueryFilters()`. It covers the asset only: related data needs its own filter (`Interactions` to the caller's rows, `Burst` members through `VisibleTo` again). Endpoints map "not visible" to **`404`, never `403`**, so other users' asset ids cannot be probed. Admins get no media access — their powers cover identity and storage configs only.
+**Media is private per user.** Every media read goes through one visibility rule (`MediaAssetVisibility.VisibleTo(userId)` for queries, `IMediaAssetReadRepository.FindVisibleAsync` for a single asset): an asset is visible only to the owner of its storage config, only while that config is active, and never once soft-deleted — `VisibleTo` checks all three itself, so it holds even under `IgnoreQueryFilters()`. It covers the asset only: related data needs its own filter (`Interactions` to the caller's rows, `Burst` members through `VisibleTo` again). Endpoints map "not visible" to **`404`, never `403`**, so other users' asset ids cannot be probed. Admins get no media access — their powers cover identity and storage configs only.
 
 ### Worker Processing Model
 
-Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `ContentHash`) are skipped. One exception: when a Live Photo's HEIC is already stored without its MOV (the halves arrived in different crawls), `LivePhotoPairingMiddleware` attaches the MOV to the stored row instead of skipping; `PairedMovResolver` reuses an already-stored MOV rather than inserting a duplicate.
+Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produces file paths; N consumer tasks process them concurrently. Default concurrency: `Worker:MaxConcurrentFiles = 4`. Processing is always idempotent — files already in the DB (matched by `(StorageConfigId, ContentHash)`) are skipped, including moved files until #35 re-links them. One exception: when a Live Photo's HEIC is already stored without its MOV (the halves arrived in different crawls), `LivePhotoPairingMiddleware` attaches the MOV to the stored row instead of skipping; `PairedMovResolver` reuses an already-stored MOV rather than inserting a duplicate.
 
 ## Infrastructure
 
-- Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver` installed on `amd64` only; GPU fallback handles its absence at runtime.
+- Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver-non-free` installed on `amd64` only; GPU fallback handles its absence at runtime.
 - API Dockerfile uses Alpine (no GPU/FFmpeg needed)
 - CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel; pushed only after `CI gate` passes, tagged `sha-<hash>` on every master build, `edge` on master, SemVer tags on releases
 - Branch protection requires only `CI gate` and `CodeQL`. To make a new job required, add it to the gate's `needs`, never to branch protection. The gate's rule is `scripts/ci-gate.sh`
@@ -192,13 +193,14 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 - CORS allowed origins configured via `CORS__ALLOWEDORIGINS` env var (comma-separated); the same value switches the refresh cookie to `SameSite=None`. Leave empty for same-origin / reverse proxy deployments.
 - `X-Forwarded-For` is honoured only from loopback or from addresses listed in `FORWARDEDHEADERS__KNOWNPROXIES` / `FORWARDEDHEADERS__KNOWNNETWORKS` (comma-separated IPs / CIDRs; `ForwardLimit = 1`). Rate limiting partitions on the resulting client IP, so a reverse-proxy deployment must set one of these or all clients share the proxy's bucket. Never trust the Docker bridge network for a directly published port — that lets any client spoof its IP.
 - Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.
-- Observability: structured JSON logging in production; `GET /api/v1/healthz` health endpoint; OpenTelemetry instrumented but no exporter configured by default (`OTEL_EXPORTER_OTLP_ENDPOINT` to enable).
+- Observability: `GET /api/v1/healthz` (database, proxy storage, originals storage; a missing mount reports Degraded). Logging is the default .NET console logger with `LoggerMessage` source-generated messages; structured JSON output and OpenTelemetry are **not** wired up.
 - License: AGPL-3.0.
 
 ## GitHub References
 
 - **Issues** (bug reports, feature requests, epic tracking): https://github.com/bitbiter-dev/anichron/issues
-- **Wiki** (architecture decisions, ADRs, engineering notes): https://github.com/bitbiter-dev/anichron/wiki
+- **Wiki** (early architecture decisions, e.g. ADR-3 on flashback weighting, which older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
+- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. Pick an open `ready-for-agent` issue with no open blocker.
 
 ## graphify (knowledge graph — orient here first)
 
@@ -250,4 +252,4 @@ The five canonical triage roles, each label string equal to its name. See `docs/
 
 ### Domain docs
 
-Single-context — one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context — one `CONTEXT.md` (not created yet; written lazily by `/domain-modeling`) plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
