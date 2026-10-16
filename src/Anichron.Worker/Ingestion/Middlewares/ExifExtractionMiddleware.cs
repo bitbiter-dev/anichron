@@ -19,10 +19,10 @@ internal sealed partial class ExifExtractionMiddleware(
     public int Order => IngestionOrder.ExifExtraction;
     public bool CanInvoke(IngestionContext context) => true;
 
-    public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+    public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         context.Exif = ExtractExif(context.Item.AbsolutePath);
-        await next(context, ct);
+        return next(context, ct);
     }
 
     private ExifData ExtractExif(string absolutePath)

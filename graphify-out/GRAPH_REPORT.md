@@ -1,17 +1,17 @@
-# Graph Report - fix-221-originals-namespace  (2026-10-16)
+# Graph Report - nuget-bumps  (2026-10-16)
 
 ## Corpus Check
-- 291 files · ~108,017 words
+- 300 files · ~110,502 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 7, .props 2, .example 1)
 
 ## Summary
-- 6841 nodes · 13475 edges · 442 communities (424 shown, 18 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 689 edges (avg confidence: 0.84)
+- 6988 nodes · 13822 edges · 468 communities (454 shown, 14 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 716 edges (avg confidence: 0.84)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `dc2376f7`
+- Built from commit: `e9e608e8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -30,32 +30,32 @@
 - TestFixture
 - AuthResult
 - net10.0
-- RefreshToken
+- IUnitOfWork
 - TestFixture
 - DatabaseMigratorService
 - TestFixture
 - Anichron.API/packages.lock.json
 - .WriteResponseAsync
 - AppIniInitializer
-- AuthTokens
+- .Ok
 - PasswordPolicy
 - WorkerSettings
 - MustChangePasswordMiddleware
 - TestFixture
 - TestFixture
-- FileIngestionPipeline
+- SingleFileItem
 - Anichron.API.Tests.Unit/packages.lock.json
-- ProxyStagingWriter
+- Anichron.API.Endpoints
 - dependencies
-- EfRefreshTokenRepository
+- TestFixture
 - ReadOnlyFile
-- Anichron.API.Services
+- Anichron.API.Infrastructure
 - FfmpegVideoProcessorTests
-- IAuthResponseMapper
+- LockoutService
 - Anichron.Core.Domain
 - IngestionContext
 - dependencies
-- LivePhotoPairItem
+- .MakeLinker
 - Anichron.Infrastructure.Tests.Unit/packages.lock.json
 - Microsoft.Extensions.DependencyInjection.Abstractions
 - .GetConnectionString
@@ -81,13 +81,13 @@
 - Microsoft.Extensions.DependencyInjection.Abstractions
 - Anichron.Worker
 - WorkerServiceCollectionExtensionsTests
-- CapturingLogger
-- Microsoft.Extensions.Primitives
+- .InvokeAsync
+- Microsoft.Extensions.Caching.Abstractions
 - publish-badges.test.sh
 - SixLabors.ImageSharp
 - Microsoft.EntityFrameworkCore
 - .InvokeAsync_KnownHash_DoesNotCallNextAsync
-- .Create
+- IdempotencyCheckMiddleware
 - TestFixture
 - TestFixture
 - ProxyBound
@@ -98,7 +98,7 @@
 - MediaAsset
 - Anichron.Core
 - dependencies
-- Microsoft.EntityFrameworkCore.Relational
+- dependencies
 - dependencies
 - net10.0
 - Anichron.Infrastructure
@@ -110,7 +110,7 @@
 - TestFixture
 - Anichron.slnx
 - Microsoft.Extensions.Primitives
-- Microsoft.Extensions.Configuration.Abstractions
+- Microsoft.Extensions.AmbientMetadata.Application
 - OriginalsStorageHealthCheck
 - Microsoft.Extensions.Primitives
 - ApiPaths
@@ -124,7 +124,7 @@
 - dependencies
 - Container (Dockerfile)
 - Anichron.Infrastructure/packages.lock.json
-- Anichron.Worker.Ingestion.Proxy
+- microsoft_extensions_options
 - ExifDataMappingTests
 - Microsoft.Extensions.Primitives
 - publish-badges.sh
@@ -136,8 +136,8 @@
 - WorkerSettingsValidatorTests
 - .Placeholder_Always_Passes
 - System.IdentityModel.Tokens.Jwt
-- IMediaAssetRepository
-- Anichron.Infrastructure.Configuration
+- LivePhotoPairingMiddleware
+- WorkerIniDefaultsTests.cs
 - Microsoft.Testing.Extensions.Telemetry
 - User
 - task-runner.json
@@ -158,10 +158,10 @@
 - Npgsql.EntityFrameworkCore.PostgreSQL
 - Metadata
 - dependencies
-- CrawlExclusionsTests
+- CrawlExclusions
 - derive-db-docs.test.sh
 - AssetInteraction
-- dependencies
+- Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime
 - xunit.v3.extensibility.core
 - TestableIO.System.IO.Abstractions.TestingHelpers
 - xunit.v3.extensibility.core
@@ -174,7 +174,7 @@
 - Polly.Extensions
 - TestableIO.System.IO.Abstractions
 - Microsoft.IdentityModel.JsonWebTokens
-- Schema documentation is generated, and its rationale lives in the schema
+- LockoutServiceTests
 - Microsoft.Extensions.Caching.Abstractions
 - TestableIO.System.IO.Abstractions
 - MediaAsset Entity
@@ -198,9 +198,9 @@
 - xunit.v3.mtp-v1
 - Blurhash.ImageSharp
 - System.IO.Abstractions
-- UserStorageConfig
+- .AddAsync
 - Microsoft.NET.Test.Sdk
-- .Track
+- .DeleteAsync
 - xunit.v3.mtp-v1
 - Issue tracker: GitHub
 - coverlet.collector
@@ -249,8 +249,8 @@
 - Anichron.API.Tests.Unit
 - TestFixture
 - Mono.TextTemplating
-- IUnitOfWork
-- Microsoft.EntityFrameworkCore.Design
+- ReadOnlyRandomAccess
+- Library
 - xunit.v3.common
 - ReadOnlyDirectory
 - Architecture
@@ -291,7 +291,7 @@
 - Npgsql
 - Roslynator.Analyzers
 - SonarAnalyzer.CSharp
-- SonarAnalyzer.CSharp
+- JwtFactoryTests
 - FluentAssertions
 - Microsoft.VisualStudio.Threading.Analyzers
 - Roslynator.Analyzers
@@ -299,7 +299,7 @@
 - ReadOnlyFileSystemTests
 - Microsoft.Extensions.Hosting
 - Microsoft.VisualStudio.Threading.Analyzers
-- User
+- EfUserStorageConfigRepository
 - SonarAnalyzer.CSharp
 - Microsoft.VisualStudio.Threading.Analyzers
 - FluentAssertions
@@ -307,15 +307,15 @@
 - IngestionPipelineRunner
 - Encoding
 - PersistenceMiddleware
-- Microsoft.EntityFrameworkCore.Analyzers
-- TestFixture
+- Schema documentation is generated, and its rationale lives in the schema
+- WorkerInitializer
 - Castle.Core
 - TestFixture
 - Self-host mutation reports; do not use the Stryker Dashboard
 - Microsoft.VisualStudio.Threading.Analyzers
 - ForwardedHeadersRateLimitTests
 - Microsoft.Bcl.Cryptography
-- Microsoft.Extensions.AmbientMetadata.Application
+- UserStorageConfig
 - Microsoft.Extensions.Logging
 - ci-gate.test.sh
 - Microsoft.IdentityModel.Abstractions
@@ -324,7 +324,7 @@
 - .Read
 - Anichron.Core.Tests.Unit
 - System.Composition.Runtime
-- EfUserStorageConfigRepository
+- TestFixture
 - Konscious.Security.Cryptography.Blake2
 - .BuildWithMiddlewares
 - Microsoft.Bcl.AsyncInterfaces
@@ -335,25 +335,25 @@
 - Microsoft.Win32.Registry
 - mutation-changed.test.sh
 - Microsoft.Extensions.Diagnostics.ExceptionSummarization
-- TestFixture
-- LockoutServiceTests
+- User
+- FluentAssertions
 - .MapRoutes
 - assemble-pages.test.sh
 - Microsoft.VisualStudio.SolutionPersistence
-- Microsoft.Extensions.Compliance.Abstractions
+- CapturingLogger
 - Log
 - Blurhash.ImageSharp
 - Anichron.Worker.Ingestion.Pipeline
 - Microsoft.Extensions.Logging
 - Microsoft.EntityFrameworkCore
 - ExifExtractionMiddlewareTests
-- Castle.Core
+- .ReadAsync_WhenTheBlurhashFileIsMissing_ReturnsNullAndWarns
 - Microsoft.CodeAnalysis.Analyzers
 - Microsoft.Extensions.ObjectPool
 - Microsoft.Extensions.Configuration.Abstractions
 - Microsoft.Extensions.TimeProvider.Testing
 - ImageSharpProcessorTests
-- IVideoProxyGenerator
+- .ToDto
 - LoginResponseFloorTests
 - Humanizer.Core
 - Microsoft.CodeAnalysis.Analyzers
@@ -377,17 +377,17 @@
 - .IsInProgress
 - Microsoft.CodeCoverage
 - ImageSharpProcessor
-- .DeleteAsync
+- IAuthResponseMapper
 - Microsoft.Extensions.FileSystemGlobbing
 - Microsoft.Extensions.TimeProvider.Testing
 - System.Diagnostics.EventLog
 - Testably.Abstractions.FileSystem.Interface
 - assemble-pages.sh
 - Image
-- Microsoft.EntityFrameworkCore.Design
-- Microsoft.Extensions.Configuration.Ini
-- MediaType
-- Microsoft.Extensions.DependencyInjection
+- LoginResponseFloor
+- Microsoft.Extensions.Configuration.Abstractions
+- .Detect
+- TestFixture
 - coverlet.collector
 - SonarAnalyzer.CSharp
 - RecordingGenerator
@@ -396,7 +396,7 @@
 - Microsoft.Extensions.Primitives
 - Newtonsoft.Json
 - Microsoft.Testing.Platform
-- Roslynator.Analyzers
+- Worker
 - System.Composition.Runtime
 - Microsoft.TestPlatform.ObjectModel
 - Newtonsoft.Json
@@ -404,72 +404,98 @@
 - Microsoft.Extensions.Configuration.Abstractions
 - Log
 - Microsoft.Extensions.DependencyInjection
-- xunit.runner.visualstudio
-- Microsoft.Extensions.DependencyInjection.AutoActivation
-- System.Composition.AttributedModel
+- BootstrapResetService
+- .AddAuthServices_ValidatesEveryPartOfTheTokenWithNoClockSkew
+- .AddAuthServices_RegistersTheImplementationWithItsLifetime
 - Corner
-- .Asset_CanBeSetAndRead
+- AuthCookieSettings
+- ResponseContractTests
 - .AccountTemporarilyLocked
-- xunit.runner.visualstudio
-- Blurhash.Core
+- Microsoft.Extensions.FileProviders.Abstractions
+- SignallingTimeProvider
 - Microsoft.Extensions.Primitives
-- Humanizer.Core
+- Microsoft.Extensions.Logging.Abstractions
 - Microsoft.Testing.Platform
+- Microsoft.EntityFrameworkCore.Design
+- Microsoft.Extensions.Configuration.Ini
+- .EnsureUpToDate
+- Microsoft.Extensions.DependencyInjection
+- Anichron.Infrastructure.Data
+- triage-labels.md
+- pre-commit
+- pre-push
+- Microsoft.CodeAnalysis.Analyzers
+- XmpCore
+- Microsoft.Extensions.DependencyInjection.AutoActivation
+- Polly.Core
+- Roslynator.Analyzers
+- .CreateNpgsqlModelOnlyDb
+- Microsoft.Extensions.Options
+- Roslynator.Analyzers
+- Konscious.Security.Cryptography.Blake2
+- Microsoft.ApplicationInsights
+- Microsoft.AspNetCore.TestHost
+- Microsoft.EntityFrameworkCore.Abstractions
+- ci-gate.sh
+- Microsoft.ApplicationInsights
+- Microsoft.EntityFrameworkCore.Abstractions
+- Microsoft.EntityFrameworkCore.Analyzers
+- Microsoft.Extensions.Logging.EventSource
+- Microsoft.TestPlatform.ObjectModel
+- Microsoft.Win32.Registry
+- mutation-changed.sh
+- Newtonsoft.Json
+- LoggingMiddleware
+- xunit.v3.assert
+- BootstrapSeeder
+- Microsoft.EntityFrameworkCore.Analyzers
+- Microsoft.Extensions.Caching.Memory
+- Microsoft.Extensions.Configuration.Binder
+- Mutation scope: exclude generated, append-only code; include everything we author
+- .New
+- Microsoft.Extensions.Configuration.CommandLine
+- Microsoft.Extensions.Configuration.EnvironmentVariables
+- Microsoft.Extensions.Configuration.FileExtensions
+- Microsoft.Extensions.Configuration.Json
+- Microsoft.Extensions.Configuration.UserSecrets
+- .EnsureUpToDate_ConcurrentFileCreationRace_NoExceptionThrown
+- Microsoft.Extensions.DependencyInjection.Abstractions
+- Log
+- Microsoft.Extensions.Diagnostics.Abstractions
+- Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions
+- Microsoft.Extensions.FileProviders.Physical
+- Microsoft.Extensions.Hosting.Abstractions
+- Microsoft.Extensions.Logging.Configuration
+- Microsoft.Extensions.Logging.EventLog
+- Microsoft.Extensions.Logging.EventSource
+- Microsoft.Extensions.Options.ConfigurationExtensions
+- Microsoft.Extensions.Options
+- Microsoft.Testing.Platform
+- Blurhash.Core
+- Humanizer.Core
 - Microsoft.Build.Framework
 - Microsoft.Extensions.Configuration.Binder
 - Microsoft.Extensions.Configuration.CommandLine
 - Microsoft.Extensions.Configuration.FileExtensions
-- WorkerInitializerTests.cs
-- triage-labels.md
-- pre-commit
-- pre-push
 - Microsoft.Extensions.Configuration.Json
-- XmpCore
 - Microsoft.Extensions.Configuration.UserSecrets
 - Microsoft.Extensions.DependencyModel
 - Microsoft.Extensions.Diagnostics
 - Microsoft.Extensions.Logging.Configuration
 - Microsoft.Extensions.Primitives
 - System.Diagnostics.EventLog
-- Microsoft.Extensions.Primitives
-- Microsoft.IdentityModel.Abstractions
-- Microsoft.OpenApi
-- Blurhash.Core
-- ci-gate.sh
-- Microsoft.Bcl.AsyncInterfaces
-- Microsoft.Extensions.Diagnostics
-- Microsoft.Extensions.Hosting.Abstractions
-- System.Diagnostics.EventLog
-- Testably.Abstractions.FileSystem.Interface
-- xunit.analyzers
-- mutation-changed.sh
-- BootstrapResetService
-- Log
-- BootstrapSeeder
-- LockoutService
-- Mutation scope: exclude generated, append-only code; include everything we author
-- .New
-- CrawlExclusions
-- LivePhotoLinker
-- .EnsureUpToDate_ConcurrentFileCreationRace_NoExceptionThrown
-- Anichron.Worker.Tests.Unit.Ingestion
-- Log
-- .CreateNpgsqlModelOnlyDb
-- WorkerSettingsValidatorTests.cs
-- WorkerDefaults.cs
-- ApiIniDefaultsTests
 
 ## God Nodes (most connected - your core abstractions)
-1. `UserStorageConfig` - 96 edges
-2. `TestFixture` - 88 edges
-3. `IngestionContext` - 85 edges
-4. `Anichron.Core.Domain` - 81 edges
+1. `UserStorageConfig` - 99 edges
+2. `Anichron.Core.Domain` - 89 edges
+3. `TestFixture` - 88 edges
+4. `IngestionContext` - 85 edges
 5. `net10.0` - 77 edges
 6. `net10.0` - 76 edges
-7. `net10.0` - 68 edges
-8. `User` - 66 edges
-9. `AuthServiceTests` - 65 edges
-10. `IAuthResponseMapper` - 65 edges
+7. `MediaAsset` - 70 edges
+8. `User` - 68 edges
+9. `net10.0` - 68 edges
+10. `AuthServiceTests` - 65 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Calls (`ignore-methods`)` --references--> `FileIngestionPipeline`  [INFERRED]
@@ -491,23 +517,23 @@
 - **CI Pipeline: Build/Test then Pages and Docker** — github_workflows_ci_build_and_test, github_workflows_ci_deploy_pages, github_workflows_ci_docker_job [EXTRACTED 1.00]
 - **MediaAsset-Centric Domain Graph** — claude_md_mediaasset, claude_md_metadata, claude_md_proxyfile, claude_md_burst, claude_md_assetinteraction [EXTRACTED 1.00]
 
-## Communities (442 total, 18 thin omitted)
+## Communities (468 total, 14 thin omitted)
 
 ### Community 0 - "TestFixture"
 Cohesion: 0.05
-Nodes (45): GeneratedRegex, Regex, AuthError, AccountDisabled, AccountTemporarilyLocked, CannotModifySelf, EmailTaken, InvalidCredentials (+37 more)
+Nodes (44): GeneratedRegex, Regex, AuthError, AccountDisabled, AccountTemporarilyLocked, CannotModifySelf, EmailTaken, InvalidCredentials (+36 more)
 
 ### Community 1 - "AuthResponseMapperTests"
 Cohesion: 0.12
-Nodes (20): Created, JsonOptions, AdminStorageConfigResponse, AdminUserResponse, AuthResponseMapperTests, TestFixture, DefaultHttpContext, Fact (+12 more)
+Nodes (21): Created, JsonOptions, AdminStorageConfigResponse, AdminUserResponse, AuthTokens, AuthResponseMapperTests, TestFixture, DefaultHttpContext (+13 more)
 
 ### Community 2 - "CorsConfigurationTests"
 Cohesion: 0.25
 Nodes (8): CorsPolicy, CorsConfigurationTests, CorsOptions, Dictionary, Fact, IConfiguration, IOptions, SameSiteMode
 
 ### Community 3 - "IngestionPipelineRunnerTests"
-Cohesion: 0.17
-Nodes (21): IngestionPipelineRunnerTests, ProxyDirectoryCreatingMiddleware, Order, ProxyWritingMiddleware, Order, TestFixture, DirectoryStrategy, FileSystem (+13 more)
+Cohesion: 0.19
+Nodes (18): IngestionPipelineRunnerTests, ProxyWritingMiddleware, Order, TestFixture, DirectoryStrategy, FileSystem, ThrowingMiddleware, Order (+10 more)
 
 ### Community 4 - "Anichron"
 Cohesion: 0.17
@@ -519,11 +545,11 @@ Nodes (5): EfUserRepository, AnichronDbContext, UserRepositoryTests, Fact, Task
 
 ### Community 6 - "ExifExtractionMiddleware"
 Cohesion: 0.09
-Nodes (22): Directory, Latitude, LocalDateTimePattern, Longitude, ExifData, Empty, LocalDateTime, ExifExtractionMiddleware (+14 more)
+Nodes (23): Directory, Individual sites (`// Stryker disable once <Mutator>`), Latitude, LocalDateTimePattern, Longitude, ExifData, Empty, LocalDateTime (+15 more)
 
 ### Community 7 - "TestFixture"
-Cohesion: 0.19
-Nodes (13): TestFixture, Tokens, UnitOfWork, TokenServiceTests, Action, CancellationToken, Fact, IClock (+5 more)
+Cohesion: 0.08
+Nodes (35): TestFixture, Tokens, UnitOfWork, TokenServiceTests, Action, CancellationToken, Fact, IClock (+27 more)
 
 ### Community 8 - "Anichron.Worker.Tests.Unit/packages.lock.json"
 Cohesion: 0.03
@@ -542,27 +568,27 @@ Cohesion: 0.17
 Nodes (16): PersistenceMiddlewareTests, TestFixture, Clock, FileSystem, GuidFactory, Now, Repository, UnitOfWork (+8 more)
 
 ### Community 12 - "AuthResult"
-Cohesion: 0.09
-Nodes (19): AuthResponseMapper, HttpContext, IClock, IResult, List, AuthResult, Error, IsSuccess (+11 more)
+Cohesion: 0.13
+Nodes (10): AuthResponseMapper, HttpContext, IClock, IResult, List, AuthResult, Error, IsSuccess (+2 more)
 
 ### Community 13 - "net10.0"
 Cohesion: 0.04
 Nodes (47): dependencies, net10.0, contentHash, resolved, type, contentHash, resolved, type (+39 more)
 
-### Community 14 - "RefreshToken"
-Cohesion: 0.15
-Nodes (15): IRefreshTokenRepository, CancellationToken, Guid, Instant, Task, RefreshToken, CreatedAt, ExpiresAt (+7 more)
+### Community 14 - "IUnitOfWork"
+Cohesion: 0.06
+Nodes (34): PostgresException, AdminPasswordResetResponse, IPasswordHasher, AdminResetService, AdminUserPasswordReset, IAdminResetService, CancellationToken, Guid (+26 more)
 
 ### Community 15 - "TestFixture"
-Cohesion: 0.16
-Nodes (15): ImageProxyMiddlewareTests, TestFixture, Clock, DirectoryStrategy, FileSystem, GuidFactory, ImageProcessor, Now (+7 more)
+Cohesion: 0.14
+Nodes (17): ImageProxyMiddlewareTests, TestFixture, Clock, DirectoryStrategy, FileSystem, GuidFactory, ImageProcessor, Now (+9 more)
 
 ### Community 16 - "DatabaseMigratorService"
 Cohesion: 0.05
 Nodes (46): Attempt, DatabaseStartupRetry, Action, CancellationToken, Exception, Func, Task, TimeProvider (+38 more)
 
 ### Community 17 - "TestFixture"
-Cohesion: 0.22
+Cohesion: 0.20
 Nodes (15): AdminUserServiceTests, TestFixture, RevokedInsideTransaction, SavedInsideTransaction, TokenService, UnitOfWork, Users, CancellationToken (+7 more)
 
 ### Community 18 - "Anichron.API/packages.lock.json"
@@ -574,12 +600,12 @@ Cohesion: 0.25
 Nodes (10): HealthCheckResponseWriter, HealthReport, HttpContext, Task, HealthCheckResponseWriterTests, DefaultHttpContext, Fact, HealthReport (+2 more)
 
 ### Community 20 - "AppIniInitializer"
-Cohesion: 0.23
+Cohesion: 0.20
 Nodes (6): AppIniInitializer, IFileSystem, AppIniInitializerTests, Action, Fact, IReadOnlyList
 
-### Community 21 - "AuthTokens"
-Cohesion: 0.10
-Nodes (28): PostgresException, AuthEndpoints, LoginRequest, RefreshRequest, RegisterRequest, CancellationToken, HttpContext, IEndpointRouteBuilder (+20 more)
+### Community 21 - ".Ok"
+Cohesion: 0.16
+Nodes (22): AuthEndpoints, LoginRequest, RefreshRequest, RegisterRequest, CancellationToken, HttpContext, IEndpointRouteBuilder, IOptions (+14 more)
 
 ### Community 22 - "PasswordPolicy"
 Cohesion: 0.13
@@ -590,68 +616,68 @@ Cohesion: 0.12
 Nodes (16): WorkerSettings, BlurhashSampleLongEdge, CrawlIntervalHours, ExcludedDirectories, FfmpegPath, MaxConcurrentFiles, PreviewJpegQuality, PreviewLongEdge (+8 more)
 
 ### Community 24 - "MustChangePasswordMiddleware"
-Cohesion: 0.19
+Cohesion: 0.20
 Nodes (15): Claim, HttpRequest, Method, Path, PathString, RequestDelegate, MustChangePasswordMiddleware, HttpContext (+7 more)
 
 ### Community 25 - "TestFixture"
-Cohesion: 0.19
-Nodes (14): DirectoryNotFoundException, SingleFileItem, PrimaryMediaType, SecondaryFile, FileIngestionPipelineTests, TestFixture, ExcludedDirectories, FileSystem (+6 more)
+Cohesion: 0.22
+Nodes (11): DirectoryNotFoundException, FileIngestionPipelineTests, TestFixture, ExcludedDirectories, FileSystem, ProcessedContexts, UnreadableDirectory, Fact (+3 more)
 
 ### Community 26 - "TestFixture"
 Cohesion: 0.20
 Nodes (13): LivePhotoPairingMiddlewareTests, TestFixture, Clock, GuidFactory, Repository, UnitOfWork, CancellationToken, Fact (+5 more)
 
-### Community 27 - "FileIngestionPipeline"
-Cohesion: 0.22
-Nodes (13): ChannelReader, ChannelWriter, IList, FileIngestionPipeline, IFileIngestionPipeline, CancellationToken, IFileSystem, IOptions (+5 more)
+### Community 27 - "SingleFileItem"
+Cohesion: 0.09
+Nodes (30): ChannelReader, ChannelWriter, IList, IReadOnlySet, MediaType, FileIngestionPipeline, IFileIngestionPipeline, CancellationToken (+22 more)
 
 ### Community 28 - "Anichron.API.Tests.Unit/packages.lock.json"
 Cohesion: 0.04
 Nodes (51): Microsoft.AspNetCore.TestHost, Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions, Microsoft.Extensions.Http, Microsoft.Extensions.ObjectPool, Castle.Core, Microsoft.ApplicationInsights, Microsoft.Bcl.Cryptography, Microsoft.CodeCoverage (+43 more)
 
-### Community 29 - "ProxyStagingWriter"
-Cohesion: 0.07
-Nodes (23): Log, VideoProxyMiddleware, Order, CancellationToken, IEnumerable, ILogger, IngestionDelegate, LoggerMessage (+15 more)
+### Community 29 - "Anichron.API.Endpoints"
+Cohesion: 0.19
+Nodes (8): Anichron.API.Endpoints, Anichron.API.Tests.Unit.Endpoints, microsoft_aspnetcore_diagnostics_healthchecks, microsoft_aspnetcore_http, microsoft_aspnetcore_http_json, ApplicationExtensions, system_reflection, system_security_claims
 
 ### Community 30 - "dependencies"
 Cohesion: 0.09
 Nodes (37): Microsoft.Extensions.Configuration, Microsoft.Extensions.Configuration.Abstractions, Microsoft.Extensions.Configuration.Binder, Microsoft.Extensions.Configuration.CommandLine, Microsoft.Extensions.Configuration.EnvironmentVariables, Microsoft.Extensions.Configuration.FileExtensions, Microsoft.Extensions.Configuration.Json, Microsoft.Extensions.Configuration.UserSecrets (+29 more)
 
-### Community 31 - "EfRefreshTokenRepository"
-Cohesion: 0.31
-Nodes (7): EfRefreshTokenRepository, AnichronDbContext, RefreshTokenRepositoryTests, Fact, Guid, Instant, Task
+### Community 31 - "TestFixture"
+Cohesion: 0.20
+Nodes (15): TestFixture, StorageConfigRepository, UnitOfWork, UserRepository, WorkerState, WorkerInitializerTests, CancellationToken, Fact (+7 more)
 
 ### Community 32 - "ReadOnlyFile"
-Cohesion: 0.08
+Cohesion: 0.09
 Nodes (10): FileAttributes, FileBase, IFileSystemInfo, ReadOnlySpan, ReadOnlyFile, NotSupportedException, SafeFileHandle, StreamReader (+2 more)
 
-### Community 33 - "Anichron.API.Services"
+### Community 33 - "Anichron.API.Infrastructure"
 Cohesion: 0.06
-Nodes (41): Anichron.API.Tests.Unit.Security, Anichron.API.Tests.Unit.Infrastructure, Anichron.Infrastructure.FileSystem, Anichron.API.Endpoints, Anichron.API.Infrastructure, Anichron.Infrastructure.Tests.Unit.FileSystem, Anichron.API.Settings, Anichron.API.Tests.Unit.Endpoints (+33 more)
+Nodes (24): Anichron.API.Tests.Unit.Infrastructure, Anichron.Infrastructure.Tests.Unit.Infrastructure, Anichron.API.Infrastructure, Anichron.Infrastructure.Configuration, Anichron.Infrastructure.Tests.Unit.Configuration, Anichron.Worker.Infrastructure, microsoft_aspnetcore_authorization, microsoft_aspnetcore_builder (+16 more)
 
 ### Community 34 - "FfmpegVideoProcessorTests"
 Cohesion: 0.09
 Nodes (30): Exception, SemaphoreSlim, IProcessLauncher, ProcessResult, CancellationToken, IReadOnlyList, Task, SystemProcessLauncher (+22 more)
 
-### Community 35 - "IAuthResponseMapper"
-Cohesion: 0.10
-Nodes (33): AdminCreatedUserResponse, AdminEndpoints, CreateAdminUserRequest, CreateStorageConfigRequest, PatchAdminUserRequest, CancellationToken, ClaimsPrincipal, Guid (+25 more)
+### Community 35 - "LockoutService"
+Cohesion: 0.22
+Nodes (7): ILockoutService, LockoutService, CancellationToken, Instant, Task, InlineData, Theory
 
 ### Community 36 - "Anichron.Core.Domain"
-Cohesion: 0.09
-Nodes (19): Anichron.API.Tests.Unit.Services, Anichron.Core.Tests.Unit.Data, Anichron.API.Security, Anichron.Core.Tests.Unit.Data.Repository, Anichron.Core.Data, Anichron.Core.Domain, Anichron.Core.Data.Repository, microsoft_entityframeworkcore (+11 more)
+Cohesion: 0.05
+Nodes (41): anichron_infrastructure_filesystem_readonlyfilesystem, Anichron.API.Tests.Unit.Security, Anichron.API.Tests.Unit.Services, Anichron.Core.Tests.Unit.Data, Anichron.Infrastructure.FileSystem, Anichron.API.Security, Anichron.Infrastructure.Tests.Unit.FileSystem, Anichron.Core.Tests.Unit.Data.Repository (+33 more)
 
 ### Community 37 - "IngestionContext"
 Cohesion: 0.05
-Nodes (37): Lock, IIngestionMiddleware, Order, IngestionOrder, CancellationToken, IngestionDelegate, Task, IngestionContext (+29 more)
+Nodes (40): Lock, IIngestionMiddleware, Order, IngestionOrder, CancellationToken, IngestionDelegate, Task, IngestionContext (+32 more)
 
 ### Community 38 - "dependencies"
 Cohesion: 0.17
 Nodes (12): Microsoft.Extensions.Compliance.Abstractions, Microsoft.Extensions.ObjectPool, contentHash, dependencies, resolved, type, contentHash, dependencies (+4 more)
 
-### Community 39 - "LivePhotoPairItem"
-Cohesion: 0.26
-Nodes (6): LivePhotoPairItem, PrimaryMediaType, SecondaryFile, LivePhotoLinkerTests, Fact, MockFileSystem
+### Community 39 - ".MakeLinker"
+Cohesion: 0.32
+Nodes (3): LivePhotoLinkerTests, Fact, MockFileSystem
 
 ### Community 40 - "Anichron.Infrastructure.Tests.Unit/packages.lock.json"
 Cohesion: 0.04
@@ -666,16 +692,16 @@ Cohesion: 0.25
 Nodes (9): IConfigurationSection, DatabaseConfiguration, IConfiguration, IFileSystem, DatabaseConfigurationTests, Dictionary, Fact, IConfiguration (+1 more)
 
 ### Community 43 - "net10.0"
-Cohesion: 0.04
-Nodes (52): dependencies, net10.0, contentHash, requested, resolved, type, contentHash, resolved (+44 more)
+Cohesion: 0.05
+Nodes (40): dependencies, net10.0, contentHash, resolved, type, contentHash, resolved, type (+32 more)
 
 ### Community 44 - "Anichron.Core.Tests.Unit/packages.lock.json"
 Cohesion: 0.05
 Nodes (43): Castle.Core, Microsoft.ApplicationInsights, Microsoft.Bcl.AsyncInterfaces, Microsoft.CodeCoverage, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFrameworkCore.Analyzers, Microsoft.EntityFrameworkCore.Relational (+35 more)
 
 ### Community 45 - "ProxyFile"
-Cohesion: 0.11
-Nodes (17): Calls (`ignore-methods`), Individual sites (`// Stryker disable once <Mutator>`), Members that need real PostgreSQL (`// Stryker disable all` before each member), What is excluded, CancellationToken, Func, Task, ProxyFile (+9 more)
+Cohesion: 0.17
+Nodes (10): ProxyFile, Asset, AssetId, CreatedAt, Id, ProxyPath, ProxyType, SizeBytes (+2 more)
 
 ### Community 46 - "dependencies"
 Cohesion: 0.06
@@ -698,8 +724,8 @@ Cohesion: 0.25
 Nodes (5): IAsyncLifetime, SoftDeleteQueryFilterTests, Fact, Task, ValueTask
 
 ### Community 51 - "TestFixture"
-Cohesion: 0.16
-Nodes (16): TestFixture, Clock, DirectoryStrategy, FileSystem, Generator, GuidFactory, Now, VideoProxyMiddlewareTests (+8 more)
+Cohesion: 0.06
+Nodes (44): Log, VideoProxyMiddleware, Order, CancellationToken, IEnumerable, ILogger, IngestionDelegate, LoggerMessage (+36 more)
 
 ### Community 52 - "mutation-ratchet.test.sh"
 Cohesion: 0.81
@@ -711,19 +737,19 @@ Nodes (14): Konscious.Security.Cryptography.Argon2, Microsoft.AspNetCore.Authent
 
 ### Community 54 - "dependencies"
 Cohesion: 0.06
-Nodes (39): Humanizer.Core, Microsoft.Build.Framework, Microsoft.CodeAnalysis.Analyzers, Microsoft.CodeAnalysis.Common, Microsoft.CodeAnalysis.CSharp, Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.CodeAnalysis.Workspaces.Common, Microsoft.CodeAnalysis.Workspaces.MSBuild (+31 more)
+Nodes (44): Humanizer.Core, Microsoft.Build.Framework, Microsoft.CodeAnalysis.Analyzers, Microsoft.CodeAnalysis.Common, Microsoft.CodeAnalysis.CSharp, Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.CodeAnalysis.Workspaces.Common, Microsoft.CodeAnalysis.Workspaces.MSBuild (+36 more)
 
 ### Community 55 - "net10.0"
-Cohesion: 0.04
-Nodes (54): dependencies, net10.0, contentHash, resolved, type, contentHash, resolved, type (+46 more)
+Cohesion: 0.05
+Nodes (42): contentHash, resolved, type, dependencies, net10.0, contentHash, resolved, type (+34 more)
 
 ### Community 56 - "CorsOriginsTests"
 Cohesion: 0.10
 Nodes (15): CorsOrigins, CorsOptions, IConfiguration, SameSiteMode, CorsOriginsTests, Dictionary, Fact, IConfiguration (+7 more)
 
 ### Community 57 - "ApiServiceRegistrationTests"
-Cohesion: 0.06
-Nodes (43): AuthenticationOptions, AuthorizationOptions, ClaimsAuthorizationRequirement, HttpStandardResilienceOptions, IHttpClientFactory, IOptionsMonitor, JwtBearerOptions, JwtSecurityToken (+35 more)
+Cohesion: 0.16
+Nodes (14): AuthenticationOptions, AuthorizationOptions, ClaimsAuthorizationRequirement, IHttpClientFactory, ApiServiceRegistrationTests, TypedRegistrations, Dictionary, Fact (+6 more)
 
 ### Community 58 - "dependencies"
 Cohesion: 0.11
@@ -739,11 +765,11 @@ Nodes (5): NodaTime, contentHash, requested, resolved, type
 
 ### Community 61 - "Microsoft.Extensions.DependencyInjection.Abstractions"
 Cohesion: 0.05
-Nodes (56): dependencies, Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.Configuration.Binder, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Diagnostics.Abstractions, Microsoft.Extensions.Logging, Microsoft.Extensions.Logging.Abstractions (+48 more)
+Nodes (48): contentHash, dependencies, resolved, type, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Logging, Microsoft.Extensions.Logging.Abstractions (+40 more)
 
 ### Community 62 - "Microsoft.Extensions.DependencyInjection.Abstractions"
-Cohesion: 0.05
-Nodes (52): dependencies, Microsoft.Extensions.Configuration.Binder, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions, Microsoft.Extensions.Logging, Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.Options (+44 more)
+Cohesion: 0.12
+Nodes (36): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.Configuration, Microsoft.Extensions.Configuration.Abstractions, Microsoft.Extensions.Configuration.Binder, Microsoft.Extensions.Configuration.FileExtensions, Microsoft.Extensions.Configuration.Json, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.DependencyInjection.Abstractions (+28 more)
 
 ### Community 63 - "Anichron.Worker"
 Cohesion: 0.15
@@ -753,13 +779,13 @@ Nodes (13): Blurhash.ImageSharp, MetadataExtractor, Microsoft.Extensions.Hosting
 Cohesion: 0.11
 Nodes (13): WorkerServiceCollectionExtensionsTests, DataRegistrations, IngestionRegistrations, Fact, IConfiguration, IOptions, MemberData, ServiceCollection (+5 more)
 
-### Community 65 - "CapturingLogger"
-Cohesion: 0.12
-Nodes (21): ILogger, LoggingMiddleware, Order, CancellationToken, IngestionDelegate, Task, CapturingLogger, Entries (+13 more)
+### Community 65 - ".InvokeAsync"
+Cohesion: 0.30
+Nodes (8): ILogger, CancellationToken, IngestionDelegate, Task, LoggingMiddlewareTests, Fact, InvalidOperationException, Task
 
-### Community 66 - "Microsoft.Extensions.Primitives"
-Cohesion: 0.07
-Nodes (27): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.Primitives, contentHash, dependencies, resolved, type, contentHash, dependencies (+19 more)
+### Community 66 - "Microsoft.Extensions.Caching.Abstractions"
+Cohesion: 0.40
+Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.Caching.Abstractions
 
 ### Community 67 - "publish-badges.test.sh"
 Cohesion: 0.87
@@ -777,13 +803,13 @@ Nodes (23): Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFramewor
 Cohesion: 0.44
 Nodes (7): IdempotencyCheckMiddlewareTests, TestFixture, Repository, CancellationToken, Fact, Guid, Task
 
-### Community 71 - ".Create"
-Cohesion: 0.09
-Nodes (17): IdempotencyCheckMiddleware, Order, Log, CancellationToken, ILogger, IngestionDelegate, LoggerMessage, Task (+9 more)
+### Community 71 - "IdempotencyCheckMiddleware"
+Cohesion: 0.17
+Nodes (9): IdempotencyCheckMiddleware, Order, Log, CancellationToken, ILogger, IngestionDelegate, LoggerMessage, Task (+1 more)
 
 ### Community 72 - "TestFixture"
-Cohesion: 0.19
-Nodes (15): ProxyStagingWriterTests, TestFixture, Clock, FileSystem, GuidFactory, Now, CancellationToken, Fact (+7 more)
+Cohesion: 0.08
+Nodes (31): ProxyFileBuilder, IClock, ProxyType, Log, ProxyStagingWriter, CancellationToken, Exception, Func (+23 more)
 
 ### Community 73 - "TestFixture"
 Cohesion: 0.06
@@ -810,8 +836,8 @@ Cohesion: 0.13
 Nodes (16): IInviteRepository, CancellationToken, Instant, Task, Invite, CreatedAt, CreatedBy, CreatedByUserId (+8 more)
 
 ### Community 79 - "MediaAsset"
-Cohesion: 0.08
-Nodes (24): MediaAsset, Burst, BurstId, ContentHash, DateCaptured, Day, FileName, FilePath (+16 more)
+Cohesion: 0.05
+Nodes (40): IQueryable, EfMediaAssetRepository, IMediaAssetRepository, AnichronDbContext, CancellationToken, Guid, Task, MediaAssetVisibility (+32 more)
 
 ### Community 80 - "Anichron.Core"
 Cohesion: 0.25
@@ -821,9 +847,9 @@ Nodes (8): Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime, Anichron.Core, Micros
 Cohesion: 0.06
 Nodes (33): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Primitives, contentHash, dependencies, resolved, type, contentHash (+25 more)
 
-### Community 82 - "Microsoft.EntityFrameworkCore.Relational"
-Cohesion: 0.09
-Nodes (25): dependencies, type, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Relational, Npgsql, System.IO.Abstractions, contentHash, dependencies (+17 more)
+### Community 82 - "dependencies"
+Cohesion: 0.06
+Nodes (35): dependencies, type, dependencies, type, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Relational, NodaTime, Npgsql (+27 more)
 
 ### Community 83 - "dependencies"
 Cohesion: 0.08
@@ -869,9 +895,9 @@ Nodes (6): Anichron.Infrastructure.Tests.Unit, Microsoft.Extensions.TimeProvider
 Cohesion: 0.06
 Nodes (39): Microsoft.Extensions.Configuration, Microsoft.Extensions.Configuration.Abstractions, Microsoft.Extensions.Configuration.FileExtensions, Microsoft.Extensions.FileProviders.Abstractions, Microsoft.Extensions.FileProviders.Physical, Microsoft.Extensions.FileSystemGlobbing, Microsoft.Extensions.Primitives, contentHash (+31 more)
 
-### Community 94 - "Microsoft.Extensions.Configuration.Abstractions"
-Cohesion: 0.04
-Nodes (59): Microsoft.Extensions.Configuration, Microsoft.Extensions.Configuration.Abstractions, Microsoft.Extensions.Configuration.FileExtensions, Microsoft.Extensions.Configuration.Json, Microsoft.Extensions.Diagnostics.Abstractions, Microsoft.Extensions.FileProviders.Abstractions, Microsoft.Extensions.FileProviders.Physical, Microsoft.Extensions.FileSystemGlobbing (+51 more)
+### Community 94 - "Microsoft.Extensions.AmbientMetadata.Application"
+Cohesion: 0.11
+Nodes (18): Microsoft.Extensions.Diagnostics.Abstractions, Microsoft.Extensions.Hosting.Abstractions, Microsoft.Extensions.Options.ConfigurationExtensions, contentHash, dependencies, resolved, type, contentHash (+10 more)
 
 ### Community 95 - "OriginalsStorageHealthCheck"
 Cohesion: 0.08
@@ -882,8 +908,8 @@ Cohesion: 0.07
 Nodes (27): Microsoft.Extensions.FileSystemGlobbing, Microsoft.Extensions.Primitives, contentHash, dependencies, resolved, type, contentHash, dependencies (+19 more)
 
 ### Community 97 - "ApiPaths"
-Cohesion: 0.33
-Nodes (4): ApiPaths, Auth, Users, Guid
+Cohesion: 0.28
+Nodes (5): ApiPaths, Assets, Auth, Users, Guid
 
 ### Community 98 - "dependencies"
 Cohesion: 0.09
@@ -925,13 +951,13 @@ Nodes (21): commandName, environmentVariables, launchUrl, publishAllPorts, useSS
 Cohesion: 0.09
 Nodes (21): Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFrameworkCore.Analyzers, Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.Caching.Memory, Microsoft.Extensions.Configuration, Microsoft.Extensions.Configuration.Abstractions, Microsoft.Extensions.Configuration.FileExtensions (+13 more)
 
-### Community 108 - "Anichron.Worker.Ingestion.Proxy"
-Cohesion: 0.18
-Nodes (8): blurhash_imagesharp, Anichron.Worker.Tests.Unit.Ingestion.Proxy, Anichron.Worker.Ingestion.Proxy, sixlabors_imagesharp, sixlabors_imagesharp_formats_jpeg, sixlabors_imagesharp_pixelformats, sixlabors_imagesharp_processing, H264Encoder
+### Community 108 - "microsoft_extensions_options"
+Cohesion: 0.09
+Nodes (22): blurhash_imagesharp, Anichron.Worker.Tests.Unit.Startup, Anichron.Worker.Tests.Unit.Settings, Anichron.Worker.Tests.Unit.Crawling, Anichron.Worker.Startup, Anichron.Worker.Tests.Unit.Maintenance, Anichron.Worker.Maintenance, Anichron.Worker.Settings (+14 more)
 
 ### Community 109 - "ExifDataMappingTests"
-Cohesion: 0.15
-Nodes (6): ExifDataMappingTests, ExifIfd0Directory, ExifSubIfdDirectory, Fact, GpsDirectory, QuickTimeMovieHeaderDirectory
+Cohesion: 0.12
+Nodes (9): ExifDataMappingTests, ExifIfd0Directory, ExifSubIfdDirectory, Fact, GpsDirectory, InlineData, QuickTimeMovieHeaderDirectory, QuickTimeTrackHeaderDirectory (+1 more)
 
 ### Community 110 - "Microsoft.Extensions.Primitives"
 Cohesion: 0.10
@@ -943,7 +969,7 @@ Nodes (7): Argon2PasswordHasher, PasswordHasherTests, Exception, Fact, FormatExc
 
 ### Community 113 - "AnichronDbContext"
 Cohesion: 0.08
-Nodes (26): DbContext, DbContextOptions, DbSet, IDesignTimeDbContextFactory, AnichronDbContext, Bursts, Interactions, Invites (+18 more)
+Nodes (26): DbContext, DbSet, IDesignTimeDbContextFactory, AnichronDbContext, Bursts, Interactions, Invites, MediaAssets (+18 more)
 
 ### Community 114 - "dependencies"
 Cohesion: 0.11
@@ -969,13 +995,13 @@ Nodes (4): Anichron.API.Tests.Unit, PlaceholderTest, Fact, IDisposable
 Cohesion: 0.11
 Nodes (18): Microsoft.IdentityModel.JsonWebTokens, Microsoft.IdentityModel.Tokens, contentHash, dependencies, resolved, type, contentHash, dependencies (+10 more)
 
-### Community 120 - "IMediaAssetRepository"
-Cohesion: 0.08
-Nodes (24): EfMediaAssetRepository, IMediaAssetRepository, AnichronDbContext, CancellationToken, Guid, Task, SecondaryFileDescriptor, LivePhotoPairingMiddleware (+16 more)
+### Community 120 - "LivePhotoPairingMiddleware"
+Cohesion: 0.25
+Nodes (7): LivePhotoPairingMiddleware, Order, Log, Guid, ILogger, LoggerMessage, PairedMovResolver
 
-### Community 121 - "Anichron.Infrastructure.Configuration"
-Cohesion: 0.11
-Nodes (9): Anichron.Infrastructure.Tests.Unit.Infrastructure, Anichron.Infrastructure.Configuration, Anichron.Infrastructure.Tests.Unit.Configuration, Anichron.Worker.Tests.Unit.Infrastructure, Anichron.Worker.Infrastructure, WebApplicationBuilderExtensions, HostApplicationBuilderExtensions, WorkerIniDefaultsTests (+1 more)
+### Community 121 - "WorkerIniDefaultsTests.cs"
+Cohesion: 0.40
+Nodes (3): Anichron.Worker.Tests.Unit.Infrastructure, WorkerIniDefaultsTests, Fact
 
 ### Community 122 - "Microsoft.Testing.Extensions.Telemetry"
 Cohesion: 0.12
@@ -1039,7 +1065,7 @@ Nodes (14): AppDefaults, Argon2, Email, Jwt, Lockout, Login, Password, Pwned (+6
 
 ### Community 138 - "ReadOnlyFileSystem"
 Cohesion: 0.08
-Nodes (30): anichron_infrastructure_filesystem_readonlyfilesystem, FileSystemBase, IDirectoryInfoFactory, IDriveInfoFactory, IFileInfo, IFileInfoFactory, IFileSystemWatcherFactory, IFileVersionInfoFactory (+22 more)
+Nodes (29): FileSystemBase, IDirectoryInfoFactory, IDriveInfoFactory, IFileInfo, IFileInfoFactory, IFileSystemWatcherFactory, IFileVersionInfoFactory, ReadOnlyFileStreamFactory (+21 more)
 
 ### Community 139 - "Npgsql.EntityFrameworkCore.PostgreSQL"
 Cohesion: 0.13
@@ -1053,9 +1079,9 @@ Nodes (13): Metadata, Asset, AssetId, CameraMake, CameraModel, DurationInSeconds
 Cohesion: 0.08
 Nodes (27): dependencies, type, Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Relational, NodaTime, Npgsql, Npgsql.EntityFrameworkCore.PostgreSQL, Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime (+19 more)
 
-### Community 142 - "CrawlExclusionsTests"
-Cohesion: 0.35
-Nodes (4): CrawlExclusionsTests, Fact, InlineData, Theory
+### Community 142 - "CrawlExclusions"
+Cohesion: 0.16
+Nodes (10): Files, CrawlExclusions, HashSet, IOptions, List, CrawlExclusionsTests, Fact, InlineData (+2 more)
 
 ### Community 143 - "derive-db-docs.test.sh"
 Cohesion: 0.73
@@ -1065,9 +1091,9 @@ Nodes (5): assert_contains(), assert_eq(), fail(), pass(), derive-db-docs.test.s
 Cohesion: 0.15
 Nodes (12): AssetInteraction, Asset, AssetId, Id, IsHidden, IsLiked, IsStarred, LastViewed (+4 more)
 
-### Community 145 - "dependencies"
-Cohesion: 0.11
-Nodes (18): dependencies, type, NodaTime, Npgsql.EntityFrameworkCore.PostgreSQL, Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime, Npgsql.NodaTime, anichron.core, Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime (+10 more)
+### Community 145 - "Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime"
+Cohesion: 0.25
+Nodes (8): Npgsql.EntityFrameworkCore.PostgreSQL, Npgsql.NodaTime, Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime, contentHash, dependencies, requested, resolved, type
 
 ### Community 146 - "xunit.v3.extensibility.core"
 Cohesion: 0.17
@@ -1101,9 +1127,9 @@ Nodes (11): Testably.Abstractions.FileSystem.Interface, TestableIO.System.IO.Abs
 Cohesion: 0.18
 Nodes (11): Microsoft.IdentityModel.Tokens, contentHash, dependencies, resolved, type, contentHash, dependencies, resolved (+3 more)
 
-### Community 158 - "Schema documentation is generated, and its rationale lives in the schema"
-Cohesion: 0.17
-Nodes (10): Consequences, Schema documentation is generated, and its rationale lives in the schema, What went wrong, which is the only reason to take this decision, Why not simply generate a nicer document, Why the rationale goes in `COMMENT`, not in Markdown, ProxyType, BlurHash, FullPreview (+2 more)
+### Community 158 - "LockoutServiceTests"
+Cohesion: 0.39
+Nodes (5): LockoutServiceTests, TestFixture, Fact, Instant, Task
 
 ### Community 159 - "Microsoft.Extensions.Caching.Abstractions"
 Cohesion: 0.18
@@ -1197,17 +1223,17 @@ Nodes (8): contentHash, dependencies, requested, resolved, type, Blurhash.Core, 
 Cohesion: 0.25
 Nodes (8): TestableIO.System.IO.Abstractions, TestableIO.System.IO.Abstractions.Wrappers, System.IO.Abstractions, contentHash, dependencies, requested, resolved, type
 
-### Community 182 - "UserStorageConfig"
-Cohesion: 0.16
-Nodes (15): AdminStorageConfigService, CancellationToken, Guid, IGuidFactory, List, Task, UserStorageConfig, Assets (+7 more)
+### Community 182 - ".AddAsync"
+Cohesion: 0.32
+Nodes (6): AdminStorageConfigService, CancellationToken, Guid, IGuidFactory, List, Task
 
 ### Community 183 - "Microsoft.NET.Test.Sdk"
 Cohesion: 0.25
 Nodes (8): Microsoft.CodeCoverage, Microsoft.TestPlatform.TestHost, contentHash, dependencies, requested, resolved, type, Microsoft.NET.Test.Sdk
 
-### Community 184 - ".Track"
-Cohesion: 0.39
-Nodes (3): InlineData, QuickTimeTrackHeaderDirectory, Theory
+### Community 184 - ".DeleteAsync"
+Cohesion: 0.36
+Nodes (6): AdminUserService, CancellationToken, Guid, IClock, List, Task
 
 ### Community 185 - "xunit.v3.mtp-v1"
 Cohesion: 0.25
@@ -1397,20 +1423,20 @@ Nodes (15): TestFixture, Clock, Now, Repository, ScopeFactory, Time, TokenCleanu
 Cohesion: 0.33
 Nodes (6): System.CodeDom, contentHash, dependencies, resolved, type, Mono.TextTemplating
 
-### Community 233 - "IUnitOfWork"
-Cohesion: 0.09
-Nodes (23): AdminPasswordResetResponse, IJwtFactory, AdminResetService, AdminUserPasswordReset, IAdminResetService, CancellationToken, Guid, IClock (+15 more)
+### Community 233 - "ReadOnlyRandomAccess"
+Cohesion: 0.19
+Nodes (7): IRandomAccess, Span, ReadOnlyRandomAccess, FileSystem, IReadOnlyList, Memory, ValueTask
 
-### Community 234 - "Microsoft.EntityFrameworkCore.Design"
-Cohesion: 0.40
-Nodes (5): contentHash, requested, resolved, type, Microsoft.EntityFrameworkCore.Design
+### Community 234 - "Library"
+Cohesion: 0.08
+Nodes (27): Found, Library, Options, EfMediaAssetReadRepository, IMediaAssetReadRepository, AnichronDbContext, CancellationToken, Guid (+19 more)
 
 ### Community 235 - "xunit.v3.common"
 Cohesion: 0.33
 Nodes (6): Microsoft.Bcl.AsyncInterfaces, xunit.v3.common, contentHash, dependencies, resolved, type
 
 ### Community 236 - "ReadOnlyDirectory"
-Cohesion: 0.11
+Cohesion: 0.10
 Nodes (6): DirectoryBase, EnumerationOptions, IDirectoryInfo, SearchOption, ReadOnlyDirectory, DateTime
 
 ### Community 237 - "Architecture"
@@ -1454,24 +1480,24 @@ Cohesion: 0.40
 Nodes (6): EfInviteRepository, AnichronDbContext, InviteRepositoryTests, Fact, Instant, Task
 
 ### Community 248 - "net10.0"
-Cohesion: 0.07
-Nodes (30): dependencies, net10.0, contentHash, resolved, type, contentHash, resolved, type (+22 more)
+Cohesion: 0.05
+Nodes (39): dependencies, net10.0, contentHash, resolved, type, contentHash, resolved, type (+31 more)
 
 ### Community 249 - "Microsoft.Extensions.DependencyModel"
 Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.Extensions.DependencyModel
 
 ### Community 250 - "Microsoft.Extensions.Primitives"
-Cohesion: 0.06
-Nodes (34): Microsoft.Extensions.FileProviders.Abstractions, Microsoft.Extensions.FileProviders.Physical, Microsoft.Extensions.FileSystemGlobbing, Microsoft.Extensions.Primitives, contentHash, dependencies, resolved, type (+26 more)
+Cohesion: 0.05
+Nodes (41): Microsoft.Extensions.Caching.Abstractions, Microsoft.Extensions.Configuration.Json, Microsoft.Extensions.FileProviders.Abstractions, Microsoft.Extensions.FileProviders.Physical, Microsoft.Extensions.FileSystemGlobbing, Microsoft.Extensions.Primitives, contentHash, dependencies (+33 more)
 
 ### Community 251 - "Testably.Abstractions.FileSystem.Interface"
 Cohesion: 0.50
 Nodes (4): Testably.Abstractions.FileSystem.Interface, contentHash, resolved, type
 
 ### Community 252 - "Microsoft.Extensions.Diagnostics.ExceptionSummarization"
-Cohesion: 0.18
-Nodes (10): contentHash, dependencies, resolved, type, contentHash, dependencies, resolved, type (+2 more)
+Cohesion: 0.40
+Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.Diagnostics.ExceptionSummarization
 
 ### Community 253 - "Roslynator.Analyzers"
 Cohesion: 0.40
@@ -1482,8 +1508,8 @@ Cohesion: 0.17
 Nodes (11): Log, TokenCleanupService, CancellationToken, Exception, IClock, ILogger, IOptions, IServiceScopeFactory (+3 more)
 
 ### Community 255 - "ImageProxyMiddleware"
-Cohesion: 0.12
-Nodes (16): ImageProxyMiddleware, Order, Log, CancellationToken, IEnumerable, IFileSystem, ILogger, IngestionDelegate (+8 more)
+Cohesion: 0.15
+Nodes (11): ImageProxyMiddleware, Order, Log, CancellationToken, IEnumerable, IFileSystem, ILogger, IngestionDelegate (+3 more)
 
 ### Community 256 - "Microsoft.EntityFrameworkCore.Design"
 Cohesion: 0.40
@@ -1561,9 +1587,9 @@ Nodes (5): Roslynator.Analyzers, contentHash, requested, resolved, type
 Cohesion: 0.40
 Nodes (5): SonarAnalyzer.CSharp, contentHash, requested, resolved, type
 
-### Community 275 - "SonarAnalyzer.CSharp"
-Cohesion: 0.40
-Nodes (5): SonarAnalyzer.CSharp, contentHash, requested, resolved, type
+### Community 275 - "JwtFactoryTests"
+Cohesion: 0.12
+Nodes (21): JwtSecurityToken, JwtSecurityTokenHandler, SecurityTokenInvalidSignatureException, SigningCredentials, IJwtFactory, JwtFactory, IClock, IGuidFactory (+13 more)
 
 ### Community 276 - "FluentAssertions"
 Cohesion: 0.40
@@ -1582,8 +1608,8 @@ Cohesion: 0.40
 Nodes (5): SonarAnalyzer.CSharp, contentHash, requested, resolved, type
 
 ### Community 280 - "ReadOnlyFileSystemTests"
-Cohesion: 0.11
-Nodes (18): ExpectOnInner, NotImplementedException, Open, ReadOnlyFileSystemTests, Action, DateTime, Dictionary, Fact (+10 more)
+Cohesion: 0.10
+Nodes (21): ExpectOnInner, NotImplementedException, Open, ReadOnlyFileSystemTests, Action, DateTime, Dictionary, Fact (+13 more)
 
 ### Community 281 - "Microsoft.Extensions.Hosting"
 Cohesion: 0.40
@@ -1593,9 +1619,9 @@ Nodes (5): contentHash, requested, resolved, type, Microsoft.Extensions.Hosting
 Cohesion: 0.40
 Nodes (5): contentHash, requested, resolved, type, Microsoft.VisualStudio.Threading.Analyzers
 
-### Community 283 - "User"
-Cohesion: 0.25
-Nodes (6): IUserRepository, CancellationToken, Guid, List, Task, User
+### Community 283 - "EfUserStorageConfigRepository"
+Cohesion: 0.33
+Nodes (6): EfUserStorageConfigRepository, AnichronDbContext, UserStorageConfigRepositoryTests, Fact, Guid, Task
 
 ### Community 284 - "SonarAnalyzer.CSharp"
 Cohesion: 0.40
@@ -1610,32 +1636,32 @@ Cohesion: 0.40
 Nodes (5): contentHash, requested, resolved, type, FluentAssertions
 
 ### Community 287 - "Consequences"
-Cohesion: 0.11
-Nodes (16): Consequences, Files (`mutate` in `src/stryker-config.json`), Mutation scope: 100% over code that can carry a signal, The rule, Why ADR 0002 no longer fits, ApiIniDefaults, Entries, IReadOnlyList (+8 more)
+Cohesion: 0.10
+Nodes (18): Calls (`ignore-methods`), Consequences, Files (`mutate` in `src/stryker-config.json`), Members that need real PostgreSQL (`// Stryker disable all` before each member), Mutation scope: 100% over code that can carry a signal, The rule, What is excluded, Why ADR 0002 no longer fits (+10 more)
 
 ### Community 288 - "IngestionPipelineRunner"
 Cohesion: 0.15
 Nodes (13): IIngestionPipelineRunner, IngestionPipelineRunner, Log, CancellationToken, Exception, IEnumerable, IFileSystem, ILogger (+5 more)
 
 ### Community 289 - "Encoding"
-Cohesion: 0.20
-Nodes (6): Encoding, IAsyncEnumerable, ReadOnlyMemory, CancellationToken, IEnumerable, Task
+Cohesion: 0.19
+Nodes (6): Encoding, IAsyncEnumerable, CancellationToken, IEnumerable, ReadOnlyMemory, Task
 
 ### Community 290 - "PersistenceMiddleware"
 Cohesion: 0.11
 Nodes (15): Log, PersistenceMiddleware, Order, CancellationToken, DbUpdateException, Guid, IClock, IFileSystem (+7 more)
 
-### Community 291 - "Microsoft.EntityFrameworkCore.Analyzers"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.EntityFrameworkCore.Analyzers
+### Community 291 - "Schema documentation is generated, and its rationale lives in the schema"
+Cohesion: 0.17
+Nodes (10): Consequences, Schema documentation is generated, and its rationale lives in the schema, What went wrong, which is the only reason to take this decision, Why not simply generate a nicer document, Why the rationale goes in `COMMENT`, not in Markdown, ProxyType, BlurHash, FullPreview (+2 more)
 
-### Community 292 - "TestFixture"
-Cohesion: 0.07
-Nodes (31): Anichron.Core.Tests.Unit, IHostedService, StoragePath, IEnumerable, StoragePathTests, Fact, InlineData, Theory (+23 more)
+### Community 292 - "WorkerInitializer"
+Cohesion: 0.09
+Nodes (19): Anichron.Core.Tests.Unit, IHostedService, StoragePath, IEnumerable, StoragePathTests, Fact, InlineData, Theory (+11 more)
 
 ### Community 293 - "Castle.Core"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Castle.Core
+Cohesion: 0.33
+Nodes (6): contentHash, dependencies, resolved, type, System.Diagnostics.EventLog, Castle.Core
 
 ### Community 294 - "TestFixture"
 Cohesion: 0.18
@@ -1657,9 +1683,9 @@ Nodes (8): ForwardedHeadersRateLimitTests, Dictionary, Fact, FormatException, Ht
 Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.Bcl.Cryptography
 
-### Community 299 - "Microsoft.Extensions.AmbientMetadata.Application"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.AmbientMetadata.Application
+### Community 299 - "UserStorageConfig"
+Cohesion: 0.19
+Nodes (14): IUserStorageConfigRepository, CancellationToken, Guid, List, Task, UserStorageConfig, Assets, Id (+6 more)
 
 ### Community 300 - "Microsoft.Extensions.Logging"
 Cohesion: 0.50
@@ -1682,7 +1708,7 @@ Cohesion: 0.50
 Nodes (4): Newtonsoft.Json, contentHash, resolved, type
 
 ### Community 305 - ".Read"
-Cohesion: 0.32
+Cohesion: 0.36
 Nodes (6): JwtConfiguration, IConfiguration, JwtConfigurationTests, Fact, IConfiguration, InvalidOperationException
 
 ### Community 306 - "Anichron.Core.Tests.Unit"
@@ -1693,9 +1719,9 @@ Nodes (4): Microsoft.EntityFrameworkCore.InMemory, Anichron.Core.Tests.Unit, Mic
 Cohesion: 0.50
 Nodes (4): System.Composition.Runtime, contentHash, resolved, type
 
-### Community 308 - "EfUserStorageConfigRepository"
-Cohesion: 0.06
-Nodes (47): BackgroundService, Channel, FakeTimeProvider, ITimer, EfUserStorageConfigRepository, IUserStorageConfigRepository, AnichronDbContext, CancellationToken (+39 more)
+### Community 308 - "TestFixture"
+Cohesion: 0.25
+Nodes (12): TestFixture, ConfigRepository, Pipeline, Time, WorkerState, WorkerTests, CancellationToken, Fact (+4 more)
 
 ### Community 309 - "Konscious.Security.Cryptography.Blake2"
 Cohesion: 0.50
@@ -1718,8 +1744,8 @@ Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.TestPlatform.ObjectModel
 
 ### Community 314 - "IGuidFactory"
-Cohesion: 0.33
-Nodes (5): IGuidFactory, TimeOrderedGuidFactory, ProxyFileBuilder, IClock, ProxyType
+Cohesion: 0.15
+Nodes (13): IGuidFactory, TimeOrderedGuidFactory, PairedMovResolver, IClock, IFileSystem, AlwaysOnMiddlewareTests, Names, IClock (+5 more)
 
 ### Community 315 - "Microsoft.EntityFrameworkCore.Abstractions"
 Cohesion: 0.50
@@ -1737,13 +1763,13 @@ Nodes (10): assert_contains(), assert_eq_status(), assert_has_line(), assert_no_
 Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Diagnostics.ExceptionSummarization
 
-### Community 319 - "TestFixture"
-Cohesion: 0.28
-Nodes (10): BootstrapResetServiceTests, TestFixture, UnitOfWork, Users, CancellationToken, Fact, IConfiguration, ILogger (+2 more)
+### Community 319 - "User"
+Cohesion: 0.25
+Nodes (6): IUserRepository, CancellationToken, Guid, List, Task, User
 
-### Community 320 - "LockoutServiceTests"
-Cohesion: 0.39
-Nodes (5): LockoutServiceTests, TestFixture, Fact, Instant, Task
+### Community 320 - "FluentAssertions"
+Cohesion: 0.40
+Nodes (5): contentHash, requested, resolved, type, FluentAssertions
 
 ### Community 321 - ".MapRoutes"
 Cohesion: 0.14
@@ -1757,9 +1783,9 @@ Nodes (8): assert_contains_file(), assert_eq(), assert_fails(), assert_file(), a
 Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.VisualStudio.SolutionPersistence
 
-### Community 324 - "Microsoft.Extensions.Compliance.Abstractions"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Compliance.Abstractions
+### Community 324 - "CapturingLogger"
+Cohesion: 0.16
+Nodes (11): CapturingLogger, Entries, EventId, Exception, Func, IDisposable, IReadOnlyList, Level (+3 more)
 
 ### Community 325 - "Log"
 Cohesion: 0.43
@@ -1770,8 +1796,8 @@ Cohesion: 0.25
 Nodes (8): contentHash, dependencies, requested, resolved, type, Blurhash.Core, SixLabors.ImageSharp, Blurhash.ImageSharp
 
 ### Community 327 - "Anichron.Worker.Ingestion.Pipeline"
-Cohesion: 0.10
-Nodes (24): Anichron.Worker.Tests.Unit.Ingestion.Middlewares, Anichron.Worker.Tests.Unit.Crawling, Anichron.Worker.Tests.Unit.Ingestion.Pipeline, Anichron.Worker.Tests.Unit.Maintenance, Anichron.Worker.Maintenance, Anichron.Worker.Ingestion.Pipeline, Anichron.Worker.Ingestion.Middlewares, Anichron.Worker.Settings (+16 more)
+Cohesion: 0.09
+Nodes (21): Anichron.Worker.Tests.Unit.Ingestion.Middlewares, Anichron.Worker.Tests.Unit.Ingestion.Pipeline, Anichron.Worker.Ingestion.Pipeline, Anichron.Worker.Ingestion.Middlewares, Anichron.Worker.Ingestion, Anichron.Worker.Tests.Unit.TestDoubles, Anichron.Core, Anichron.Worker.Tests.Unit.Ingestion (+13 more)
 
 ### Community 328 - "Microsoft.Extensions.Logging"
 Cohesion: 0.50
@@ -1785,9 +1811,9 @@ Nodes (9): Microsoft.EntityFrameworkCore.Abstractions, Microsoft.EntityFramework
 Cohesion: 0.31
 Nodes (7): ExifExtractionMiddlewareTests, Fact, ILogger, InlineData, MockFileSystem, Task, Theory
 
-### Community 331 - "Castle.Core"
-Cohesion: 0.21
-Nodes (8): contentHash, resolved, type, contentHash, resolved, type, Castle.Core, Microsoft.Extensions.Logging.EventLog
+### Community 331 - ".ReadAsync_WhenTheBlurhashFileIsMissing_ReturnsNullAndWarns"
+Cohesion: 0.12
+Nodes (19): AnyType, BlurhashReader, IBlurhashReader, Log, CancellationToken, Exception, Guid, IFileSystem (+11 more)
 
 ### Community 332 - "Microsoft.CodeAnalysis.Analyzers"
 Cohesion: 0.50
@@ -1809,13 +1835,13 @@ Nodes (5): contentHash, requested, resolved, type, Microsoft.Extensions.TimeProv
 Cohesion: 0.44
 Nodes (5): ImageSharpProcessorTests, Fact, Image, Rgb24, Task
 
-### Community 337 - "IVideoProxyGenerator"
-Cohesion: 0.19
-Nodes (13): IVideoProcessor, IVideoProxyGenerator, FileName, ProxyType, Video720PGenerator, FileName, ProxyType, CancellationToken (+5 more)
+### Community 337 - ".ToDto"
+Cohesion: 0.22
+Nodes (10): AssetDto, AssetInteractionDto, AssetProxyUrls, Guid, AssetDtoMapper, AssetDtoMapperTests, Fact, Guid (+2 more)
 
 ### Community 338 - "LoginResponseFloorTests"
-Cohesion: 0.14
-Nodes (12): ILoginResponseFloor, LoginResponseFloor, CancellationToken, Task, TimeProvider, TimeSpan, LoginResponseFloorTests, Fact (+4 more)
+Cohesion: 0.31
+Nodes (6): LoginResponseFloorTests, Fact, FakeTimeProvider, OperationCanceledException, Task, TimeSpan
 
 ### Community 339 - "Humanizer.Core"
 Cohesion: 0.50
@@ -1905,9 +1931,9 @@ Nodes (4): contentHash, resolved, type, Microsoft.CodeCoverage
 Cohesion: 0.49
 Nodes (6): ImageSharpProcessor, CancellationToken, Image, IOptions, Rgb24, Task
 
-### Community 361 - ".DeleteAsync"
-Cohesion: 0.32
-Nodes (6): AdminUserService, CancellationToken, Guid, IClock, List, Task
+### Community 361 - "IAuthResponseMapper"
+Cohesion: 0.11
+Nodes (32): AdminCreatedUserResponse, AdminEndpoints, CreateAdminUserRequest, CreateStorageConfigRequest, PatchAdminUserRequest, CancellationToken, ClaimsPrincipal, Guid (+24 more)
 
 ### Community 362 - "Microsoft.Extensions.FileSystemGlobbing"
 Cohesion: 0.50
@@ -1933,21 +1959,21 @@ Nodes (3): die(), assemble-pages.sh script, usage()
 Cohesion: 0.30
 Nodes (7): MediaType, Image, LivePhoto, Video, CancellationToken, Rgb24, Task
 
-### Community 368 - "Microsoft.EntityFrameworkCore.Design"
-Cohesion: 0.40
-Nodes (5): contentHash, requested, resolved, type, Microsoft.EntityFrameworkCore.Design
+### Community 368 - "LoginResponseFloor"
+Cohesion: 0.27
+Nodes (6): ILoginResponseFloor, LoginResponseFloor, CancellationToken, Task, TimeProvider, TimeSpan
 
-### Community 369 - "Microsoft.Extensions.Configuration.Ini"
+### Community 369 - "Microsoft.Extensions.Configuration.Abstractions"
 Cohesion: 0.40
-Nodes (5): contentHash, requested, resolved, type, Microsoft.Extensions.Configuration.Ini
+Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.Configuration.Abstractions
 
-### Community 370 - "MediaType"
-Cohesion: 0.50
-Nodes (4): MediaType, MediaTypeDetectorTests, InlineData, Theory
+### Community 370 - ".Detect"
+Cohesion: 0.57
+Nodes (3): MediaTypeDetectorTests, InlineData, Theory
 
-### Community 371 - "Microsoft.Extensions.DependencyInjection"
-Cohesion: 0.40
-Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.DependencyInjection
+### Community 371 - "TestFixture"
+Cohesion: 0.28
+Nodes (10): BootstrapResetServiceTests, TestFixture, UnitOfWork, Users, CancellationToken, Fact, IConfiguration, ILogger (+2 more)
 
 ### Community 372 - "coverlet.collector"
 Cohesion: 0.40
@@ -1959,7 +1985,7 @@ Nodes (5): SonarAnalyzer.CSharp, contentHash, requested, resolved, type
 
 ### Community 374 - "RecordingGenerator"
 Cohesion: 0.13
-Nodes (15): Corner, Marker, Name, RecordingGenerator, Bound, FileName, ProxyType, InlineData (+7 more)
+Nodes (13): Corner, Marker, Name, RecordingGenerator, Bound, FileName, ProxyType, CancellationToken (+5 more)
 
 ### Community 375 - "Microsoft.ApplicationInsights"
 Cohesion: 0.50
@@ -1981,9 +2007,9 @@ Nodes (4): Newtonsoft.Json, contentHash, resolved, type
 Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.Testing.Platform
 
-### Community 380 - "Roslynator.Analyzers"
-Cohesion: 0.40
-Nodes (5): Roslynator.Analyzers, contentHash, requested, resolved, type
+### Community 380 - "Worker"
+Cohesion: 0.17
+Nodes (12): BackgroundService, Log, Worker, CancellationToken, Guid, ILogger, IOptions, IServiceScopeFactory (+4 more)
 
 ### Community 381 - "System.Composition.Runtime"
 Cohesion: 0.50
@@ -2002,8 +2028,8 @@ Cohesion: 0.50
 Nodes (4): xunit.analyzers, contentHash, resolved, type
 
 ### Community 385 - "Microsoft.Extensions.Configuration.Abstractions"
-Cohesion: 0.08
-Nodes (29): Microsoft.Extensions.Configuration, Microsoft.Extensions.Configuration.Abstractions, Microsoft.Extensions.Configuration.FileExtensions, Microsoft.Extensions.Configuration.Json, contentHash, dependencies, resolved, type (+21 more)
+Cohesion: 0.05
+Nodes (46): Microsoft.Extensions.Configuration, Microsoft.Extensions.Configuration.Abstractions, Microsoft.Extensions.Configuration.Binder, Microsoft.Extensions.Configuration.FileExtensions, Microsoft.Extensions.Diagnostics.Abstractions, Microsoft.Extensions.Options.ConfigurationExtensions, contentHash, dependencies (+38 more)
 
 ### Community 386 - "Log"
 Cohesion: 0.52
@@ -2013,201 +2039,321 @@ Nodes (4): Log, Exception, ILogger, LoggerMessage
 Cohesion: 0.40
 Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.DependencyInjection
 
-### Community 388 - "xunit.runner.visualstudio"
-Cohesion: 0.40
-Nodes (5): xunit.runner.visualstudio, contentHash, requested, resolved, type
+### Community 388 - "BootstrapResetService"
+Cohesion: 0.23
+Nodes (8): BootstrapResetService, IBootstrapResetService, Log, CancellationToken, IConfiguration, ILogger, LoggerMessage, Task
 
-### Community 389 - "Microsoft.Extensions.DependencyInjection.AutoActivation"
+### Community 389 - ".AddAuthServices_ValidatesEveryPartOfTheTokenWithNoClockSkew"
 Cohesion: 0.33
-Nodes (6): Microsoft.Extensions.Hosting.Abstractions, contentHash, dependencies, resolved, type, Microsoft.Extensions.DependencyInjection.AutoActivation
+Nodes (4): HttpStandardResilienceOptions, IOptionsMonitor, JwtBearerOptions, SymmetricSecurityKey
 
-### Community 390 - "System.Composition.AttributedModel"
-Cohesion: 0.50
-Nodes (4): System.Composition.AttributedModel, contentHash, resolved, type
+### Community 390 - ".AddAuthServices_RegistersTheImplementationWithItsLifetime"
+Cohesion: 0.33
+Nodes (5): MemberData, ServiceDescriptor, ServiceLifetime, Theory, Type
 
 ### Community 391 - "Corner"
 Cohesion: 0.40
 Nodes (5): Corner, BottomLeft, BottomRight, TopLeft, TopRight
 
+### Community 392 - "AuthCookieSettings"
+Cohesion: 0.40
+Nodes (4): AuthCookieSettings, RefreshTokenDays, SameSite, SameSiteMode
+
+### Community 393 - "ResponseContractTests"
+Cohesion: 0.24
+Nodes (9): LeakyResponse, ResponseContractTests, Wrapper, Fact, HashSet, IEnumerable, IReadOnlyList, Type (+1 more)
+
 ### Community 394 - ".AccountTemporarilyLocked"
 Cohesion: 0.31
 Nodes (4): AuthMessages, AuthRateLimitPolicies, AuthMessagesTests, Fact
 
-### Community 395 - "xunit.runner.visualstudio"
+### Community 395 - "Microsoft.Extensions.FileProviders.Abstractions"
 Cohesion: 0.40
-Nodes (5): xunit.runner.visualstudio, contentHash, requested, resolved, type
+Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.FileProviders.Abstractions
 
-### Community 396 - "Blurhash.Core"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Blurhash.Core
+### Community 396 - "SignallingTimeProvider"
+Cohesion: 0.22
+Nodes (8): Channel, FakeTimeProvider, ITimer, SignallingTimeProvider, CancellationToken, Task, TimeSpan, TimerCallback
 
 ### Community 397 - "Microsoft.Extensions.Primitives"
 Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Primitives
 
-### Community 398 - "Humanizer.Core"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Humanizer.Core
+### Community 398 - "Microsoft.Extensions.Logging.Abstractions"
+Cohesion: 0.40
+Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.Logging.Abstractions
 
 ### Community 399 - "Microsoft.Testing.Platform"
 Cohesion: 0.50
 Nodes (4): contentHash, resolved, type, Microsoft.Testing.Platform
 
-### Community 400 - "Microsoft.Build.Framework"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Build.Framework
+### Community 400 - "Microsoft.EntityFrameworkCore.Design"
+Cohesion: 0.40
+Nodes (5): contentHash, requested, resolved, type, Microsoft.EntityFrameworkCore.Design
 
-### Community 401 - "Microsoft.Extensions.Configuration.Binder"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.Binder
+### Community 401 - "Microsoft.Extensions.Configuration.Ini"
+Cohesion: 0.40
+Nodes (5): contentHash, requested, resolved, type, Microsoft.Extensions.Configuration.Ini
 
-### Community 402 - "Microsoft.Extensions.Configuration.CommandLine"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.CommandLine
+### Community 402 - ".EnsureUpToDate"
+Cohesion: 0.60
+Nodes (3): IniEntry, Func, IReadOnlyList
 
-### Community 403 - "Microsoft.Extensions.Configuration.FileExtensions"
-Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.FileExtensions
+### Community 403 - "Microsoft.Extensions.DependencyInjection"
+Cohesion: 0.40
+Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.DependencyInjection
 
-### Community 404 - "WorkerInitializerTests.cs"
-Cohesion: 0.14
-Nodes (8): Anichron.Worker.Tests.Unit.Startup, Anichron.Infrastructure.Tests.Unit.Data, Anichron.Worker.Startup, Anichron.Infrastructure.Data, microsoft_extensions_time_testing, PostgresConstants, system_data_common, system_diagnostics_codeanalysis
+### Community 404 - "Anichron.Infrastructure.Data"
+Cohesion: 0.15
+Nodes (7): Anichron.Infrastructure.Tests.Unit.Data, Anichron.Infrastructure.Data, microsoft_extensions_time_testing, PostgresConstants, system_data_common, system_diagnostics_codeanalysis, system_threading_channels
 
-### Community 408 - "Microsoft.Extensions.Configuration.Json"
+### Community 408 - "Microsoft.CodeAnalysis.Analyzers"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.Json
+Nodes (4): contentHash, resolved, type, Microsoft.CodeAnalysis.Analyzers
 
 ### Community 409 - "XmpCore"
 Cohesion: 0.50
 Nodes (4): XmpCore, contentHash, resolved, type
 
-### Community 410 - "Microsoft.Extensions.Configuration.UserSecrets"
+### Community 410 - "Microsoft.Extensions.DependencyInjection.AutoActivation"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.UserSecrets
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.DependencyInjection.AutoActivation
 
-### Community 411 - "Microsoft.Extensions.DependencyModel"
+### Community 411 - "Polly.Core"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.DependencyModel
+Nodes (4): Polly.Core, contentHash, resolved, type
 
-### Community 412 - "Microsoft.Extensions.Diagnostics"
+### Community 412 - "Roslynator.Analyzers"
+Cohesion: 0.40
+Nodes (5): Roslynator.Analyzers, contentHash, requested, resolved, type
+
+### Community 414 - "Microsoft.Extensions.Options"
+Cohesion: 0.40
+Nodes (5): contentHash, dependencies, resolved, type, Microsoft.Extensions.Options
+
+### Community 415 - "Roslynator.Analyzers"
+Cohesion: 0.40
+Nodes (5): Roslynator.Analyzers, contentHash, requested, resolved, type
+
+### Community 416 - "Konscious.Security.Cryptography.Blake2"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Diagnostics
+Nodes (4): contentHash, resolved, type, Konscious.Security.Cryptography.Blake2
 
-### Community 413 - "Microsoft.Extensions.Logging.Configuration"
+### Community 417 - "Microsoft.ApplicationInsights"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Logging.Configuration
+Nodes (4): contentHash, resolved, type, Microsoft.ApplicationInsights
 
-### Community 414 - "Microsoft.Extensions.Primitives"
+### Community 418 - "Microsoft.AspNetCore.TestHost"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Primitives
+Nodes (4): contentHash, resolved, type, Microsoft.AspNetCore.TestHost
 
-### Community 415 - "System.Diagnostics.EventLog"
+### Community 419 - "Microsoft.EntityFrameworkCore.Abstractions"
 Cohesion: 0.50
-Nodes (4): System.Diagnostics.EventLog, contentHash, resolved, type
+Nodes (4): contentHash, resolved, type, Microsoft.EntityFrameworkCore.Abstractions
 
-### Community 416 - "Microsoft.Extensions.Primitives"
+### Community 421 - "Microsoft.ApplicationInsights"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Primitives
+Nodes (4): contentHash, resolved, type, Microsoft.ApplicationInsights
 
-### Community 417 - "Microsoft.IdentityModel.Abstractions"
+### Community 422 - "Microsoft.EntityFrameworkCore.Abstractions"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.IdentityModel.Abstractions
+Nodes (4): contentHash, resolved, type, Microsoft.EntityFrameworkCore.Abstractions
 
-### Community 418 - "Microsoft.OpenApi"
+### Community 423 - "Microsoft.EntityFrameworkCore.Analyzers"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.OpenApi
+Nodes (4): contentHash, resolved, type, Microsoft.EntityFrameworkCore.Analyzers
 
-### Community 419 - "Blurhash.Core"
+### Community 424 - "Microsoft.Extensions.Logging.EventSource"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Blurhash.Core
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Logging.EventSource
 
-### Community 421 - "Microsoft.Bcl.AsyncInterfaces"
+### Community 425 - "Microsoft.TestPlatform.ObjectModel"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Bcl.AsyncInterfaces
+Nodes (4): contentHash, resolved, type, Microsoft.TestPlatform.ObjectModel
 
-### Community 422 - "Microsoft.Extensions.Diagnostics"
+### Community 426 - "Microsoft.Win32.Registry"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Diagnostics
+Nodes (4): contentHash, resolved, type, Microsoft.Win32.Registry
 
-### Community 423 - "Microsoft.Extensions.Hosting.Abstractions"
+### Community 428 - "Newtonsoft.Json"
 Cohesion: 0.50
-Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Hosting.Abstractions
+Nodes (4): Newtonsoft.Json, contentHash, resolved, type
 
-### Community 424 - "System.Diagnostics.EventLog"
+### Community 429 - "LoggingMiddleware"
+Cohesion: 0.43
+Nodes (5): Log, LoggingMiddleware, Order, ILogger, LoggerMessage
+
+### Community 430 - "xunit.v3.assert"
 Cohesion: 0.50
-Nodes (4): System.Diagnostics.EventLog, contentHash, resolved, type
-
-### Community 425 - "Testably.Abstractions.FileSystem.Interface"
-Cohesion: 0.50
-Nodes (4): Testably.Abstractions.FileSystem.Interface, contentHash, resolved, type
-
-### Community 426 - "xunit.analyzers"
-Cohesion: 0.50
-Nodes (4): xunit.analyzers, contentHash, resolved, type
-
-### Community 428 - "BootstrapResetService"
-Cohesion: 0.23
-Nodes (8): BootstrapResetService, IBootstrapResetService, Log, CancellationToken, IConfiguration, ILogger, LoggerMessage, Task
-
-### Community 429 - "Log"
-Cohesion: 0.60
-Nodes (3): Log, ILogger, LoggerMessage
+Nodes (4): xunit.v3.assert, contentHash, resolved, type
 
 ### Community 431 - "BootstrapSeeder"
-Cohesion: 0.19
-Nodes (10): BootstrapSeeder, IBootstrapSeeder, Log, CancellationToken, Exception, IConfiguration, IGuidFactory, ILogger (+2 more)
+Cohesion: 0.27
+Nodes (7): BootstrapSeeder, Log, Exception, IConfiguration, IGuidFactory, ILogger, LoggerMessage
 
-### Community 434 - "LockoutService"
-Cohesion: 0.22
-Nodes (7): ILockoutService, LockoutService, CancellationToken, Instant, Task, InlineData, Theory
+### Community 432 - "Microsoft.EntityFrameworkCore.Analyzers"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.EntityFrameworkCore.Analyzers
+
+### Community 433 - "Microsoft.Extensions.Caching.Memory"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Caching.Memory
+
+### Community 434 - "Microsoft.Extensions.Configuration.Binder"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.Binder
 
 ### Community 435 - "Mutation scope: exclude generated, append-only code; include everything we author"
 Cohesion: 0.14
 Nodes (10): Consequences, Mutation testing with Stryker.NET on the Microsoft.Testing.Platform runner, Why not a different tool, Why not the default runner, Consequences, Mutation scope: exclude generated, append-only code; include everything we author, One combined score, not one per project, What we deliberately do not exclude (+2 more)
 
 ### Community 436 - ".New"
-Cohesion: 0.27
+Cohesion: 0.29
 Nodes (6): FileAccess, FileMode, FileOptions, FileShare, FileStreamOptions, FileSystemStream
 
-### Community 437 - "CrawlExclusions"
-Cohesion: 0.20
-Nodes (6): Files, HashSet, CrawlExclusions, IOptions, List, Subdirectories
+### Community 437 - "Microsoft.Extensions.Configuration.CommandLine"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.CommandLine
 
-### Community 439 - "LivePhotoLinker"
-Cohesion: 0.31
-Nodes (7): IReadOnlySet, ILivePhotoLinker, LivePhotoLinker, LivePhotoLinkResult, IEnumerable, IFileSystem, IReadOnlyList
+### Community 438 - "Microsoft.Extensions.Configuration.EnvironmentVariables"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.EnvironmentVariables
+
+### Community 439 - "Microsoft.Extensions.Configuration.FileExtensions"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.FileExtensions
+
+### Community 440 - "Microsoft.Extensions.Configuration.Json"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.Json
+
+### Community 441 - "Microsoft.Extensions.Configuration.UserSecrets"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.UserSecrets
 
 ### Community 442 - ".EnsureUpToDate_ConcurrentFileCreationRace_NoExceptionThrown"
 Cohesion: 0.39
 Nodes (6): IDirectory, IFile, IFileStreamFactory, IFileSystem, IPath, UnauthorizedAccessException
 
-### Community 443 - "Anichron.Worker.Tests.Unit.Ingestion"
-Cohesion: 0.29
-Nodes (3): Anichron.Worker.Tests.Unit.Ingestion, ExifDataTests, Fact
+### Community 443 - "Microsoft.Extensions.DependencyInjection.Abstractions"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.DependencyInjection.Abstractions
 
 ### Community 444 - "Log"
 Cohesion: 0.52
 Nodes (4): Log, Exception, ILogger, LoggerMessage
 
+### Community 445 - "Microsoft.Extensions.Diagnostics.Abstractions"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Diagnostics.Abstractions
+
+### Community 446 - "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions
+
+### Community 447 - "Microsoft.Extensions.FileProviders.Physical"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.FileProviders.Physical
+
+### Community 448 - "Microsoft.Extensions.Hosting.Abstractions"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Hosting.Abstractions
+
+### Community 449 - "Microsoft.Extensions.Logging.Configuration"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Logging.Configuration
+
+### Community 450 - "Microsoft.Extensions.Logging.EventLog"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Logging.EventLog
+
+### Community 451 - "Microsoft.Extensions.Logging.EventSource"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Logging.EventSource
+
+### Community 452 - "Microsoft.Extensions.Options.ConfigurationExtensions"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Options.ConfigurationExtensions
+
+### Community 453 - "Microsoft.Extensions.Options"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Options
+
+### Community 454 - "Microsoft.Testing.Platform"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Testing.Platform
+
+### Community 455 - "Blurhash.Core"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Blurhash.Core
+
+### Community 456 - "Humanizer.Core"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Humanizer.Core
+
+### Community 457 - "Microsoft.Build.Framework"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Build.Framework
+
+### Community 458 - "Microsoft.Extensions.Configuration.Binder"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.Binder
+
+### Community 459 - "Microsoft.Extensions.Configuration.CommandLine"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.CommandLine
+
+### Community 460 - "Microsoft.Extensions.Configuration.FileExtensions"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.FileExtensions
+
+### Community 461 - "Microsoft.Extensions.Configuration.Json"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.Json
+
+### Community 462 - "Microsoft.Extensions.Configuration.UserSecrets"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Configuration.UserSecrets
+
+### Community 463 - "Microsoft.Extensions.DependencyModel"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.DependencyModel
+
+### Community 464 - "Microsoft.Extensions.Diagnostics"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Diagnostics
+
+### Community 465 - "Microsoft.Extensions.Logging.Configuration"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Logging.Configuration
+
+### Community 466 - "Microsoft.Extensions.Primitives"
+Cohesion: 0.50
+Nodes (4): contentHash, resolved, type, Microsoft.Extensions.Primitives
+
+### Community 467 - "System.Diagnostics.EventLog"
+Cohesion: 0.50
+Nodes (4): System.Diagnostics.EventLog, contentHash, resolved, type
+
 ## Knowledge Gaps
-- **2555 isolated node(s):** `$schema`, `tasks`, `ci-gate.sh script`, `mutation-changed.sh script`, `SLACK` (+2550 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3158 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **18 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **2565 isolated node(s):** `$schema`, `tasks`, `ci-gate.sh script`, `mutation-changed.sh script`, `SLACK` (+2560 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3198 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `UserStorageConfig` connect `UserStorageConfig` to `AuthResponseMapperTests`, `IngestionPipelineRunnerTests`, `EfUserRepository`, `.Asset_CanBeSetAndRead`, `TestFixture`, `AuthResult`, `TestFixture`, `TestFixture`, `TestFixture`, `FileIngestionPipeline`, `User`, `IAuthResponseMapper`, `TestFixture`, `IngestionContext`, `TestFixture`, `ProxyFile`, `SoftDeleteQueryFilterTests`, `TestFixture`, `EfUserStorageConfigRepository`, `CapturingLogger`, `.InvokeAsync_KnownHash_DoesNotCallNextAsync`, `TestFixture`, `ExifExtractionMiddlewareTests`, `.Build`, `MediaAsset`, `ContentHashingMiddleware`, `AnichronDbContext`, `User`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
-- **Why does `Anichron.Core.Domain` connect `Anichron.Core.Domain` to `Anichron.API.Services`, `Anichron.Worker.Ingestion.Pipeline`, `Metadata`, `ProxyFile`, `Invite`, `MediaAsset`, `AssetInteraction`, `AnichronDbContext`, `Image`, `RefreshToken`, `Anichron.Worker.Ingestion.Proxy`, `Anichron.Worker.Tests.Unit.Ingestion`, `UserStorageConfig`, `WorkerInitializerTests.cs`, `IMediaAssetRepository`, `User`, `Schema documentation is generated, and its rationale lives in the schema`?**
-  _High betweenness centrality (0.033) - this node is a cross-community bridge._
-- **Why does `Individual sites (`// Stryker disable once <Mutator>`)` connect `ProxyFile` to `IngestionPipelineRunner`, `FfmpegVideoProcessorTests`, `TestFixture`, `ExifExtractionMiddleware`, `FileIngestionPipeline`, `TestFixture`, `Invite`, `MediaAsset`, `Argon2PasswordHasher`, `AnichronDbContext`, `LoginResponseFloorTests`, `RefreshToken`, `UserStorageConfig`, `ApiServiceRegistrationTests`, `User`?**
+- **Why does `UserStorageConfig` connect `UserStorageConfig` to `AuthResponseMapperTests`, `IngestionPipelineRunnerTests`, `EfUserRepository`, `ExifExtractionMiddleware`, `TestFixture`, `AuthResult`, `TestFixture`, `TestFixture`, `TestFixture`, `SingleFileItem`, `EfUserStorageConfigRepository`, `TestFixture`, `WorkerInitializer`, `IngestionContext`, `TestFixture`, `SoftDeleteQueryFilterTests`, `TestFixture`, `TestFixture`, `.AddAsync`, `User`, `.InvokeAsync`, `.InvokeAsync_KnownHash_DoesNotCallNextAsync`, `TestFixture`, `ExifExtractionMiddlewareTests`, `.Build`, `MediaAsset`, `ContentHashingMiddleware`, `IAuthResponseMapper`, `Library`, `AnichronDbContext`, `User`, `Worker`?**
+  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+- **Why does `Anichron.Core.Domain` connect `Anichron.Core.Domain` to `Anichron.API.Infrastructure`, `Schema documentation is generated, and its rationale lives in the schema`, `TestFixture`, `Anichron.Worker.Ingestion.Pipeline`, `SingleFileItem`, `UserStorageConfig`, `Metadata`, `ProxyFile`, `Invite`, `MediaAsset`, `AssetInteraction`, `AnichronDbContext`, `Image`, `microsoft_extensions_options`, `TestFixture`, `User`, `Anichron.API.Endpoints`?**
+  _High betweenness centrality (0.038) - this node is a cross-community bridge._
+- **Why does `IUnitOfWork` connect `IUnitOfWork` to `TestFixture`, `BootstrapResetService`, `TestFixture`, `TestFixture`, `TestFixture`, `TestFixture`, `TestFixture`, `LockoutServiceTests`, `TestFixture`, `PersistenceMiddleware`, `LockoutService`, `WorkerInitializer`, `TestFixture`, `BootstrapSeeder`, `.AddAsync`, `.DeleteAsync`, `IGuidFactory`, `WorkerServiceCollectionExtensionsTests`, `TestFixture`, `AnichronDbContext`, `TestFixture`, `LivePhotoPairingMiddleware`?**
   _High betweenness centrality (0.029) - this node is a cross-community bridge._
 - **Are the 31 inferred relationships involving `UserStorageConfig` (e.g. with `Individual sites (`// Stryker disable once <Mutator>`)` and `.CreateStorageConfigAsync_CallsServiceWithUserIdAndRootPathAndReturnsMapperResult()`) actually correct?**
   _`UserStorageConfig` has 31 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 3 inferred relationships involving `IngestionContext` (e.g. with `.ConsumeAsync()` and `.Asset_CanBeSetAndRead()`) actually correct?**
   _`IngestionContext` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `$schema`, `tasks`, `ci-gate.sh script` to the rest of the system?**
-  _2555 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2565 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `TestFixture` be split into smaller, more focused modules?**
-  _Cohesion score 0.05337690631808279 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05465155425878128 - nodes in this community are weakly interconnected._
