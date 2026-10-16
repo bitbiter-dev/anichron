@@ -54,6 +54,10 @@ Whatever shape the skill produces, a `ready-for-agent` issue carries three parts
 In an issue body, the last two are `## First caller` and `## Design` sections. In a `/triage`
 agent brief they are fields in the brief's own style, `**First caller:**` and `**Design:**`.
 
+**Publishing:** label a new issue `ready-for-agent` only when no design trigger applies or its
+design note is approved; otherwise `needs-design`. This overrides a skill's own instruction to
+apply `ready-for-agent`, including a `**Status:**` field in its template.
+
 **Legacy issues:** issues up to #261 predate this process and lack the last two parts. For those,
 the implementer runs the trigger check below itself, and raises an objection when a design note
 was needed but is missing.
@@ -142,3 +146,12 @@ committed.
 | `/implement` | First check the label is `ready-for-agent` and the issue carries its three parts (for legacy issues, run the trigger check instead); otherwise stop and say so. While building, raise an objection the moment the design stops fitting. |
 | mattpocock's `/code-review` | Pass the issue **and its design note** as the spec, and list this file among the standards sources. The spec axis then reports departures from the note and any pattern extended past its purpose. |
 | `/improve-codebase-architecture` | A tool for the scheduled architecture review (#260), alongside the review procedure. |
+
+## Keeping this in step with the skills
+
+The skills belong to the mattpocock plugin and are never edited here; this file and CLAUDE.md's
+*Engineering process* section are where the repo adapts them. `/setup-matt-pocock-skills`
+regenerates `docs/agents/issue-tracker.md`, `triage-labels.md` and `domain.md`, so keep those
+files as the setup writes them, except for the *Repo-specific states* table in
+`triage-labels.md`, which a re-run must keep. After a plugin update, re-read the skills named in
+the table above and check each row still matches what the skill says.

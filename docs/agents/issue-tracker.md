@@ -27,7 +27,7 @@ GitHub shares one number space across issues and PRs, so a bare `#42` may be eit
 
 ## When a skill says "publish to the issue tracker"
 
-Create a GitHub issue that carries the three parts in `docs/agents/design-process.md` ("What every issue carries"): the requirement, `## First caller` and `## Design`. Label it `ready-for-agent` only when no design trigger applies or its design note is approved; otherwise `needs-design`. This overrides a skill's own instruction to apply `ready-for-agent`, including a `**Status:**` field in its template.
+Create a GitHub issue.
 
 ## When a skill says "fetch the relevant ticket"
 
