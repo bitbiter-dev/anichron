@@ -200,7 +200,7 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 
 - **Issues** (bug reports, feature requests, epic tracking): https://github.com/bitbiter-dev/anichron/issues
 - **Wiki** (early architecture decisions, e.g. ADR-3 on flashback weighting, which older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
-- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. Pick an open `ready-for-agent` issue with no open blocker.
+- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. Pick an open `ready-for-agent` issue with no open blocker. A `needs-design` issue is picked only to write or approve its design note; a `needs-decision` issue waits for the maintainer.
 
 ## graphify (knowledge graph — orient here first)
 
@@ -240,6 +240,14 @@ of the dotnet toolchain). Doc-only changes need a manual `/graphify --update`. O
 local `manifest.json`, `graphify update` rebuilds from scratch (AST-only, cheap), so a fresh
 clone still produces a correct graph.
 
+## Engineering process (objection, first caller, design note)
+
+Agents write issues, designs and code; the maintainer sets requirements in conversation and makes decisions. Before writing an issue, designing, implementing or reviewing, read `docs/agents/design-process.md`. Its three load-bearing terms:
+
+- **Objection:** when the requirement, design or spec is wrong for the system, object on the issue, relabel it and stop.
+- **First caller:** every building block ships with the code that first uses it.
+- **Design note:** issues that change the system's shape get one, approved before `ready-for-agent`.
+
 ## Agent skills
 
 ### Issue tracker
@@ -248,7 +256,7 @@ Issues live as GitHub issues in `bitbiter-dev/anichron`, driven via the `gh` CLI
 
 ### Triage labels
 
-The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+The five canonical triage roles, each label string equal to its name, plus the repo's `needs-design` and `needs-decision`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
