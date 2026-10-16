@@ -124,6 +124,38 @@ out=$( (cd "$repo/src" && "$script" --base no-such-ref --print 2>&1) ); status=$
 assert_contains 'an unknown base is refused' 'no-such-ref' "$out"
 assert_eq_status 'an unknown base exits 2' 2 "$status"
 
+echo "isolation"
+
+repo=$(fixture isolated)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+stub="$work/stub-bin"
+mkdir -p "$stub"
+cat > "$stub/dotnet" <<'STUB'
+#!/usr/bin/env bash
+printf '%s' "$TMPDIR" > "$STUB_RECORD"
+[ -d "$TMPDIR" ] && echo present >> "$STUB_RECORD.dir"
+exit 2
+STUB
+chmod +x "$stub/dotnet"
+record="$work/stub-record"
+shared="$work/shared-tmp"
+mkdir -p "$shared"
+(cd "$repo/src" && PATH="$stub:$PATH" TMPDIR="$shared" STUB_RECORD="$record" "$script" --base base >/dev/null 2>&1)
+status=$?
+used=$(cat "$record" 2>/dev/null)
+if [ -n "$used" ] && [ "$used" != "$shared" ]; then
+  pass 'stryker runs with a temp dir of its own'
+else
+  fail 'stryker runs with a temp dir of its own' "a TMPDIR other than $shared" "${used:-nothing recorded}"
+fi
+assert_contains 'the private temp dir exists while stryker runs' 'present' "$(cat "$record.dir" 2>/dev/null)"
+if [ -n "$used" ] && [ ! -e "$used" ]; then
+  pass 'the private temp dir is removed afterwards'
+else
+  fail 'the private temp dir is removed afterwards' 'no directory left behind' "${used:-nothing recorded}"
+fi
+assert_eq_status "stryker's exit status is passed through" 2 "$status"
+
 echo
 if [ "$failures" -eq 0 ]; then
   echo 'all mutation-changed tests passed'

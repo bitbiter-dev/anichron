@@ -102,5 +102,9 @@ if $print; then
   exit 0
 fi
 
+run_tmp=$(mktemp -d "${TMPDIR:-/tmp}/mutation-changed.XXXXXXXX") \
+  || { echo 'could not create a private temp dir' >&2; exit 2; }
+trap 'rm -rf "$run_tmp"' EXIT
+
 cd "$src"
-exec dotnet stryker "${args[@]}"
+TMPDIR="$run_tmp" dotnet stryker "${args[@]}"

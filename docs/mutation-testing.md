@@ -75,6 +75,17 @@ What the scoped run cannot see, and the full sweep in CI catches:
 - a change to `stryker-config.json`, a shared base class or a test double, whose effect is not
   confined to the files in the diff — run `dotnet stryker` for those
 
+**Concurrent local runs corrupt each other unless each has its own temp directory.** The MTP
+runner hands the active mutant to the test hosts through a memory-mapped file at a fixed path,
+`$TMPDIR/stryker-mutant-<n>.txt`, where `<n>` is only the runner index (0 to `concurrency − 1`).
+Two Stryker runs on one machine — two agents in two worktrees — overwrite each other's mutant IDs,
+so tests run against the wrong mutant and killable mutants are reported as survivors. Measured on
+the same 138 mutants: 137 killed and 100% alone; 98.55% and 94.93% for two simultaneous runs; 100%
+for both again when each had its own `TMPDIR`. Earlier symptoms were runs that swung between 89 and
+174 survivors on unchanged code, and one at 0.00%. `mutation-changed.sh` therefore runs Stryker
+with a private `TMPDIR` that it removes afterwards; run a full sweep the same way (see CLAUDE.md).
+CI is unaffected: each job runs alone on its own runner.
+
 **Why not Stryker's own `--since`.** It is the obvious tool and it is unusable here: Stryker
 resolves the repository through its main working directory, so inside a git worktree — where every
 agent works — it diffs the main checkout against the target instead. Measured on a worktree with an
