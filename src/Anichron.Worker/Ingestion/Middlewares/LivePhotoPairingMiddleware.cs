@@ -28,6 +28,7 @@ internal sealed partial class LivePhotoPairingMiddleware(
             context.Item.SecondaryFile!, context.SecondaryHash!, context.Config.Id, stored.DateCaptured, ct);
         await unitOfWork.SaveChangesAsync(ct);
         Log.Paired(logger, context.Item.RelativePath, stored.Id);
+        await next(context, ct);
     }
 
     private static partial class Log
