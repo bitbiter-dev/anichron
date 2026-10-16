@@ -40,8 +40,7 @@ public sealed class VideoProxyMiddlewareTests
                 .Returns(callInfo =>
                 {
                     var outputPath = callInfo.ArgAt<string>(1);
-                    FileSystem.File.WriteAllBytes(outputPath, [0xAA, 0xBB, 0xCC, 0xDD]);
-                    return Task.CompletedTask;
+                    return FileSystem.File.WriteAllBytesAsync(outputPath, [0xAA, 0xBB, 0xCC, 0xDD]);
                 });
         }
 
@@ -218,11 +217,7 @@ public sealed class VideoProxyMiddlewareTests
         secondGenerator.FileName.Returns("video_1080p.mp4");
         secondGenerator.ProxyType.Returns(ProxyType.WebVideo);
         secondGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                fixture.FileSystem.File.WriteAllBytes(callInfo.ArgAt<string>(1), [0x01]);
-                return Task.CompletedTask;
-            });
+            .Returns(callInfo => fixture.FileSystem.File.WriteAllBytesAsync(callInfo.ArgAt<string>(1), [0x01]));
 
         var middleware = fixture.BuildWith(fixture.Generator, secondGenerator);
 
@@ -304,7 +299,7 @@ public sealed class VideoProxyMiddlewareTests
             .Returns(async callInfo =>
             {
                 // Half-written output on disk, then the shutdown lands mid-transcode.
-                fixture.FileSystem.File.WriteAllBytes(callInfo.ArgAt<string>(1), [0xAA]);
+                await fixture.FileSystem.File.WriteAllBytesAsync(callInfo.ArgAt<string>(1), [0xAA], cts.Token);
                 await cts.CancelAsync();
                 cts.Token.ThrowIfCancellationRequested();
             });

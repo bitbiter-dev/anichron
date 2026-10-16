@@ -326,10 +326,10 @@ public sealed class IngestionPipelineRunnerTests
         public int Order => order;
         public bool CanInvoke(IngestionContext context) => true;
 
-        public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
         {
             tracker.Add(order);
-            await next(context, ct);
+            return next(context, ct);
         }
     }
 
@@ -367,10 +367,10 @@ public sealed class IngestionPipelineRunnerTests
         public int Order => order;
         public bool CanInvoke(IngestionContext context) => true;
 
-        public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
         {
             fileSystem.Directory.CreateDirectory("/data/proxies/ab/cd");
-            await next(context, ct);
+            return next(context, ct);
         }
     }
 

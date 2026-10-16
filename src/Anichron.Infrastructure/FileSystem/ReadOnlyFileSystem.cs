@@ -12,7 +12,7 @@ public sealed class ReadOnlyFileSystem : FileSystemBase
     public ReadOnlyFileSystem(IFileSystem inner)
     {
         this.inner = inner;
-        File = new ReadOnlyFile(this);
+        File = new ReadOnlyFile(this, inner);
         Directory = new ReadOnlyDirectory(this, inner);
         FileStream = new ReadOnlyFileStreamFactory(this, inner);
         FileInfo = new UnimplementedFileInfoFactory(this);
@@ -66,7 +66,7 @@ public sealed class ReadOnlyFileSystem : FileSystemBase
     }
 }
 
-internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem) : FileBase(fileSystem)
+internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem, IFileSystem inner) : FileBase(fileSystem)
 {
     public override void AppendAllBytes(string path, byte[] bytes) => throw ReadOnlyViolation();
 
@@ -190,7 +190,7 @@ internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem) : FileBase(fil
 
     public override string ReadAllText(string path, Encoding encoding) => throw new NotImplementedException();
 
-    public override Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    public override Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default) => inner.File.ReadAllTextAsync(path, cancellationToken);
 
     public override Task<string> ReadAllTextAsync(string path, Encoding encoding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 

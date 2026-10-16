@@ -23,9 +23,9 @@ public static class MediaEndpoints
     internal static (ProxyType Type, string ContentType)? ParseProxyKind(string type)
         => type switch
         {
-            "thumbnail" => (ProxyType.Thumbnail, "image/jpeg"),
-            "preview" => (ProxyType.FullPreview, "image/jpeg"),
-            "video" => (ProxyType.WebVideo, "video/mp4"),
+            ApiPaths.Assets.ThumbnailProxy => (ProxyType.Thumbnail, "image/jpeg"),
+            ApiPaths.Assets.PreviewProxy => (ProxyType.FullPreview, "image/jpeg"),
+            ApiPaths.Assets.VideoProxy => (ProxyType.WebVideo, "video/mp4"),
             _ => null,
         };
 
