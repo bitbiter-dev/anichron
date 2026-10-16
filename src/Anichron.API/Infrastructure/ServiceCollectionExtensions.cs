@@ -101,6 +101,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IInviteRepository, EfInviteRepository>();
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
+            services.AddScoped<IMediaAssetReadRepository, EfMediaAssetReadRepository>();
             // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IRegistrationValidator, RegistrationValidator>();
