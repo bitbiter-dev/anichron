@@ -59,6 +59,7 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IRefreshTokenRepository), typeof(EfRefreshTokenRepository), ServiceLifetime.Scoped },
         { typeof(IInviteRepository), typeof(EfInviteRepository), ServiceLifetime.Scoped },
         { typeof(IUserStorageConfigRepository), typeof(EfUserStorageConfigRepository), ServiceLifetime.Scoped },
+        { typeof(IMediaAssetReadRepository), typeof(EfMediaAssetReadRepository), ServiceLifetime.Scoped },
         { typeof(IRegistrationValidator), typeof(RegistrationValidator), ServiceLifetime.Scoped },
         { typeof(ILockoutService), typeof(LockoutService), ServiceLifetime.Scoped },
         { typeof(ITokenService), typeof(TokenService), ServiceLifetime.Scoped },
