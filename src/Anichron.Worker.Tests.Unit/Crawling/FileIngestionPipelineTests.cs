@@ -80,7 +80,6 @@ public sealed class FileIngestionPipelineTests
                 middlewares,
                 directoryStrategy,
                 FileSystem,
-                Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
                 Substitute.For<ILogger<IngestionPipelineRunner>>());
 
             var serviceProvider = Substitute.For<IServiceProvider>();

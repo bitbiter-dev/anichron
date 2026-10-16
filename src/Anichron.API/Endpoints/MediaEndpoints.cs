@@ -1,5 +1,4 @@
 using Anichron.API.Infrastructure;
-using Anichron.API.Settings;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.AspNetCore.Mvc;
@@ -49,9 +48,8 @@ public static class MediaEndpoints
         if (proxy is null)
             return Results.NotFound();
 
-        const string root = AppDefaults.Storage.ProxyPath;
-        var fullPath = fileSystem.Path.GetFullPath(fileSystem.Path.Combine(root, proxy.ProxyPath));
-        if (!fullPath.StartsWith(root + "/", StringComparison.Ordinal))
+        var fullPath = fileSystem.Path.GetFullPath(fileSystem.Path.Combine(StoragePath.ProxiesRoot, proxy.ProxyPath));
+        if (!StoragePath.IsInside(StoragePath.ProxiesRoot, fullPath))
             return Results.NotFound();
 
         Stream stream;
@@ -68,7 +66,7 @@ public static class MediaEndpoints
         return Results.Stream(
             stream,
             kind.ContentType,
-            entityTag: new EntityTagHeaderValue($"\"{proxy.ContentHash}-{type}\""),
+            entityTag: new EntityTagHeaderValue($"\"{proxy.ContentHash}-{kind.Type}\""),
             enableRangeProcessing: true);
     }
 }

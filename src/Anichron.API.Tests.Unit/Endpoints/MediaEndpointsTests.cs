@@ -1,6 +1,5 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Infrastructure;
-using Anichron.API.Services;
+using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Infrastructure.FileSystem;
@@ -57,17 +56,10 @@ public sealed class MediaEndpointsTests
 
         public async Task<HttpClient> StartAsync()
         {
-            var builder = WebApplication.CreateSlimBuilder();
+            var builder = ApiTestHost.CreateBuilder();
             builder.WebHost.UseTestServer();
             builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthHandler>("Test", null);
             builder.Services.AddAuthorization();
-            builder.Services.AddHealthChecks();
-            builder.Services.AddSingleton(Substitute.For<IAuthService>());
-            builder.Services.AddSingleton(Substitute.For<IAuthResponseMapper>());
-            builder.Services.AddSingleton(Substitute.For<IAdminResetService>());
-            builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
-            builder.Services.AddSingleton(Substitute.For<IAdminStorageConfigService>());
-            builder.Services.AddSingleton(Substitute.For<IUserRepository>());
             builder.Services.AddSingleton(Assets);
             builder.Services.AddSingleton<IFileSystem>(new ReadOnlyFileSystem(FileSystem));
             app = builder.Build();
@@ -120,7 +112,7 @@ public sealed class MediaEndpointsTests
 
         using var response = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
 
-        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-thumbnail\""));
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
         var cacheControl = response.Headers.CacheControl!;
         cacheControl.Private.Should().BeTrue();
         cacheControl.Public.Should().BeFalse();
@@ -135,11 +127,13 @@ public sealed class MediaEndpointsTests
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1, 2, 3]);
         using var client = await fixture.StartAsync();
         var request = Get("thumbnail");
-        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{ContentHash}-thumbnail\""));
+        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
 
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotModified);
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
+        response.Headers.CacheControl!.Private.Should().BeTrue();
     }
 
     [Fact]
@@ -155,6 +149,8 @@ public sealed class MediaEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.PartialContent);
         (await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken)).Should().Equal(12, 13, 14);
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.WebVideo}\""));
+        response.Headers.CacheControl!.Private.Should().BeTrue();
     }
 
     [Fact]
@@ -164,7 +160,7 @@ public sealed class MediaEndpointsTests
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1]);
         using var client = await fixture.StartAsync();
 
-        using var response = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
+        using var _ = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
 
         await fixture.Assets.Received(1)
             .FindVisibleProxyAsync(AssetId, UserId, ProxyType.Thumbnail, Arg.Any<CancellationToken>());
@@ -211,6 +207,8 @@ public sealed class MediaEndpointsTests
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData(".")]
     [InlineData("../originals/mira/private.jpg")]
     [InlineData("/data/originals/mira/private.jpg")]
     [InlineData("01/../../proxies2/x.jpg")]

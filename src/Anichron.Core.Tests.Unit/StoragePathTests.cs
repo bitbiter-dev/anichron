@@ -23,6 +23,25 @@ public sealed class StoragePathTests
     public void OriginalsRoot_IsTheSharedContainerMountPoint()
         => StoragePath.OriginalsRoot.Should().Be("/data/originals");
 
+    [Fact]
+    public void ProxiesRoot_IsTheSharedContainerMountPoint()
+        => StoragePath.ProxiesRoot.Should().Be("/data/proxies");
+
+    [Theory]
+    [InlineData("/data/proxies", "/data/proxies/01/thumbnail.jpg")]
+    [InlineData("/data/proxies", "/data/proxies/a")]
+    public void IsInside_Descendant_ReturnsTrue(string root, string canonicalPath)
+        => StoragePath.IsInside(root, canonicalPath).Should().BeTrue();
+
+    [Theory]
+    [InlineData("/data/proxies", "/data/proxies")]
+    [InlineData("/data/proxies", "/data/proxies2/x.jpg")]
+    [InlineData("/data/proxies", "/data/originals/mira/a.jpg")]
+    [InlineData("/data/proxies", "/data")]
+    [InlineData("/data/proxies", "/data/Proxies/x.jpg")]
+    public void IsInside_RootItselfSiblingOrOutside_ReturnsFalse(string root, string canonicalPath)
+        => StoragePath.IsInside(root, canonicalPath).Should().BeFalse();
+
     [Theory]
     [InlineData("/data/originals/mira")]
     [InlineData("/data/originals/mira/2024")]

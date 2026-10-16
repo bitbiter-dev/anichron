@@ -1,4 +1,3 @@
-using Anichron.API.Settings;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.IO.Abstractions;
 
@@ -11,7 +10,7 @@ internal sealed class ProxyStorageHealthCheck(IFileSystem fileSystem) : IHealthC
         try
         {
             return Task.FromResult(
-                fileSystem.Directory.Exists(AppDefaults.Storage.ProxyPath)
+                fileSystem.Directory.Exists(StoragePath.ProxiesRoot)
                     ? HealthCheckResult.Healthy("Proxy storage directory found.")
                     : HealthCheckResult.Degraded("Proxy storage directory not found."));
         }

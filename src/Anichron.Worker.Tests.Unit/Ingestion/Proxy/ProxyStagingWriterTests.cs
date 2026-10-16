@@ -3,10 +3,8 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using Anichron.Worker.Settings;
 using Anichron.Worker.Tests.Unit.TestDoubles;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
@@ -31,7 +29,6 @@ public sealed class ProxyStagingWriterTests
 
         public ProxyStagingWriter Build()
             => new(FileSystem,
-                   Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
                    Clock,
                    GuidFactory,
                    Substitute.For<ILogger<ProxyStagingWriter>>());
@@ -55,8 +52,8 @@ public sealed class ProxyStagingWriterTests
     [Fact]
     public void TemporaryPathFor_AppendsTheTemporarySuffix()
     {
-        ProxyStagingWriter.TemporaryPathFor("/proxies/ab/cd/thumbnail.jpg")
-            .Should().Be("/proxies/ab/cd/thumbnail.jpg.tmp");
+        ProxyStagingWriter.TemporaryPathFor("/data/proxies/ab/cd/thumbnail.jpg")
+            .Should().Be("/data/proxies/ab/cd/thumbnail.jpg.tmp");
     }
 
     // ==========================================================================
@@ -80,7 +77,7 @@ public sealed class ProxyStagingWriterTests
             },
             CancellationToken.None);
 
-        producedPath.Should().Be("/proxies/ab/cd/thumbnail.jpg.tmp");
+        producedPath.Should().Be("/data/proxies/ab/cd/thumbnail.jpg.tmp");
     }
 
     [Fact]
@@ -92,8 +89,8 @@ public sealed class ProxyStagingWriterTests
             MakeContext(), "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             Writing(fixture.FileSystem, [0x01, 0x02]), CancellationToken.None);
 
-        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
-        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg.tmp").Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg.tmp").Should().BeFalse();
     }
 
     [Fact]
@@ -105,21 +102,21 @@ public sealed class ProxyStagingWriterTests
             MakeContext(), "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             Writing(fixture.FileSystem, [0x01]), CancellationToken.None);
 
-        fixture.FileSystem.Directory.Exists("/proxies/ab/cd").Should().BeTrue();
+        fixture.FileSystem.Directory.Exists("/data/proxies/ab/cd").Should().BeTrue();
     }
 
     [Fact]
     public async Task WriteAsync_ExistingProxy_IsOverwrittenByTheRetryAsync()
     {
         var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/proxies/ab/cd/thumbnail.jpg", new MockFileData([0xFF, 0xFF, 0xFF]));
+        fixture.FileSystem.AddFile("/data/proxies/ab/cd/thumbnail.jpg", new MockFileData([0xFF, 0xFF, 0xFF]));
 
         await fixture.Build().WriteAsync(
             MakeContext(), "ab/cd/thumbnail.jpg", ProxyType.Thumbnail,
             Writing(fixture.FileSystem, [0x01]), CancellationToken.None);
 
         var written = await fixture.FileSystem.File.ReadAllBytesAsync(
-            "/proxies/ab/cd/thumbnail.jpg", CancellationToken.None);
+            "/data/proxies/ab/cd/thumbnail.jpg", CancellationToken.None);
         written.Should().HaveCount(1);
     }
 
@@ -159,8 +156,8 @@ public sealed class ProxyStagingWriterTests
             CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("boom");
-        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg").Should().BeFalse();
-        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg.tmp").Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg.tmp").Should().BeFalse();
         context.ProxyFiles.Should().BeEmpty();
     }
 
@@ -169,7 +166,7 @@ public sealed class ProxyStagingWriterTests
     {
         var fixture = new TestFixture
         {
-            FileSystem = new DeleteFailingFileSystem("/proxies/ab/cd/thumbnail.jpg.tmp"),
+            FileSystem = new DeleteFailingFileSystem("/data/proxies/ab/cd/thumbnail.jpg.tmp"),
         };
 
         var act = () => fixture.Build().WriteAsync(

@@ -10,7 +10,6 @@ internal static class WorkerIniDefaults
         new IniEntry("Worker", "CrawlIntervalHours", () => "4"),
         new IniEntry("Worker", "MaxConcurrentFiles", () => "4"),
         new IniEntry("Worker", "TokenCleanupIntervalHours", () => "24"),
-        new IniEntry("Worker", "ProxyPath", () => "/data/proxies"),
         new IniEntry("Worker", "ThumbnailShortEdge", () => "300"),
         new IniEntry("Worker", "ThumbnailJpegQuality", () => "75"),
         new IniEntry("Worker", "PreviewLongEdge", () => "1920"),

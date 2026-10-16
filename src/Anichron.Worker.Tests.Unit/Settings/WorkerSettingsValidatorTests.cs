@@ -18,7 +18,6 @@ public sealed class WorkerSettingsValidatorTests
         VideoBitrateKbps = 2000,
         TokenCleanupIntervalHours = 24,
         FfmpegPath = "ffmpeg",
-        ProxyPath = "/data/proxies",
     };
 
     private static bool IsValid(WorkerSettings settings)
@@ -163,16 +162,6 @@ public sealed class WorkerSettingsValidatorTests
     }
 
     // ==========================================================================
-    // ProxyPath
-    // ==========================================================================
-
-    [Fact]
-    public void Validate_ProxyPathEmpty_ReturnsFailed()
-    {
-        IsValid(ValidSettings with { ProxyPath = string.Empty }).Should().BeFalse();
-    }
-
-    // ==========================================================================
     // Multiple failures
     // ==========================================================================
 
@@ -191,7 +180,6 @@ public sealed class WorkerSettingsValidatorTests
 
         settings.RootPath.Should().BeEmpty();
         settings.ExcludedDirectories.Should().BeEmpty();
-        settings.ProxyPath.Should().Be("/data/proxies");
         settings.FfmpegPath.Should().Be("ffmpeg");
     }
 }

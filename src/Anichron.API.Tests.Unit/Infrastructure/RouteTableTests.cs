@@ -1,13 +1,8 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Infrastructure;
-using Anichron.API.Services;
-using Anichron.Core.Data.Repository;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
@@ -17,15 +12,7 @@ public sealed class RouteTableTests
 
     private static IReadOnlyList<Route> MapRoutes()
     {
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.Services.AddHealthChecks();
-        builder.Services.AddSingleton(Substitute.For<IAuthService>());
-        builder.Services.AddSingleton(Substitute.For<IAuthResponseMapper>());
-        builder.Services.AddSingleton(Substitute.For<IAdminResetService>());
-        builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
-        builder.Services.AddSingleton(Substitute.For<IAdminStorageConfigService>());
-        builder.Services.AddSingleton(Substitute.For<IUserRepository>());
-        builder.Services.AddSingleton(Substitute.For<IMediaAssetReadRepository>());
+        var builder = ApiTestHost.CreateBuilder();
         var app = builder.Build();
 
         app.MapApiEndpoints();
