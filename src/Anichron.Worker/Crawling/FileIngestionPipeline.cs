@@ -25,7 +25,7 @@ internal sealed partial class FileIngestionPipeline(
 {
     private readonly WorkerSettings settings = workerOptions.Value;
 
-    public async Task RunAsync(UserStorageConfig config, CancellationToken ct)
+    public Task RunAsync(UserStorageConfig config, CancellationToken ct)
     {
         var channel = Channel.CreateBounded<IngestionItem>(
             // Stryker disable once Arithmetic,Initializer
@@ -42,7 +42,7 @@ internal sealed partial class FileIngestionPipeline(
             .Select(workerIndex => ConsumeAsync(config, channel.Reader, workerIndex, ct))
             .ToArray();
 
-        await Task.WhenAll([producer, .. consumers]);
+        return Task.WhenAll([producer, .. consumers]);
     }
 
     private async Task ProduceAsync(
