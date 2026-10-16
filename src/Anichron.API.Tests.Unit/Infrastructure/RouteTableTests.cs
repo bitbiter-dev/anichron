@@ -25,6 +25,7 @@ public sealed class RouteTableTests
         builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
         builder.Services.AddSingleton(Substitute.For<IAdminStorageConfigService>());
         builder.Services.AddSingleton(Substitute.For<IUserRepository>());
+        builder.Services.AddSingleton(Substitute.For<IMediaAssetReadRepository>());
         var app = builder.Build();
 
         app.MapApiEndpoints();
@@ -115,10 +116,25 @@ public sealed class RouteTableTests
             .Should().OnlyContain(r => r.Tags.SequenceEqual(new[] { "Users" }));
 
     [Fact]
+    public void ProxyRoute_RequiresAnAuthenticatedUserButNotAdmin()
+    {
+        var route = Find("GET", "/api/v1/assets/{assetId:guid}/proxies/{type}");
+
+        route.Anonymous.Should().BeFalse();
+        route.Authenticated.Should().BeTrue();
+        route.Policies.Should().NotContain(AuthPolicies.Admin);
+    }
+
+    [Fact]
+    public void AssetRoutes_AreTaggedMedia()
+        => Routes.Where(r => r.Pattern.StartsWith("/api/v1/assets", StringComparison.Ordinal))
+            .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Media" }));
+
+    [Fact]
     public void Healthz_IsAnonymous()
         => Find("GET", "/api/v1/healthz").Anonymous.Should().BeTrue();
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(19);
+        => Routes.Should().HaveCount(20);
 }

@@ -40,4 +40,10 @@ internal static class ApiPaths
         internal static string StorageConfigLocation(Guid userId, Guid configId)
             => $"{Base}/{Group}/{userId}/{StorageConfigs}/{configId}";
     }
+
+    internal static class Assets
+    {
+        internal const string Group = "assets";
+        internal const string Proxy = "{assetId:guid}/proxies/{type}";
+    }
 }
