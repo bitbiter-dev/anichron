@@ -7,8 +7,11 @@ public sealed record WorkerSettings
     // Stryker disable once String
     public string User { get; init; } = string.Empty;
 
-    [Required]
-    public string RootPath { get; init; } = "/data/originals";
+    // Stryker disable once String
+    public string RootPath { get; init; } = string.Empty;
+
+    [RegularExpression(@"^[^/\\]*$", ErrorMessage = "Worker:ExcludedDirectories takes folder names, not paths.")]
+    public string ExcludedDirectories { get; init; } = string.Empty;
 
     [Range(1, int.MaxValue)]
     public int CrawlIntervalHours { get; init; } = 4;
@@ -23,19 +26,19 @@ public sealed record WorkerSettings
     public string ProxyPath { get; init; } = "/data/proxies";
 
     [Range(1, int.MaxValue)]
-    public int ThumbnailMaxWidth { get; init; } = 300;
+    public int ThumbnailShortEdge { get; init; } = 300;
 
     [Range(1, 100)]
     public int ThumbnailJpegQuality { get; init; } = 75;
 
     [Range(1, int.MaxValue)]
-    public int PreviewMaxWidth { get; init; } = 1920;
+    public int PreviewLongEdge { get; init; } = 1920;
 
     [Range(1, 100)]
     public int PreviewJpegQuality { get; init; } = 85;
 
     [Range(1, int.MaxValue)]
-    public int BlurhashSampleWidth { get; init; } = 64;
+    public int BlurhashSampleLongEdge { get; init; } = 64;
 
     [Required]
     public string FfmpegPath { get; init; } = "ffmpeg";

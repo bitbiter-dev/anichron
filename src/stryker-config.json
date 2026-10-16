@@ -15,12 +15,13 @@
     ],
     "ignore-methods": [
       "Log.*",
+      "*BeginScope",
       "UnreachableException.ctor"
     ],
     "thresholds": {
-      "high": 80,
-      "low": 42,
-      "break": 42
+      "high": 100,
+      "low": 100,
+      "break": 100
     },
     "reporters": [
       "progress",

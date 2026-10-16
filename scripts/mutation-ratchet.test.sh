@@ -58,9 +58,8 @@ assert_eq 'and falls back to the config rather than failing' '' "$out"
 
 echo "thresholds — the ratchet never lowers the gate"
 
-# THE case the ticket's arithmetic does not survive on its own. The first real
-# mark is 46.58; minus five is 41.58, which floors to 41 — BELOW the committed
-# break of 42. Read literally, acceptance criterion 4 would weaken the gate on
+# THE case the ticket's arithmetic does not survive on its own. A mark of 41.58
+# floors to 41 — BELOW the committed break of 42. Read literally, acceptance criterion 4 would weaken the gate on
 # its very first advance, contradicting the issue's own opening line, "never
 # quietly slips back". The static threshold is a floor, not a starting point.
 out=$("$script" thresholds "$cfg" "$fixtures/highwater-below-static.json")
@@ -68,7 +67,7 @@ assert_contains 'a mark whose derived value is under the static break holds at t
 assert_contains 'and low holds with it' '--threshold-low 42' "$out"
 
 out=$("$script" thresholds "$cfg" "$fixtures/highwater-above-static.json")
-assert_contains 'a mark of 62.5 derives a break of 57' '--break-at 57' "$out"
+assert_contains 'a mark of 57.5 derives a break of 57' '--break-at 57' "$out"
 
 echo "thresholds — low and break move together (Q15)"
 
@@ -84,12 +83,12 @@ echo "thresholds — the ratchet does not collide with threshold-high"
 
 # The second thing the ticket does not anticipate. Stryker's input constraint is
 # break <= low <= high, not merely break <= low. Config high is 80, so once the
-# mark passes 85 the derived low overtakes it and Stryker refuses to start —
+# mark passes 80 the derived low overtakes it and Stryker refuses to start —
 # the exact failure mode Q15 exists to prevent, arriving through the other side
 # of the inequality. high has to rise with them.
 out=$("$script" thresholds "$cfg" "$fixtures/highwater-near-high.json")
-assert_contains 'a mark of 88 derives a break of 83' '--break-at 83' "$out"
-assert_contains 'and drags threshold-high up to stay >= low' '--threshold-high 83' "$out"
+assert_contains 'a mark of 88 derives a break of 88' '--break-at 88' "$out"
+assert_contains 'and drags threshold-high up to stay >= low' '--threshold-high 88' "$out"
 
 high=$(printf '%s' "$out" | sed -n 's/.*--threshold-high \([0-9]*\).*/\1/p')
 low=$(printf '%s' "$out" | sed -n 's/.*--threshold-low \([0-9]*\).*/\1/p')
@@ -97,13 +96,13 @@ if [ "$high" -ge "$low" ]; then pass 'break <= low <= high holds at the top of t
 else fail 'break <= low <= high holds at the top of the range' "high >= $low" "high $high"; fi
 
 # Below the collision point high must NOT be dragged down — that would quietly
-# relax the "good" band every time the mark sat under 85.
+# relax the "good" band every time the mark sat under 80.
 out=$("$script" thresholds "$cfg" "$fixtures/highwater-above-static.json")
 assert_contains 'a mark below the collision leaves high at the configured 80' '--threshold-high 80' "$out"
 
 echo "advance — only on a higher score"
 
-# passing.json is 75%, above the 46.58 mark, so it advances.
+# passing.json is 75%, above the 41.58 mark, so it advances.
 out=$("$script" advance "$cfg" "$fixtures/passing.json" "$fixtures/highwater-below-static.json")
 assert_eq 'a higher score raises the mark to that score' '75' "$(printf '%s' "$out" | jq -r '.mark')"
 

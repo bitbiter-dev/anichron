@@ -11,16 +11,16 @@ public sealed class WorkerIniDefaultsTests
 
         entries.Should().Equal(
             ("Worker", "User", ""),
-            ("Worker", "RootPath", "/data/originals"),
+            ("Worker", "ExcludedDirectories", ""),
             ("Worker", "CrawlIntervalHours", "4"),
             ("Worker", "MaxConcurrentFiles", "4"),
             ("Worker", "TokenCleanupIntervalHours", "24"),
             ("Worker", "ProxyPath", "/data/proxies"),
-            ("Worker", "ThumbnailMaxWidth", "300"),
+            ("Worker", "ThumbnailShortEdge", "300"),
             ("Worker", "ThumbnailJpegQuality", "75"),
-            ("Worker", "PreviewMaxWidth", "1920"),
+            ("Worker", "PreviewLongEdge", "1920"),
             ("Worker", "PreviewJpegQuality", "85"),
-            ("Worker", "BlurhashSampleWidth", "64"),
+            ("Worker", "BlurhashSampleLongEdge", "64"),
             ("Worker", "FfmpegPath", "ffmpeg"),
             ("Worker", "VideoMaxHeight", "720"),
             ("Worker", "VideoBitrateKbps", "2000"));

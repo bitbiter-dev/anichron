@@ -7,7 +7,7 @@ namespace Anichron.API.Tests.Unit.Infrastructure;
 
 public sealed class OriginalsStorageHealthCheckTests
 {
-    private const string OriginalsPath = AppDefaults.Storage.OriginalsPath;
+    private const string OriginalsPath = StoragePath.OriginalsRoot;
 
     private static HealthCheckContext BuildContext() => new()
     {
@@ -56,6 +56,7 @@ public sealed class OriginalsStorageHealthCheckTests
 
         result.Status.Should().Be(HealthStatus.Unhealthy);
         result.Exception.Should().BeOfType<IOException>();
+        result.Description.Should().Be("Originals storage check failed.");
     }
 
     // ⭐ The check must read the ORIGINALS path, not the proxy one. Mirroring an existing class

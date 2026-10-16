@@ -7,6 +7,7 @@ public interface IUserStorageConfigRepository
 {
     Task<UserStorageConfig?> FindByIdAsync(Guid configId, CancellationToken ct);
     Task<UserStorageConfig?> FindByRootPathAsync(string rootPath, CancellationToken ct);
+    Task<string[]> GetAllRootPathsAsync(CancellationToken ct);
     Task<List<UserStorageConfig>> GetAllActiveAsync(CancellationToken ct);
     Task<List<UserStorageConfig>> GetActiveByUserIdAsync(Guid userId, CancellationToken ct);
     Task<List<UserStorageConfig>> GetByUserIdAsync(Guid userId, CancellationToken ct);
@@ -21,6 +22,9 @@ public sealed class EfUserStorageConfigRepository(AnichronDbContext db) : IUserS
 
     public Task<UserStorageConfig?> FindByRootPathAsync(string rootPath, CancellationToken ct)
         => db.StorageConfigs.FirstOrDefaultAsync(s => s.RootPath == rootPath, ct);
+
+    public Task<string[]> GetAllRootPathsAsync(CancellationToken ct)
+        => db.StorageConfigs.Select(s => s.RootPath).ToArrayAsync(ct);
 
     public Task<List<UserStorageConfig>> GetAllActiveAsync(CancellationToken ct)
         => db.StorageConfigs.Where(s => s.IsActive).ToListAsync(ct);

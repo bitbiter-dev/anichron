@@ -1,10 +1,18 @@
 using Anichron.Core;
+using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Infrastructure;
+using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
+using Anichron.Worker.Settings;
+using Anichron.Worker.Startup;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions;
 
@@ -83,6 +91,18 @@ public sealed class WorkerServiceCollectionExtensionsTests
             d.ServiceType == typeof(IIngestionPipelineRunner) &&
             d.ImplementationType == typeof(IngestionPipelineRunner) &&
             d.Lifetime == ServiceLifetime.Scoped);
+    }
+
+    [Fact]
+    public void AddIngestionServices_RegistersCrawlExclusions_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIngestionServices();
+
+        services.Should().ContainSingle(d =>
+            d.ServiceType == typeof(CrawlExclusions) &&
+            d.Lifetime == ServiceLifetime.Singleton);
     }
 
     // ==========================================================================
@@ -169,5 +189,99 @@ public sealed class WorkerServiceCollectionExtensionsTests
         services.AddWorkerHostedServices();
 
         services.Count(d => d.ServiceType == typeof(IHostedService)).Should().Be(4);
+    }
+
+    // ==========================================================================
+    // Remaining registrations
+    // ==========================================================================
+
+    public static TheoryData<Type, Type, ServiceLifetime> IngestionRegistrations => new()
+    {
+        { typeof(ILivePhotoLinker), typeof(LivePhotoLinker), ServiceLifetime.Singleton },
+        { typeof(IFileIngestionPipeline), typeof(FileIngestionPipeline), ServiceLifetime.Singleton },
+        { typeof(PairedMovResolver), typeof(PairedMovResolver), ServiceLifetime.Scoped },
+        { typeof(IProcessLauncher), typeof(SystemProcessLauncher), ServiceLifetime.Singleton },
+        { typeof(IVideoProcessor), typeof(FfmpegVideoProcessor), ServiceLifetime.Singleton },
+        { typeof(IImageProcessor), typeof(ImageSharpProcessor), ServiceLifetime.Singleton },
+    };
+
+    [Theory]
+    [MemberData(nameof(IngestionRegistrations))]
+    public void AddIngestionServices_RegistersTheImplementationWithItsLifetime(Type service, Type implementation, ServiceLifetime lifetime)
+    {
+        var services = new ServiceCollection();
+
+        services.AddIngestionServices();
+
+        services.Should().ContainSingle(d => d.ServiceType == service)
+            .Which.Should().Match<ServiceDescriptor>(d => d.ImplementationType == implementation && d.Lifetime == lifetime);
+    }
+
+    [Fact]
+    public void AddWorkerCoreServices_RegistersTheSystemTimeProvider()
+    {
+        var services = new ServiceCollection();
+
+        services.AddWorkerCoreServices();
+
+        services.Should().ContainSingle(d => d.ServiceType == typeof(TimeProvider))
+            .Which.ImplementationInstance.Should().BeSameAs(TimeProvider.System);
+    }
+
+    [Fact]
+    public void AddWorkerCoreServices_BindsWorkerSettingsFromTheWorkerSection()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Worker:CrawlIntervalHours"] = "9" })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+
+        services.AddWorkerCoreServices();
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IOptions<WorkerSettings>>().Value.CrawlIntervalHours.Should().Be(9);
+    }
+
+    public static TheoryData<Type, Type> DataRegistrations => new()
+    {
+        { typeof(IUserRepository), typeof(EfUserRepository) },
+        { typeof(IUserStorageConfigRepository), typeof(EfUserStorageConfigRepository) },
+        { typeof(IRefreshTokenRepository), typeof(EfRefreshTokenRepository) },
+        { typeof(IMediaAssetRepository), typeof(EfMediaAssetRepository) },
+        { typeof(IDatabaseMigrator), typeof(EfDatabaseMigrator) },
+    };
+
+    private static ServiceCollection DataServices()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["POSTGRES_CONNECTION:HOST"] = "db.internal",
+            ["POSTGRES_CONNECTION:DBNAME"] = "anichron",
+            ["POSTGRES_CONNECTION:USER"] = "worker",
+            ["POSTGRES_CONNECTION:PASSWORD"] = "pw",
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddWorkerDataServices(configuration);
+        return services;
+    }
+
+    [Theory]
+    [MemberData(nameof(DataRegistrations))]
+    public void AddWorkerDataServices_RegistersTheRepositoryAsScoped(Type service, Type implementation)
+        => DataServices().Should().ContainSingle(d => d.ServiceType == service)
+            .Which.Should().Match<ServiceDescriptor>(d => d.ImplementationType == implementation && d.Lifetime == ServiceLifetime.Scoped);
+
+    [Fact]
+    public void AddWorkerDataServices_UnitOfWorkIsTheScopedDbContextOnNpgsql()
+    {
+        using var provider = DataServices().BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
+
+        scope.ServiceProvider.GetRequiredService<IUnitOfWork>().Should().BeSameAs(context);
+        context.Database.ProviderName.Should().Be("Npgsql.EntityFrameworkCore.PostgreSQL");
+        context.Database.GetConnectionString().Should().Contain("Host=db.internal");
     }
 }

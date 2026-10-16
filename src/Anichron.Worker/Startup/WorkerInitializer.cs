@@ -33,9 +33,21 @@ public sealed partial class WorkerInitializer(
             ?? throw new InvalidOperationException(
                 $"WORKER__USER '{settings.User}' not found in database.");
 
+        if (string.IsNullOrWhiteSpace(settings.RootPath))
+        {
+            throw new InvalidOperationException(
+                $"WORKER__ROOTPATH is required when WORKER__USER is set, e.g. {StoragePath.OriginalsRoot}/<user>.");
+        }
+
         var rootPath = StoragePath.Canonicalize(settings.RootPath)
             ?? throw new InvalidOperationException(
                 $"WORKER__ROOTPATH '{settings.RootPath}' must be an absolute path.");
+        if (!StoragePath.IsInsideOriginals(rootPath))
+        {
+            throw new InvalidOperationException(
+                $"WORKER__ROOTPATH '{rootPath}' must be a folder inside {StoragePath.OriginalsRoot}: " +
+                "use the container path, not the host path.");
+        }
 
         var existing = await storageConfigRepository.FindByRootPathAsync(rootPath, cancellationToken);
         if (existing is not null)
@@ -49,6 +61,14 @@ public sealed partial class WorkerInitializer(
             Log.StorageConfigExists(logger, user.Username, rootPath);
             workerState.ResolvedUserId = user.Id;
             return;
+        }
+
+        var overlapping = StoragePath.FindOverlap(
+            await storageConfigRepository.GetAllRootPathsAsync(cancellationToken), rootPath);
+        if (overlapping is not null)
+        {
+            throw new InvalidOperationException(
+                $"Path '{rootPath}' overlaps the existing storage config at '{overlapping}'.");
         }
 
         storageConfigRepository.Add(new UserStorageConfig

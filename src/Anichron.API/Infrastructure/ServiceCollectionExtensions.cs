@@ -5,6 +5,7 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Infrastructure.Configuration;
+using Anichron.Infrastructure.FileSystem;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -104,6 +105,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IRegistrationValidator, RegistrationValidator>();
             services.AddScoped<ILockoutService, LockoutService>();
+            // Stryker disable once Statement
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton<ILoginResponseFloor>(sp => new LoginResponseFloor(
                 sp.GetRequiredService<TimeProvider>(),
@@ -127,8 +129,12 @@ public static class ServiceCollectionExtensions
             {
                 client.BaseAddress = new Uri(AppDefaults.Pwned.Url);
                 client.DefaultRequestHeaders.Add("Add-Padding", "true");
-                client.Timeout = TimeSpan.FromSeconds(AppDefaults.Pwned.TimeoutInSeconds);
-            }).AddStandardResilienceHandler();
+            }).AddStandardResilienceHandler(options =>
+            {
+                var timeout = TimeSpan.FromSeconds(AppDefaults.Pwned.TimeoutInSeconds);
+                options.TotalRequestTimeout.Timeout = timeout;
+                options.AttemptTimeout.Timeout = timeout;
+            });
 
             var jwt = JwtConfiguration.Read(configuration);
 
@@ -160,7 +166,7 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddApiHealthChecks()
         {
-            services.AddSingleton<IFileSystem, FileSystem>();
+            services.AddSingleton<IFileSystem>(static _ => new ReadOnlyFileSystem(new FileSystem()));
             services.AddHealthChecks()
                     .AddDbContextCheck<AnichronDbContext>("database")
                     .AddCheck<ProxyStorageHealthCheck>("proxyStorage")

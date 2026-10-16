@@ -820,6 +820,17 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
+    public void GetAdminCreateStorageConfigResult_PathOverlaps_Returns409()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.GetAdminCreateStorageConfigResult(
+            AuthResult.Fail<Core.Domain.UserStorageConfig>(AuthError.PathOverlaps));
+
+        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public void GetAdminCreateStorageConfigResult_ErrorFromOtherContext_ThrowsUnreachableException()
     {
         var testee = new TestFixture().CreateTestee();

@@ -4,9 +4,20 @@
 # Copy .env.example to .env and fill in your values before
 # running: docker-compose up -d
 #
-# Multi-user setup: duplicate the anichron-worker block and
-# give each copy a unique container_name, WORKER__USER, and
-# volume mount pointing to that user's NAS folder.
+# Originals: every user's NAS folder is mounted read-only at
+# /data/originals/<user>, at the SAME container path in the API
+# and in the worker(s) that process that user. Only the host
+# side (left of the colon) depends on your NAS layout, e.g.
+# Synology: /volume1/homes/<user>/Photos:/data/originals/<user>:ro
+#
+# Multi-user setup, either:
+# - one worker per user: duplicate the anichron-worker block,
+#   give each copy a unique container_name, WORKER__USER,
+#   WORKER__ROOTPATH and mount; or
+# - one worker for all: drop WORKER__USER and WORKER__ROOTPATH,
+#   mount every user's folder, and add each user's storage
+#   config (e.g. /data/originals/alice) through the admin API.
+# Add one API mount line per user either way.
 # ============================================================
 
 services:
@@ -48,7 +59,8 @@ services:
       # - FORWARDEDHEADERS__KNOWNPROXIES=172.18.0.10
       # - FORWARDEDHEADERS__KNOWNNETWORKS=172.18.0.0/16
     volumes:
-      - /path/to/your/nas:/data/originals:ro
+      # One line per user, same container path as that user's worker:
+      - /path/to/alice/photos:/data/originals/alice:ro
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
@@ -62,11 +74,13 @@ services:
 
   # One worker per user.
   # - Set WORKER__USER to the email or username of the user.
-  # - Mount that user's NAS folder to /data/originals inside the container.
+  # - Mount only that user's NAS folder, at /data/originals/<user>, and
+  #   set WORKER__ROOTPATH to the same container path.
   # - Remove the `devices` block if you have no Intel GPU.
-  # - For multiple NAS folders for one user, mount them as subdirectories:
-  #     - /nas/photos:/data/originals/photos:ro
-  #     - /nas/videos:/data/originals/videos:ro
+  # - For several NAS folders for one user, mount each below the user's
+  #   folder (the root then covers all of them):
+  #     - /nas/photos:/data/originals/alice/photos:ro
+  #     - /nas/videos:/data/originals/alice/videos:ro
   anichron-worker:
     image: ${DOCKERHUB_USERNAME}/anichron-worker:latest
     container_name: anichron-worker
@@ -80,12 +94,13 @@ services:
       - POSTGRES_CONNECTION__USER=anichron_admin
       - POSTGRES_CONNECTION__PASSWORD=${DB_PW}
       - WORKER__USER=${WORKER_USER}  # Email or username of the user this worker processes
+      - WORKER__ROOTPATH=/data/originals/alice  # Container path, must match the mount below
       # Optional overrides (defaults shown):
-      # - WORKER__ROOTPATH=/data/originals
       # - WORKER__CRAWLINTERVALHOURS=4
       # - WORKER__MAXCONCURRENTFILES=4
+      # - WORKER__EXCLUDEDDIRECTORIES=Lightroom Previews,tmp  # extra folder names to skip
     volumes:
-      - /path/to/your/nas:/data/originals:ro  # ← replace with this user's NAS folder
+      - /path/to/alice/photos:/data/originals/alice:ro  # ← this user's NAS folder only
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:rw
     depends_on:
       anichron-db:

@@ -1,7 +1,7 @@
-using Anichron.API.Infrastructure;
+using Anichron.Infrastructure.Configuration;
 using System.Net;
 
-namespace Anichron.API.Tests.Unit.Infrastructure;
+namespace Anichron.Infrastructure.Tests.Unit.Configuration;
 
 public sealed class ConfigurationListTests
 {

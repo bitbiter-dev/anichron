@@ -115,6 +115,45 @@ public sealed class AppIniInitializerTests
     }
 
     [Fact]
+    public void EnsureUpToDate_FileDoesNotExist_WritesEachSectionFollowedByABlankLine()
+    {
+        var fs = new MockFileSystem();
+
+        new AppIniInitializer(fs).EnsureUpToDate(IniPath, DefaultEntries);
+
+        var nl = Environment.NewLine;
+        fs.File.ReadAllText(IniPath).Should().Be(
+            $"[Section]{nl}KeyA = valueA{nl}KeyB = valueB{nl}{nl}[Other]{nl}KeyC = valueC{nl}{nl}");
+    }
+
+    [Fact]
+    public void EnsureUpToDate_SomeEntriesMissing_AppendsEachSectionAfterABlankLine()
+    {
+        const string existing = "[Section]\nKeyA = old\n";
+        var fs = new MockFileSystem(new Dictionary<string, MockFileData> { { IniPath, new MockFileData(existing) } });
+
+        new AppIniInitializer(fs).EnsureUpToDate(IniPath, DefaultEntries);
+
+        var nl = Environment.NewLine;
+        fs.File.ReadAllText(IniPath).Should().Be(
+            $"{existing}{nl}[Section]{nl}KeyB = valueB{nl}{nl}[Other]{nl}KeyC = valueC{nl}");
+    }
+
+    [Fact]
+    public void EnsureUpToDate_AllEntriesPresent_DoesNotTouchTheFile()
+    {
+        var lastWrite = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var fs = new MockFileSystem(new Dictionary<string, MockFileData>
+        {
+            { IniPath, new MockFileData("[Section]\nKeyA = a\nKeyB = b\n[Other]\nKeyC = c\n") { LastWriteTime = lastWrite } },
+        });
+
+        new AppIniInitializer(fs).EnsureUpToDate(IniPath, DefaultEntries);
+
+        fs.File.GetLastWriteTimeUtc(IniPath).Should().Be(lastWrite);
+    }
+
+    [Fact]
     public void EnsureUpToDate_AllEntriesPresent_DoesNotPrintToStderr()
     {
         const string existing = "[Section]\r\nKeyA = old\r\nKeyB = old\r\n[Other]\r\nKeyC = old\r\n";
@@ -305,7 +344,7 @@ public sealed class AppIniInitializerTests
         var testee = new AppIniInitializer(fs);
         var act = () => testee.EnsureUpToDate(IniPath, DefaultEntries);
 
-        act.Should().NotThrow();
+        CaptureStderr(() => act.Should().NotThrow()).Should().BeEmpty();
     }
 
     // ==========================================================================

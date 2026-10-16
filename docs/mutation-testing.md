@@ -22,7 +22,8 @@ solution file parses correctly.
 
 No flags are needed locally and no **measurement-affecting** flag should be added. Every value that
 affects what gets measured lives in `src/stryker-config.json`, which is what makes a local run and
-the CI run comparable.
+the CI run comparable. The one local exception is the scoped run below, which deliberately measures
+less and is never compared with CI.
 
 CI does pass threshold flags — `--break-at`, `--threshold-low` and `--threshold-high`, computed
 from the stored high-water mark (see [The ratchet](#the-ratchet)). Those change the **verdict**,
@@ -38,10 +39,58 @@ than the current mark.
 > badge (#182), the published report (#181), the weekly divergence check (#184) and the threshold
 > ratchet (#183) are all live.
 
-The run takes roughly one to one and a half minutes on a developer machine, with live progress as
-it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
+A full sweep takes about eight minutes on a developer machine, with live progress as it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
 to for the detail — it shows each surviving mutant in its source context, which is how you find the
 line that needs a test. The markdown report beside it has the per-file breakdown.
+
+### The scoped local run
+
+A full sweep now takes about eight minutes, and the CI `Mutation` job runs one on every pull
+request anyway. While working on a change, run only the files it touches:
+
+```bash
+scripts/mutation-changed.sh                     # changed since the merge-base with origin/master
+scripts/mutation-changed.sh --base <ref>        # a different base
+scripts/mutation-changed.sh --print             # show the Stryker arguments, run nothing
+scripts/mutation-changed.sh Anichron.API/Endpoints/AdminUserEndpoints.cs   # add source files
+```
+
+It collects every changed `.cs` file under `src/` — committed, staged, unstaged and untracked —
+and passes each one to Stryker as `--mutate`, together with the exclusions from
+`stryker-config.json`. Mutants outside those files are reported as `Removed by mutate filter`, so
+the score and the `break` threshold apply to the changed files alone. Stryker still builds the
+solution, creates every mutant and captures per-test coverage for the whole suite, which is the
+fixed cost of roughly a minute and a half. The run then tests only the selected mutants, and each
+of them against every test that covers it, so a file's result matches what the full sweep reports
+for that file.
+
+A changed test file `<Name>Tests.cs` selects `<Name>.cs` in the matching production project. About
+a fifth of the test files are not named after one source file (endpoint and registration tests,
+test doubles), and a change to one of those exits `1` and lists them, because silently mutating
+nothing would read as a pass. Pass the source files they cover as arguments, relative to `src/`.
+
+What the scoped run cannot see, and the full sweep in CI catches:
+
+- a change in one file that weakens the tests of a file it did not touch
+- a change to `stryker-config.json`, a shared base class or a test double, whose effect is not
+  confined to the files in the diff — run `dotnet stryker` for those
+
+**Concurrent local runs corrupt each other unless each has its own temp directory.** The MTP
+runner hands the active mutant to the test hosts through a memory-mapped file at a fixed path,
+`$TMPDIR/stryker-mutant-<n>.txt`, where `<n>` is only the runner index (0 to `concurrency − 1`).
+Two Stryker runs on one machine — two agents in two worktrees — overwrite each other's mutant IDs,
+so tests run against the wrong mutant and killable mutants are reported as survivors. Measured on
+the same 138 mutants: 137 killed and 100% alone; 98.55% and 94.93% for two simultaneous runs; 100%
+for both again when each had its own `TMPDIR`. Earlier symptoms were runs that swung between 89 and
+174 survivors on unchanged code, and one at 0.00%. `mutation-changed.sh` therefore runs Stryker
+with a private `TMPDIR` that it removes afterwards; run a full sweep the same way (see CLAUDE.md).
+CI is unaffected: each job runs alone on its own runner.
+
+**Why not Stryker's own `--since`.** It is the obvious tool and it is unusable here: Stryker
+resolves the repository through its main working directory, so inside a git worktree — where every
+agent works — it diffs the main checkout against the target instead. Measured on a worktree with an
+untested method: it listed the main checkout's changed files, tested 0 mutants, printed "unable to
+calculate a mutation score" and **exited `0`**. `--with-baseline` builds on the same diff.
 
 ## Reading the result
 
@@ -58,23 +107,26 @@ Stryker exits `2` when the score is below the `break` threshold in the config �
 what its documentation says — so CI treats any non-zero value as failure rather than matching on a
 specific code.
 
-In CI the sweep runs with `continue-on-error` and the job's **last** step fails on the outcome.
-Three constraints force that shape, and changing any part of it tends to break one of the others:
+In CI the sweep runs in its own `Mutation` job, in parallel with `Checks`, with
+`continue-on-error` on the sweep and the job's **last** step failing on the outcome. Three
+constraints force that shape, and changing any part of it tends to break one of the others:
 
 - GitHub applies an implicit `success()` to any `if:` without a status-check function. A step that
-  aborted mid-job would therefore silently skip the formatting result, the coverage badge push and
-  the Pages upload — so enforcement has to be deferred to the end.
-- Enforcement must stay **inside the `Build & Test` job**, because that job is a required status
-  check on the default branch. A separate gate job would turn the workflow red but could not block
-  a merge until someone added it to the required-checks list.
+  aborted mid-job would therefore silently skip the summary, the report upload and the badge and
+  high-water payloads — so enforcement has to be deferred to the end.
+- The `Mutation` job is not itself a required check. It blocks a merge through `CI gate`, the one
+  required check this workflow reports, which fails unless `Checks`, `Mutation` and the pull-request
+  Docker builds all succeeded (`scripts/ci-gate.sh`).
 - A job-level `if:` does **not** relax a `needs:` success requirement — only `always()` or
-  `!cancelled()` does. So `deploy-pages` uses `!cancelled()`, guarded on the Pages artifact
-  actually having been uploaded, which keeps the coverage report deploying when the gate fails
-  while still skipping cleanly when an earlier failure meant no artifact was produced.
+  `!cancelled()` does, and the implicit `success()` looks at *every* upstream job, not only the
+  direct ones. So `publish` uses `!cancelled()` plus an explicit `needs.checks.result`, and
+  `deploy-pages` uses `!cancelled()` guarded on the Pages artifact actually having been uploaded.
+  That keeps the reports publishing when the gate fails, while still skipping cleanly when an
+  earlier failure meant no artifact was produced.
 
-A mutation regression therefore fails a required check and blocks the merge, without suppressing
-the formatting result, the coverage artifact, the badge or the Pages deployment. The Docker jobs
-do get skipped, since they need `Build & Test` to succeed.
+A mutation regression therefore fails `CI gate` and blocks the merge, without suppressing the
+coverage artifact, the badge or the Pages deployment. Image pushes do get skipped: they run only
+after `CI gate` succeeds.
 
 ## Configuration
 
@@ -82,9 +134,8 @@ do get skipped, since they need `Build & Test` to succeed.
 | --- | --- | --- |
 | `test-runner` | `mtp` | **Required.** See [ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md). |
 | `mutate` | excludes `Migrations/**` and a short, explicit list of pure-wiring files | See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). Paths are listed one by one — never a wildcard. |
-| `ignore-methods` | `Log.*`, `UnreachableException.ctor` | Calls whose mutants no test can meaningfully kill. See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). |
-| `thresholds.break` | `42`, against a measured 46.58% | Roughly five points of headroom. `low` is pinned equal to `break` because Stryker enforces `break <= low` and refuses to start otherwise. Since the ratchet landed this is the **floor**, not the live gate — see [The ratchet](#the-ratchet). |
-| `thresholds.high` | `80` | Report colour-coding; it gates nothing directly, but the ratchet raises it when the gate would otherwise overtake it. |
+| `ignore-methods` | `Log.*`, `*BeginScope`, `UnreachableException.ctor` | Calls whose mutants no test can meaningfully kill. See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). |
+| `thresholds` | `break`, `low` and `high` all `100` | The target since ADR 0005, reached with #233. All three move together because Stryker validates `break <= low <= high` before it mutates anything. They are also the **floor** the ratchet derives its gate from, so a run with no stored mark gates at 100 as well — see [The ratchet](#the-ratchet). |
 | `concurrency` | *unset* | Left at Stryker's default (half the logical processors). Pinning it above the default oversubscribes CI, and timeouts count as *detected*, so that inflates the score. |
 
 > **Do not change `test-runner` back to Stryker's default (`vstest`).** It cannot observe xUnit v3
@@ -183,8 +234,10 @@ scratch and wipe every artifact on it. The fetch is forcing, so a local `badges`
 earlier run cannot diverge and then be pushed over the top of the remote.
 
 Note the ordering constraint in CI: the badge payload is generated **before** this script runs,
-because checking out `badges` removes `scripts/` from the work tree. The payload goes to
-`$RUNNER_TEMP`, outside the repository entirely.
+because checking out `badges` removes `scripts/` from the work tree. The `Mutation` job writes the
+payload and any new high-water mark, and hands them to the `publish` job as the `mutation-state`
+artifact, which is downloaded into `$RUNNER_TEMP`, outside the repository entirely. A file missing
+from that artifact means "nothing new", exactly as an absent path does.
 
 ## Publishing the report
 
@@ -221,8 +274,8 @@ page says the mutation report is unavailable *for this build*, naming the distin
 the sweep **failed** rather than scored badly.
 
 An earlier draft of this script enforced "both reports or neither" and failed when either was
-missing. That was wrong in two ways. It would fail the required `Build & Test` check a second time
-for a reason that is only about publishing, when the mutation gate had already reported the real
+missing. That was wrong in two ways. It would fail CI a second time for a reason that is only
+about publishing, when the mutation gate had already reported the real
 problem. And it would publish *nothing* — losing the coverage report, which used to ship regardless
 of the mutation outcome. A missing report is honest; a stale one is misleading; neither is worth
 blocking a merge over.
@@ -283,16 +336,15 @@ mark whose derived gate falls below the committed floor, and a mark high enough 
 chain is asserted directly, since that inequality is what Stryker rejects before it mutates
 anything.
 
-All four run in CI, in the `Build & Test` job ahead of the mutation sweep — so they are skipped, not
-run, if the build, tests, coverage or formatting steps have already failed.
+All four run in CI, in the `Checks` job — so they are skipped, not run, if the build, tests,
+coverage or formatting steps have already failed.
 
-They are deliberately *not* isolated into their own job, even though `publish-badges.test.sh`
-executes real `git push` commands inside a checkout that holds push credentials. A separate job
-would not gate a merge: branch protection requires `Build & Test`, and adding a new required check
-is a repository-settings change. The test script instead guards itself twice — every setup step is
-checked, and it refuses to run at all unless `origin` resolves inside its own temp directory.
+`publish-badges.test.sh` executes real `git push` commands, but the `Checks` job's checkout holds
+only a read token; push rights exist only in the master-only `publish` job. The test script still
+guards itself twice — every setup step is checked, and it refuses to run at all unless `origin`
+resolves inside its own temp directory.
 
-One consequence worth knowing: because the badge publishing step runs after these tests, a failing
+One consequence worth knowing: because the `publish` job needs `Checks` to succeed, a failing
 helper test stops the coverage badge and the Pages upload too. That is intended for the badge — a
 publisher whose tests fail should not publish — but it does mean the Pages site can go stale on a
 failure unrelated to coverage.
@@ -318,7 +370,7 @@ mark** stored on the `badges` branch as `mutation-highwater.json`, by `scripts/m
 ```bash
 # what CI passes to Stryker, given a stored mark
 scripts/mutation-ratchet.sh thresholds src/stryker-config.json mark.json
-#   --break-at 57 --threshold-low 57 --threshold-high 80
+#   --break-at 100 --threshold-low 100 --threshold-high 100
 
 # the new mark, if this report beat the stored one; exit 3 if it did not
 scripts/mutation-ratchet.sh advance src/stryker-config.json report.json mark.json
@@ -331,23 +383,45 @@ every other open pull request.
 The mark lives on the badges branch rather than in the source tree so that raising it never requires
 CI to commit to the default branch or edit a tracked configuration file.
 
-### Why the gate is not simply `mark - 5`
+### Why there is no slack
 
-Two things the arithmetic has to survive, neither of them obvious from the rule:
+The gate is `max(committed break, floor(mark - SLACK))`, and `SLACK` is **0**. It was 5 while the
+score climbed from 46.58%; at 100% any slack does more harm than good.
 
-**The static threshold is a floor, not a starting point.** The first real mark is 46.58, and
-46.58 − 5 floors to 41 — *below* the committed `break` of 42. Applied literally, the ratchet's first
-advance would have **lowered** the gate. The derived value is therefore
-`max(committed break, floor(mark - 5))`, so the bar can only ever move up.
+**The smallest slack the gate can express already hides about 1% of all mutants.** Thresholds are
+whole percentages (the derived value is floored), so the only gates above 99 are 100 and nothing.
+With 983 mutants in scope, one mutant is 0.10 points:
+
+| `SLACK` | Gate | Survivors that still pass |
+| --- | --- | --- |
+| 0 | 100 | 0 |
+| 0.5 or 1 | 99 | 9 (974/983 = 99.08%) |
+| 5 | 95 | 49 |
+
+That count grows with the codebase — about 1% of it — so slack cannot be tuned to "a couple".
+
+**Slack only buys anything if the measurement is noisy, and it is not.** The variance seen while
+reaching 100% came from `static readonly` initialisers and EF's cached model (up to 16 mutants
+between runs), both removed. The MTP under-reporting defect showed no divergence and is watched by
+the weekly job, and timeouts count as detected. Every remaining source of noise can only lower the
+score — a spurious failure, never a false pass — and slack does not cure that; it only hides real
+regressions. If flakiness returns, fix its cause rather than reintroducing slack.
+
+**Equivalent mutants in new code do not need slack either.** ADR 0005 already gives them a route:
+a bare `// Stryker disable once` plus an ADR row with the reason, which review can see.
+
+**The static threshold is still a floor, not a starting point.** A mark of 41.58 floors to 41 —
+*below* a committed `break` of 42. Applied literally, the ratchet would **lower** the gate. The
+`max()` keeps the bar from ever moving down.
 
 **`high` has to rise too.** Stryker validates `break <= low <= high` *before* it mutates anything,
 and exits `1` when that fails — which reads as a broken tool, not a threshold event. The familiar
 half of that constraint is `break <= low`, which is why the two are always emitted as the same
-number. The other half bites later and harder: with `high` at 80, a mark of 88 derives a `low` of 83
+number. The other half bites later and harder: with `high` at 80, a mark of 88 derives a `low` of 88
 and Stryker refuses to start:
 
 ```
-Threshold high must be higher than or equal to threshold low. Current high: 80, low: 83.
+Threshold high must be higher than or equal to threshold low. Current high: 80, low: 88.
 ```
 
 So `high` is raised to match whenever the gate would overtake it, and never lowered below its

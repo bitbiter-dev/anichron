@@ -41,6 +41,16 @@ public sealed class PwnedPasswordClientTests
     }
 
     [Fact]
+    public async Task IsPwnedAsync_QueriesTheRangeEndpointWithTheFirstFiveHashCharactersOnly()
+    {
+        using var fixture = new TestFixture();
+
+        await fixture.CreateTestee().IsPwnedAsync("password", CancellationToken.None);
+
+        fixture.LastRequestUri.Should().Be(new Uri("https://api.pwnedpasswords.com/range/5BAA6"));
+    }
+
+    [Fact]
     public async Task IsPwnedAsync_HttpClientThrows_ReturnsFalse()
     {
         var testee = new TestFixture()
@@ -91,13 +101,20 @@ public sealed class PwnedPasswordClientTests
             return new PwnedPasswordClient(http, Logger);
         }
 
+        public Uri? LastRequestUri => (_handler as FakeHttpMessageHandler)?.LastRequestUri;
+
         public void Dispose() => _handler.Dispose();
     }
 
     private sealed class FakeHttpMessageHandler(string responseBody) : HttpMessageHandler
     {
+        public Uri? LastRequestUri { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseBody) });
+        {
+            LastRequestUri = request.RequestUri;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseBody) });
+        }
     }
 
     private sealed class ThrowingHttpMessageHandler : HttpMessageHandler

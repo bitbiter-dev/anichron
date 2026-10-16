@@ -1,7 +1,9 @@
 using Anichron.API.Infrastructure;
+using Anichron.Infrastructure.FileSystem;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using System.IO.Abstractions;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
@@ -56,5 +58,15 @@ public sealed class ApiHealthCheckRegistrationTests
 
         provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>()
             .Value.Registrations.Select(r => r.Name).Should().Contain("database");
+    }
+
+    [Fact]
+    public void AddApiHealthChecks_RegistersAReadOnlyFileSystem()
+    {
+        var services = new ServiceCollection();
+        services.AddApiHealthChecks();
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IFileSystem>().Should().BeOfType<ReadOnlyFileSystem>();
     }
 }

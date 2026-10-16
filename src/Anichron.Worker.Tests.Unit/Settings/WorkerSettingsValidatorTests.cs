@@ -9,11 +9,11 @@ public sealed class WorkerSettingsValidatorTests
     {
         MaxConcurrentFiles = 4,
         CrawlIntervalHours = 4,
-        ThumbnailMaxWidth = 300,
+        ThumbnailShortEdge = 300,
         ThumbnailJpegQuality = 75,
-        PreviewMaxWidth = 1920,
+        PreviewLongEdge = 1920,
         PreviewJpegQuality = 85,
-        BlurhashSampleWidth = 64,
+        BlurhashSampleLongEdge = 64,
         VideoMaxHeight = 720,
         VideoBitrateKbps = 2000,
         TokenCleanupIntervalHours = 24,
@@ -45,6 +45,21 @@ public sealed class WorkerSettingsValidatorTests
     // CrawlIntervalHours
     // ==========================================================================
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("Lightroom Previews, tmp")]
+    public void Validate_ExcludedDirectoriesAsFolderNames_ReturnsSuccess(string excludedDirectories)
+        => IsValid(ValidSettings with { ExcludedDirectories = excludedDirectories }).Should().BeTrue();
+
+    [Theory]
+    [InlineData("2024/Private")]
+    [InlineData("tmp, Lightroom Previews/")]
+    [InlineData(@"Exports\\Old")]
+    public void Validate_ExcludedDirectoriesContainingAPath_ReturnsFailedNamingTheSetting(string excludedDirectories)
+        => GetFailures(ValidSettings with { ExcludedDirectories = excludedDirectories })
+            .Should().ContainSingle()
+            .Which.MemberNames.Should().Equal(nameof(WorkerSettings.ExcludedDirectories));
+
     [Fact]
     public void Validate_CrawlIntervalHoursZero_ReturnsFailed()
     {
@@ -62,25 +77,25 @@ public sealed class WorkerSettingsValidatorTests
     }
 
     // ==========================================================================
-    // ThumbnailMaxWidth / PreviewMaxWidth / BlurhashSampleWidth
+    // ThumbnailShortEdge / PreviewLongEdge / BlurhashSampleLongEdge
     // ==========================================================================
 
     [Fact]
-    public void Validate_ThumbnailMaxWidthZero_ReturnsFailed()
+    public void Validate_ThumbnailShortEdgeZero_ReturnsFailed()
     {
-        IsValid(ValidSettings with { ThumbnailMaxWidth = 0 }).Should().BeFalse();
+        IsValid(ValidSettings with { ThumbnailShortEdge = 0 }).Should().BeFalse();
     }
 
     [Fact]
-    public void Validate_PreviewMaxWidthZero_ReturnsFailed()
+    public void Validate_PreviewLongEdgeZero_ReturnsFailed()
     {
-        IsValid(ValidSettings with { PreviewMaxWidth = 0 }).Should().BeFalse();
+        IsValid(ValidSettings with { PreviewLongEdge = 0 }).Should().BeFalse();
     }
 
     [Fact]
-    public void Validate_BlurhashSampleWidthZero_ReturnsFailed()
+    public void Validate_BlurhashSampleLongEdgeZero_ReturnsFailed()
     {
-        IsValid(ValidSettings with { BlurhashSampleWidth = 0 }).Should().BeFalse();
+        IsValid(ValidSettings with { BlurhashSampleLongEdge = 0 }).Should().BeFalse();
     }
 
     // ==========================================================================
@@ -167,5 +182,16 @@ public sealed class WorkerSettingsValidatorTests
         var failures = GetFailures(ValidSettings with { ThumbnailJpegQuality = 0, VideoBitrateKbps = -1 });
 
         failures.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Defaults_PointAtTheDocumentedLocationsAndTools()
+    {
+        var settings = new WorkerSettings();
+
+        settings.RootPath.Should().BeEmpty();
+        settings.ExcludedDirectories.Should().BeEmpty();
+        settings.ProxyPath.Should().Be("/data/proxies");
+        settings.FfmpegPath.Should().Be("ffmpeg");
     }
 }
