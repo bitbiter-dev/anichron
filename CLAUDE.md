@@ -137,6 +137,8 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 
 Proxy files follow a two-level shard path derived from **content, not from the ingestion attempt**: `/data/proxies/{content_hash[0:2]}/{storage_config_id:N}-{content_hash}/{type}` (e.g. `01/3fa85f6457174562b3fc2c963f66afa6-0123456789abcdef/thumbnail.jpg`). Re-ingesting the same file therefore resolves to the same directory, so a retry overwrites its own debris instead of stranding it; the storage config id keeps byte-identical files of two users apart, without which removing one user's config would cascade away the other's proxies. `IProxyDirectoryStrategy` is the single place this rule lives. `ProxyFile.ProxyPath` stores the path relative to `/data/proxies/` (note: `FilePath` is on `MediaAsset`, relative to the storage config root — the two are different properties).
 
+The API's DI-registered `IFileSystem` is a `ReadOnlyFileSystem` (`Anichron.Infrastructure/FileSystem/`): writes throw `NotSupportedException`, and streams open only with `FileMode.Open` and no write access. Read-only streams, `Directory.Exists` and the write-free components (`Path`, `DriveInfo`, …) are forwarded — any other read throws `NotImplementedException`, which means "add the forwarding override and a test", not "use `new FileSystem()`". This includes the `FileInfo`/`DirectoryInfo` factories, because their objects can write.
+
 ### Worker Media Processing
 
 - Crawls NAS on a configurable interval (`Worker:CrawlIntervalHours`, default 4 h; immediate crawl on startup)
