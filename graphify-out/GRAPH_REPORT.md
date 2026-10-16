@@ -1,7 +1,7 @@
-# Graph Report - fix-221-originals-namespace  (2026-10-16)
+# Graph Report - pr228  (2026-10-16)
 
 ## Corpus Check
-- 291 files · ~108,017 words
+- 291 files · ~108,327 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 7, .props 2, .example 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `dc2376f7`
+- Built from commit: `307aeea4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -2200,7 +2200,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `UserStorageConfig` connect `UserStorageConfig` to `AuthResponseMapperTests`, `IngestionPipelineRunnerTests`, `EfUserRepository`, `.Asset_CanBeSetAndRead`, `TestFixture`, `AuthResult`, `TestFixture`, `TestFixture`, `TestFixture`, `FileIngestionPipeline`, `User`, `IAuthResponseMapper`, `TestFixture`, `IngestionContext`, `TestFixture`, `ProxyFile`, `SoftDeleteQueryFilterTests`, `TestFixture`, `EfUserStorageConfigRepository`, `CapturingLogger`, `.InvokeAsync_KnownHash_DoesNotCallNextAsync`, `TestFixture`, `ExifExtractionMiddlewareTests`, `.Build`, `MediaAsset`, `ContentHashingMiddleware`, `AnichronDbContext`, `User`?**
   _High betweenness centrality (0.044) - this node is a cross-community bridge._
 - **Why does `Anichron.Core.Domain` connect `Anichron.Core.Domain` to `Anichron.API.Services`, `Anichron.Worker.Ingestion.Pipeline`, `Metadata`, `ProxyFile`, `Invite`, `MediaAsset`, `AssetInteraction`, `AnichronDbContext`, `Image`, `RefreshToken`, `Anichron.Worker.Ingestion.Proxy`, `Anichron.Worker.Tests.Unit.Ingestion`, `UserStorageConfig`, `WorkerInitializerTests.cs`, `IMediaAssetRepository`, `User`, `Schema documentation is generated, and its rationale lives in the schema`?**
-  _High betweenness centrality (0.033) - this node is a cross-community bridge._
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
 - **Why does `Individual sites (`// Stryker disable once <Mutator>`)` connect `ProxyFile` to `IngestionPipelineRunner`, `FfmpegVideoProcessorTests`, `TestFixture`, `ExifExtractionMiddleware`, `FileIngestionPipeline`, `TestFixture`, `Invite`, `MediaAsset`, `Argon2PasswordHasher`, `AnichronDbContext`, `LoginResponseFloorTests`, `RefreshToken`, `UserStorageConfig`, `ApiServiceRegistrationTests`, `User`?**
   _High betweenness centrality (0.029) - this node is a cross-community bridge._
 - **Are the 31 inferred relationships involving `UserStorageConfig` (e.g. with `Individual sites (`// Stryker disable once <Mutator>`)` and `.CreateStorageConfigAsync_CallsServiceWithUserIdAndRootPathAndReturnsMapperResult()`) actually correct?**
