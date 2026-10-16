@@ -6,10 +6,8 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using Anichron.Worker.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using Npgsql;
 using NSubstitute.ExceptionExtensions;
@@ -52,14 +50,9 @@ public sealed class PersistenceMiddlewareTests
             MovGenerator.FileName.Returns("video_720p.mp4");
             MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns(call =>
-                {
-                    FileSystem.File.WriteAllBytes(call.ArgAt<string>(1), [0x01]);
-                    return Task.CompletedTask;
-                });
+                .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
             var stagingWriter = new ProxyStagingWriter(
                 FileSystem,
-                Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
                 Clock,
                 GuidFactory,
                 Substitute.For<ILogger<ProxyStagingWriter>>());

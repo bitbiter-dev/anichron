@@ -15,7 +15,6 @@ public sealed class WorkerIniDefaultsTests
             ("Worker", "CrawlIntervalHours", "4"),
             ("Worker", "MaxConcurrentFiles", "4"),
             ("Worker", "TokenCleanupIntervalHours", "24"),
-            ("Worker", "ProxyPath", "/data/proxies"),
             ("Worker", "ThumbnailShortEdge", "300"),
             ("Worker", "ThumbnailJpegQuality", "75"),
             ("Worker", "PreviewLongEdge", "1920"),

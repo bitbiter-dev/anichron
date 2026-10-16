@@ -1,6 +1,5 @@
+using Anichron.Core;
 using Anichron.Worker.Ingestion.Proxy;
-using Anichron.Worker.Settings;
-using Microsoft.Extensions.Options;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Pipeline;
@@ -14,7 +13,6 @@ internal sealed partial class IngestionPipelineRunner(
     IEnumerable<IIngestionMiddleware> middlewares,
     IProxyDirectoryStrategy proxyDirectoryStrategy,
     IFileSystem fileSystem,
-    IOptions<WorkerSettings> settings,
     ILogger<IngestionPipelineRunner> logger) : IIngestionPipelineRunner
 {
     private readonly IngestionDelegate pipeline = BuildValidated([.. middlewares], logger);
@@ -37,7 +35,7 @@ internal sealed partial class IngestionPipelineRunner(
 
     private void Compensate(IngestionContext context)
     {
-        var proxyRoot = settings.Value.ProxyPath;
+        const string proxyRoot = StoragePath.ProxiesRoot;
         var proxies = context.ProxyFiles;
 
         foreach (var proxy in proxies)

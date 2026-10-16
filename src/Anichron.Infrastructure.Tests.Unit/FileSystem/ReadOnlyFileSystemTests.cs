@@ -14,6 +14,9 @@ public sealed class ReadOnlyFileSystemTests
     private static readonly DateTime When = new(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly SafeFileHandle Handle = new(IntPtr.Zero, ownsHandle: false);
     private static readonly string[] Lines = ["x"];
+    private static readonly byte[] NoBytes = [];
+    private static readonly ReadOnlyMemory<byte>[] NoWriteBuffers = [];
+    private static readonly Memory<byte>[] NoReadBuffers = [];
 
     private static readonly Dictionary<string, Action<IFileSystem>> WriteCalls = new()
     {
@@ -109,6 +112,15 @@ public sealed class ReadOnlyFileSystemTests
         { "FileStream.New(delete-on-close stream options)", fs => fs.FileStream.New(Source, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.Read, Options = FileOptions.DeleteOnClose }) },
         { "File.Open(delete-on-close stream options)", fs => fs.File.Open(Source, new FileStreamOptions { Mode = FileMode.Open, Access = FileAccess.Read, Options = FileOptions.DeleteOnClose }) },
         { "FileStream.New(handle)", fs => fs.FileStream.New(Handle, FileAccess.Write) },
+        { "File.OpenHandle(write access)", fs => fs.File.OpenHandle(Source, FileMode.Open, FileAccess.Write) },
+        { "File.OpenHandle(creating mode)", fs => fs.File.OpenHandle(Source, FileMode.OpenOrCreate) },
+        { "File.OpenHandle(delete-on-close)", fs => fs.File.OpenHandle(Source, options: FileOptions.DeleteOnClose) },
+        { "RandomAccess.Write(span)", fs => fs.RandomAccess.Write(Handle, NoBytes.AsSpan(), 0) },
+        { "RandomAccess.Write(buffers)", fs => fs.RandomAccess.Write(Handle, NoWriteBuffers, 0) },
+        { "RandomAccess.WriteAsync(memory)", fs => _ = fs.RandomAccess.WriteAsync(Handle, NoBytes, 0).AsTask() },
+        { "RandomAccess.WriteAsync(buffers)", fs => _ = fs.RandomAccess.WriteAsync(Handle, NoWriteBuffers, 0).AsTask() },
+        { "RandomAccess.SetLength", fs => fs.RandomAccess.SetLength(Handle, 0) },
+        { "RandomAccess.FlushToDisk", fs => fs.RandomAccess.FlushToDisk(Handle) },
         { "FileStream.New(handle, bufferSize)", fs => fs.FileStream.New(Handle, FileAccess.ReadWrite, 4096) },
         { "FileStream.New(handle, isAsync)", fs => fs.FileStream.New(Handle, FileAccess.Write, 4096, isAsync: true) },
     };
@@ -249,6 +261,11 @@ public sealed class ReadOnlyFileSystemTests
         { "FileInfo.Wrap", fs => fs.FileInfo.Wrap(null) },
         { "DirectoryInfo.New", fs => fs.DirectoryInfo.New(Source) },
         { "DirectoryInfo.Wrap", fs => fs.DirectoryInfo.Wrap(null) },
+        { "RandomAccess.GetLength", fs => fs.RandomAccess.GetLength(Handle) },
+        { "RandomAccess.Read(span)", fs => fs.RandomAccess.Read(Handle, NoBytes.AsSpan(), 0) },
+        { "RandomAccess.Read(buffers)", fs => fs.RandomAccess.Read(Handle, NoReadBuffers, 0) },
+        { "RandomAccess.ReadAsync(memory)", fs => _ = fs.RandomAccess.ReadAsync(Handle, NoBytes, 0).AsTask() },
+        { "RandomAccess.ReadAsync(buffers)", fs => _ = fs.RandomAccess.ReadAsync(Handle, NoReadBuffers, 0).AsTask() },
     };
 
     public static TheoryData<string> UnimplementedReads() => [.. UnimplementedReadCalls.Keys];
@@ -287,5 +304,16 @@ public sealed class ReadOnlyFileSystemTests
         testee.FileStream.FileSystem.Should().BeSameAs(testee);
         testee.FileInfo.FileSystem.Should().BeSameAs(testee);
         testee.DirectoryInfo.FileSystem.Should().BeSameAs(testee);
+        testee.RandomAccess.FileSystem.Should().BeSameAs(testee);
+    }
+
+    [Fact]
+    public void ReadOnlyHandle_ForwardsToTheInnerFileSystem()
+    {
+        var inner = Substitute.For<IFileSystem>();
+        inner.File.OpenHandle(Source, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.None, 0).Returns(Handle);
+        var testee = new ReadOnlyFileSystem(inner);
+
+        testee.File.OpenHandle(Source).Should().BeSameAs(Handle);
     }
 }

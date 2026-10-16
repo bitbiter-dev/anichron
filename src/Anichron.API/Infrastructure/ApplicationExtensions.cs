@@ -18,6 +18,7 @@ public static class ApplicationExtensions
             api.MapAuthEndpoints();
             api.MapUserEndpoints();
             api.MapAdminEndpoints();
+            api.MapMediaEndpoints();
             return app;
         }
     }

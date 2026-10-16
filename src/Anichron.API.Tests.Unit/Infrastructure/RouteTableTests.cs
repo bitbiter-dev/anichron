@@ -1,13 +1,8 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Infrastructure;
-using Anichron.API.Services;
-using Anichron.Core.Data.Repository;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
@@ -17,14 +12,7 @@ public sealed class RouteTableTests
 
     private static IReadOnlyList<Route> MapRoutes()
     {
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.Services.AddHealthChecks();
-        builder.Services.AddSingleton(Substitute.For<IAuthService>());
-        builder.Services.AddSingleton(Substitute.For<IAuthResponseMapper>());
-        builder.Services.AddSingleton(Substitute.For<IAdminResetService>());
-        builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
-        builder.Services.AddSingleton(Substitute.For<IAdminStorageConfigService>());
-        builder.Services.AddSingleton(Substitute.For<IUserRepository>());
+        var builder = ApiTestHost.CreateBuilder();
         var app = builder.Build();
 
         app.MapApiEndpoints();
@@ -115,10 +103,25 @@ public sealed class RouteTableTests
             .Should().OnlyContain(r => r.Tags.SequenceEqual(new[] { "Users" }));
 
     [Fact]
+    public void ProxyRoute_RequiresAnAuthenticatedUserButNotAdmin()
+    {
+        var route = Find("GET", "/api/v1/assets/{assetId:guid}/proxies/{type}");
+
+        route.Anonymous.Should().BeFalse();
+        route.Authenticated.Should().BeTrue();
+        route.Policies.Should().NotContain(AuthPolicies.Admin);
+    }
+
+    [Fact]
+    public void AssetRoutes_AreTaggedMedia()
+        => Routes.Where(r => r.Pattern.StartsWith("/api/v1/assets", StringComparison.Ordinal))
+            .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Media" }));
+
+    [Fact]
     public void Healthz_IsAnonymous()
         => Find("GET", "/api/v1/healthz").Anonymous.Should().BeTrue();
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(19);
+        => Routes.Should().HaveCount(20);
 }

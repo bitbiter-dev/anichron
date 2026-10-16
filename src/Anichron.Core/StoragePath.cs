@@ -3,6 +3,7 @@ namespace Anichron.Core;
 public static class StoragePath
 {
     public const string OriginalsRoot = "/data/originals";
+    public const string ProxiesRoot = "/data/proxies";
 
     public static string? Canonicalize(string path)
     {
@@ -13,7 +14,10 @@ public static class StoragePath
     }
 
     public static bool IsInsideOriginals(string canonicalPath)
-        => canonicalPath.StartsWith(OriginalsRoot + "/", StringComparison.Ordinal);
+        => IsInside(OriginalsRoot, canonicalPath);
+
+    public static bool IsInside(string root, string canonicalPath)
+        => canonicalPath.StartsWith(root + "/", StringComparison.Ordinal);
 
     public static string? FindOverlap(IEnumerable<string> canonicalRoots, string canonicalPath)
         => canonicalRoots.FirstOrDefault(root => Overlaps(root, canonicalPath));
@@ -23,6 +27,5 @@ public static class StoragePath
            || IsSameOrDescendant(secondCanonicalPath, firstCanonicalPath);
 
     private static bool IsSameOrDescendant(string path, string ancestor)
-        => path.Equals(ancestor, StringComparison.Ordinal)
-           || path.StartsWith(ancestor + "/", StringComparison.Ordinal);
+        => path.Equals(ancestor, StringComparison.Ordinal) || IsInside(ancestor, path);
 }

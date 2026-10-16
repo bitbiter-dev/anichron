@@ -74,7 +74,6 @@ public sealed class ImageProxyMiddlewareTests
                        DirectoryStrategy,
                        new ProxyStagingWriter(
                            FileSystem,
-                           Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
                            Clock,
                            GuidFactory,
                            Substitute.For<ILogger<ProxyStagingWriter>>()),
@@ -205,7 +204,7 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fixture.FileSystem.FileExists("/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
     }
 
     [Fact]
@@ -216,7 +215,7 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fixture.FileSystem.FileExists("/proxies/ab/cd/preview.jpg").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/preview.jpg").Should().BeTrue();
     }
 
     [Fact]
@@ -227,7 +226,7 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fixture.FileSystem.FileExists("/proxies/ab/cd/blurhash.txt").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/blurhash.txt").Should().BeTrue();
     }
 
     [Fact]
@@ -389,7 +388,7 @@ public sealed class ImageProxyMiddlewareTests
         await fixture.Build(processor, settings).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
 
         var bytes = await fixture.FileSystem.File.ReadAllBytesAsync(
-            $"/proxies/ab/cd/{proxyFileName}", TestContext.Current.CancellationToken);
+            $"/data/proxies/ab/cd/{proxyFileName}", TestContext.Current.CancellationToken);
         return Image.Load<Rgb24>(bytes);
     }
 

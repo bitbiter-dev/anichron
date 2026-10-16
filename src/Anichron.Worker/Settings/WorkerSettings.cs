@@ -22,9 +22,6 @@ public sealed record WorkerSettings
     [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
     public double TokenCleanupIntervalHours { get; init; } = 24;
 
-    [Required]
-    public string ProxyPath { get; init; } = "/data/proxies";
-
     [Range(1, int.MaxValue)]
     public int ThumbnailShortEdge { get; init; } = 300;
 

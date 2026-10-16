@@ -17,6 +17,7 @@ public sealed class ReadOnlyFileSystem : FileSystemBase
         FileStream = new ReadOnlyFileStreamFactory(this, inner);
         FileInfo = new UnimplementedFileInfoFactory(this);
         DirectoryInfo = new UnimplementedDirectoryInfoFactory(this);
+        RandomAccess = new ReadOnlyRandomAccess(this);
     }
 
     public override IFile File { get; }
@@ -28,6 +29,8 @@ public sealed class ReadOnlyFileSystem : FileSystemBase
     public override IFileInfoFactory FileInfo { get; }
 
     public override IDirectoryInfoFactory DirectoryInfo { get; }
+
+    public override IRandomAccess RandomAccess { get; }
 
     public override IPath Path => inner.Path;
 
@@ -167,6 +170,12 @@ internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem, IFileSystem in
     public override FileSystemStream Open(string path, FileMode mode, FileAccess access) => FileSystem.FileStream.New(path, mode, access, FileShare.None);
 
     public override FileSystemStream Open(string path, FileMode mode, FileAccess access, FileShare share) => FileSystem.FileStream.New(path, mode, access, share);
+
+    public override SafeFileHandle OpenHandle(string path, FileMode mode = FileMode.Open, FileAccess access = FileAccess.Read, FileShare share = FileShare.Read, FileOptions options = FileOptions.None, long preallocationSize = 0)
+    {
+        EnsureReadOnly(mode, access, options);
+        return inner.File.OpenHandle(path, mode, access, share, options, preallocationSize);
+    }
 
     public override FileSystemStream OpenRead(string path) => throw new NotImplementedException();
 
@@ -459,4 +468,31 @@ internal sealed class UnimplementedDirectoryInfoFactory(ReadOnlyFileSystem fileS
     public IDirectoryInfo New(string path) => throw new NotImplementedException();
 
     public IDirectoryInfo? Wrap(DirectoryInfo? directoryInfo) => throw new NotImplementedException();
+}
+
+internal sealed class ReadOnlyRandomAccess(ReadOnlyFileSystem fileSystem) : IRandomAccess
+{
+    public IFileSystem FileSystem => fileSystem;
+
+    public void FlushToDisk(SafeFileHandle handle) => throw ReadOnlyViolation();
+
+    public long GetLength(SafeFileHandle handle) => throw new NotImplementedException();
+
+    public int Read(SafeFileHandle handle, Span<byte> buffer, long fileOffset) => throw new NotImplementedException();
+
+    public long Read(SafeFileHandle handle, IReadOnlyList<Memory<byte>> buffers, long fileOffset) => throw new NotImplementedException();
+
+    public ValueTask<int> ReadAsync(SafeFileHandle handle, Memory<byte> buffer, long fileOffset, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+    public ValueTask<long> ReadAsync(SafeFileHandle handle, IReadOnlyList<Memory<byte>> buffers, long fileOffset, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+    public void SetLength(SafeFileHandle handle, long length) => throw ReadOnlyViolation();
+
+    public void Write(SafeFileHandle handle, ReadOnlySpan<byte> buffer, long fileOffset) => throw ReadOnlyViolation();
+
+    public void Write(SafeFileHandle handle, IReadOnlyList<ReadOnlyMemory<byte>> buffers, long fileOffset) => throw ReadOnlyViolation();
+
+    public ValueTask WriteAsync(SafeFileHandle handle, ReadOnlyMemory<byte> buffer, long fileOffset, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
+
+    public ValueTask WriteAsync(SafeFileHandle handle, IReadOnlyList<ReadOnlyMemory<byte>> buffers, long fileOffset, CancellationToken cancellationToken = default) => throw ReadOnlyViolation();
 }

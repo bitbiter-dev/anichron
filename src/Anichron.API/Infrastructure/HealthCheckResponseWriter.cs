@@ -4,7 +4,7 @@ namespace Anichron.API.Infrastructure;
 
 internal static class HealthCheckResponseWriter
 {
-    internal static async Task WriteResponseAsync(HttpContext context, HealthReport report)
+    internal static Task WriteResponseAsync(HttpContext context, HealthReport report)
     {
         context.Response.Headers.CacheControl = "no-store";
         var response = new
@@ -14,6 +14,6 @@ internal static class HealthCheckResponseWriter
                 e => e.Key,
                 e => e.Value.Status.ToString().ToLowerInvariant())
         };
-        await context.Response.WriteAsJsonAsync(response, context.RequestAborted);
+        return context.Response.WriteAsJsonAsync(response, context.RequestAborted);
     }
 }

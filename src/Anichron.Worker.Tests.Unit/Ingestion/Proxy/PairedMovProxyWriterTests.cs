@@ -4,9 +4,7 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using Anichron.Worker.Settings;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -34,8 +32,7 @@ public sealed class PairedMovProxyWriterTests
                 .Returns(callInfo =>
                 {
                     TranscodedSources.Add(callInfo.ArgAt<string>(0));
-                    FileSystem.File.WriteAllBytes(callInfo.ArgAt<string>(1), [0xAA, 0xBB]);
-                    return Task.CompletedTask;
+                    return FileSystem.File.WriteAllBytesAsync(callInfo.ArgAt<string>(1), [0xAA, 0xBB]);
                 });
         }
 
@@ -44,7 +41,6 @@ public sealed class PairedMovProxyWriterTests
                    DirectoryStrategy,
                    new ProxyStagingWriter(
                        FileSystem,
-                       Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
                        Substitute.For<IClock>(),
                        Substitute.For<IGuidFactory>(),
                        Substitute.For<ILogger<ProxyStagingWriter>>()),
@@ -78,7 +74,7 @@ public sealed class PairedMovProxyWriterTests
 
         wrote.Should().BeTrue();
         fixture.TranscodedSources.Should().Equal("/nas/photo.mov");
-        fixture.FileSystem.FileExists("/proxies/ca/mov/video_720p.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ca/mov/video_720p.mp4").Should().BeTrue();
     }
 
     [Fact]

@@ -4,9 +4,7 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using Anichron.Worker.Settings;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -42,8 +40,7 @@ public sealed class VideoProxyMiddlewareTests
                 .Returns(callInfo =>
                 {
                     var outputPath = callInfo.ArgAt<string>(1);
-                    FileSystem.File.WriteAllBytes(outputPath, [0xAA, 0xBB, 0xCC, 0xDD]);
-                    return Task.CompletedTask;
+                    return FileSystem.File.WriteAllBytesAsync(outputPath, [0xAA, 0xBB, 0xCC, 0xDD]);
                 });
         }
 
@@ -54,7 +51,6 @@ public sealed class VideoProxyMiddlewareTests
                    DirectoryStrategy,
                    new ProxyStagingWriter(
                        FileSystem,
-                       Options.Create(new WorkerSettings { ProxyPath = "/proxies" }),
                        Clock,
                        GuidFactory,
                        Substitute.For<ILogger<ProxyStagingWriter>>()),
@@ -185,7 +181,7 @@ public sealed class VideoProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fixture.FileSystem.FileExists("/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
     }
 
     [Fact]
@@ -196,7 +192,7 @@ public sealed class VideoProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fixture.FileSystem.Directory.Exists("/proxies/ab/cd").Should().BeTrue();
+        fixture.FileSystem.Directory.Exists("/data/proxies/ab/cd").Should().BeTrue();
     }
 
     [Fact]
@@ -221,11 +217,7 @@ public sealed class VideoProxyMiddlewareTests
         secondGenerator.FileName.Returns("video_1080p.mp4");
         secondGenerator.ProxyType.Returns(ProxyType.WebVideo);
         secondGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                fixture.FileSystem.File.WriteAllBytes(callInfo.ArgAt<string>(1), [0x01]);
-                return Task.CompletedTask;
-            });
+            .Returns(callInfo => fixture.FileSystem.File.WriteAllBytesAsync(callInfo.ArgAt<string>(1), [0x01]));
 
         var middleware = fixture.BuildWith(fixture.Generator, secondGenerator);
 
@@ -258,7 +250,7 @@ public sealed class VideoProxyMiddlewareTests
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         await fixture.Generator.Received(1).TranscodeAsync(
-            "/nas/video.mp4", $"/proxies/ab/cd/video_720p.mp4.{context.AssetId:N}.tmp", Arg.Any<CancellationToken>());
+            "/nas/video.mp4", $"/data/proxies/ab/cd/video_720p.mp4.{context.AssetId:N}.tmp", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -282,7 +274,7 @@ public sealed class VideoProxyMiddlewareTests
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
-        fixture.FileSystem.FileExists("/proxies/ab/cd/video_1080p.mp4").Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video_1080p.mp4").Should().BeFalse();
     }
 
     [Fact]
@@ -295,7 +287,7 @@ public sealed class VideoProxyMiddlewareTests
         var act = () => middleware.InvokeAsync(MakeContext(), NoOpNextAsync, cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
-        fixture.FileSystem.FileExists("/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
     }
 
     private static IVideoProxyGenerator CancellingGenerator(TestFixture fixture, CancellationTokenSource cts)
@@ -307,7 +299,7 @@ public sealed class VideoProxyMiddlewareTests
             .Returns(async callInfo =>
             {
                 // Half-written output on disk, then the shutdown lands mid-transcode.
-                fixture.FileSystem.File.WriteAllBytes(callInfo.ArgAt<string>(1), [0xAA]);
+                await fixture.FileSystem.File.WriteAllBytesAsync(callInfo.ArgAt<string>(1), [0xAA], cts.Token);
                 await cts.CancelAsync();
                 cts.Token.ThrowIfCancellationRequested();
             });

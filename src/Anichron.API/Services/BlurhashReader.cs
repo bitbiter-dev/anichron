@@ -1,4 +1,3 @@
-using Anichron.API.Settings;
 using Anichron.Core.Domain;
 using System.IO.Abstractions;
 
@@ -20,7 +19,7 @@ public sealed partial class BlurhashReader(IFileSystem fileSystem, ILogger<Blurh
         try
         {
             return await fileSystem.File.ReadAllTextAsync(
-                fileSystem.Path.Join(AppDefaults.Storage.ProxyPath, proxy.ProxyPath), ct);
+                fileSystem.Path.Join(StoragePath.ProxiesRoot, proxy.ProxyPath), ct);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
