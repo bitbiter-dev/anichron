@@ -21,7 +21,9 @@ public sealed class AlwaysOnMiddlewareTests
         return name switch
         {
             "ContentHashing" => new ContentHashingMiddleware(fileSystem),
-            "IdempotencyCheck" => new IdempotencyCheckMiddleware(repository, Substitute.For<ILogger<IdempotencyCheckMiddleware>>()),
+            "IdempotencyCheck" => new IdempotencyCheckMiddleware(
+                repository, Substitute.For<IUnitOfWork>(), fileSystem, Substitute.For<IClock>(),
+                Substitute.For<ILogger<IdempotencyCheckMiddleware>>()),
             "Logging" => new LoggingMiddleware(Substitute.For<ILogger<LoggingMiddleware>>()),
             "Persistence" => new PersistenceMiddleware(
                 repository, Substitute.For<IUnitOfWork>(), fileSystem, Substitute.For<IClock>(),
