@@ -68,6 +68,7 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IAdminUserService), typeof(AdminUserService), ServiceLifetime.Scoped },
         { typeof(IAdminStorageConfigService), typeof(AdminStorageConfigService), ServiceLifetime.Scoped },
         { typeof(IBootstrapResetService), typeof(BootstrapResetService), ServiceLifetime.Transient },
+        { typeof(IBlurhashReader), typeof(BlurhashReader), ServiceLifetime.Singleton },
     };
 
     [Theory]

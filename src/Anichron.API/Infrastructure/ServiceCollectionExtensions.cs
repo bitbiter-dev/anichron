@@ -118,6 +118,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAdminUserService, AdminUserService>();
             services.AddScoped<IAdminStorageConfigService, AdminStorageConfigService>();
             services.AddTransient<IBootstrapResetService, BootstrapResetService>();
+            services.AddSingleton<IBlurhashReader, BlurhashReader>();
 
             services.AddSingleton(new AuthCookieSettings
             {
