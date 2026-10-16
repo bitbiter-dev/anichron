@@ -9,33 +9,35 @@ public sealed class MediaAssetReadRepositoryTests
 {
     private sealed class Library
     {
-        public User Mira { get; } = new() { Id = Guid.NewGuid(), Username = "mira", Email = "mira@example.com" };
-        public User Admin { get; } = new() { Id = Guid.NewGuid(), Username = "admin", Email = "admin@example.com", IsAdmin = true };
-        public MediaAsset MirasPhoto { get; }
-        public MediaAsset MirasTrashedPhoto { get; }
-        public MediaAsset AlicesPhoto { get; }
-
         private readonly List<UserStorageConfig> configs = [];
 
         public Library()
         {
             var alice = new User { Id = Guid.NewGuid(), Username = "alice", Email = "alice@example.com" };
-            var miraConfig = Config(Mira, "/data/originals/mira");
-            var aliceConfig = Config(alice, "/data/originals/alice");
-            Config(Admin, "/data/originals/admin");
+            var miraConfig = Config(Mira, "/data/originals/mira", isActive: true);
+            var miraArchive = Config(Mira, "/data/originals/mira-archive", isActive: false);
+            var aliceConfig = Config(alice, "/data/originals/alice", isActive: true);
+            Config(Admin, "/data/originals/admin", isActive: true);
             MirasPhoto = Asset(miraConfig, "a.jpg", softDeleted: false);
             MirasTrashedPhoto = Asset(miraConfig, "b.jpg", softDeleted: true);
+            MirasArchivedPhoto = Asset(miraArchive, "d.jpg", softDeleted: false);
             AlicesPhoto = Asset(aliceConfig, "c.jpg", softDeleted: false);
             Users = [Mira, Admin, alice];
         }
 
+        public User Mira { get; } = new() { Id = Guid.NewGuid(), Username = "mira", Email = "mira@example.com" };
+        public User Admin { get; } = new() { Id = Guid.NewGuid(), Username = "admin", Email = "admin@example.com", IsAdmin = true };
+        public MediaAsset MirasPhoto { get; }
+        public MediaAsset MirasTrashedPhoto { get; }
+        public MediaAsset MirasArchivedPhoto { get; }
+        public MediaAsset AlicesPhoto { get; }
         public User[] Users { get; }
         public IReadOnlyList<UserStorageConfig> Configs => configs;
-        public MediaAsset[] Assets => [MirasPhoto, MirasTrashedPhoto, AlicesPhoto];
+        public MediaAsset[] Assets => [MirasPhoto, MirasTrashedPhoto, MirasArchivedPhoto, AlicesPhoto];
 
-        private UserStorageConfig Config(User owner, string rootPath)
+        private UserStorageConfig Config(User owner, string rootPath, bool isActive)
         {
-            var config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = owner.Id, RootPath = rootPath, IsActive = true };
+            var config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = owner.Id, RootPath = rootPath, IsActive = isActive };
             configs.Add(config);
             return config;
         }
@@ -52,20 +54,27 @@ public sealed class MediaAssetReadRepositoryTests
             };
     }
 
-    private static async Task<(MediaAsset? Found, Library Library)> FindAsync(
-        Func<Library, Guid> assetId, Func<Library, Guid> caller)
+    private static async Task<(DbContextOptions<AnichronDbContext> Options, Library Library)> SeedAsync()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var library = new Library();
-        await using var db = new AnichronDbContext(new DbContextOptionsBuilder<AnichronDbContext>()
+        var options = new DbContextOptionsBuilder<AnichronDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options);
+            .Options;
+        var library = new Library();
+        await using var db = new AnichronDbContext(options);
         db.Users.AddRange(library.Users);
         db.StorageConfigs.AddRange(library.Configs);
         db.MediaAssets.AddRange(library.Assets);
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return (options, library);
+    }
 
-        var found = await new EfMediaAssetReadRepository(db).FindVisibleAsync(assetId(library), caller(library), ct);
+    private static async Task<(MediaAsset? Found, Library Library)> FindAsync(
+        Func<Library, Guid> assetId, Func<Library, Guid> caller)
+    {
+        var (options, library) = await SeedAsync();
+        await using var db = new AnichronDbContext(options);
+        var found = await new EfMediaAssetReadRepository(db)
+            .FindVisibleAsync(assetId(library), caller(library), TestContext.Current.CancellationToken);
         return (found, library);
     }
 
@@ -87,6 +96,10 @@ public sealed class MediaAssetReadRepositoryTests
         => (await FindAsync(l => l.MirasTrashedPhoto.Id, l => l.Mira.Id)).Found.Should().BeNull();
 
     [Fact]
+    public async Task FindVisibleAsync_OwnAssetUnderAnInactiveConfig_ReturnsNull()
+        => (await FindAsync(l => l.MirasArchivedPhoto.Id, l => l.Mira.Id)).Found.Should().BeNull();
+
+    [Fact]
     public async Task FindVisibleAsync_AdminAskingForAnotherUsersAsset_ReturnsNull()
         => (await FindAsync(l => l.AlicesPhoto.Id, l => l.Admin.Id)).Found.Should().BeNull();
 
@@ -94,8 +107,33 @@ public sealed class MediaAssetReadRepositoryTests
     public async Task FindVisibleAsync_UnknownId_ReturnsNull()
         => (await FindAsync(_ => Guid.NewGuid(), l => l.Mira.Id)).Found.Should().BeNull();
 
+    [Fact]
+    public async Task FindVisibleAsync_OwnAsset_IsNotTracked()
+    {
+        var (options, library) = await SeedAsync();
+        await using var db = new AnichronDbContext(options);
+
+        await new EfMediaAssetReadRepository(db)
+            .FindVisibleAsync(library.MirasPhoto.Id, library.Mira.Id, TestContext.Current.CancellationToken);
+
+        db.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task VisibleTo_WithQueryFiltersIgnored_StillExcludesSoftDeletedAndInactiveAssets()
+    {
+        var (options, library) = await SeedAsync();
+        await using var db = new AnichronDbContext(options);
+
+        var visible = await db.MediaAssets.IgnoreQueryFilters().VisibleTo(library.Mira.Id)
+            .Select(a => a.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        visible.Should().Equal(library.MirasPhoto.Id);
+    }
+
     // ==========================================================================
-    // Generated SQL (InMemory does not prove the Npgsql translation)
+    // Generated SQL
     // ==========================================================================
 
     private static AnichronDbContext CreateNpgsqlModelOnlyDb()
@@ -105,7 +143,7 @@ public sealed class MediaAssetReadRepositoryTests
             .Options);
 
     [Fact]
-    public void VisibleTo_TranslatesToAJoinOnTheOwnerAndKeepsTheSoftDeleteFilter()
+    public void VisibleTo_TranslatesToAJoinOnTheActiveOwnedConfig()
     {
         using var db = CreateNpgsqlModelOnlyDb();
         var userId = Guid.Parse("11111111-2222-3333-4444-555555555555");
@@ -115,7 +153,7 @@ public sealed class MediaAssetReadRepositoryTests
         sql.Should().Contain("JOIN \"StorageConfigs\"")
             .And.Contain("\"UserId\" = @")
             .And.Contain("11111111-2222-3333-4444-555555555555")
-            .And.Contain("\"IsSoftDeleted\"");
+            .And.Contain("\"IsActive\"");
     }
 
     [Fact]
