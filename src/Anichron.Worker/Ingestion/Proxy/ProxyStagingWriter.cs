@@ -20,8 +20,6 @@ internal sealed partial class ProxyStagingWriter(
     // Naming a leftover and finding one are the same rule, so they live together: a consumer that
     // hunts for staging artifacts — compensation here, the orphan sweeper in #174 — must never
     // re-express how this writer names them.
-    internal const string TemporaryFileSearchPattern = "*" + TemporaryFileSuffix;
-
     internal static string TemporaryPathFor(string proxyAbsolutePath, Guid attemptId)
         => $"{proxyAbsolutePath}.{attemptId:N}{TemporaryFileSuffix}";
 

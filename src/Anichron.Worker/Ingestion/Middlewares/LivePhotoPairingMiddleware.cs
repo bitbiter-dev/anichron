@@ -63,6 +63,8 @@ internal sealed partial class LivePhotoPairingMiddleware(
             context.ReleaseProxyFiles(movId);
             throw;
         }
+
+        context.ReleaseProxyFiles(movId);
     }
 
     private static partial class Log

@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Anichron.Core.Migrations
 {
     [DbContext(typeof(AnichronDbContext))]
-    [Migration("20261016072418_UniqueProxyPerAssetAndType")]
+    [Migration("20261016073537_UniqueProxyPerAssetAndType")]
     partial class UniqueProxyPerAssetAndType
     {
         /// <inheritdoc />
@@ -21,7 +21,7 @@ namespace Anichron.Core.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -295,7 +295,7 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("ProxyFiles", t =>
                         {
-                            t.HasComment("One row per generated artefact on the local SSD. An asset has several. Written only by ProxyStagingWriter, at the moment the file reaches its final name.");
+                            t.HasComment("One row per generated artefact on the local SSD. An asset has several, but at most one per ProxyType, so of two attempts racing to add the same proxy only one row lands. Written only by ProxyStagingWriter, at the moment the file reaches its final name.");
                         });
                 });
 

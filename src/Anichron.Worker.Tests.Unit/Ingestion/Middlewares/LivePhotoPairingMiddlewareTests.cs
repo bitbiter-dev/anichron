@@ -261,6 +261,23 @@ public sealed class LivePhotoPairingMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_BackfillCommittedThenALaterStepThrows_LeavesTheCommittedProxyToTheDatabaseAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakePairContext();
+        fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>()).Returns(StoredHeic(PairedMovId));
+        fx.Repository.FindByHashWithProxyFilesAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>())
+            .Returns(StoredMov(PairedMovId));
+
+        var act = () => fx.Build().InvokeAsync(
+            context, (_, _) => throw new InvalidOperationException("later step"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        context.ProxyFiles.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task InvokeAsync_LatePairingFailsForAnotherReason_KeepsTheProxiesForCompensationAsync()
     {
         var fx = new TestFixture();
