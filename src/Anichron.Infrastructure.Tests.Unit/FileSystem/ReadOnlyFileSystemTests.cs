@@ -145,6 +145,17 @@ public sealed class ReadOnlyFileSystemTests
         testee.Directory.Exists("/data/originals").Should().Be(exists);
     }
 
+    [Fact]
+    public async Task FileReadAllTextAsync_ForwardsToTheInnerFileSystem()
+    {
+        var inner = new MockFileSystem(new Dictionary<string, MockFileData> { [Source] = new("LEHV6nWB2yk8") });
+        var testee = new ReadOnlyFileSystem(inner);
+
+        var text = await testee.File.ReadAllTextAsync(Source, TestContext.Current.CancellationToken);
+
+        text.Should().Be("LEHV6nWB2yk8");
+    }
+
     private static readonly FileStreamOptions ReadOptions = new() { Mode = FileMode.Open, Access = FileAccess.Read };
 
     private static readonly Dictionary<string, (Func<IFileSystem, FileSystemStream> Open, Func<IFileSystem, FileSystemStream> ExpectOnInner)> ReadCalls = new()
