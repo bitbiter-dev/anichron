@@ -93,7 +93,7 @@ public sealed class LivePhotoPairingMiddlewareTests
     // ==========================================================================
 
     [Fact]
-    public async Task InvokeAsync_StoredHeicWithoutMov_AttachesNewMovAndStopsAsync()
+    public async Task InvokeAsync_StoredHeicWithoutMov_AttachesNewMovAndContinuesAsync()
     {
         var fx = new TestFixture();
         var context = MakePairContext();
@@ -119,7 +119,7 @@ public sealed class LivePhotoPairingMiddlewareTests
         heic.MediaType.Should().Be(MediaType.LivePhoto);
         heic.PairedAssetId.Should().Be(movId);
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
-        nextCalled.Should().BeFalse();
+        nextCalled.Should().BeTrue();
         await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
         var row = fx.AddedProxies.Should().ContainSingle().Which;
         row.AssetId.Should().Be(movId);

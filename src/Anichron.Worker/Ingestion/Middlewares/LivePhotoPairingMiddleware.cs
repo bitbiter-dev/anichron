@@ -40,6 +40,7 @@ internal sealed partial class LivePhotoPairingMiddleware(
         stored.PairedAssetId = mov.Id;
         await SaveAsync(context, mov.Id, ct);
         Log.Paired(logger, context.Item.RelativePath, stored.Id);
+        await next(context, ct);
     }
 
     private async Task BackfillPairedMovProxiesAsync(IngestionContext context, Guid pairedAssetId, CancellationToken ct)
