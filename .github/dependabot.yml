@@ -6,6 +6,10 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "Microsoft.NET.Test.Sdk"
+      - dependency-name: "xunit.v3"
+      - dependency-name: "xunit.runner.visualstudio"
     groups:
       # Analyzers are separated from everything else because they fail differently.
       #
