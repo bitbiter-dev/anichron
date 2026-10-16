@@ -199,7 +199,7 @@ internal sealed class ReadOnlyFile(ReadOnlyFileSystem fileSystem, IFileSystem in
 
     public override string ReadAllText(string path, Encoding encoding) => throw new NotImplementedException();
 
-    public override Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    public override Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default) => inner.File.ReadAllTextAsync(path, cancellationToken);
 
     public override Task<string> ReadAllTextAsync(string path, Encoding encoding, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 

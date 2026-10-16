@@ -41,10 +41,10 @@ internal sealed partial class Worker(
             await CrawlAsync(config, ct);
     }
 
-    private async Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
+    private Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
     {
         Log.CrawlingPath(logger, config.RootPath, config.UserId);
-        await ingestionPipeline.RunAsync(config, ct);
+        return ingestionPipeline.RunAsync(config, ct);
     }
 
     private static partial class Log
