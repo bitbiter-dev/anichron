@@ -24,11 +24,24 @@ public sealed class IdempotencyCheckMiddlewareTests
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
         public MockFileSystem FileSystem { get; } = new();
         public IClock Clock { get; } = Substitute.For<IClock>();
+        public CapturingLogger Logger { get; } = new();
 
         public TestFixture() => Clock.GetCurrentInstant().Returns(Now);
 
         public IdempotencyCheckMiddleware Build()
-            => new(Repository, UnitOfWork, FileSystem, Clock, Substitute.For<ILogger<IdempotencyCheckMiddleware>>());
+            => new(Repository, UnitOfWork, FileSystem, Clock, Logger);
+    }
+
+    private sealed class CapturingLogger : ILogger<IdempotencyCheckMiddleware>
+    {
+        private readonly List<(LogLevel Level, string Message)> entries = [];
+        public IReadOnlyList<(LogLevel Level, string Message)> Entries => entries;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => entries.Add((logLevel, formatter(state, exception)));
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 
     private static IngestionContext MakeContext(string? contentHash = null, string relativePath = "photo.jpg") => new()
@@ -170,22 +183,49 @@ public sealed class IdempotencyCheckMiddlewareTests
         stored.FileName.Should().Be("photo.jpg");
         stored.LastSeenOnNas.Should().Be(FirstSeen);
         await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        fx.Logger.Entries.Should().ContainSingle()
+            .Which.Should().Be((LogLevel.Debug, "copy/photo.jpg is a copy of already-ingested 2023/photo.jpg, skipping."));
     }
 
     [Fact]
-    public async Task InvokeAsync_MoveOntoPathHeldByAnotherRow_DoesNotThrowAsync()
+    public async Task InvokeAsync_Moved_KeepsProxiesAndInteractionsOnTheSameRowAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext("abc123", "2024/renamed.jpg");
+        var proxy = new ProxyFile { ProxyType = ProxyType.Thumbnail, ProxyPath = "ab/x-abc123/thumbnail.jpg" };
+        var interaction = new AssetInteraction { IsStarred = true };
+        var stored = Stored("2023/photo.jpg");
+        stored.ProxyFiles = [proxy];
+        stored.Interactions = [interaction];
+        fx.Repository.FindByHashAsync("abc123", context.Config.Id, Arg.Any<CancellationToken>()).Returns(stored);
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        stored.FilePath.Should().Be("2024/renamed.jpg");
+        stored.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(proxy);
+        proxy.ProxyPath.Should().Be("ab/x-abc123/thumbnail.jpg");
+        stored.Interactions.Should().ContainSingle().Which.Should().BeSameAs(interaction);
+        fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_MoveOntoPathHeldByAnotherRow_RestoresRowAndWarnsAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext("abc123", "2024/taken.jpg");
-        fx.FileSystem.AddEmptyFile("/abs/2024/taken.jpg");
-        fx.Repository.FindByHashAsync("abc123", context.Config.Id, Arg.Any<CancellationToken>())
-            .Returns(Stored("2023/photo.jpg"));
+        var stored = Stored("2023/photo.jpg");
+        fx.Repository.FindByHashAsync("abc123", context.Config.Id, Arg.Any<CancellationToken>()).Returns(stored);
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
 
         var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         await act.Should().NotThrowAsync();
+        stored.FilePath.Should().Be("2023/photo.jpg");
+        stored.FileName.Should().Be("photo.jpg");
+        stored.LastSeenOnNas.Should().Be(FirstSeen);
+        fx.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+            .Which.Message.Should().Be("Cannot record 2024/taken.jpg: another asset row already holds that path, skipping.");
     }
 
     [Fact]
@@ -238,7 +278,54 @@ public sealed class IdempotencyCheckMiddlewareTests
         mov.FilePath.Should().Be("2024/live.mov");
         mov.FileName.Should().Be("live.mov");
         mov.LastSeenOnNas.Should().Be(Now);
-        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_HeicMoveClashes_StillMovesMovAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakePairContext("2024/live.heic", "2024/live.mov");
+        var heic = Stored("2023/live.heic");
+        var mov = Stored("2023/live.mov");
+        fx.Repository.FindByHashAsync("abc123", context.Config.Id, Arg.Any<CancellationToken>()).Returns(heic);
+        fx.Repository.FindByHashAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>()).Returns(mov);
+        string? heicPathAtSecondSave = null;
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(
+            _ => Task.FromException<int>(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath")),
+            _ =>
+            {
+                heicPathAtSecondSave = heic.FilePath;
+                return Task.FromResult(1);
+            });
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        heicPathAtSecondSave.Should().Be("2023/live.heic");
+        mov.FilePath.Should().Be("2024/live.mov");
+        fx.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+            .Which.Message.Should().Contain("2024/live.heic");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_MovMoveClashes_KeepsHeicMoveAndNamesMovPathAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakePairContext("2024/live.heic", "2024/live.mov");
+        var heic = Stored("2023/live.heic");
+        var mov = Stored("2023/live.mov");
+        fx.Repository.FindByHashAsync("abc123", context.Config.Id, Arg.Any<CancellationToken>()).Returns(heic);
+        fx.Repository.FindByHashAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>()).Returns(mov);
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(
+            _ => Task.FromResult(1),
+            _ => Task.FromException<int>(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath")));
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        heic.FilePath.Should().Be("2024/live.heic");
+        mov.FilePath.Should().Be("2023/live.mov");
+        fx.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+            .Which.Message.Should().Contain("2024/live.mov");
     }
 
     [Fact]

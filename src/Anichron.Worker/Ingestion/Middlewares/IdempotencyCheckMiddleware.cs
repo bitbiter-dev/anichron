@@ -29,15 +29,20 @@ internal sealed partial class IdempotencyCheckMiddleware(
             return;
         }
 
-        var changed = Track(existing, context.Item.RelativePath, context.Config.RootPath);
+        await ReconcileAsync(existing, context.Item.RelativePath, context.Config.RootPath, ct);
+
         if (context.Item.SecondaryFile is { } secondary
             // Ordering guarantees ContentHashingMiddleware ran first and set SecondaryHash; suppression is safe.
             && await repository.FindByHashAsync(context.SecondaryHash!, context.Config.Id, ct) is { } storedSecondary)
         {
-            changed |= Track(storedSecondary, secondary.RelativePath, context.Config.RootPath);
+            await ReconcileAsync(storedSecondary, secondary.RelativePath, context.Config.RootPath, ct);
         }
+    }
 
-        if (!changed)
+    private async Task ReconcileAsync(MediaAsset stored, string relativePath, string rootPath, CancellationToken ct)
+    {
+        var (filePath, fileName, lastSeenOnNas) = (stored.FilePath, stored.FileName, stored.LastSeenOnNas);
+        if (!ReconcileLocation(stored, relativePath, rootPath))
             return;
 
         try
@@ -46,7 +51,8 @@ internal sealed partial class IdempotencyCheckMiddleware(
         }
         catch (DbUpdateException ex) when (IsFilePathConflict(ex))
         {
-            Log.PathTaken(logger, context.Item.RelativePath);
+            (stored.FilePath, stored.FileName, stored.LastSeenOnNas) = (filePath, fileName, lastSeenOnNas);
+            Log.PathTaken(logger, relativePath);
         }
     }
 
@@ -57,7 +63,7 @@ internal sealed partial class IdempotencyCheckMiddleware(
             ConstraintName: MediaAssetIndexNames.FilePathUnique,
         };
 
-    private bool Track(MediaAsset stored, string relativePath, string rootPath)
+    private bool ReconcileLocation(MediaAsset stored, string relativePath, string rootPath)
     {
         if (stored.FilePath == relativePath)
         {
