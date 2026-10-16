@@ -48,10 +48,10 @@ public sealed class IngestionPipelineBuilderTests
         public int Order => 0;
         public bool CanInvoke(IngestionContext context) => true;
 
-        public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
         {
             tracker.Add(index);
-            await next(context, ct);
+            return next(context, ct);
         }
     }
 

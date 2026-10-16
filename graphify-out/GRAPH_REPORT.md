@@ -1,7 +1,7 @@
-# Graph Report - 242-asset-dto  (2026-10-16)
+# Graph Report - pr228  (2026-10-16)
 
 ## Corpus Check
-- 300 files · ~110,154 words
+- 300 files · ~110,138 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 7, .props 2, .example 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a4fe684e`
+- Built from commit: `cabb1eb2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

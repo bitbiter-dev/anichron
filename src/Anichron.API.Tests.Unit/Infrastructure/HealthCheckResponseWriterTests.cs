@@ -22,10 +22,10 @@ public sealed class HealthCheckResponseWriterTests
         return new HealthReport(dict, TimeSpan.Zero);
     }
 
-    private static async Task<string> ReadBodyAsync(HttpResponse response)
+    private static Task<string> ReadBodyAsync(HttpResponse response)
     {
         response.Body.Seek(0, SeekOrigin.Begin);
-        return await new StreamReader(response.Body).ReadToEndAsync();
+        return new StreamReader(response.Body).ReadToEndAsync();
     }
 
     [Fact]
