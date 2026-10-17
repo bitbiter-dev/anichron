@@ -41,6 +41,8 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the test SDK to any project matching that pattern: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
+`Anichron.Architecture.Tests.Unit` holds the architecture rules (ArchUnitNET): decisions about types and dependencies that fail the build instead of living as prose. Adding one: `docs/agents/design-process.md`, "Adding an architecture rule".
+
 ### Mutation testing
 
 ```bash
@@ -53,7 +55,7 @@ cd src && TMPDIR="$(mktemp -d)" dotnet stryker   # full sweep (~8 min); must run
 
 All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **Two deliberate exceptions, and only two**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test; and `scripts/mutation-changed.sh` passes `--mutate` to scope a local pre-check to the changed files, whose score covers only those files and is never compared with the CI score. Anywhere else, a measurement-affecting flag is a bug. **Never use `--since` or `--with-baseline`**: inside a git worktree they diff the main checkout instead of the worktree, test 0 mutants and exit `0` — a false green.
 
-Threshold flags are a separate category and are *not* covered by that rule: `--break-at`, `--threshold-low` and `--threshold-high` change the **verdict**, not the measurement, so passing them does not make two runs incomparable. `ci.yml` passes all three, computed by `scripts/mutation-ratchet.sh` from the stored high-water mark. They are always passed **together** — Stryker validates `break <= low <= high` before mutating and exits `1` if it fails, which reads as a broken tool rather than a threshold event. Never raise one by hand without the others.
+Threshold flags (`--break-at`, `--threshold-low`, `--threshold-high`) change the **verdict**, not the measurement, so they sit outside that rule. `ci.yml` passes all three together, computed by `scripts/mutation-ratchet.sh`; change them only through the ratchet, since Stryker rejects a set that breaks `break <= low <= high` and exits `1` as if the tool were broken.
 
 **Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
 
@@ -77,13 +79,13 @@ Four projects with strict separation of concerns:
 
 | Project | Role |
 |---------|------|
-| `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects. |
+| `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects (architecture rule `core-is-self-contained`). |
 | `Anichron.Infrastructure` | Shared host plumbing used by API and Worker: configuration (`DatabaseConfiguration` reads the connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets; INI bootstrap; `ConfigurationList`), migration under a PostgreSQL advisory lock, and the API's `ReadOnlyFileSystem`. Each host wires its own DI. |
 | `Anichron.API` | ASP.NET Core Minimal APIs — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data. Media endpoints (DTOs #242, proxy serving #43, originals #44, On This Day #38) are not built yet. All routes prefixed `/api/v1/`. |
 | `Anichron.Worker` | `BackgroundService`s — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, expired-refresh-token cleanup; reconciliation is planned (Epic 4) |
 
 **Write ownership is split by domain, not centralized.**
-- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media. Its one identity-side write is `TokenCleanupService` deleting expired refresh tokens.
+- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media (architecture rule `only-worker-writes-media`). Its one identity-side write is `TokenCleanupService` deleting expired refresh tokens.
 - **API owns all *identity/auth/admin* writes** — registration, login/refresh-token issuance and revocation, lockout state, invites, and admin user/storage-config CRUD all persist through API services (`AuthService`, `AdminUserService`, `AdminStorageConfigService`, `TokenService`, etc.) via `IUnitOfWork.SaveChangesAsync`. The API is read-only *only with respect to media*. The one exception is `AssetInteraction` (star/like/hide, #46): per-user state, to be written by the API.
 - Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
@@ -102,7 +104,7 @@ into PostgreSQL and therefore into `docs/schema.sql` and any schema-doc tool poi
 database. If you find yourself about to explain *why* a column exists in a Markdown file, put it in
 a `HasComment` instead — see `docs/adr/0004-schema-documentation.md`.
 
-**Nine entities**, all EF Core config via **Fluent API only**, no data annotations. Columns are
+**Nine entities**, all EF Core config via **Fluent API only** (architecture rule `domain-has-no-data-annotations`). Columns are
 **PascalCase** — the only explicitly-named column in the whole model is `Invites.xmin`. Table names
 do not always match entity names (`AssetInteraction` → `Interactions`, `UserStorageConfig` →
 `StorageConfigs`):
@@ -126,8 +128,7 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - Filtered index `IX_MediaAssets_Active` on `IsSoftDeleted`, filtered to `"IsSoftDeleted" = false` — excludes trashed assets from active gallery queries
 - Global query filters hide soft-deleted assets: on `MediaAsset`, and on `AssetInteraction` and `Burst` through their asset. This is the **only** global filter — per-user rules (hidden, ownership) are query-level, because the Worker shares `AnichronDbContext` and has no user
 - `User.Username` and `User.Email` carry an EF value converter (`IdentityNormalizer.Normalize`: trim + lowercase) that applies to every write **and** to every equality comparison, so repository lookups need no manual normalization. ⚠️ The InMemory provider does not convert query parameters, so read-side behaviour is tested via `ToQueryString()` on the Npgsql provider, not InMemory
-- `MediaType` and `ProxyType` stored as strings (not integers)
-- **Never use `DateTime`** — NodaTime is used exclusively for all date/time values
+- **NodaTime for every date and time.** `System.IO` hands back `DateTime` (e.g. a file's last-write time); convert it at that boundary. Domain types never hold one (architecture rule `domain-uses-nodatime`)
 
 ### Storage Layout
 
@@ -164,15 +165,8 @@ The API's DI-registered `IFileSystem` is a `ReadOnlyFileSystem` (`Anichron.Infra
 
 ## Conventions
 
-- **Namespaces**: File-scoped, matching `{AssemblyName}.{Layer}` (enforced as warning in `.editorconfig`)
-- **Nullability**: Enabled globally — treat as baseline
-- **Implicit usings**: Enabled globally — no need to import common `System.*` namespaces
-- **Private fields**: plain `camelCase` for instance — **no underscore prefix**; `PascalCase` for static
-- **Interfaces**: Prefixed with `I`
-- **Indentation**: 4 spaces, **LF** line endings (`src/.editorconfig` sets `end_of_line = lf`)
-- **Analyzers**: `AnalysisMode=Recommended` with `TreatWarningsAsErrors`, so every analyzer warning fails the build — fix the code rather than suppress the rule
-- **NuGet versions**: Centralized in `Directory.Packages.props` — never specify a version in individual `.csproj` files
-- **XML doc comments**: Do not add `/// <summary>` unless it meaningfully adds information beyond what the name already communicates. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) do not need them. Override the global rule requiring docs on every public member.
+- **Enforced by the build** (`TreatWarningsAsErrors`, `src/.editorconfig`, central package management) and by `dotnet format --verify-no-changes`: file-scoped namespaces matching the folder, `camelCase` private fields (static ones too) with no underscore, `I`-prefixed interfaces, 4-space indentation with LF line endings, `AnalysisMode=Recommended`, and package versions only in `Directory.Packages.props`. When one fires, fix the code rather than suppress the rule.
+- **XML doc comments**: write `/// <summary>` only when it adds information beyond the name. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) go without, overriding any global rule that asks for docs on every public member.
 
 ## Multi-User Design
 
