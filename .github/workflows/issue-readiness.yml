@@ -1,0 +1,49 @@
+name: Issue readiness
+
+on:
+  issues:
+    types: [labeled, edited]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-readiness-${{ github.event.issue.number }}
+
+jobs:
+  check:
+    name: Ready-for-agent issues carry their parts
+    if: >-
+      !github.event.issue.pull_request &&
+      contains(github.event.issue.labels.*.name, 'ready-for-agent')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check, and move an incomplete issue back to needs-triage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue view "$NUMBER" --json number,labels,body,comments > issue.json
+          set +e
+          missing=$(scripts/issue-readiness.sh < issue.json)
+          status=$?
+          set -e
+          case "$status" in
+            0) exit 0 ;;
+            1) ;;
+            *) exit "$status" ;;
+          esac
+          gh issue edit "$NUMBER" --remove-label ready-for-agent --add-label needs-triage
+          {
+            echo 'Moved back to `needs-triage`: `docs/agents/design-process.md` ("What every issue carries") requires these parts before `ready-for-agent`:'
+            echo
+            sed 's/^/- /' <<<"$missing"
+            echo
+            echo 'Add them, then label the issue `ready-for-agent` again.'
+          } > comment.md
+          gh issue comment "$NUMBER" --body-file comment.md

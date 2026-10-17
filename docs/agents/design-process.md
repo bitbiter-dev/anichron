@@ -49,7 +49,8 @@ Whatever shape the skill produces, a `ready-for-agent` issue carries three parts
 - **First caller**: the code, endpoint or user that first uses what the issue builds. That caller
   ships in the same PR, or the issue is linked as blocking or blocked by the issue that delivers
   it.
-- **Design**: a link to the approved design note, or `Design: not needed because <reason>`.
+- **Design**: a link to the approved design note (its `#issuecomment-…` URL) or to the ADR that
+  settled it, or `Design: not needed because <reason>`.
 
 In an issue body, the last two are `## First caller` and `## Design` sections. In a `/triage`
 agent brief they are fields in the brief's own style, `**First caller:**` and `**Design:**`.
@@ -57,6 +58,10 @@ agent brief they are fields in the brief's own style, `**First caller:**` and `*
 **Publishing:** label a new issue `ready-for-agent` only when no design trigger applies or its
 design note is approved; otherwise `needs-design`. This overrides a skill's own instruction to
 apply `ready-for-agent`, including a `**Status:**` field in its template.
+
+The *Issue readiness* workflow (`scripts/issue-readiness.sh`) checks every `ready-for-agent`
+issue after #261. An issue missing its first caller or design part goes back to `needs-triage`,
+with a comment naming what is missing.
 
 **Legacy issues:** issues up to #261 predate this process and lack the last two parts. For those,
 the implementer runs the trigger check below itself, and raises an objection when a design note
@@ -106,9 +111,13 @@ constraints, and the first caller is concrete enough to test against.
   interface. It comments `Design approved` with one line of reasoning, puts a link to the note in
   the issue's design part, and moves the issue to `ready-for-agent`.
 - **Maintainer decision:** when the note has a *Decision needed* section or is marked hard to
-  reverse, the architect moves the issue to `needs-decision` instead. The maintainer decides in
-  conversation, usually through `/grill-with-docs`. The agent records the decision on the issue,
-  writes an ADR when the `/domain-modeling` test holds, and moves the issue to `ready-for-agent`.
+  reverse, the issue goes to `needs-decision` instead; the note's author may move it there
+  directly, since only approval needs a second session. The maintainer decides in conversation,
+  usually through `/grill-with-docs`. The agent records the decision and its date in a
+  `## Decision` comment and writes an ADR when the `/domain-modeling` test holds. It then moves
+  the issue to `ready-for-agent`, or, when the decision is not to build now, back to
+  `needs-triage` with the release label it now belongs to. Either way it updates the milestone
+  order to match.
 
 ## Objection
 
@@ -134,6 +143,44 @@ objection replaces any workaround.
 
 The objection is done when the issue carries it and the new label, and no code for the issue is
 committed.
+
+## Adding an architecture rule
+
+A decision that can be checked by looking at types and their dependencies becomes an
+architecture rule in `src/Anichron.Architecture.Tests.Unit` (ArchUnitNET), not prose.
+
+1. Add the rule to `ArchitectureRules.All` with a kebab-case name. The tests pick it up.
+2. Run the project. Every current violator the rule finds is either fixed in the same PR or
+   gets an entry in `architecture-exceptions.json`: the rule, the type's full name, the **open**
+   issue that removes the violation, and the reason.
+3. The PR that fixes that issue deletes its entries. Two tests keep the list honest: a rule fails
+   on any violator without an entry, and an entry fails once its type no longer violates. When
+   closing an issue, check `architecture-exceptions.json` for entries that name it.
+
+A rule is done when it fails on a deliberate violation (show the output in the PR) and passes
+with only issue-linked exceptions.
+
+## Architecture review
+
+A backstop for what slips through the design step. The *Architecture review due* workflow
+(`scripts/arch-review-due.sh`) counts the PRs merged since the latest `arch-review/YYYY-MM-DD` tag,
+leaving out Dependabot's. At 10 it opens an "Architecture review due" issue, which CLAUDE.md's
+"What to work on next" puts first. The review:
+
+1. **Scope:** the range from the latest tag to master. Read it as an architect: design smells,
+   SOLID, patterns extended past their purpose, building blocks with no caller, `if`/`else` used
+   as structure, and features made to fit an existing pattern where the pattern should change.
+2. **Self-check:** re-verify every finding against the current master, and drop or correct
+   whatever does not hold.
+3. **Filing:** one issue per high-impact finding, and one grouped issue for medium and low, each
+   in the shape "What every issue carries" requires.
+4. **Order:** link the issues as blockers of the work they affect, and put them next in the
+   milestone orders.
+5. **Close-out:** tag the reviewed master commit `arch-review/<date>`, push the tag, and close the
+   review issue.
+
+The review is done when every finding is either filed or dropped with a reason, and the tag is
+pushed.
 
 ## Skill by skill
 

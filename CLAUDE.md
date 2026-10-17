@@ -41,6 +41,8 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the test SDK to any project matching that pattern: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
+`Anichron.Architecture.Tests.Unit` holds the architecture rules (ArchUnitNET): decisions about types and dependencies that fail the build instead of living as prose. Adding one: `docs/agents/design-process.md`, "Adding an architecture rule".
+
 ### Mutation testing
 
 ```bash
@@ -51,11 +53,7 @@ cd src && TMPDIR="$(mktemp -d)" dotnet stryker   # full sweep (~8 min); must run
 
 ⚠️ **Never run `dotnet stryker` with the shared `TMPDIR`.** Stryker's MTP runner passes the active mutant through `$TMPDIR/stryker-mutant-<n>.txt`, a path every run on the machine shares, so two agents mutating at the same time corrupt each other's results (survivors that tests do kill, scores down to 0%). `mutation-changed.sh` isolates itself; give a direct run its own `TMPDIR` as above. See `docs/mutation-testing.md`.
 
-All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **Two deliberate exceptions, and only two**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test; and `scripts/mutation-changed.sh` passes `--mutate` to scope a local pre-check to the changed files, whose score covers only those files and is never compared with the CI score. Anywhere else, a measurement-affecting flag is a bug. **Never use `--since` or `--with-baseline`**: inside a git worktree they diff the main checkout instead of the worktree, test 0 mutants and exit `0` — a false green.
-
-Threshold flags are a separate category and are *not* covered by that rule: `--break-at`, `--threshold-low` and `--threshold-high` change the **verdict**, not the measurement, so passing them does not make two runs incomparable. `ci.yml` passes all three, computed by `scripts/mutation-ratchet.sh` from the stored high-water mark. They are always passed **together** — Stryker validates `break <= low <= high` before mutating and exits `1` if it fails, which reads as a broken tool rather than a threshold event. Never raise one by hand without the others.
-
-**Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
+`scripts/mutation-guard.sh` (a CI step) enforces the setup rules: every setting lives in `src/stryker-config.json`, so a local run judges exactly as CI does; the `mtp` runner (`vstest` silently reports 0.00% under xUnit v3, ADR 0001); thresholds at 100; no `--since`/`--with-baseline` (in a worktree they test 0 mutants and exit `0`); `--concurrency` only in the divergence job and `--mutate` only in `mutation-changed.sh`; and an ADR 0005 entry for every Stryker directive and excluded path. When it fails, fix the setup, not the guard.
 
 #### Surviving mutants: test first, exclude only when equivalent
 
@@ -67,7 +65,7 @@ The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishi
 4. **Suppress narrowly.** Add a bare `// Stryker disable once <Mutator>` before the statement, and a row in ADR 0005 saying why. The directive binds to the next syntax node and disables *every* mutation of that mutator on it, so first confirm no killable sibling mutation on the same node gets hidden; if one would, restructure instead. A whole-file exclusion is only for pure wiring with no branching logic, listed by path in `stryker-config.json` and in ADR 0005.
 5. **Code that only real PostgreSQL can exercise** (transactions, `ExecuteUpdate`/`ExecuteDelete`) gets a per-member `// Stryker disable all` and an ADR 0005 row. It is not tested on SQLite or another stand-in engine.
 
-Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds or `SLACK` is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
+Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
 
 Mutants that flip between runs come from `static readonly` initialisers and EF's cached model: build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)`. An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
 
@@ -77,13 +75,13 @@ Four projects with strict separation of concerns:
 
 | Project | Role |
 |---------|------|
-| `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects. |
+| `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects (every other project references Core, so a reference back would be circular and fail the build). |
 | `Anichron.Infrastructure` | Shared host plumbing used by API and Worker: configuration (`DatabaseConfiguration` reads the connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets; INI bootstrap; `ConfigurationList`), migration under a PostgreSQL advisory lock, and the API's `ReadOnlyFileSystem`. Each host wires its own DI. |
-| `Anichron.API` | ASP.NET Core Minimal APIs — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data. Media endpoints (DTOs #242, proxy serving #43, originals #44, On This Day #38) are not built yet. All routes prefixed `/api/v1/`. |
+| `Anichron.API` | ASP.NET Core Minimal APIs (the only web project: `libraries-are-not-web` keeps ASP.NET Core out of Core, Infrastructure and Worker, and the two hosts never use each other) — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data. Media endpoints (DTOs #242, proxy serving #43, originals #44, On This Day #38) are not built yet. All routes prefixed `/api/v1/`. |
 | `Anichron.Worker` | `BackgroundService`s — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, expired-refresh-token cleanup; reconciliation is planned (Epic 4) |
 
 **Write ownership is split by domain, not centralized.**
-- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media. Its one identity-side write is `TokenCleanupService` deleting expired refresh tokens.
+- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media: outside its DI wiring it never touches `AnichronDbContext` (architecture rule `api-reaches-data-through-repositories`), and the media write repository stays out of it (`only-worker-writes-media`). Its one identity-side write is `TokenCleanupService` deleting expired refresh tokens.
 - **API owns all *identity/auth/admin* writes** — registration, login/refresh-token issuance and revocation, lockout state, invites, and admin user/storage-config CRUD all persist through API services (`AuthService`, `AdminUserService`, `AdminStorageConfigService`, `TokenService`, etc.) via `IUnitOfWork.SaveChangesAsync`. The API is read-only *only with respect to media*. The one exception is `AssetInteraction` (star/like/hide, #46): per-user state, to be written by the API.
 - Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
@@ -102,7 +100,7 @@ into PostgreSQL and therefore into `docs/schema.sql` and any schema-doc tool poi
 database. If you find yourself about to explain *why* a column exists in a Markdown file, put it in
 a `HasComment` instead — see `docs/adr/0004-schema-documentation.md`.
 
-**Nine entities**, all EF Core config via **Fluent API only**, no data annotations. Columns are
+**Nine entities**, all EF Core config via **Fluent API only** (architecture rule `domain-has-no-data-annotations`). Columns are
 **PascalCase** — the only explicitly-named column in the whole model is `Invites.xmin`. Table names
 do not always match entity names (`AssetInteraction` → `Interactions`, `UserStorageConfig` →
 `StorageConfigs`):
@@ -120,14 +118,13 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 ### Key EF Core / Database Decisions
 
 - `Month` and `Day` stored as separate integers on `MediaAsset` with a **composite index** (`IX_MediaAsset_Flashback`) — enables "On This Day" queries as direct index lookups instead of `EXTRACT()` scans
-- Partial unique index on `(StorageConfigId, ContentHash)` filtered to `"IsSoftDeleted" = false` (`MediaAssetIndexNames.ActiveContentHashUnique`) — enforces one *active* asset per content within a storage config; it is what lets a moved file be re-linked to its existing row by hash (#35). Dedup is **config-scoped**: the same bytes under two storage configs are two assets, which is what makes multi-user work. A *global* unique index on `ContentHash` alone would break that and must not be added. When two consumers race on the same content, the loser's insert hits this index and `PersistenceMiddleware` skips the file without throwing, so pipeline compensation never deletes the winner's shared proxies
+- Partial unique index on `(StorageConfigId, ContentHash)` filtered to `"IsSoftDeleted" = false` (`MediaAssetIndexNames.ActiveContentHashUnique`) — enforces one *active* asset per content within a storage config; it is what lets a moved file be re-linked to its existing row by hash (#35). Dedup is **config-scoped**: the same bytes under two storage configs are two assets, which is what makes multi-user work. A *global* unique index on `ContentHash` alone would break that (pinned by `ModelInvariantsTests`). When two consumers race on the same content, the loser's insert hits this index and `PersistenceMiddleware` skips the file without throwing, so pipeline compensation never deletes the winner's shared proxies
 - Unique index on `(StorageConfigId, FilePath)` — one asset row per path within a config, soft-deleted rows included
 - Unique index on `ProxyFiles (AssetId, ProxyType)` (`ProxyFileIndexNames.OnePerAssetAndType`) — at most one proxy of each kind per asset, so two attempts racing to add the same proxy (e.g. a paired MOV's backfilled `WebVideo`) cannot both land; the loser is a `LostIngestionRace`
 - Filtered index `IX_MediaAssets_Active` on `IsSoftDeleted`, filtered to `"IsSoftDeleted" = false` — excludes trashed assets from active gallery queries
-- Global query filters hide soft-deleted assets: on `MediaAsset`, and on `AssetInteraction` and `Burst` through their asset. This is the **only** global filter — per-user rules (hidden, ownership) are query-level, because the Worker shares `AnichronDbContext` and has no user
+- Global query filters hide soft-deleted assets: on `MediaAsset`, and on `Metadata`, `ProxyFile`, `AssetInteraction` and `Burst` through their asset. This is the **only** global filter (pinned by `ModelInvariantsTests`) — per-user rules (hidden, ownership) are query-level, because the Worker shares `AnichronDbContext` and has no user
 - `User.Username` and `User.Email` carry an EF value converter (`IdentityNormalizer.Normalize`: trim + lowercase) that applies to every write **and** to every equality comparison, so repository lookups need no manual normalization. ⚠️ The InMemory provider does not convert query parameters, so read-side behaviour is tested via `ToQueryString()` on the Npgsql provider, not InMemory
-- `MediaType` and `ProxyType` stored as strings (not integers)
-- **Never use `DateTime`** — NodaTime is used exclusively for all date/time values
+- **NodaTime for every date and time.** `System.IO` hands back `DateTime` (e.g. a file's last-write time); convert it at that boundary. Domain types never hold one (architecture rule `domain-uses-nodatime`)
 
 ### Storage Layout
 
@@ -153,7 +150,7 @@ The API's DI-registered `IFileSystem` is a `ReadOnlyFileSystem` (`Anichron.Infra
 - FFmpeg transcodes video with runtime GPU detection: QuickSync (`h264_qsv`) → NVENC (`h264_nvenc`) → AMF (`h264_amf`) → software (`libx264`)
 - Burst detection (**planned, not yet implemented**): will group rapid-fire sequences and assign a `PrimaryAssetId` cover. The `Burst` entity and schema exist; no detection code is wired into the Worker yet.
 - Reconciliation (**planned, Epic 4**): a periodic scan soft-deletes assets whose file is gone (interactions survive) and restores them when it reappears (#33, #34, #37). Moves are already handled at ingest (#35): when the hash matches an active row, `IdempotencyCheckMiddleware` refreshes `LastSeenOnNas` if the path is unchanged, moves the row to the new path if its stored file is gone, and leaves it alone if the stored file still exists (a duplicate copy, reported by #36). A Live Photo's MOV row gets the same treatment by its own hash. A move onto a path another row already holds (soft-deleted rows included) is logged as a warning and skipped
-- Failure ownership: `ProxyStagingWriter` is the single place a proxy reaches its final name — it writes under a per-attempt `.<attempt id>.tmp` suffix (so concurrent attempts on the same content never share a temporary file), renames into place once complete, and registers the proxy on the `IngestionContext` at that moment; the proxy middlewares only supply the bytes. If a step throws, `IngestionPipelineRunner` deletes exactly those registered proxies plus its own temporary files, and removes the directory only if it is left empty — never recursively, since a concurrent attempt on the same content shares it until one of them persists. An attempt that loses a uniqueness race (`LostIngestionRace`: the active content-hash index or the one-proxy-per-asset-and-type index) first releases its paired MOV's registrations, because the winner owns those content-derived files. A clean shutdown is treated differently: the in-flight temporary file is dropped, but proxies already completed in that run are kept, and the consumer loop re-throws the cancellation instead of recording an item failure and draining the queue. A hard kill or the storage-config cascade delete is out of reach in-process and belongs to the orphan sweeper (#174).
+- Failure ownership: `ProxyStagingWriter` is the single place a proxy reaches its final name (architecture rule `proxies-reach-final-name-only-in-staging-writer`) — it writes under a per-attempt `.<attempt id>.tmp` suffix (so concurrent attempts on the same content never share a temporary file), renames into place once complete, and registers the proxy on the `IngestionContext` at that moment; the proxy middlewares only supply the bytes. If a step throws, `IngestionPipelineRunner` deletes exactly those registered proxies plus its own temporary files, and removes the directory only if it is left empty — never recursively, since a concurrent attempt on the same content shares it until one of them persists. An attempt that loses a uniqueness race (`LostIngestionRace`: the active content-hash index or the one-proxy-per-asset-and-type index) first releases its paired MOV's registrations, because the winner owns those content-derived files. A clean shutdown is treated differently: the in-flight temporary file is dropped, but proxies already completed in that run are kept, and the consumer loop re-throws the cancellation instead of recording an item failure and draining the queue. A hard kill or the storage-config cascade delete is out of reach in-process and belongs to the orphan sweeper (#174).
 
 ### Flashback Interaction Rules
 
@@ -164,15 +161,8 @@ The API's DI-registered `IFileSystem` is a `ReadOnlyFileSystem` (`Anichron.Infra
 
 ## Conventions
 
-- **Namespaces**: File-scoped, matching `{AssemblyName}.{Layer}` (enforced as warning in `.editorconfig`)
-- **Nullability**: Enabled globally — treat as baseline
-- **Implicit usings**: Enabled globally — no need to import common `System.*` namespaces
-- **Private fields**: plain `camelCase` for instance — **no underscore prefix**; `PascalCase` for static
-- **Interfaces**: Prefixed with `I`
-- **Indentation**: 4 spaces, **LF** line endings (`src/.editorconfig` sets `end_of_line = lf`)
-- **Analyzers**: `AnalysisMode=Recommended` with `TreatWarningsAsErrors`, so every analyzer warning fails the build — fix the code rather than suppress the rule
-- **NuGet versions**: Centralized in `Directory.Packages.props` — never specify a version in individual `.csproj` files
-- **XML doc comments**: Do not add `/// <summary>` unless it meaningfully adds information beyond what the name already communicates. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) do not need them. Override the global rule requiring docs on every public member.
+- **Enforced by the build** (`TreatWarningsAsErrors`, `src/.editorconfig`, central package management) and by `dotnet format --verify-no-changes`: file-scoped namespaces matching the folder, `camelCase` private fields (static ones too) with no underscore in production code (test projects suppress `IDE1006`), `I`-prefixed interfaces, 4-space indentation with LF line endings, `AnalysisMode=Recommended`, and package versions only in `Directory.Packages.props`. When one fires, fix the code rather than suppress the rule.
+- **XML doc comments**: write `/// <summary>` only when it adds information beyond the name. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) go without, overriding any global rule that asks for docs on every public member.
 
 ## Multi-User Design
 
@@ -194,14 +184,14 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 - CORS allowed origins configured via `CORS__ALLOWEDORIGINS` env var (comma-separated); the same value switches the refresh cookie to `SameSite=None`. Leave empty for same-origin / reverse proxy deployments.
 - `X-Forwarded-For` is honoured only from loopback or from addresses listed in `FORWARDEDHEADERS__KNOWNPROXIES` / `FORWARDEDHEADERS__KNOWNNETWORKS` (comma-separated IPs / CIDRs; `ForwardLimit = 1`). Rate limiting partitions on the resulting client IP, so a reverse-proxy deployment must set one of these or all clients share the proxy's bucket. Never trust the Docker bridge network for a directly published port — that lets any client spoof its IP.
 - Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.
-- Observability: `GET /api/v1/healthz` (database, proxy storage, originals storage; a missing mount reports Degraded). Logging is the default .NET console logger with `LoggerMessage` source-generated messages; structured JSON output and OpenTelemetry are **not** wired up.
+- Observability: `GET /api/v1/healthz` (database, proxy storage, originals storage; a missing mount reports Degraded). Logging is the default .NET console logger with `LoggerMessage` source-generated messages (architecture rule `logging-is-source-generated`; `BeginScope` is allowed); structured JSON output and OpenTelemetry are **not** wired up.
 - License: AGPL-3.0.
 
 ## GitHub References
 
 - **Issues** (bug reports, feature requests, epic tracking): https://github.com/bitbiter-dev/anichron/issues
 - **Wiki** (early architecture decisions, e.g. ADR-3 on flashback weighting, which older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
-- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. Pick an open `ready-for-agent` issue with no open blocker. A `needs-design` issue is picked only to write or approve its design note; a `needs-decision` issue waits for the maintainer.
+- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. An open "Architecture review due" issue goes before anything else (procedure: `docs/agents/design-process.md`, "Architecture review"). Otherwise pick an open `ready-for-agent` issue with no open blocker. A `needs-design` issue is picked only to write or approve its design note; a `needs-decision` issue waits for the maintainer.
 
 ## graphify (knowledge graph — orient here first)
 
