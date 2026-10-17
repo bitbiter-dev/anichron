@@ -153,9 +153,9 @@ architecture rule in `src/Anichron.Architecture.Tests.Unit` (ArchUnitNET), not p
 2. Run the project. Every current violator the rule finds is either fixed in the same PR or
    gets an entry in `architecture-exceptions.json`: the rule, the type's full name, the **open**
    issue that removes the violation, and the reason.
-3. The PR that fixes that issue deletes its entries. Three checks keep the list honest: a rule
-   fails on any violator without an entry, an entry fails once its type no longer violates, and
-   `scripts/arch-exceptions-check.sh` in CI fails once the entry's issue is closed.
+3. The PR that fixes that issue deletes its entries. Two tests keep the list honest: a rule fails
+   on any violator without an entry, and an entry fails once its type no longer violates. When
+   closing an issue, check `architecture-exceptions.json` for entries that name it.
 
 A rule is done when it fails on a deliberate violation (show the output in the PR) and passes
 with only issue-linked exceptions.
