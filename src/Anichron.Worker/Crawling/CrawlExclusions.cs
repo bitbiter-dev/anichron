@@ -1,4 +1,3 @@
-using Anichron.Infrastructure.Configuration;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 
@@ -9,7 +8,7 @@ internal sealed class CrawlExclusions(IOptions<WorkerSettings> options)
     private readonly HashSet<string> directoryNames = new(
         [
             .. BuiltInDirectoryNames(),
-            .. ConfigurationList.Parse(options.Value.ExcludedDirectories, static name => name),
+            .. options.Value.ExcludedDirectoryNames(),
         ],
         StringComparer.OrdinalIgnoreCase);
 
