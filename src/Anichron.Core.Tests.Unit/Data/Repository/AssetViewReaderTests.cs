@@ -253,6 +253,17 @@ public sealed class AssetViewReaderTests
     }
 
     [Fact]
+    public async Task ReadAsync_NoProxies_ReportsNone()
+    {
+        var library = new Library();
+        library.Asset(library.MiraConfig);
+
+        var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
+
+        (view.HasThumbnail, view.HasPreview, view.HasVideo).Should().Be((false, false, false));
+    }
+
+    [Fact]
     public async Task ReadAsync_NoMetadata_MapsToNulls()
     {
         var library = new Library();
@@ -368,18 +379,20 @@ public sealed class AssetViewReaderTests
     }
 
     [Fact]
-    public void Query_ScopesTheHiddenRuleAndTheInteractionJoinToTheCaller()
+    public void Query_FiltersVisibilityTheHiddenRuleAndTheInteractionJoinOnTheCaller()
     {
         using var db = CreateNpgsqlModelOnlyDb();
-        var caller = Guid.Parse("11111111-2222-3333-4444-555555555555");
 
-        var sql = EfAssetViewReader.Query(db, caller, new Everything()).ToQueryString();
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new Everything()).ToQueryString();
 
         sql.Should().Contain("JOIN \"StorageConfigs\"")
+            .And.Contain("\"IsActive\"")
+            .And.Contain("\"IsSoftDeleted\"")
             .And.Contain("\"IsHidden\"")
             .And.Contain("LEFT JOIN")
-            .And.Contain("FROM \"Interactions\"")
-            .And.Contain("11111111-2222-3333-4444-555555555555");
+            .And.Contain("FROM \"Interactions\"");
+        sql.Split("\"UserId\" = @").Should().HaveCount(4,
+            "the owned-config check, the hidden rule and the interaction join each filter on the caller");
     }
 
     [Fact]

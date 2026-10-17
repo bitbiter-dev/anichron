@@ -1,41 +1,18 @@
-using Anichron.API.Infrastructure;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Infrastructure.Storage;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Security.Claims;
-using System.Text.Encodings.Web;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
 public sealed class MediaEndpointsTests
 {
-    private const string UserHeader = "X-Test-User";
     private const string ContentHash = "0123456789abcdef";
     private static readonly Guid UserId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
     private static readonly Guid AssetId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
-
-    private sealed class HeaderAuthHandler(
-        IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
-        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
-    {
-        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
-        {
-            if (!Request.Headers.TryGetValue(UserHeader, out var userId))
-                return Task.FromResult(AuthenticateResult.NoResult());
-
-            var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString())], Scheme.Name);
-            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
-        }
-    }
 
     private sealed class FakeProxyStore : IProxyStore
     {
@@ -47,10 +24,8 @@ public sealed class MediaEndpointsTests
             => Files.TryGetValue(proxyPath, out var bytes) ? new MemoryStream(bytes, writable: false) : null;
     }
 
-    private sealed class TestFixture : IAsyncDisposable
+    private sealed class TestFixture
     {
-        private WebApplication? app;
-
         public FakeProxyStore Proxies { get; } = new();
         public IMediaAssetReadRepository Assets { get; } = Substitute.For<IMediaAssetReadRepository>();
 
@@ -62,35 +37,16 @@ public sealed class MediaEndpointsTests
                 Proxies.Files[proxyPath] = bytes;
         }
 
-        public async Task<HttpClient> StartAsync()
-        {
-            var builder = ApiTestHost.CreateBuilder();
-            builder.WebHost.UseTestServer();
-            builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthHandler>("Test", null);
-            builder.Services.AddAuthorization();
-            builder.Services.AddSingleton(Assets);
-            builder.Services.AddSingleton<IProxyStore>(Proxies);
-            app = builder.Build();
-            app.UseAuthentication();
-            app.UseAuthorization();
-            app.MapApiEndpoints();
-            await app.StartAsync(TestContext.Current.CancellationToken);
-            return app.GetTestClient();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (app is not null)
-                await app.DisposeAsync();
-        }
+        public Task<AuthenticatedTestApp> StartAsync()
+            => AuthenticatedTestApp.StartAsync(services =>
+            {
+                services.AddSingleton(Assets);
+                services.AddSingleton<IProxyStore>(Proxies);
+            });
     }
 
     private static HttpRequestMessage Get(string type, Guid? userId = null)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/assets/{AssetId}/proxies/{type}");
-        request.Headers.Add(UserHeader, (userId ?? UserId).ToString());
-        return request;
-    }
+        => AuthenticatedTestApp.Get($"/api/v1/assets/{AssetId}/proxies/{type}", userId ?? UserId);
 
     [Theory]
     [InlineData("thumbnail", ProxyType.Thumbnail, "image/jpeg")]
@@ -99,10 +55,11 @@ public sealed class MediaEndpointsTests
     public async Task GetProxy_OwnAssetWithThatProxy_StreamsTheFileWithItsContentTypeAsync(
         string type, ProxyType proxyType, string contentType)
     {
-        await using var fixture = new TestFixture();
+        var fixture = new TestFixture();
         byte[] bytes = [1, 2, 3, 4, 5, 6, 7, 8];
         fixture.HasProxy(proxyType, $"01/{type}.bin", bytes);
-        using var client = await fixture.StartAsync();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
 
         using var response = await client.SendAsync(Get(type), TestContext.Current.CancellationToken);
 
@@ -114,9 +71,10 @@ public sealed class MediaEndpointsTests
     [Fact]
     public async Task GetProxy_OwnAsset_SendsAStrongETagAndPrivateImmutableCachingAsync()
     {
-        await using var fixture = new TestFixture();
+        var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1, 2, 3]);
-        using var client = await fixture.StartAsync();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
 
         using var response = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
 
@@ -131,9 +89,10 @@ public sealed class MediaEndpointsTests
     [Fact]
     public async Task GetProxy_MatchingIfNoneMatch_ReturnsNotModifiedAsync()
     {
-        await using var fixture = new TestFixture();
+        var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1, 2, 3]);
-        using var client = await fixture.StartAsync();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
         var request = Get("thumbnail");
         request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
 
@@ -147,9 +106,10 @@ public sealed class MediaEndpointsTests
     [Fact]
     public async Task GetProxy_VideoRangeRequest_ReturnsPartialContentAsync()
     {
-        await using var fixture = new TestFixture();
+        var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.WebVideo, "01/video.mp4", [10, 11, 12, 13, 14, 15, 16, 17]);
-        using var client = await fixture.StartAsync();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
         var request = Get("video");
         request.Headers.Range = new RangeHeaderValue(2, 4);
 
@@ -164,9 +124,10 @@ public sealed class MediaEndpointsTests
     [Fact]
     public async Task GetProxy_LooksUpTheCallerFromTheirClaimsAsync()
     {
-        await using var fixture = new TestFixture();
+        var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1]);
-        using var client = await fixture.StartAsync();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
 
         using var _ = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
 
@@ -177,9 +138,10 @@ public sealed class MediaEndpointsTests
     [Fact]
     public async Task GetProxy_NotVisibleToTheCaller_ReturnsNotFoundAsync()
     {
-        await using var fixture = new TestFixture();
+        var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1]);
-        using var client = await fixture.StartAsync();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
 
         using var response = await client.SendAsync(Get("thumbnail", Guid.NewGuid()), TestContext.Current.CancellationToken);
 
@@ -192,8 +154,9 @@ public sealed class MediaEndpointsTests
     [InlineData("Thumbnail")]
     public async Task GetProxy_UnknownType_ReturnsNotFoundWithoutALookupAsync(string type)
     {
-        await using var fixture = new TestFixture();
-        using var client = await fixture.StartAsync();
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
 
         using var response = await client.SendAsync(Get(type), TestContext.Current.CancellationToken);
 
@@ -205,9 +168,10 @@ public sealed class MediaEndpointsTests
     [Fact]
     public async Task GetProxy_StoreHasNoFileForTheRow_ReturnsNotFoundAsync()
     {
-        await using var fixture = new TestFixture();
+        var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", bytes: null);
-        using var client = await fixture.StartAsync();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
 
         using var response = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
 
@@ -217,8 +181,9 @@ public sealed class MediaEndpointsTests
     [Fact]
     public async Task GetProxy_Anonymous_ReturnsUnauthorizedAsync()
     {
-        await using var fixture = new TestFixture();
-        using var client = await fixture.StartAsync();
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
 
         using var response = await client.GetAsync(
             $"/api/v1/assets/{AssetId}/proxies/thumbnail", TestContext.Current.CancellationToken);

@@ -9,12 +9,13 @@ public sealed class AssetDtoMapperTests
     private static readonly Guid AssetId = Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b");
     private static readonly Guid MovId = Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-ffffffffffff");
 
-    private static AssetView Photo => new(
-        AssetId, MediaType.Image, 2019, 7, 14, new LocalDateTime(2019, 7, 14, 9, 30),
-        Width: 4032, Height: 3024, Orientation: ExifOrientation.Upright, DurationInSeconds: 3, Blurhash: null,
-        HasThumbnail: false, HasPreview: false, HasVideo: false,
-        PairedMovId: null, PairedMovHasVideo: false,
-        IsStarred: false, IsLiked: false);
+    private static AssetView Photo => AssetViews.Image(AssetId, new LocalDateTime(2019, 7, 14, 9, 30)) with
+    {
+        Width = 4032,
+        Height = 3024,
+        Orientation = ExifOrientation.Upright,
+        DurationInSeconds = 3,
+    };
 
     [Fact]
     public void Photo_MapsItsFieldsAndProxyUrls()

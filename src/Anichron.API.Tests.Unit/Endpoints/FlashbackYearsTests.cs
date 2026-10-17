@@ -1,17 +1,12 @@
 using Anichron.API.Endpoints;
 using Anichron.Core.Data.Repository;
-using Anichron.Core.Domain;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
 public sealed class FlashbackYearsTests
 {
-    private static AssetView View(string id, LocalDateTime captured, bool starred = false) => new(
-        Guid.Parse(id), MediaType.Image, captured.Year, captured.Month, captured.Day, captured,
-        Width: null, Height: null, Orientation: null, DurationInSeconds: null, Blurhash: null,
-        HasThumbnail: false, HasPreview: false, HasVideo: false,
-        PairedMovId: null, PairedMovHasVideo: false,
-        IsStarred: starred, IsLiked: false);
+    private static AssetView View(string id, LocalDateTime captured, bool starred = false)
+        => AssetViews.Image(Guid.Parse(id), captured) with { IsStarred = starred };
 
     [Fact]
     public void Group_NoAssets_HasNoYears()
