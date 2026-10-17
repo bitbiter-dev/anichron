@@ -77,7 +77,7 @@ public sealed class AssetDtoMapperTests
 
         dto.MediaType.Should().Be("LivePhoto");
         dto.DurationSeconds.Should().BeNull();
-        dto.LivePhoto.Should().Be("assets/0199a1b2-c3d4-7e5f-8a9b-ffffffffffff/proxies/video");
+        dto.LivePhotoVideoUrl.Should().Be("assets/0199a1b2-c3d4-7e5f-8a9b-ffffffffffff/proxies/video");
         dto.Proxies.Video.Should().BeNull();
     }
 
@@ -94,7 +94,7 @@ public sealed class AssetDtoMapperTests
             ProxyFiles = [new ProxyFile { ProxyType = ProxyType.Thumbnail }],
         };
 
-        AssetDtoMapper.ToDto(asset, null, null).LivePhoto.Should().BeNull();
+        AssetDtoMapper.ToDto(asset, null, null).LivePhotoVideoUrl.Should().BeNull();
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class AssetDtoMapperTests
 
         dto.Proxies.Should().Be(new AssetProxyUrls(null, null, null));
         dto.Blurhash.Should().BeNull();
-        dto.LivePhoto.Should().BeNull();
+        dto.LivePhotoVideoUrl.Should().BeNull();
         dto.Width.Should().BeNull();
         dto.Height.Should().BeNull();
         dto.DurationSeconds.Should().BeNull();

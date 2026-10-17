@@ -12,16 +12,16 @@ internal sealed class PairedMovResolver(
     IClock clock,
     IGuidFactory guidFactory)
 {
-    public async Task<Guid> ResolveAsync(
+    public async Task<MediaAsset> ResolveAsync(
         SecondaryFileDescriptor mov,
         string contentHash,
         Guid storageConfigId,
         LocalDateTime? dateCaptured,
         CancellationToken ct)
     {
-        var existing = await repository.FindByHashAsync(contentHash, storageConfigId, ct);
+        var existing = await repository.FindByHashWithProxyFilesAsync(contentHash, storageConfigId, ct);
         if (existing is not null)
-            return existing.Id;
+            return existing;
 
         var date = dateCaptured
             ?? LocalDateTime.FromDateTime(fileSystem.FileInfo.New(mov.AbsolutePath).LastWriteTime);
@@ -42,6 +42,6 @@ internal sealed class PairedMovResolver(
             LastSeenOnNas = clock.GetCurrentInstant(),
         };
         repository.Add(asset);
-        return asset.Id;
+        return asset;
     }
 }

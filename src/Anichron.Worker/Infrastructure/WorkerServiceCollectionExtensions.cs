@@ -59,6 +59,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddImageProxyServices();
             services.AddVideoProxyServices();
             services.AddScoped<PairedMovResolver>();
+            services.AddScoped<PairedMovProxyWriter>();
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
             services.AddScoped<IIngestionMiddleware, LivePhotoPairingMiddleware>();

@@ -11,7 +11,7 @@ public sealed record AssetDto(
     int? DurationSeconds,
     AssetProxyUrls Proxies,
     string? Blurhash,
-    string? LivePhoto,
+    string? LivePhotoVideoUrl,
     AssetInteractionDto Interaction);
 
 public sealed record AssetProxyUrls(string? Thumbnail, string? Preview, string? Video);

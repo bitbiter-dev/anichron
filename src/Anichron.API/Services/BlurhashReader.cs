@@ -21,7 +21,7 @@ public sealed partial class BlurhashReader(IFileSystem fileSystem, ILogger<Blurh
             return await fileSystem.File.ReadAllTextAsync(
                 fileSystem.Path.Join(StoragePath.ProxiesRoot, proxy.ProxyPath), ct);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Unreadable(logger, proxy.ProxyPath, asset.Id, ex);
             return null;

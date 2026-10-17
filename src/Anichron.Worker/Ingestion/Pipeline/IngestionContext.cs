@@ -34,4 +34,10 @@ internal sealed class IngestionContext
         lock (proxyFilesLock)
             proxyFiles.Add(proxyFile);
     }
+
+    public void ReleaseProxyFiles(Guid ownerAssetId)
+    {
+        lock (proxyFilesLock)
+            proxyFiles.RemoveAll(proxy => proxy.AssetId == ownerAssetId);
+    }
 }

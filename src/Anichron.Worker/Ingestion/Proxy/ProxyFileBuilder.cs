@@ -1,6 +1,5 @@
 using Anichron.Core;
 using Anichron.Core.Domain;
-using Anichron.Worker.Ingestion.Pipeline;
 using NodaTime;
 
 namespace Anichron.Worker.Ingestion.Proxy;
@@ -8,7 +7,7 @@ namespace Anichron.Worker.Ingestion.Proxy;
 internal static class ProxyFileBuilder
 {
     internal static ProxyFile Build(
-        IngestionContext context,
+        Guid assetId,
         string relativePath,
         ProxyType proxyType,
         long sizeBytes,
@@ -17,7 +16,7 @@ internal static class ProxyFileBuilder
         => new()
         {
             Id = guidFactory.NewGuid(),
-            AssetId = context.AssetId,
+            AssetId = assetId,
             ProxyPath = relativePath,
             ProxyType = proxyType,
             SizeBytes = sizeBytes,
