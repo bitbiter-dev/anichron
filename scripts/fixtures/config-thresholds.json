@@ -1,1 +1,0 @@
-{ "stryker-config": { "thresholds": { "high": 80, "low": 42, "break": 42 } } }

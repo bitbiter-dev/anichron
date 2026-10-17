@@ -55,7 +55,7 @@ cd src && TMPDIR="$(mktemp -d)" dotnet stryker   # full sweep (~8 min); must run
 
 All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **Two deliberate exceptions, and only two**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test; and `scripts/mutation-changed.sh` passes `--mutate` to scope a local pre-check to the changed files, whose score covers only those files and is never compared with the CI score. Anywhere else, a measurement-affecting flag is a bug. **Never use `--since` or `--with-baseline`**: inside a git worktree they diff the main checkout instead of the worktree, test 0 mutants and exit `0` — a false green.
 
-Threshold flags (`--break-at`, `--threshold-low`, `--threshold-high`) change the **verdict**, not the measurement, so they sit outside that rule. `ci.yml` passes all three together, computed by `scripts/mutation-ratchet.sh`; change them only through the ratchet, since Stryker rejects a set that breaks `break <= low <= high` and exits `1` as if the tool were broken.
+The gate is the `thresholds` in `stryker-config.json` (`break`, `low`, `high` all 100); CI passes no threshold flags. They move together, since Stryker rejects a set that breaks `break <= low <= high` and exits `1` as if the tool were broken.
 
 **Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
 
@@ -69,7 +69,7 @@ The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishi
 4. **Suppress narrowly.** Add a bare `// Stryker disable once <Mutator>` before the statement, and a row in ADR 0005 saying why. The directive binds to the next syntax node and disables *every* mutation of that mutator on it, so first confirm no killable sibling mutation on the same node gets hidden; if one would, restructure instead. A whole-file exclusion is only for pure wiring with no branching logic, listed by path in `stryker-config.json` and in ADR 0005.
 5. **Code that only real PostgreSQL can exercise** (transactions, `ExecuteUpdate`/`ExecuteDelete`) gets a per-member `// Stryker disable all` and an ADR 0005 row. It is not tested on SQLite or another stand-in engine.
 
-Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds or `SLACK` is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
+Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
 
 Mutants that flip between runs come from `static readonly` initialisers and EF's cached model: build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)`. An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
 

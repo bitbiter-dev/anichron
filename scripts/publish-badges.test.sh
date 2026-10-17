@@ -56,13 +56,12 @@ git commit --quiet -m 'initial'
 git branch -M master
 git push --quiet -u origin master
 
-# An existing badges branch carrying a file this run knows nothing about —
-# stands in for the ratchet's high-water mark (#183).
+# An existing badges branch carrying a file this run knows nothing about.
 git checkout --quiet --orphan badges
 git rm -rf . --quiet
 echo 'old-coverage' > coverage.svg
-echo '{"highWaterMark":46.58}' > ratchet.json
-git add coverage.svg ratchet.json
+echo '{"kept":true}' > other.json
+git add coverage.svg other.json
 git commit --quiet -m 'existing badges'
 git push --quiet -u origin badges
 git checkout --quiet master
@@ -80,7 +79,7 @@ assert_eq "publishes successfully" '0' "$rc"
 git fetch --quiet origin badges
 assert_eq "updates the coverage badge" 'new-coverage' "$(git show origin/badges:coverage.svg 2>&1)"
 assert_eq "adds the mutation badge" 'yellow' "$(git show origin/badges:mutation.json 2>&1 | jq -r '.color')"
-assert_eq "preserves an unrelated artifact it knows nothing about" '{"highWaterMark":46.58}' "$(git show origin/badges:ratchet.json 2>&1)"
+assert_eq "preserves an unrelated artifact it knows nothing about" '{"kept":true}' "$(git show origin/badges:other.json 2>&1)"
 assert_absent_on_badges "leaves the source tree off the badges branch" app.txt
 assert_eq "returns the working tree to the original branch" 'master' "$(git rev-parse --abbrev-ref HEAD)"
 
@@ -109,58 +108,6 @@ printf '{"schemaVersion":1,"label":"mutation"}' > "$work/no-message.json"
 MUTATION_BADGE="$work/no-message.json" "$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
 git fetch --quiet origin badges
 assert_eq "a payload without a message does not overwrite a good badge" 'yellow' "$(git show origin/badges:mutation.json 2>&1 | jq -r '.color')"
-
-# The ratchet's stored mark (#183). It rides the same branch as the badges, so
-# the thing worth proving is that publishing one does not disturb the other.
-printf '{"mark":46.58,"recorded":"2026-09-22T05:47:39Z","commit":"f85255b"}' > "$work/highwater.json"
-HIGHWATER="$work/highwater.json" "$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
-git fetch --quiet origin badges
-assert_eq "publishes the high-water mark" '46.58' "$(git show origin/badges:mutation-highwater.json 2>&1 | jq -r '.mark')"
-assert_eq "without disturbing the mutation badge beside it" 'yellow' "$(git show origin/badges:mutation.json 2>&1 | jq -r '.color')"
-
-# Acceptance criterion 7, and the criterion most likely to regress silently: a
-# later badge-only run must leave the mark exactly where it was. This is the
-# case that would have broken before the branch stopped being rebuilt.
-echo 'coverage-after-mark' > coverage/report/badge_linecoverage.svg
-"$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
-git fetch --quiet origin badges
-assert_eq "the mark survives a later badge-branch update" '46.58' "$(git show origin/badges:mutation-highwater.json 2>&1 | jq -r '.mark')"
-assert_eq "which did update coverage, so it was a real run" 'coverage-after-mark' "$(git show origin/badges:coverage.svg 2>&1)"
-
-# A pull-request build passes no HIGHWATER at all. Criterion 3: read and gate,
-# never raise.
-"$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
-git fetch --quiet origin badges
-assert_eq "a run without HIGHWATER cannot raise the mark" '46.58' "$(git show origin/badges:mutation-highwater.json 2>&1 | jq -r '.mark')"
-
-# Same corruption guard as the badge: a mark whose .mark is not a number would
-# make every later `thresholds` call fall back to the static floor, silently
-# undoing the ratchet.
-printf '{"mark":"oops"}' > "$work/bad-mark.json"
-HIGHWATER="$work/bad-mark.json" "$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
-git fetch --quiet origin badges
-assert_eq "a non-numeric mark does not overwrite a good one" '46.58' "$(git show origin/badges:mutation-highwater.json 2>&1 | jq -r '.mark')"
-
-: > "$work/empty-mark.json"
-HIGHWATER="$work/empty-mark.json" "$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
-git fetch --quiet origin badges
-assert_eq "an empty mark payload does not overwrite a good one" '46.58' "$(git show origin/badges:mutation-highwater.json 2>&1 | jq -r '.mark')"
-
-# The ratchet's last line of defence. mutation-ratchet.sh will not EMIT a lower
-# mark, but it can only compare against the mark it was handed — and CI reads
-# that from this branch. If that read comes back empty (unreachable origin,
-# renamed branch) an advance seeded from the committed floor arrives here
-# looking perfectly valid. This is the check that does not depend on the read.
-printf '{"mark":11.0,"recorded":"2026-10-09T00:00:00Z","commit":"deadbee"}' > "$work/lower-mark.json"
-HIGHWATER="$work/lower-mark.json" "$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
-git fetch --quiet origin badges
-assert_eq "a LOWER mark is refused even though it is well-formed" '46.58' "$(git show origin/badges:mutation-highwater.json 2>&1 | jq -r '.mark')"
-
-# ... and the guard must not block a legitimate rise, or the ratchet never moves.
-printf '{"mark":51.2,"recorded":"2026-10-09T00:00:00Z","commit":"feedbee"}' > "$work/higher-mark.json"
-HIGHWATER="$work/higher-mark.json" "$script" coverage/report/badge_linecoverage.svg > /dev/null 2>&1
-git fetch --quiet origin badges
-assert_eq "a higher mark still gets through" '51.2' "$(git show origin/badges:mutation-highwater.json 2>&1 | jq -r '.mark')"
 
 # Creating the branch from scratch must not carry the source tree over.
 # Writes its own badge content rather than inheriting whatever the previous

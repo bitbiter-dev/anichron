@@ -136,6 +136,7 @@ for every deployment. The proxy root is no longer a setting at all since #43: it
   no third category.
 - Suppressing a site requires amending this ADR. A bare directive with no entry here is a review
   finding.
-- The gate enforces 100%: the ratchet's slack is 0 and `break`, `low` and `high` are all 100. Any
+- The gate enforces 100%: `break`, `low` and `high` in `stryker-config.json` are all 100, and CI
+  passes no threshold flags (the ratchet that once derived them was removed). Any
   surviving or uncovered mutant fails the build. The reasoning, including why no smaller allowance
   is possible, is in `docs/mutation-testing.md` under "Why there is no slack".
