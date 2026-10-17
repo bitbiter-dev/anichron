@@ -2,6 +2,7 @@
   "stryker-config": {
     "solution": "Anichron.slnx",
     "test-runner": "mtp",
+    "concurrency": 4,
     "mutate": [
       "!**/Migrations/**",
       "!**/Anichron.API/Program.cs",

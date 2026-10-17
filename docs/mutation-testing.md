@@ -135,7 +135,7 @@ after `CI gate` succeeds.
 | `mutate` | excludes `Migrations/**` and a short, explicit list of pure-wiring files | See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). Paths are listed one by one — never a wildcard. |
 | `ignore-methods` | `Log.*`, `*BeginScope`, `UnreachableException.ctor` | Calls whose mutants no test can meaningfully kill. See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). |
 | `thresholds` | `break`, `low` and `high` all `100` | The target since ADR 0005, reached with #233. All three move together because Stryker validates `break <= low <= high` before it mutates anything. They are the whole gate — see [The gate](#the-gate). |
-| `concurrency` | *unset* | Left at Stryker's default (half the logical processors). Pinning it above the default oversubscribes CI, and timeouts count as *detected*, so that inflates the score. |
+| `concurrency` | `4` | The vCPU count of the hosted `ubuntu-latest` runner, so the CI sweep uses every core rather than Stryker's default of half of them. Pinned in the config rather than passed as a flag so a local run measures with the same number of runners. Raise it only together with the runner size: oversubscribing a runner turns slow kills into timeouts, and timeouts count as *detected*, which inflates the score. |
 
 > **Do not change `test-runner` back to Stryker's default (`vstest`).** It cannot observe xUnit v3
 > test failures at all and produces a silent `0.00%` with no error — which reads as a catastrophic
