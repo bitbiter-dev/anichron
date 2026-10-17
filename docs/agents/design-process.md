@@ -58,6 +58,10 @@ agent brief they are fields in the brief's own style, `**First caller:**` and `*
 design note is approved; otherwise `needs-design`. This overrides a skill's own instruction to
 apply `ready-for-agent`, including a `**Status:**` field in its template.
 
+The *Issue readiness* workflow (`scripts/issue-readiness.sh`) checks every `ready-for-agent`
+issue after #261. An issue missing its first caller or design part goes back to `needs-triage`,
+with a comment naming what is missing.
+
 **Legacy issues:** issues up to #261 predate this process and lack the last two parts. For those,
 the implementer runs the trigger check below itself, and raises an objection when a design note
 was needed but is missing.
