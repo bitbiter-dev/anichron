@@ -1,9 +1,11 @@
 using Anichron.Core.Data.Repository;
+using Anichron.Testing.DependencyInjection;
 using Anichron.Testing.Time;
 using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NodaTime;
@@ -25,14 +27,7 @@ public sealed class TokenCleanupServiceTests
             Now = Instant.FromUtc(2026, 5, 12, 10, 0, 0);
             Clock.GetCurrentInstant().Returns(Now);
 
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
-
-            ScopeFactory = Substitute.For<IServiceScopeFactory>();
-            ScopeFactory.CreateScope().Returns(scope);
-
-            serviceProvider.GetService(typeof(IRefreshTokenRepository)).Returns(Repository);
+            ScopeFactory = ScopeFactories.Providing(services => services.AddSingleton(Repository));
         }
 
         public TokenCleanupService Build(
@@ -67,13 +62,13 @@ public sealed class TokenCleanupServiceTests
     {
         var fixture = new TestFixture();
         fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(deletedCount);
-        var logger = new CapturingLogger();
+        var logger = new FakeLogger<TokenCleanupService>();
         var service = fixture.Build(logger: logger);
 
         await service.RunCleanupAsync(CancellationToken.None);
 
-        logger.Entries.Should().ContainSingle()
-            .Which.Should().Match<(LogLevel Level, string Message)>(
+        logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(
                 entry => entry.Level == LogLevel.Information && entry.Message.Contains(deletedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
@@ -113,7 +108,7 @@ public sealed class TokenCleanupServiceTests
         var fixture = new TestFixture();
         var calls = 0;
         RecordCleanups(fixture, timeline, () => ++calls == 1 ? throw new InvalidOperationException("DB error") : 0);
-        var logger = new CapturingLogger();
+        var logger = new FakeLogger<TokenCleanupService>();
         await StartAsync(timeline, fixture.Build(timeline.Clock, intervalHours: 1, logger));
         await timeline.ExpectAsync(new Called("cleanup"), new TimerArmed(TimeSpan.FromHours(1)));
 
@@ -121,7 +116,7 @@ public sealed class TokenCleanupServiceTests
 
         await timeline.ExpectAsync(
             new TimerFired(TimeSpan.FromHours(1)), new Called("cleanup"), new TimerArmed(TimeSpan.FromHours(1)));
-        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error);
+        logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Error);
     }
 
     [Fact]
@@ -130,12 +125,12 @@ public sealed class TokenCleanupServiceTests
         await using var timeline = new Timeline();
         var fixture = new TestFixture();
         RecordCleanups(fixture, timeline, () => throw new OperationCanceledException());
-        var logger = new CapturingLogger();
+        var logger = new FakeLogger<TokenCleanupService>();
 
         await StartAsync(timeline, fixture.Build(timeline.Clock, intervalHours: 1, logger));
 
         await timeline.ExpectAsync(new Called("cleanup"), new Finished(TaskStatus.Canceled));
-        logger.Entries.Should().BeEmpty();
+        logger.Collector.GetSnapshot().Should().BeEmpty();
     }
 
     [Fact]
@@ -168,17 +163,5 @@ public sealed class TokenCleanupServiceTests
     {
         await service.StartAsync(Ct);
         timeline.Watch(service.ExecuteTask!, () => service.StopAsync(CancellationToken.None));
-    }
-
-    private sealed class CapturingLogger : ILogger<TokenCleanupService>
-    {
-        private readonly List<(LogLevel Level, string Message)> _entries = [];
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries => _entries;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) => _entries.Add((logLevel, formatter(state, exception)));
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 }

@@ -3,6 +3,7 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
@@ -58,7 +59,7 @@ public sealed class LoggingMiddlewareTests
     [Fact]
     public async Task InvokeAsync_Always_LogsStartMessageContainingPathAsync()
     {
-        var logger = new CapturingLogger();
+        var logger = new FakeLogger<LoggingMiddleware>();
         var middleware = new LoggingMiddleware(logger);
         static Task nextAsync(IngestionContext context, CancellationToken ct)
         {
@@ -68,14 +69,14 @@ public sealed class LoggingMiddlewareTests
 
         await middleware.InvokeAsync(MakeContext("/abs/photo.jpg"), nextAsync, CancellationToken.None);
 
-        logger.Entries.Should().Contain(entry =>
+        logger.Collector.GetSnapshot().Should().Contain(entry =>
             entry.Level == LogLevel.Debug && entry.Message.Contains("/abs/photo.jpg"));
     }
 
     [Fact]
     public async Task InvokeAsync_WhenNextCompletes_LogsCompletionMessageAsync()
     {
-        var logger = new CapturingLogger();
+        var logger = new FakeLogger<LoggingMiddleware>();
         var middleware = new LoggingMiddleware(logger);
         static Task nextAsync(IngestionContext context, CancellationToken ct)
         {
@@ -85,13 +86,13 @@ public sealed class LoggingMiddlewareTests
 
         await middleware.InvokeAsync(MakeContext("/abs/photo.jpg"), nextAsync, CancellationToken.None);
 
-        logger.Entries.Should().HaveCount(2);
+        logger.Collector.GetSnapshot().Should().HaveCount(2);
     }
 
     [Fact]
     public async Task InvokeAsync_WhenNextThrows_OnlyLogsStartMessageAsync()
     {
-        var logger = new CapturingLogger();
+        var logger = new FakeLogger<LoggingMiddleware>();
         var middleware = new LoggingMiddleware(logger);
         static Task nextAsync(IngestionContext context, CancellationToken ct)
         {
@@ -103,19 +104,7 @@ public sealed class LoggingMiddlewareTests
         { await middleware.InvokeAsync(MakeContext(), nextAsync, CancellationToken.None); }
         catch (InvalidOperationException exception) { _ = exception; }
 
-        logger.Entries.Should().ContainSingle()
+        logger.Collector.GetSnapshot().Should().ContainSingle()
             .Which.Message.Should().Contain("Ingesting");
-    }
-
-    private sealed class CapturingLogger : ILogger<LoggingMiddleware>
-    {
-        private readonly List<(LogLevel Level, string Message)> entries = [];
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries => entries;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) => entries.Add((logLevel, formatter(state, exception)));
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 }

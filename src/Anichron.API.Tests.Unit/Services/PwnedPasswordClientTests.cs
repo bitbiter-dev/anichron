@@ -1,5 +1,6 @@
 using Anichron.API.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using System.Net;
 
 namespace Anichron.API.Tests.Unit.Services;
@@ -71,15 +72,15 @@ public sealed class PwnedPasswordClientTests
         await testee.IsPwnedAsync("password", CancellationToken.None);
 
         Assert.Multiple(
-            () => fixture.Logger.Entries.Should().HaveCount(1),
-            () => fixture.Logger.Entries[0].Level.Should().Be(LogLevel.Warning),
-            () => fixture.Logger.Entries[0].Exception.Should().BeOfType<HttpRequestException>());
+            () => fixture.Logger.Collector.GetSnapshot().Should().HaveCount(1),
+            () => fixture.Logger.Collector.GetSnapshot()[0].Level.Should().Be(LogLevel.Warning),
+            () => fixture.Logger.Collector.GetSnapshot()[0].Exception.Should().BeOfType<HttpRequestException>());
     }
 
     private sealed class TestFixture : IDisposable
     {
         private HttpMessageHandler _handler = new FakeHttpMessageHandler(string.Empty);
-        public CapturingLogger Logger { get; } = new();
+        public FakeLogger<PwnedPasswordClient> Logger { get; } = new();
 
         public TestFixture WithHttpResponseBody(string body)
         {
@@ -121,17 +122,5 @@ public sealed class PwnedPasswordClientTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             => Task.FromException<HttpResponseMessage>(new HttpRequestException("Network unavailable"));
-    }
-
-    private sealed class CapturingLogger : ILogger<PwnedPasswordClient>
-    {
-        private readonly List<(LogLevel Level, Exception? Exception)> _entries = [];
-        public IReadOnlyList<(LogLevel Level, Exception? Exception)> Entries => _entries;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) => _entries.Add((logLevel, exception));
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 }

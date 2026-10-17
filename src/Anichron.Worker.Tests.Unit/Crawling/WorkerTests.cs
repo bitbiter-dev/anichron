@@ -1,5 +1,6 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.DependencyInjection;
 using Anichron.Testing.Time;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
@@ -27,14 +28,7 @@ public sealed class WorkerTests
 
         public TestFixture()
         {
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
-
-            scopeFactory = Substitute.For<IServiceScopeFactory>();
-            scopeFactory.CreateScope().Returns(scope);
-
-            serviceProvider.GetService(typeof(IUserStorageConfigRepository)).Returns(ConfigRepository);
+            scopeFactory = ScopeFactories.Providing(services => services.AddSingleton(ConfigRepository));
 
             ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>())
                 .Returns([]);

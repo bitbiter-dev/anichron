@@ -1,20 +1,12 @@
-using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
 
 public sealed class UserRepositoryTests
 {
-    private static AnichronDbContext CreateDb()
-    {
-        var options = new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new AnichronDbContext(options);
-    }
-
     private static User MakeUser(string username = "alice", string email = "alice@example.com")
         => new()
         {
@@ -32,7 +24,7 @@ public sealed class UserRepositoryTests
     public async Task GetAllAsync_NoUsers_ReturnsEmptyList()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var repository = new EfUserRepository(db);
 
         var result = await repository.GetAllAsync(ct);
@@ -44,7 +36,7 @@ public sealed class UserRepositoryTests
     public async Task GetAllAsync_WithUsers_ReturnsAllUsers()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user1 = MakeUser("alice", "alice@example.com");
         var user2 = MakeUser("bob", "bob@example.com");
         await db.AddRangeAsync(user1, user2);
@@ -62,7 +54,7 @@ public sealed class UserRepositoryTests
     public async Task GetAllAsync_IncludesStorageConfigs()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -84,7 +76,7 @@ public sealed class UserRepositoryTests
     public async Task FindByIdWithConfigsAsync_UserExists_ReturnsUser()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -100,7 +92,7 @@ public sealed class UserRepositoryTests
     public async Task FindByIdWithConfigsAsync_UserNotFound_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var repository = new EfUserRepository(db);
 
         var result = await repository.FindByIdWithConfigsAsync(Guid.NewGuid(), ct);
@@ -112,7 +104,7 @@ public sealed class UserRepositoryTests
     public async Task FindByIdWithConfigsAsync_IncludesStorageConfigs()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -134,7 +126,7 @@ public sealed class UserRepositoryTests
     public async Task AnyAsync_NoUsers_ReturnsFalse()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var result = await new EfUserRepository(db).AnyAsync(ct);
         result.Should().BeFalse();
     }
@@ -143,7 +135,7 @@ public sealed class UserRepositoryTests
     public async Task AnyAsync_UsersExist_ReturnsTrue()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.Users.Add(MakeUser());
         await db.SaveChangesAsync(ct);
         var result = await new EfUserRepository(db).AnyAsync(ct);
@@ -158,7 +150,7 @@ public sealed class UserRepositoryTests
     public async Task AnyByUsernameAsync_UsernameExists_ReturnsTrue()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.Users.Add(MakeUser("alice", "alice@example.com"));
         await db.SaveChangesAsync(ct);
         var result = await new EfUserRepository(db).AnyByUsernameAsync("alice", ct);
@@ -169,7 +161,7 @@ public sealed class UserRepositoryTests
     public async Task AnyByUsernameAsync_UsernameDoesNotExist_ReturnsFalse()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var result = await new EfUserRepository(db).AnyByUsernameAsync("nobody", ct);
         result.Should().BeFalse();
     }
@@ -182,7 +174,7 @@ public sealed class UserRepositoryTests
     public async Task AnyByEmailAsync_EmailExists_ReturnsTrue()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.Users.Add(MakeUser("alice", "alice@example.com"));
         await db.SaveChangesAsync(ct);
         var result = await new EfUserRepository(db).AnyByEmailAsync("alice@example.com", ct);
@@ -193,7 +185,7 @@ public sealed class UserRepositoryTests
     public async Task AnyByEmailAsync_EmailDoesNotExist_ReturnsFalse()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var result = await new EfUserRepository(db).AnyByEmailAsync("nobody@example.com", ct);
         result.Should().BeFalse();
     }
@@ -206,7 +198,7 @@ public sealed class UserRepositoryTests
     public async Task FindByIdAsync_ExistingId_ReturnsUser()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -219,7 +211,7 @@ public sealed class UserRepositoryTests
     public async Task FindByIdAsync_UnknownId_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var result = await new EfUserRepository(db).FindByIdAsync(Guid.NewGuid(), ct);
         result.Should().BeNull();
     }
@@ -232,7 +224,7 @@ public sealed class UserRepositoryTests
     public async Task FindByCredentialAsync_ByUsername_ReturnsUser()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser("alice", "alice@example.com");
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -245,7 +237,7 @@ public sealed class UserRepositoryTests
     public async Task FindByCredentialAsync_ByEmail_ReturnsUser()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser("alice", "alice@example.com");
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -258,7 +250,7 @@ public sealed class UserRepositoryTests
     public async Task FindByCredentialAsync_NoMatch_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var result = await new EfUserRepository(db).FindByCredentialAsync("nobody", ct);
         result.Should().BeNull();
     }
@@ -271,7 +263,7 @@ public sealed class UserRepositoryTests
     public async Task FindAdminByUsernameAsync_AdminExists_ReturnsUser()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var admin = MakeUser("admin", "admin@example.com");
         admin.IsAdmin = true;
         db.Users.Add(admin);
@@ -285,7 +277,7 @@ public sealed class UserRepositoryTests
     public async Task FindAdminByUsernameAsync_NonAdminWithUsername_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.Users.Add(MakeUser("alice", "alice@example.com"));
         await db.SaveChangesAsync(ct);
         var result = await new EfUserRepository(db).FindAdminByUsernameAsync("alice", ct);
@@ -296,7 +288,7 @@ public sealed class UserRepositoryTests
     public async Task FindAdminByUsernameAsync_NoMatch_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var result = await new EfUserRepository(db).FindAdminByUsernameAsync("nobody", ct);
         result.Should().BeNull();
     }
@@ -309,7 +301,7 @@ public sealed class UserRepositoryTests
     public async Task FindAdminsAsync_ReturnsOnlyAdmins()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var admin = MakeUser("admin", "admin@example.com");
         admin.IsAdmin = true;
         var regular = MakeUser("alice", "alice@example.com");
@@ -323,7 +315,7 @@ public sealed class UserRepositoryTests
     public async Task FindAdminsAsync_RespectsTakeLimit()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         for (var i = 0; i < 5; i++)
         {
             var admin = MakeUser($"admin{i}", $"admin{i}@example.com");
@@ -344,7 +336,7 @@ public sealed class UserRepositoryTests
     public async Task Add_AddsUserToContext()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         var repository = new EfUserRepository(db);
         repository.Add(user);
@@ -361,7 +353,7 @@ public sealed class UserRepositoryTests
     public async Task Remove_ExistingUser_UserAbsentAfterSave()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -382,7 +374,7 @@ public sealed class UserRepositoryTests
     public async Task Add_UnnormalizedIdentity_IsStoredTrimmedAndLowercased()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         new EfUserRepository(db).Add(MakeUser(" Bob ", " Bob@Example.COM "));
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
@@ -393,16 +385,11 @@ public sealed class UserRepositoryTests
         stored.Email.Should().Be("bob@example.com");
     }
 
-    private static AnichronDbContext CreateNpgsqlModelOnlyDb()
-        => new(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql("Host=unused", o => o.UseNodaTime())
-            .Options);
-
     [Theory]
     [InlineData(" BOB ")]
     public void UsernameComparison_UnnormalizedInput_SendsNormalizedValue(string credential)
     {
-        using var db = CreateNpgsqlModelOnlyDb();
+        using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = db.Users.Where(u => u.Username == credential).ToQueryString();
 
@@ -413,7 +400,7 @@ public sealed class UserRepositoryTests
     [InlineData("Bob@Example.COM ")]
     public void EmailComparison_UnnormalizedInput_SendsNormalizedValue(string credential)
     {
-        using var db = CreateNpgsqlModelOnlyDb();
+        using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = db.Users.Where(u => u.Email == credential).ToQueryString();
 

@@ -1,15 +1,13 @@
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Tests.Unit.Data;
 
 public sealed class SoftDeleteQueryFilterTests : IAsyncLifetime
 {
-    private readonly AnichronDbContext db = new(new DbContextOptionsBuilder<AnichronDbContext>()
-        .UseInMemoryDatabase(Guid.NewGuid().ToString())
-        .EnableServiceProviderCaching(false)
-        .Options);
+    private readonly AnichronDbContext db = AnichronDbContexts.InMemory(freshModel: true);
 
     private readonly MediaAsset active = Asset("active.jpg", isSoftDeleted: false);
     private readonly MediaAsset deleted = Asset("deleted.jpg", isSoftDeleted: true);

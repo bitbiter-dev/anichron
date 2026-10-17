@@ -2,10 +2,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Anichron.Core\Anichron.Core.csproj" />
+    <ProjectReference Include="..\Anichron.Testing\Anichron.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
   </ItemGroup>
 

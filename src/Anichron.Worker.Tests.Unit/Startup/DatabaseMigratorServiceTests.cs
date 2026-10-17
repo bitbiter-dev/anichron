@@ -1,3 +1,4 @@
+using Anichron.Testing.DependencyInjection;
 using Anichron.Testing.Time;
 using Anichron.Worker.Startup;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,12 +18,7 @@ public sealed class DatabaseMigratorServiceTests : IAsyncDisposable
 
     public DatabaseMigratorServiceTests()
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IDatabaseMigrator)).Returns(migrator);
-        var scope = Substitute.For<IServiceScope>();
-        scope.ServiceProvider.Returns(serviceProvider);
-        var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        scopeFactory.CreateScope().Returns(scope);
+        var scopeFactory = ScopeFactories.Providing(services => services.AddSingleton(migrator));
 
         service = new DatabaseMigratorService(scopeFactory, timeline.Clock, Substitute.For<ILogger<DatabaseMigratorService>>());
     }

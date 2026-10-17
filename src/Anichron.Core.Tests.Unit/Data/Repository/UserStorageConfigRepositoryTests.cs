@@ -1,20 +1,11 @@
-using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Microsoft.EntityFrameworkCore;
+using Anichron.Testing.Data;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
 
 public sealed class UserStorageConfigRepositoryTests
 {
-    private static AnichronDbContext CreateDb()
-    {
-        var options = new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new AnichronDbContext(options);
-    }
-
     private static UserStorageConfig MakeConfig(Guid userId, string rootPath, bool isActive = true)
         => new() { Id = Guid.NewGuid(), UserId = userId, RootPath = rootPath, IsActive = isActive };
 
@@ -28,7 +19,7 @@ public sealed class UserStorageConfigRepositoryTests
         // Note: InMemory string comparison is case-insensitive; real Postgres text is case-sensitive.
         // The exact-case match tested here is correct for both providers.
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var config = MakeConfig(Guid.NewGuid(), "/nas/photos");
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);
@@ -44,7 +35,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task FindByRootPathAsync_NoMatch_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/nas/photos"));
         await db.SaveChangesAsync(ct);
         var repository = new EfUserStorageConfigRepository(db);
@@ -58,7 +49,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task FindByRootPathAsync_PartialPath_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/nas/photos"));
         await db.SaveChangesAsync(ct);
         var repository = new EfUserStorageConfigRepository(db);
@@ -76,7 +67,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task GetAllActiveAsync_MixedActive_ReturnsOnlyActive()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var userId = Guid.NewGuid();
         var active1 = MakeConfig(userId, "/a", isActive: true);
         var active2 = MakeConfig(userId, "/b", isActive: true);
@@ -95,7 +86,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task GetAllActiveAsync_NoneActive_ReturnsEmpty()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/a", isActive: false));
         await db.SaveChangesAsync(ct);
         var repository = new EfUserStorageConfigRepository(db);
@@ -113,7 +104,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task GetActiveByUserIdAsync_MatchingUserId_ReturnsOnlyThatUsersConfigs()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var userId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
         var mine = MakeConfig(userId, "/mine", isActive: true);
@@ -132,7 +123,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task GetActiveByUserIdAsync_InactiveConfigForUser_Excluded()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var userId = Guid.NewGuid();
         db.StorageConfigs.Add(MakeConfig(userId, "/archive", isActive: false));
         await db.SaveChangesAsync(ct);
@@ -151,7 +142,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task Add_Config_AppearsInSubsequentQuery()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var repository = new EfUserStorageConfigRepository(db);
         var config = MakeConfig(Guid.NewGuid(), "/new/path");
 
@@ -171,7 +162,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task FindByIdAsync_MatchingId_ReturnsConfig()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var config = MakeConfig(Guid.NewGuid(), "/nas/photos");
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);
@@ -187,7 +178,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task FindByIdAsync_NoMatch_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/nas/photos"));
         await db.SaveChangesAsync(ct);
         var repository = new EfUserStorageConfigRepository(db);
@@ -205,7 +196,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task GetByUserIdAsync_ReturnsAllConfigsForUser_IncludingInactive()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var userId = Guid.NewGuid();
         var active = MakeConfig(userId, "/active", isActive: true);
         var inactive = MakeConfig(userId, "/inactive", isActive: false);
@@ -226,7 +217,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task GetByUserIdAsync_NoConfigs_ReturnsEmpty()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var repository = new EfUserStorageConfigRepository(db);
 
         var result = await repository.GetByUserIdAsync(Guid.NewGuid(), ct);
@@ -242,7 +233,7 @@ public sealed class UserStorageConfigRepositoryTests
     public async Task Remove_Config_DisappearsFromSubsequentQuery()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var config = MakeConfig(Guid.NewGuid(), "/to-remove");
         db.StorageConfigs.Add(config);
         await db.SaveChangesAsync(ct);

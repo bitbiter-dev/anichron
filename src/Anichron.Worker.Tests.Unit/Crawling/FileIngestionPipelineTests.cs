@@ -1,5 +1,6 @@
 using Anichron.Core;
 using Anichron.Core.Domain;
+using Anichron.Testing.DependencyInjection;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
@@ -82,14 +83,7 @@ public sealed class FileIngestionPipelineTests
                 FileSystem,
                 Substitute.For<ILogger<IngestionPipelineRunner>>());
 
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            serviceProvider.GetService(typeof(IIngestionPipelineRunner)).Returns(runner);
-
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
-
-            var scopeFactory = Substitute.For<IServiceScopeFactory>();
-            scopeFactory.CreateScope().Returns(_ => scope);
+            var scopeFactory = ScopeFactories.Providing(services => services.AddSingleton<IIngestionPipelineRunner>(runner));
 
             var options = Options.Create(new WorkerSettings
             {

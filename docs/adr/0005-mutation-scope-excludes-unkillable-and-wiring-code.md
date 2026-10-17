@@ -27,6 +27,10 @@ A file may be excluded when, and only when, one of these holds:
    its tests, *before* the file is added to the list.
 3. It can only be exercised by **spawning real processes or talking to a real database**, and holds
    nothing beyond that adapter.
+4. It is **test support**: a library that only test projects reference, never production code. It
+   is held to its own `*.Tests.Unit` project instead. Stryker cannot scope which test projects run
+   against a mutant in solution mode, so every test that uses the library also runs against its
+   mutants, and a broken test helper makes those tests wait out its time limit rather than fail.
 
 Exclusions are listed **one by one, by path**. No wildcard over a naming convention. ADR 0002's
 objection to excluding the composition root still holds — wiring files grow logic, and a filename
@@ -47,6 +51,7 @@ someone deliberately adds it here, and the rule above is what they must show.
 | `Anichron.API/Infrastructure/DatabaseStartupExtensions.cs` | 2 | Scope-and-resolve sequencing for migrate, seed and reset. The retry lives in `DatabaseStartupRetry`, in scope. |
 | `Anichron.API/Infrastructure/WebApplicationBuilderExtensions.cs` | 2 | Loads `app.ini`. The defaults live in `ApiIniDefaults` and the path in `AppIniInitializer.PathUnder`, both in scope. |
 | `Anichron.Worker/Infrastructure/HostApplicationBuilderExtensions.cs` | 2 | As above, with `WorkerIniDefaults`. |
+| `Anichron.Testing/**` | 4 | `Timeline`, the DbContext and scope-factory builders, tested by `Anichron.Testing.Tests.Unit`. Measured before excluding it: eight `Timeline` mutants of the "an event never arrives" kind cost about 21 s each, because the consumer tests in three test assemblies each waited out the 10 s silence limit — about 170 runner-seconds per sweep, more than the time-dependent production tests it replaced. Lowering the limit instead would let CI load fail tests spuriously, which Stryker counts as kills. |
 | `Anichron.Infrastructure/Data/DatabaseFacadeExtensions.cs` | 3 | The PostgreSQL advisory-lock commands and connection handling. The polling loop lives in `AdvisoryLockMigrator`, in scope. |
 
 ### Calls (`ignore-methods`)

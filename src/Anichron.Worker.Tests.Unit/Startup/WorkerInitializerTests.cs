@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.DependencyInjection;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
@@ -23,16 +24,10 @@ public sealed class WorkerInitializerTests
 
         public TestFixture()
         {
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
-
-            _scopeFactory = Substitute.For<IServiceScopeFactory>();
-            _scopeFactory.CreateScope().Returns(scope);
-
-            serviceProvider.GetService(typeof(IUserRepository)).Returns(UserRepository);
-            serviceProvider.GetService(typeof(IUserStorageConfigRepository)).Returns(StorageConfigRepository);
-            serviceProvider.GetService(typeof(IUnitOfWork)).Returns(UnitOfWork);
+            _scopeFactory = ScopeFactories.Providing(services => services
+                .AddSingleton(UserRepository)
+                .AddSingleton(StorageConfigRepository)
+                .AddSingleton(UnitOfWork));
         }
 
         public WorkerInitializer Build(string user = "", string rootPath = "")

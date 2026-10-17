@@ -2,12 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Anichron.API\Anichron.API.csproj" />
+    <ProjectReference Include="..\Anichron.Testing\Anichron.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Added for WebApplicationFactory scaffolding; not configured yet -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
-    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
 
 </Project>

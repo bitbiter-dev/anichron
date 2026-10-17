@@ -1,21 +1,16 @@
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Tests.Unit.Data;
 
 public sealed class ModelInvariantsTests
 {
-    private static AnichronDbContext FreshModelContext()
-        => new(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql("Host=localhost;Database=unused", o => o.UseNodaTime())
-            .EnableServiceProviderCaching(false)
-            .Options);
-
     [Fact]
     public void ContentHash_IsUniqueOnlyPerStorageConfigAndOnlyAmongActiveAssets()
     {
-        using var context = FreshModelContext();
+        using var context = AnichronDbContexts.NpgsqlModel();
         var mediaAsset = context.Model.FindEntityType(typeof(MediaAsset))!;
 
         var uniqueWithHash = mediaAsset.GetIndexes()
@@ -32,7 +27,7 @@ public sealed class ModelInvariantsTests
     [Fact]
     public void QueryFilters_AreSoftDeleteOnly()
     {
-        using var context = FreshModelContext();
+        using var context = AnichronDbContexts.NpgsqlModel();
 
         var filters = context.Model.GetEntityTypes()
             .SelectMany(entity => entity.GetDeclaredQueryFilters()

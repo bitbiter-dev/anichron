@@ -1,7 +1,6 @@
-using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Microsoft.EntityFrameworkCore;
+using Anichron.Testing.Data;
 using NodaTime;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
@@ -9,14 +8,6 @@ namespace Anichron.Core.Tests.Unit.Data.Repository;
 public sealed class InviteRepositoryTests
 {
     private static readonly Instant Epoch = Instant.FromUtc(2024, 1, 1, 0, 0);
-
-    private static AnichronDbContext CreateDb()
-    {
-        var options = new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new AnichronDbContext(options);
-    }
 
     private static Invite MakeInvite(string hash = "tok", Instant? expiresAt = null, Instant? usedAt = null)
         => new()
@@ -36,7 +27,7 @@ public sealed class InviteRepositoryTests
     public async Task FindValidByHashAsync_ValidToken_ReturnsInvite()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var invite = MakeInvite("validhash");
         db.Invites.Add(invite);
         await db.SaveChangesAsync(ct);
@@ -51,7 +42,7 @@ public sealed class InviteRepositoryTests
     public async Task FindValidByHashAsync_ExpiredToken_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.Invites.Add(MakeInvite("expiredhash", expiresAt: Epoch - Duration.FromSeconds(1)));
         await db.SaveChangesAsync(ct);
 
@@ -64,7 +55,7 @@ public sealed class InviteRepositoryTests
     public async Task FindValidByHashAsync_ExpiringExactlyNow_IsStillValid()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.Invites.Add(MakeInvite("edgehash", expiresAt: Epoch));
         await db.SaveChangesAsync(ct);
 
@@ -77,7 +68,7 @@ public sealed class InviteRepositoryTests
     public async Task FindValidByHashAsync_AlreadyUsedToken_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.Invites.Add(MakeInvite("usedhash", usedAt: Epoch - Duration.FromDays(1)));
         await db.SaveChangesAsync(ct);
 
@@ -90,7 +81,7 @@ public sealed class InviteRepositoryTests
     public async Task FindValidByHashAsync_UnknownHash_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
 
         var result = await new EfInviteRepository(db).FindValidByHashAsync("nope", Epoch, ct);
 
@@ -105,7 +96,7 @@ public sealed class InviteRepositoryTests
     public async Task Add_AddsInviteToContext()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var invite = MakeInvite("newinvite");
         var repository = new EfInviteRepository(db);
 

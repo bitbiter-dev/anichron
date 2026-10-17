@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
@@ -75,9 +76,7 @@ public sealed class MediaAssetReadRepositoryTests
 
     private static async Task<(DbContextOptions<AnichronDbContext> Options, Library Library)> SeedAsync()
     {
-        var options = new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
+        var options = AnichronDbContexts.InMemoryOptions();
         var library = new Library();
         await using var db = new AnichronDbContext(options);
         db.Users.AddRange(library.Users);
@@ -192,16 +191,10 @@ public sealed class MediaAssetReadRepositoryTests
     // Generated SQL
     // ==========================================================================
 
-    private static AnichronDbContext CreateNpgsqlModelOnlyDb()
-        => new(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql("Host=unused", o => o.UseNodaTime())
-            .EnableServiceProviderCaching(false)
-            .Options);
-
     [Fact]
     public void VisibleTo_TranslatesToAJoinOnTheActiveOwnedConfig()
     {
-        using var db = CreateNpgsqlModelOnlyDb();
+        using var db = AnichronDbContexts.NpgsqlModel();
         var userId = Guid.Parse("11111111-2222-3333-4444-555555555555");
 
         var sql = db.MediaAssets.VisibleTo(userId).ToQueryString();
@@ -215,7 +208,7 @@ public sealed class MediaAssetReadRepositoryTests
     [Fact]
     public void VisibleTo_ComposedWithAnotherFilter_KeepsBothConditions()
     {
-        using var db = CreateNpgsqlModelOnlyDb();
+        using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = db.MediaAssets.VisibleTo(Guid.NewGuid()).Where(a => a.Month == 10).ToQueryString();
 
@@ -225,7 +218,7 @@ public sealed class MediaAssetReadRepositoryTests
     [Fact]
     public void FindVisibleProxy_TranslatesThroughTheVisibilityRule()
     {
-        using var db = CreateNpgsqlModelOnlyDb();
+        using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = EfMediaAssetReadRepository.VisibleProxyQuery(db, Guid.NewGuid(), Guid.NewGuid(), ProxyType.Thumbnail)
             .ToQueryString();
