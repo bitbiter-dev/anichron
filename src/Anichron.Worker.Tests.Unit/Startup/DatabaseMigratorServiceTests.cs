@@ -1,154 +1,92 @@
-using Anichron.Worker.Settings;
+using Anichron.Testing.DependencyInjection;
+using Anichron.Testing.Time;
 using Anichron.Worker.Startup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Time.Testing;
 
 namespace Anichron.Worker.Tests.Unit.Startup;
 
-public sealed class DatabaseMigratorServiceTests
+public sealed class DatabaseMigratorServiceTests : IAsyncDisposable
 {
-    private sealed class TestFixture
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(5);
+    private const int MaxAttempts = 10;
+
+    private readonly Timeline timeline = new();
+    private readonly IDatabaseMigrator migrator = Substitute.For<IDatabaseMigrator>();
+    private readonly DatabaseMigratorService service;
+    private Task start = Task.CompletedTask;
+
+    public DatabaseMigratorServiceTests()
     {
-        public IDatabaseMigrator Migrator { get; } = Substitute.For<IDatabaseMigrator>();
+        var scopeFactory = ScopeFactories.Providing(services => services.AddSingleton(migrator));
 
-        private readonly IServiceScopeFactory _scopeFactory;
+        service = new DatabaseMigratorService(scopeFactory, timeline.Clock, Substitute.For<ILogger<DatabaseMigratorService>>());
+    }
 
-        public TestFixture()
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    public ValueTask DisposeAsync() => timeline.DisposeAsync();
+
+    private void Migrations(Func<int, Task> outcome)
+    {
+        var calls = 0;
+        migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
+            timeline.Record("migrate");
+            return outcome(++calls);
+        });
+    }
 
-            _scopeFactory = Substitute.For<IServiceScopeFactory>();
-            _scopeFactory.CreateScope().Returns(scope);
+    private void Start()
+    {
+        start = service.StartAsync(timeline.Lifetime);
+        timeline.Watch(start);
+    }
 
-            serviceProvider.GetService(typeof(IDatabaseMigrator)).Returns(Migrator);
+    [Fact]
+    public Task StartAsync_MigrationSucceeds_MigratesOnceThroughAScopeAsync()
+    {
+        Migrations(_ => Task.CompletedTask);
+
+        Start();
+
+        return timeline.ExpectAsync(new Called("migrate"), new Finished(TaskStatus.RanToCompletion));
+    }
+
+    [Fact]
+    public async Task StartAsync_DatabaseNotReady_RetriesAfterFiveSecondsAsync()
+    {
+        Migrations(call => call == 1 ? Task.FromException(new InvalidOperationException("not ready")) : Task.CompletedTask);
+        Start();
+        await timeline.ExpectAsync(new Called("migrate"), new TimerArmed(RetryDelay));
+
+        timeline.Clock.Advance(RetryDelay);
+
+        await timeline.ExpectAsync(
+            new TimerFired(RetryDelay), new Called("migrate"), new Finished(TaskStatus.RanToCompletion));
+    }
+
+    [Fact]
+    public async Task StartAsync_DatabaseNeverReady_GivesUpAfterTenAttemptsWrappingTheLastErrorAsync()
+    {
+        var last = new InvalidOperationException("postgres unavailable");
+        Migrations(call => Task.FromException(call == MaxAttempts ? last : new InvalidOperationException("not ready")));
+        Start();
+
+        for (var attempt = 1; attempt < MaxAttempts; attempt++)
+        {
+            await timeline.ExpectAsync(new Called("migrate"), new TimerArmed(RetryDelay));
+            timeline.Clock.Advance(RetryDelay);
+            await timeline.ExpectAsync(new TimerFired(RetryDelay));
         }
 
-        public DatabaseMigratorService Build()
-            => new(_scopeFactory, TimeProvider.System, Substitute.For<ILogger<DatabaseMigratorService>>())
-            {
-                RetryDelay = TimeSpan.Zero,
-            };
-
-        public DatabaseMigratorService BuildWithDefaultDelay(TimeProvider timeProvider)
-            => new(_scopeFactory, timeProvider, Substitute.For<ILogger<DatabaseMigratorService>>());
-    }
-
-    // ==========================================================================
-    // Happy path
-    // ==========================================================================
-
-    [Fact]
-    public async Task StartAsync_MigrationSucceedsFirstAttempt_ReturnsWithoutExceptionAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        var service = fixture.Build();
-
-        await service.StartAsync(ct);
-
-        await fixture.Migrator.Received(1).MigrateAsync(Arg.Any<CancellationToken>());
-    }
-
-    // ==========================================================================
-    // Retry then success
-    // ==========================================================================
-
-    [Fact]
-    public async Task StartAsync_DatabaseNotReadyThenReady_RetriesAndSucceedsAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        var callCount = 0;
-        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ =>
-        {
-            callCount++;
-            return callCount < 3 ? throw new InvalidOperationException("DB not ready yet") : Task.CompletedTask;
-        });
-        var service = fixture.Build();
-
-        await service.StartAsync(ct);
-
-        await fixture.Migrator.Received(3).MigrateAsync(Arg.Any<CancellationToken>());
+        await timeline.ExpectAsync(new Called("migrate"), new Finished(TaskStatus.Faulted));
+        start.Exception!.InnerException.Should().BeOfType<InvalidOperationException>()
+            .Which.Should().Match<InvalidOperationException>(ex =>
+                ex.Message == "Database unavailable after 10 attempts. Aborting." && ex.InnerException == last);
     }
 
     [Fact]
-    public async Task StartAsync_DatabaseNotReady_WaitsTheDefaultRetryDelayBeforeRetryingAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        var time = new FakeTimeProvider();
-        var callCount = 0;
-        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>())
-            .Returns(_ => ++callCount == 1 ? throw new InvalidOperationException("DB not ready yet") : Task.CompletedTask);
-        var delay = TimeSpan.FromSeconds(WorkerDefaults.Migrator.RetryDelaySeconds);
-
-        var start = fixture.BuildWithDefaultDelay(time).StartAsync(ct);
-        time.Advance(delay - TimeSpan.FromTicks(1));
-        callCount.Should().Be(1);
-        time.Advance(TimeSpan.FromTicks(1));
-        await start.WaitAsync(TimeSpan.FromSeconds(5), ct);
-
-        callCount.Should().Be(2);
-    }
-
-    // ==========================================================================
-    // All attempts exhausted
-    // ==========================================================================
-
-    [Fact]
-    public async Task StartAsync_AllAttemptsExhausted_ThrowsInvalidOperationExceptionAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw new InvalidOperationException("postgres unavailable"));
-        var service = fixture.Build();
-
-        var act = async () => await service.StartAsync(ct);
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*10 attempts*");
-    }
-
-    [Fact]
-    public async Task StartAsync_AllAttemptsExhausted_OriginalExceptionIsInnerExceptionAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        var originalException = new InvalidOperationException("postgres unavailable");
-        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw originalException);
-        var service = fixture.Build();
-
-        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.StartAsync(ct));
-
-        thrown.InnerException.Should().BeSameAs(originalException);
-    }
-
-    [Fact]
-    public async Task StartAsync_AllAttemptsExhausted_MigrateCalledMaxAttemptsTimesAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        fixture.Migrator.MigrateAsync(Arg.Any<CancellationToken>()).Returns(_ => throw new InvalidOperationException());
-        var service = fixture.Build();
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.StartAsync(ct));
-
-        await fixture.Migrator.Received(10).MigrateAsync(Arg.Any<CancellationToken>());
-    }
-
-    // ==========================================================================
-    // StopAsync
-    // ==========================================================================
-
-    [Fact]
-    public async Task StopAsync_AlwaysCompletesSuccessfullyAsync()
-    {
-        var service = new TestFixture().Build();
-        var act = async () => await service.StopAsync(TestContext.Current.CancellationToken);
-        await act.Should().NotThrowAsync();
-    }
+    public void StopAsync_CompletesAtOnce()
+        => service.StopAsync(Ct).IsCompletedSuccessfully.Should().BeTrue();
 }

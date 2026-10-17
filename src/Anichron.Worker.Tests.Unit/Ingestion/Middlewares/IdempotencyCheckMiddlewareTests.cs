@@ -6,6 +6,7 @@ using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
 using Npgsql;
 using NSubstitute.ExceptionExtensions;
@@ -24,24 +25,12 @@ public sealed class IdempotencyCheckMiddlewareTests
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
         public MockFileSystem FileSystem { get; } = new();
         public IClock Clock { get; } = Substitute.For<IClock>();
-        public CapturingLogger Logger { get; } = new();
+        public FakeLogger<IdempotencyCheckMiddleware> Logger { get; } = new();
 
         public TestFixture() => Clock.GetCurrentInstant().Returns(Now);
 
         public IdempotencyCheckMiddleware Build()
             => new(Repository, UnitOfWork, FileSystem, Clock, Logger);
-    }
-
-    private sealed class CapturingLogger : ILogger<IdempotencyCheckMiddleware>
-    {
-        private readonly List<(LogLevel Level, string Message)> entries = [];
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries => entries;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) => entries.Add((logLevel, formatter(state, exception)));
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
     }
 
     private static IngestionContext MakeContext(string? contentHash = null, string relativePath = "photo.jpg") => new()
@@ -183,8 +172,8 @@ public sealed class IdempotencyCheckMiddlewareTests
         stored.FileName.Should().Be("photo.jpg");
         stored.LastSeenOnNas.Should().Be(FirstSeen);
         await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
-        fx.Logger.Entries.Should().ContainSingle()
-            .Which.Should().Be((LogLevel.Debug, "copy/photo.jpg is a copy of already-ingested 2023/photo.jpg, skipping."));
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug && r.Message == "copy/photo.jpg is a copy of already-ingested 2023/photo.jpg, skipping.");
     }
 
     [Fact]
@@ -224,7 +213,7 @@ public sealed class IdempotencyCheckMiddlewareTests
         stored.FilePath.Should().Be("2023/photo.jpg");
         stored.FileName.Should().Be("photo.jpg");
         stored.LastSeenOnNas.Should().Be(FirstSeen);
-        fx.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
             .Which.Message.Should().Be("Cannot record 2024/taken.jpg: another asset row already holds that path, skipping.");
     }
 
@@ -303,7 +292,7 @@ public sealed class IdempotencyCheckMiddlewareTests
 
         heicPathAtSecondSave.Should().Be("2023/live.heic");
         mov.FilePath.Should().Be("2024/live.mov");
-        fx.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
             .Which.Message.Should().Contain("2024/live.heic");
     }
 
@@ -324,7 +313,7 @@ public sealed class IdempotencyCheckMiddlewareTests
 
         heic.FilePath.Should().Be("2024/live.heic");
         mov.FilePath.Should().Be("2023/live.mov");
-        fx.Logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
             .Which.Message.Should().Contain("2024/live.mov");
     }
 

@@ -8,7 +8,7 @@ public sealed partial class DatabaseMigratorService(
     TimeProvider timeProvider,
     ILogger<DatabaseMigratorService> logger) : IHostedService
 {
-    internal TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(WorkerDefaults.Migrator.RetryDelaySeconds);
+    private static TimeSpan RetryDelay => TimeSpan.FromSeconds(WorkerDefaults.Migrator.RetryDelaySeconds);
 
     public Task StartAsync(CancellationToken cancellationToken)
         => new DatabaseStartupRetry(timeProvider, WorkerDefaults.Migrator.MaxAttempts, RetryDelay).RunAsync(

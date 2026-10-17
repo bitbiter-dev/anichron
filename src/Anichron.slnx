@@ -8,6 +8,8 @@
   <Project Path="Anichron.Core/Anichron.Core.csproj" />
   <Project Path="Anichron.Infrastructure/Anichron.Infrastructure.csproj" />
   <Project Path="Anichron.Infrastructure.Tests.Unit/Anichron.Infrastructure.Tests.Unit.csproj" />
+  <Project Path="Anichron.Testing/Anichron.Testing.csproj" />
+  <Project Path="Anichron.Testing.Tests.Unit/Anichron.Testing.Tests.Unit.csproj" />
   <Project Path="Anichron.Worker/Anichron.Worker.csproj" />
   <Project Path="Anichron.Core.Tests.Unit/Anichron.Core.Tests.Unit.csproj" />
   <Project Path="Anichron.Worker.Tests.Unit/Anichron.Worker.Tests.Unit.csproj" />

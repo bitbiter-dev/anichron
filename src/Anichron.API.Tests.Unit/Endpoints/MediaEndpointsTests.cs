@@ -1,3 +1,4 @@
+using Anichron.API.Endpoints;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
@@ -38,7 +39,7 @@ public sealed class MediaEndpointsTests
         }
 
         public Task<AuthenticatedTestApp> StartAsync()
-            => AuthenticatedTestApp.StartAsync(services =>
+            => AuthenticatedTestApp.StartAsync(api => api.MapMediaEndpoints(), services =>
             {
                 services.AddSingleton(Assets);
                 services.AddSingleton<IProxyStore>(Proxies);

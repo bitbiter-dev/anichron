@@ -1,17 +1,23 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.DependencyInjection;
+using Anichron.Testing.Time;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
-using Anichron.Worker.Tests.Unit.TestDoubles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using CrawlingWorker = Anichron.Worker.Crawling.Worker;
 
 namespace Anichron.Worker.Tests.Unit.Crawling;
 
 public sealed class WorkerTests
 {
+    private const int IntervalHours = 3;
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     private sealed class TestFixture
     {
         public IUserStorageConfigRepository ConfigRepository { get; } = Substitute.For<IUserStorageConfigRepository>();
@@ -22,14 +28,7 @@ public sealed class WorkerTests
 
         public TestFixture()
         {
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
-
-            scopeFactory = Substitute.For<IServiceScopeFactory>();
-            scopeFactory.CreateScope().Returns(scope);
-
-            serviceProvider.GetService(typeof(IUserStorageConfigRepository)).Returns(ConfigRepository);
+            scopeFactory = ScopeFactories.Providing(services => services.AddSingleton(ConfigRepository));
 
             ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>())
                 .Returns([]);
@@ -37,15 +36,13 @@ public sealed class WorkerTests
                 .Returns([]);
         }
 
-        public SignallingTimeProvider Time { get; } = new();
-
-        public CrawlingWorker Build()
+        public CrawlingWorker Build(TimeProvider? timeProvider = null)
             => new(
                 scopeFactory,
                 WorkerState,
                 Pipeline,
-                Time,
-                Options.Create(new WorkerSettings()),
+                timeProvider ?? new FakeTimeProvider(),
+                Options.Create(new WorkerSettings { CrawlIntervalHours = IntervalHours }),
                 Substitute.For<ILogger<CrawlingWorker>>());
     }
 
@@ -54,42 +51,43 @@ public sealed class WorkerTests
     // ==========================================================================
 
     [Fact]
-    public async Task ExecuteAsync_Started_CrawlsImmediatelyThenAgainAfterTheIntervalAsync()
+    public async Task ExecuteAsync_Started_CrawlsAtOnceThenWaitsTheConfiguredIntervalAsync()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var fixture = new TestFixture();
-        using var crawls = new SemaphoreSlim(0);
-        fixture.ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>())
-            .Returns(_ => { crawls.Release(); return []; });
-        var interval = TimeSpan.FromHours(new WorkerSettings().CrawlIntervalHours);
-        var worker = fixture.Build();
+        await using var timeline = new Timeline();
+        var worker = await StartAsync(timeline);
 
-        await worker.StartAsync(ct);
-        await fixture.Time.WaitForTimerAsync(ct);
-        (await crawls.WaitAsync(0, ct)).Should().BeTrue();
-
-        fixture.Time.Advance(interval - TimeSpan.FromTicks(1));
-        (await crawls.WaitAsync(0, ct)).Should().BeFalse();
-        fixture.Time.Advance(TimeSpan.FromTicks(1));
-        (await crawls.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
-
-        await worker.StopAsync(ct);
+        await timeline.ExpectAsync(new Called("crawl"), new TimerArmed(TimeSpan.FromHours(3)));
+        worker.ExecuteTask!.IsCompleted.Should().BeFalse();
     }
 
     [Fact]
-    public async Task ExecuteAsync_Stopped_DoesNotCrawlAgainAsync()
+    public async Task ExecuteAsync_Stopped_EndsWithoutCrawlingAgainAsync()
     {
-        var ct = TestContext.Current.CancellationToken;
+        await using var timeline = new Timeline();
+        var worker = await StartAsync(timeline);
+        await timeline.ExpectAsync(new Called("crawl"), new TimerArmed(TimeSpan.FromHours(3)));
+
+        await worker.StopAsync(Ct);
+        timeline.Clock.Advance(TimeSpan.FromHours(3));
+
+        await timeline.ExpectAsync(new Finished(TaskStatus.Canceled));
+        timeline.Unread.Should().BeEmpty();
+    }
+
+    private static async Task<CrawlingWorker> StartAsync(Timeline timeline)
+    {
         var fixture = new TestFixture();
-        var worker = fixture.Build();
-
-        await worker.StartAsync(ct);
-        await fixture.Time.WaitForTimerAsync(ct);
-        await worker.StopAsync(ct);
-        fixture.Time.Advance(TimeSpan.FromHours(new WorkerSettings().CrawlIntervalHours));
-
-        await fixture.ConfigRepository.Received(1).GetAllActiveAsync(Arg.Any<CancellationToken>());
-        worker.ExecuteTask!.IsCompleted.Should().BeTrue();
+        fixture.ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                call.Arg<CancellationToken>().ThrowIfCancellationRequested();
+                timeline.Record("crawl");
+                return [];
+            });
+        var worker = fixture.Build(timeline.Clock);
+        await worker.StartAsync(Ct);
+        timeline.Watch(worker.ExecuteTask!, () => worker.StopAsync(CancellationToken.None));
+        return worker;
     }
 
     // ==========================================================================

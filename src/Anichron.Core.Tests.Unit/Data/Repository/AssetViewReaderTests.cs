@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
@@ -86,9 +87,7 @@ public sealed class AssetViewReaderTests
 
         public async Task<DbContextOptions<AnichronDbContext>> SeedAsync()
         {
-            var options = new DbContextOptionsBuilder<AnichronDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
+            var options = AnichronDbContexts.InMemoryOptions();
             await using var db = new AnichronDbContext(options);
             db.Users.AddRange(Mira, Alice);
             db.StorageConfigs.AddRange(configs);
@@ -358,16 +357,10 @@ public sealed class AssetViewReaderTests
     // Generated SQL
     // ==========================================================================
 
-    private static AnichronDbContext CreateNpgsqlModelOnlyDb()
-        => new(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql("Host=unused", o => o.UseNodaTime())
-            .EnableServiceProviderCaching(false)
-            .Options);
-
     [Fact]
     public void Query_OnThisDay_IsOneStatementOnTheIndexedIntegerColumns()
     {
-        using var db = CreateNpgsqlModelOnlyDb();
+        using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new OnThisDay(new LocalDate(2026, 7, 14))).ToQueryString();
 
@@ -381,7 +374,7 @@ public sealed class AssetViewReaderTests
     [Fact]
     public void Query_FiltersVisibilityTheHiddenRuleAndTheInteractionJoinOnTheCaller()
     {
-        using var db = CreateNpgsqlModelOnlyDb();
+        using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new Everything()).ToQueryString();
 

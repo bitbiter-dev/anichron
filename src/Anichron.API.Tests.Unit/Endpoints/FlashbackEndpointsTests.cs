@@ -25,7 +25,7 @@ public sealed class FlashbackEndpointsTests
         }
 
         public Task<AuthenticatedTestApp> StartAsync()
-            => AuthenticatedTestApp.StartAsync(services =>
+            => AuthenticatedTestApp.StartAsync(api => api.MapFlashbackEndpoints(), services =>
             {
                 services.AddSingleton(Reader);
                 services.AddSingleton(Clock);

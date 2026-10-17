@@ -1,5 +1,5 @@
-using Anichron.Core.Data;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -22,16 +22,10 @@ public sealed class SchemaScriptTests
 
     private static string Normalise(string sql) => sql.ReplaceLineEndings("\n").Trim();
 
-    private static AnichronDbContext FreshModelContext()
-        => new(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql("Host=localhost;Database=unused", o => o.UseNodaTime())
-            .EnableServiceProviderCaching(false)
-            .Options);
-
     [Fact]
     public void GenerateCreateScript_MatchesTheCommittedSchema()
     {
-        using var context = FreshModelContext();
+        using var context = AnichronDbContexts.NpgsqlModel();
 
         var generated = context.Database.GenerateCreateScript();
 
@@ -42,7 +36,7 @@ public sealed class SchemaScriptTests
     [Fact]
     public void Invites_XminIsAnOptimisticConcurrencyTokenGeneratedByTheDatabase()
     {
-        using var context = FreshModelContext();
+        using var context = AnichronDbContexts.NpgsqlModel();
 
         var xmin = context.Model.FindEntityType(typeof(Invite))!.FindProperty("xmin");
 

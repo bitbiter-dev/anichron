@@ -1,8 +1,11 @@
 using Anichron.Core.Data.Repository;
+using Anichron.Testing.DependencyInjection;
+using Anichron.Testing.Time;
 using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NodaTime;
@@ -18,27 +21,22 @@ public sealed class TokenCleanupServiceTests
         public Instant Now { get; }
 
         public IServiceScopeFactory ScopeFactory { get; }
-        public FakeTimeProvider Time { get; } = new();
 
         public TestFixture()
         {
             Now = Instant.FromUtc(2026, 5, 12, 10, 0, 0);
             Clock.GetCurrentInstant().Returns(Now);
 
-            var serviceProvider = Substitute.For<IServiceProvider>();
-            var scope = Substitute.For<IServiceScope>();
-            scope.ServiceProvider.Returns(serviceProvider);
-
-            ScopeFactory = Substitute.For<IServiceScopeFactory>();
-            ScopeFactory.CreateScope().Returns(scope);
-
-            serviceProvider.GetService(typeof(IRefreshTokenRepository)).Returns(Repository);
+            ScopeFactory = ScopeFactories.Providing(services => services.AddSingleton(Repository));
         }
 
-        public TokenCleanupService Build(double intervalHours = 24)
+        public TokenCleanupService Build(
+            TimeProvider? timeProvider = null, double intervalHours = 24, ILogger<TokenCleanupService>? logger = null)
         {
             var settings = Options.Create(new WorkerSettings { TokenCleanupIntervalHours = intervalHours });
-            return new TokenCleanupService(ScopeFactory, Clock, Time, settings, Substitute.For<ILogger<TokenCleanupService>>());
+            return new TokenCleanupService(
+                ScopeFactory, Clock, timeProvider ?? new FakeTimeProvider(), settings,
+                logger ?? Substitute.For<ILogger<TokenCleanupService>>());
         }
     }
 
@@ -64,13 +62,13 @@ public sealed class TokenCleanupServiceTests
     {
         var fixture = new TestFixture();
         fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(deletedCount);
-        var logger = new CapturingLogger();
-        var service = new TokenCleanupService(fixture.ScopeFactory, fixture.Clock, fixture.Time, Options.Create(new WorkerSettings()), logger);
+        var logger = new FakeLogger<TokenCleanupService>();
+        var service = fixture.Build(logger: logger);
 
         await service.RunCleanupAsync(CancellationToken.None);
 
-        logger.Entries.Should().ContainSingle()
-            .Which.Should().Match<(LogLevel Level, string Message)>(
+        logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(
                 entry => entry.Level == LogLevel.Information && entry.Message.Contains(deletedCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
@@ -92,76 +90,78 @@ public sealed class TokenCleanupServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task ExecuteAsync_Started_CleansUpImmediatelyThenOnEveryTickAsync()
+    public async Task ExecuteAsync_Started_CleansUpAtOnceThenWaitsTheConfiguredIntervalAsync()
     {
-        var ct = TestContext.Current.CancellationToken;
+        await using var timeline = new Timeline();
         var fixture = new TestFixture();
-        using var cleanups = new SemaphoreSlim(0);
-        fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
-            .Returns(_ => { cleanups.Release(); return 0; });
-        var service = fixture.Build(intervalHours: 2);
+        RecordCleanups(fixture, timeline);
 
-        await service.StartAsync(ct);
-        (await cleanups.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
+        await StartAsync(timeline, fixture.Build(timeline.Clock, intervalHours: 2));
 
-        fixture.Time.Advance(TimeSpan.FromHours(2) - TimeSpan.FromTicks(1));
-        (await cleanups.WaitAsync(0, ct)).Should().BeFalse();
-        fixture.Time.Advance(TimeSpan.FromTicks(1));
-        (await cleanups.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
-
-        await service.StopAsync(ct);
+        await timeline.ExpectAsync(new Called("cleanup"), new TimerArmed(TimeSpan.FromHours(2)));
     }
 
     [Fact]
-    public async Task ExecuteAsync_CleanupFails_LogsAndRunsAgainOnTheNextTickAsync()
+    public async Task ExecuteAsync_CleanupFails_LogsItAndCleansUpAgainAfterTheIntervalAsync()
     {
-        var ct = TestContext.Current.CancellationToken;
+        await using var timeline = new Timeline();
         var fixture = new TestFixture();
-        using var attempts = new SemaphoreSlim(0);
         var calls = 0;
-        fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                attempts.Release();
-                return ++calls == 1 ? throw new InvalidOperationException("DB error") : 0;
-            });
-        var logger = new CapturingLogger();
-        var service = new TokenCleanupService(fixture.ScopeFactory, fixture.Clock, fixture.Time,
-            Options.Create(new WorkerSettings { TokenCleanupIntervalHours = 1 }), logger);
+        RecordCleanups(fixture, timeline, () => ++calls == 1 ? throw new InvalidOperationException("DB error") : 0);
+        var logger = new FakeLogger<TokenCleanupService>();
+        await StartAsync(timeline, fixture.Build(timeline.Clock, intervalHours: 1, logger));
+        await timeline.ExpectAsync(new Called("cleanup"), new TimerArmed(TimeSpan.FromHours(1)));
 
-        await service.StartAsync(ct);
-        (await attempts.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
-        fixture.Time.Advance(TimeSpan.FromHours(1));
-        (await attempts.WaitAsync(TimeSpan.FromSeconds(5), ct)).Should().BeTrue();
-        await service.StopAsync(ct);
+        timeline.Clock.Advance(TimeSpan.FromHours(1));
 
-        logger.Entries.Should().Contain(e => e.Level == LogLevel.Error);
-        service.ExecuteTask!.IsFaulted.Should().BeFalse();
+        await timeline.ExpectAsync(
+            new TimerFired(TimeSpan.FromHours(1)), new Called("cleanup"), new TimerArmed(TimeSpan.FromHours(1)));
+        logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CleanupCancelled_StopsInsteadOfLoggingAFailureAsync()
+    {
+        await using var timeline = new Timeline();
+        var fixture = new TestFixture();
+        RecordCleanups(fixture, timeline, () => throw new OperationCanceledException());
+        var logger = new FakeLogger<TokenCleanupService>();
+
+        await StartAsync(timeline, fixture.Build(timeline.Clock, intervalHours: 1, logger));
+
+        await timeline.ExpectAsync(new Called("cleanup"), new Finished(TaskStatus.Canceled));
+        logger.Collector.GetSnapshot().Should().BeEmpty();
     }
 
     [Fact]
     public async Task ExecuteAsync_Stopped_EndsWithoutFaultingAsync()
     {
-        var ct = TestContext.Current.CancellationToken;
+        await using var timeline = new Timeline();
         var fixture = new TestFixture();
-        var service = fixture.Build();
+        RecordCleanups(fixture, timeline);
+        var service = fixture.Build(timeline.Clock);
+        await StartAsync(timeline, service);
+        await timeline.ExpectAsync(new Called("cleanup"), new TimerArmed(TimeSpan.FromHours(24)));
 
-        await service.StartAsync(ct);
-        await service.StopAsync(ct);
+        await service.StopAsync(Ct);
 
-        service.ExecuteTask!.IsCompleted.Should().BeTrue();
-        service.ExecuteTask.IsFaulted.Should().BeFalse();
+        await timeline.ExpectAsync(new Finished(TaskStatus.Canceled));
     }
 
-    private sealed class CapturingLogger : ILogger<TokenCleanupService>
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private static void RecordCleanups(TestFixture fixture, Timeline timeline, Func<int>? outcome = null)
+        => fixture.Repository.DeleteExpiredAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                call.Arg<CancellationToken>().ThrowIfCancellationRequested();
+                timeline.Record("cleanup");
+                return outcome?.Invoke() ?? 0;
+            });
+
+    private static async Task StartAsync(Timeline timeline, TokenCleanupService service)
     {
-        private readonly List<(LogLevel Level, string Message)> _entries = [];
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries => _entries;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) => _entries.Add((logLevel, formatter(state, exception)));
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        await service.StartAsync(Ct);
+        timeline.Watch(service.ExecuteTask!, () => service.StopAsync(CancellationToken.None));
     }
 }

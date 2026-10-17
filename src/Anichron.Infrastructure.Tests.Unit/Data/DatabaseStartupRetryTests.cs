@@ -1,29 +1,45 @@
 using Anichron.Infrastructure.Data;
-using Microsoft.Extensions.Time.Testing;
+using Anichron.Testing.Time;
 
 namespace Anichron.Infrastructure.Tests.Unit.Data;
 
-public sealed class DatabaseStartupRetryTests
+public sealed class DatabaseStartupRetryTests : IAsyncDisposable
 {
     private static readonly TimeSpan Delay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan Settle = TimeSpan.FromSeconds(5);
 
-    private readonly FakeTimeProvider time = new();
+    private readonly Timeline timeline = new();
+    private readonly CancellationTokenSource stop = new();
     private readonly List<(Exception Exception, int Attempt)> retries = [];
     private readonly List<Exception> giveUps = [];
+    private Task run = Task.CompletedTask;
 
-    private Task RunAsync(Func<CancellationToken, Task> operation, int maxAttempts = 3, CancellationToken? ct = null)
-        => new DatabaseStartupRetry(time, maxAttempts, Delay)
-            .RunAsync(operation, (ex, attempt) => retries.Add((ex, attempt)), giveUps.Add, ct ?? TestContext.Current.CancellationToken);
+    public async ValueTask DisposeAsync()
+    {
+        await timeline.DisposeAsync();
+        stop.Dispose();
+    }
+
+    private void Start(Func<int, Task> attempt)
+    {
+        var calls = 0;
+        run = new DatabaseStartupRetry(timeline.Clock, 3, Delay).RunAsync(
+            _ =>
+            {
+                timeline.Record("attempt");
+                return attempt(++calls);
+            },
+            (ex, number) => retries.Add((ex, number)),
+            giveUps.Add,
+            stop.Token);
+        timeline.Watch(run, stop.CancelAsync);
+    }
 
     [Fact]
     public async Task RunAsync_FirstAttemptSucceeds_RunsOnceWithoutRetryingAsync()
     {
-        var calls = 0;
+        Start(_ => Task.CompletedTask);
 
-        await RunAsync(_ => { calls++; return Task.CompletedTask; });
-
-        calls.Should().Be(1);
+        await timeline.ExpectAsync(new Called("attempt"), new Finished(TaskStatus.RanToCompletion));
         retries.Should().BeEmpty();
         giveUps.Should().BeEmpty();
     }
@@ -32,20 +48,16 @@ public sealed class DatabaseStartupRetryTests
     public async Task RunAsync_FirstAttemptFails_WaitsTheFullDelayBeforeRetryingAsync()
     {
         var failure = new InvalidOperationException("not ready");
-        var calls = 0;
+        Start(call => call == 1 ? Task.FromException(failure) : Task.CompletedTask);
 
-        var run = RunAsync(_ => ++calls == 1 ? Task.FromException(failure) : Task.CompletedTask);
-
-        calls.Should().Be(1);
+        await timeline.ExpectAsync(new Called("attempt"), new TimerArmed(Delay));
         retries.Should().Equal((failure, 1));
-        time.Advance(Delay - TimeSpan.FromTicks(1));
-        run.IsCompleted.Should().BeFalse();
-        calls.Should().Be(1);
+        timeline.Clock.Advance(Delay - TimeSpan.FromTicks(1));
+        timeline.Unread.Should().BeEmpty();
+        timeline.Clock.Advance(TimeSpan.FromTicks(1));
 
-        time.Advance(TimeSpan.FromTicks(1));
-        await run.WaitAsync(Settle, TestContext.Current.CancellationToken);
-
-        calls.Should().Be(2);
+        await timeline.ExpectAsync(
+            new TimerFired(Delay), new Called("attempt"), new Finished(TaskStatus.RanToCompletion));
         giveUps.Should().BeEmpty();
     }
 
@@ -53,17 +65,18 @@ public sealed class DatabaseStartupRetryTests
     public async Task RunAsync_EveryAttemptFails_GivesUpAfterMaxAttemptsWrappingTheLastErrorAsync()
     {
         var failures = new[] { new TimeoutException("1"), new TimeoutException("2"), new TimeoutException("3") };
-        var calls = 0;
+        Start(call => Task.FromException(failures[call - 1]));
 
-        var run = RunAsync(_ => Task.FromException(failures[calls++]));
-        time.Advance(Delay);
-        time.Advance(Delay);
-        var act = () => run.WaitAsync(Settle, TestContext.Current.CancellationToken);
+        await timeline.ExpectAsync(new Called("attempt"), new TimerArmed(Delay));
+        timeline.Clock.Advance(Delay);
+        await timeline.ExpectAsync(new TimerFired(Delay), new Called("attempt"), new TimerArmed(Delay));
+        timeline.Clock.Advance(Delay);
 
-        (await act.Should().ThrowAsync<InvalidOperationException>()
-                .WithMessage("Database unavailable after 3 attempts. Aborting."))
-            .WithInnerException<TimeoutException>().WithMessage("3");
-        calls.Should().Be(3);
+        await timeline.ExpectAsync(
+            new TimerFired(Delay), new Called("attempt"), new Finished(TaskStatus.Faulted));
+        run.Exception!.InnerException.Should().BeOfType<InvalidOperationException>()
+            .Which.Should().Match<InvalidOperationException>(ex =>
+                ex.Message == "Database unavailable after 3 attempts. Aborting." && ex.InnerException == failures[2]);
         retries.Should().Equal((failures[0], 1), (failures[1], 2));
         giveUps.Should().Equal(failures[2]);
     }
@@ -71,26 +84,25 @@ public sealed class DatabaseStartupRetryTests
     [Fact]
     public async Task RunAsync_CancelledWhileWaiting_StopsWithoutAnotherAttemptAsync()
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var calls = 0;
+        Start(_ => Task.FromException(new InvalidOperationException()));
+        await timeline.ExpectAsync(new Called("attempt"), new TimerArmed(Delay));
 
-        var run = RunAsync(_ => { calls++; return Task.FromException(new InvalidOperationException()); }, ct: cts.Token);
-        await cts.CancelAsync();
-        var act = () => run.WaitAsync(Settle, TestContext.Current.CancellationToken);
+        await stop.CancelAsync();
 
-        await act.Should().ThrowAsync<OperationCanceledException>();
-        calls.Should().Be(1);
+        await timeline.ExpectAsync(new Finished(TaskStatus.Canceled));
         giveUps.Should().BeEmpty();
     }
 
     [Fact]
     public async Task RunAsync_PassesTheCallersTokenToTheOperationAsync()
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         CancellationToken seen = default;
 
-        await RunAsync(token => { seen = token; return Task.CompletedTask; }, ct: cts.Token);
+        run = new DatabaseStartupRetry(timeline.Clock, 3, Delay).RunAsync(
+            token => { seen = token; return Task.CompletedTask; }, (_, _) => { }, _ => { }, stop.Token);
+        timeline.Watch(run);
+        await timeline.ExpectAsync(new Finished(TaskStatus.RanToCompletion));
 
-        seen.Should().Be(cts.Token);
+        seen.Should().Be(stop.Token);
     }
 }

@@ -1,6 +1,7 @@
 using Anichron.API.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,8 +12,9 @@ using System.Text.Encodings.Web;
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
 /// <summary>
-/// The real API endpoints on a test server, where a request is authenticated as the user named in
-/// <see cref="UserHeader"/>.
+/// Real API endpoints on a test server, under the API base path, where a request is authenticated
+/// as the user named in <see cref="UserHeader"/>. A test maps only the endpoints it exercises, so
+/// the wiring of the others is not in its coverage.
 /// </summary>
 internal sealed class AuthenticatedTestApp : IAsyncDisposable
 {
@@ -24,7 +26,8 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
 
     public HttpClient Client => app.GetTestClient();
 
-    public static async Task<AuthenticatedTestApp> StartAsync(Action<IServiceCollection> configureServices)
+    public static async Task<AuthenticatedTestApp> StartAsync(
+        Action<IEndpointRouteBuilder> mapEndpoints, Action<IServiceCollection> configureServices)
     {
         var builder = ApiTestHost.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -34,7 +37,7 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();
-        app.MapApiEndpoints();
+        mapEndpoints(app.MapGroup(ApiPaths.Base));
         await app.StartAsync(TestContext.Current.CancellationToken);
         return new AuthenticatedTestApp(app);
     }

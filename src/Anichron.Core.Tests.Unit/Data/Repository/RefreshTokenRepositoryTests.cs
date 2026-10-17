@@ -1,7 +1,6 @@
-using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Microsoft.EntityFrameworkCore;
+using Anichron.Testing.Data;
 using NodaTime;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
@@ -9,14 +8,6 @@ namespace Anichron.Core.Tests.Unit.Data.Repository;
 public sealed class RefreshTokenRepositoryTests
 {
     private static readonly Instant Epoch = Instant.FromUtc(2024, 1, 1, 0, 0);
-
-    private static AnichronDbContext CreateDb()
-    {
-        var options = new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new AnichronDbContext(options);
-    }
 
     private static User MakeUser(string username = "alice")
         => new() { Id = Guid.NewGuid(), Username = username, Email = $"{username}@example.com", PasswordHash = "hash" };
@@ -40,7 +31,7 @@ public sealed class RefreshTokenRepositoryTests
     public async Task FindByHashWithUserAsync_KnownHash_ReturnsTokenWithUserLoaded()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -58,7 +49,7 @@ public sealed class RefreshTokenRepositoryTests
     public async Task FindByHashWithUserAsync_UnknownHash_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
 
         var result = await new EfRefreshTokenRepository(db).FindByHashWithUserAsync("nope", ct);
 
@@ -73,7 +64,7 @@ public sealed class RefreshTokenRepositoryTests
     public async Task FindByHashAsync_KnownHash_ReturnsToken()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
@@ -91,7 +82,7 @@ public sealed class RefreshTokenRepositoryTests
     public async Task FindByHashAsync_UnknownHash_ReturnsNull()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
 
         var result = await new EfRefreshTokenRepository(db).FindByHashAsync("nope", ct);
 
@@ -106,7 +97,7 @@ public sealed class RefreshTokenRepositoryTests
     public async Task Add_AddsTokenToContext()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var user = MakeUser();
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);

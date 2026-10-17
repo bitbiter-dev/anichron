@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
@@ -10,20 +11,10 @@ public sealed class MediaAssetRepositoryTests
     private static readonly Guid ConfigA = Guid.NewGuid();
     private static readonly Guid ConfigB = Guid.NewGuid();
 
-    private static AnichronDbContext CreateDb() => CreateDb(out _);
-
     private static AnichronDbContext CreateDb(out string name)
     {
         name = Guid.NewGuid().ToString();
-        return CreateDb(name);
-    }
-
-    private static AnichronDbContext CreateDb(string name)
-    {
-        var options = new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseInMemoryDatabase(name)
-            .Options;
-        return new AnichronDbContext(options);
+        return AnichronDbContexts.InMemory(name);
     }
 
     private static MediaAsset MakeAsset(Guid configId, string hash)
@@ -32,7 +23,7 @@ public sealed class MediaAssetRepositoryTests
     private static async Task<MediaAsset?> FindAsync(MediaAsset[] seeded, string hash, Guid configId)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.MediaAssets.AddRange(seeded);
         await db.SaveChangesAsync(ct);
 
@@ -72,7 +63,7 @@ public sealed class MediaAssetRepositoryTests
     [Fact]
     public async Task Add_TracksTheAssetForInsert()
     {
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         var asset = MakeAsset(ConfigA, "cafe");
 
         new EfMediaAssetRepository(db).Add(asset);
@@ -91,7 +82,7 @@ public sealed class MediaAssetRepositoryTests
         await using var seed = CreateDb(out var name);
         seed.MediaAssets.AddRange(wanted, otherConfig, otherHash);
         await seed.SaveChangesAsync(ct);
-        await using var db = CreateDb(name);
+        await using var db = AnichronDbContexts.InMemory(name);
 
         var result = await new EfMediaAssetRepository(db).FindByHashWithProxyFilesAsync("cafe", ConfigA, ct);
 
@@ -106,7 +97,7 @@ public sealed class MediaAssetRepositoryTests
     public async Task FindByHashWithProxyFilesAsync_AssetMatchingOnlyHashOrOnlyConfig_ReturnsNull(string hash, bool sameConfig)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb();
+        await using var db = AnichronDbContexts.InMemory();
         db.MediaAssets.Add(MakeAsset(sameConfig ? ConfigA : ConfigB, hash));
         await db.SaveChangesAsync(ct);
 
@@ -118,7 +109,7 @@ public sealed class MediaAssetRepositoryTests
     [Fact]
     public void AddProxyFile_TracksTheRowForInsertEvenWithItsIdPreset()
     {
-        using var db = CreateDb();
+        using var db = AnichronDbContexts.InMemory();
         var proxy = new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo };
 
         new EfMediaAssetRepository(db).AddProxyFile(proxy);

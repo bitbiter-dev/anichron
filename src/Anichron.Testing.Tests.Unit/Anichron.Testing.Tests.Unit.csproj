@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Anichron.Testing\Anichron.Testing.csproj" />
+  </ItemGroup>
+
+</Project>
