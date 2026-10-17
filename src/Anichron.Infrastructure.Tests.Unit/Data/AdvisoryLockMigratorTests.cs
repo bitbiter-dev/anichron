@@ -1,77 +1,87 @@
 using Anichron.Infrastructure.Data;
-using Microsoft.Extensions.Time.Testing;
+using Anichron.Testing.Time;
 
 namespace Anichron.Infrastructure.Tests.Unit.Data;
 
-public sealed class AdvisoryLockMigratorTests
+public sealed class AdvisoryLockMigratorTests : IAsyncDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan Settle = TimeSpan.FromSeconds(5);
 
-    private readonly FakeTimeProvider time = new();
+    private readonly Timeline timeline = new();
     private readonly IAdvisoryLock advisoryLock = Substitute.For<IAdvisoryLock>();
-    private int migrations;
+    private Task run = Task.CompletedTask;
 
-    private Task RunAsync(Func<CancellationToken, Task>? migrate = null, int maxAttempts = 3)
-        => new AdvisoryLockMigrator(advisoryLock, time, maxAttempts)
-            .RunAsync(migrate ?? (_ => { migrations++; return Task.CompletedTask; }), TestContext.Current.CancellationToken);
+    public ValueTask DisposeAsync() => timeline.DisposeAsync();
+
+    private void LockIsFree(params bool[] answers)
+        => advisoryLock.TryAcquireAsync(Arg.Any<CancellationToken>())
+            .Returns(answers[0], answers[1..])
+            .AndDoes(_ => timeline.Record("acquire"));
+
+    private void Start(Func<CancellationToken, Task>? migrate = null, int maxAttempts = 3)
+    {
+        run = new AdvisoryLockMigrator(advisoryLock, timeline.Clock, maxAttempts).RunAsync(
+            migrate ?? (_ => { timeline.Record("migrate"); return Task.CompletedTask; }),
+            timeline.Lifetime);
+        timeline.Watch(run);
+    }
 
     [Fact]
     public async Task RunAsync_LockFree_MigratesOnceAndReleasesAsync()
     {
-        advisoryLock.TryAcquireAsync(Arg.Any<CancellationToken>()).Returns(true);
+        LockIsFree(true);
 
-        await RunAsync();
+        Start();
 
-        migrations.Should().Be(1);
+        await timeline.ExpectAsync(
+            new Called("acquire"), new Called("migrate"), new Finished(TaskStatus.RanToCompletion));
         await advisoryLock.Received(1).ReleaseAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunAsync_LockHeldOnce_PollsAgainAfterOneSecondAsync()
     {
-        advisoryLock.TryAcquireAsync(Arg.Any<CancellationToken>()).Returns(false, true);
+        LockIsFree(false, true);
+        Start();
+        await timeline.ExpectAsync(new Called("acquire"), new TimerArmed(PollInterval));
 
-        var run = RunAsync();
-        time.Advance(PollInterval - TimeSpan.FromTicks(1));
-        await advisoryLock.Received(1).TryAcquireAsync(Arg.Any<CancellationToken>());
-        migrations.Should().Be(0);
+        timeline.Clock.Advance(PollInterval - TimeSpan.FromTicks(1));
+        timeline.Unread.Should().BeEmpty();
+        timeline.Clock.Advance(TimeSpan.FromTicks(1));
 
-        time.Advance(TimeSpan.FromTicks(1));
-        await run.WaitAsync(Settle, TestContext.Current.CancellationToken);
-
-        await advisoryLock.Received(2).TryAcquireAsync(Arg.Any<CancellationToken>());
-        migrations.Should().Be(1);
+        await timeline.ExpectAsync(
+            new TimerFired(PollInterval), new Called("acquire"), new Called("migrate"), new Finished(TaskStatus.RanToCompletion));
         await advisoryLock.Received(1).ReleaseAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunAsync_LockNeverFree_TimesOutAfterMaxAttemptsWithoutAFinalWaitAsync()
     {
-        advisoryLock.TryAcquireAsync(Arg.Any<CancellationToken>()).Returns(false);
+        LockIsFree(false);
+        Start(maxAttempts: 3);
 
-        var run = RunAsync(maxAttempts: 3);
-        time.Advance(PollInterval);
-        time.Advance(PollInterval);
-        var act = () => run.WaitAsync(Settle, TestContext.Current.CancellationToken);
+        await timeline.ExpectAsync(new Called("acquire"), new TimerArmed(PollInterval));
+        timeline.Clock.Advance(PollInterval);
+        await timeline.ExpectAsync(new TimerFired(PollInterval), new Called("acquire"), new TimerArmed(PollInterval));
+        timeline.Clock.Advance(PollInterval);
 
-        await act.Should().ThrowAsync<TimeoutException>()
-            .WithMessage("Could not acquire the migration advisory lock after 3 attempts.");
-        await advisoryLock.Received(3).TryAcquireAsync(Arg.Any<CancellationToken>());
-        migrations.Should().Be(0);
+        await timeline.ExpectAsync(
+            new TimerFired(PollInterval), new Called("acquire"), new Finished(TaskStatus.Faulted));
+        run.Exception!.InnerException.Should().BeOfType<TimeoutException>()
+            .Which.Message.Should().Be("Could not acquire the migration advisory lock after 3 attempts.");
         await advisoryLock.DidNotReceive().ReleaseAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunAsync_MigrationFails_StillReleasesTheLockAndDoesNotRetryAsync()
     {
-        advisoryLock.TryAcquireAsync(Arg.Any<CancellationToken>()).Returns(true);
+        LockIsFree(true);
         var failure = new InvalidOperationException("migration failed");
 
-        var act = () => RunAsync(_ => Task.FromException(failure));
+        Start(_ => Task.FromException(failure));
 
-        (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(failure);
-        await advisoryLock.Received(1).TryAcquireAsync(Arg.Any<CancellationToken>());
+        await timeline.ExpectAsync(new Called("acquire"), new Finished(TaskStatus.Faulted));
+        run.Exception!.InnerException.Should().BeSameAs(failure);
         await advisoryLock.Received(1).ReleaseAsync(Arg.Any<CancellationToken>());
     }
 }

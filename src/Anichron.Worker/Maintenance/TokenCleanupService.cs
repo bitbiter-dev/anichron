@@ -1,4 +1,5 @@
 using Anichron.Core.Data.Repository;
+using Anichron.Worker.Scheduling;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 using NodaTime;
@@ -14,21 +15,20 @@ public sealed partial class TokenCleanupService(
 {
     private readonly WorkerSettings settings = options.Value;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => RecurringWork.RunAsync(
+            CleanUpOrLogAsync, TimeSpan.FromHours(settings.TokenCleanupIntervalHours), timeProvider, stoppingToken);
+
+    private async Task CleanUpOrLogAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(settings.TokenCleanupIntervalHours), timeProvider);
-        do
+        try
         {
-            try
-            {
-                await RunCleanupAsync(stoppingToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.CleanupFailed(logger, ex);
-            }
+            await RunCleanupAsync(ct);
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.CleanupFailed(logger, ex);
+        }
     }
 
     internal async Task RunCleanupAsync(CancellationToken ct)

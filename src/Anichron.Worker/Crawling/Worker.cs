@@ -1,5 +1,6 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Worker.Scheduling;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 
@@ -15,17 +16,14 @@ internal sealed partial class Worker(
 {
     private readonly WorkerSettings settings = options.Value;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Log.Starting(logger, workerState.ResolvedUserId is { } userId
             ? $"dedicated (userId={userId})"
             : "all-user");
 
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await CrawlAllAsync(stoppingToken);
-            await Task.Delay(TimeSpan.FromHours(settings.CrawlIntervalHours), timeProvider, stoppingToken);
-        }
+        return RecurringWork.RunAsync(
+            CrawlAllAsync, TimeSpan.FromHours(settings.CrawlIntervalHours), timeProvider, stoppingToken);
     }
 
     internal async Task CrawlAllAsync(CancellationToken ct)
