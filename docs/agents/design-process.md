@@ -110,9 +110,13 @@ constraints, and the first caller is concrete enough to test against.
   interface. It comments `Design approved` with one line of reasoning, puts a link to the note in
   the issue's design part, and moves the issue to `ready-for-agent`.
 - **Maintainer decision:** when the note has a *Decision needed* section or is marked hard to
-  reverse, the architect moves the issue to `needs-decision` instead. The maintainer decides in
-  conversation, usually through `/grill-with-docs`. The agent records the decision on the issue,
-  writes an ADR when the `/domain-modeling` test holds, and moves the issue to `ready-for-agent`.
+  reverse, the issue goes to `needs-decision` instead; the note's author may move it there
+  directly, since only approval needs a second session. The maintainer decides in conversation,
+  usually through `/grill-with-docs`. The agent records the decision and its date in a
+  `## Decision` comment and writes an ADR when the `/domain-modeling` test holds. It then moves
+  the issue to `ready-for-agent`, or, when the decision is not to build now, back to
+  `needs-triage` with the release label it now belongs to. Either way it updates the milestone
+  order to match.
 
 ## Objection
 
