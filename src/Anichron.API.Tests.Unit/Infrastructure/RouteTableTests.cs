@@ -6,34 +6,39 @@ using Microsoft.AspNetCore.Routing;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
-public sealed class RouteTableTests
+public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFixture<RouteTableTests.RouteTable>
 {
-    private sealed record Route(string Method, string Pattern, bool Anonymous, string[] Policies, bool Authenticated, string? RateLimit, string[] Tags);
+    internal sealed record Route(string Method, string Pattern, bool Anonymous, string[] Policies, bool Authenticated, string? RateLimit, string[] Tags);
 
-    private static IReadOnlyList<Route> MapRoutes()
+    public sealed class RouteTable
     {
-        var builder = ApiTestHost.CreateBuilder();
-        var app = builder.Build();
+        internal IReadOnlyList<Route> Routes { get; }
 
-        app.MapApiEndpoints();
+        public RouteTable()
+        {
+            var builder = ApiTestHost.CreateBuilder();
+            using var app = builder.Build();
 
-        return [.. ((IEndpointRouteBuilder)app).DataSources
-            .SelectMany(source => source.Endpoints)
-            .OfType<RouteEndpoint>()
-            .SelectMany(endpoint => (endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? ["GET"])
-                .Select(method => new Route(
-                    method,
-                    "/" + endpoint.RoutePattern.RawText!.Trim('/'),
-                    endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null,
-                    [.. endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).OfType<string>()],
-                    endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(),
-                    endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName,
-                    [.. endpoint.Metadata.GetOrderedMetadata<ITagsMetadata>().SelectMany(t => t.Tags)])))];
+            app.MapApiEndpoints();
+
+            Routes = [.. ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(source => source.Endpoints)
+                .OfType<RouteEndpoint>()
+                .SelectMany(endpoint => (endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? ["GET"])
+                    .Select(method => new Route(
+                        method,
+                        "/" + endpoint.RoutePattern.RawText!.Trim('/'),
+                        endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null,
+                        [.. endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).OfType<string>()],
+                        endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(),
+                        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName,
+                        [.. endpoint.Metadata.GetOrderedMetadata<ITagsMetadata>().SelectMany(t => t.Tags)])))];
+        }
     }
 
-    private static IReadOnlyList<Route> Routes => MapRoutes();
+    private IReadOnlyList<Route> Routes => table.Routes;
 
-    private static Route Find(string method, string pattern)
+    private Route Find(string method, string pattern)
         => Routes.Should().ContainSingle(r => r.Method == method && r.Pattern == pattern,
             $"{method} {pattern} must be mapped exactly once").Which;
 

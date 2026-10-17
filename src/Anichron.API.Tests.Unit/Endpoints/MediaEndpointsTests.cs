@@ -1,3 +1,4 @@
+using Anichron.API.Endpoints;
 using Anichron.API.Infrastructure;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Data.Repository;
@@ -65,7 +66,7 @@ public sealed class MediaEndpointsTests
             app = builder.Build();
             app.UseAuthentication();
             app.UseAuthorization();
-            app.MapApiEndpoints();
+            app.MapGroup(ApiPaths.Base).MapMediaEndpoints();
             await app.StartAsync(TestContext.Current.CancellationToken);
             return app.GetTestClient();
         }
