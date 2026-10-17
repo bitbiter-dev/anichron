@@ -79,6 +79,7 @@ jobs:
           scripts/mutation-changed.test.sh
           scripts/arch-exceptions-check.test.sh
           scripts/issue-readiness.test.sh
+          scripts/arch-review-due.test.sh
 
       - name: Architecture exceptions name open issues
         env:

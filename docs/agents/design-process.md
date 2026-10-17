@@ -155,6 +155,28 @@ architecture rule in `src/Anichron.Architecture.Tests.Unit` (ArchUnitNET), not p
 A rule is done when it fails on a deliberate violation (show the output in the PR) and passes
 with only issue-linked exceptions.
 
+## Architecture review
+
+A backstop for what slips through the design step. The *Architecture review due* workflow
+(`scripts/arch-review-due.sh`) counts the PRs merged since the latest `arch-review/YYYY-MM-DD` tag,
+leaving out Dependabot's. At 10 it opens an "Architecture review due" issue, which is picked before
+anything else. The review:
+
+1. **Scope:** the range from the latest tag to master. Read it as an architect: design smells,
+   SOLID, patterns extended past their purpose, building blocks with no caller, `if`/`else` used
+   as structure, and features made to fit an existing pattern where the pattern should change.
+2. **Self-check:** re-verify every finding against the current master, and drop or correct
+   whatever does not hold.
+3. **Filing:** one issue per high-impact finding, and one grouped issue for medium and low, each
+   in the shape "What every issue carries" requires.
+4. **Order:** link the issues as blockers of the work they affect, and put them next in the
+   milestone orders.
+5. **Close-out:** tag the reviewed master commit `arch-review/<date>`, push the tag, and close the
+   review issue.
+
+The review is done when every finding is either filed or dropped with a reason, and the tag is
+pushed.
+
 ## Skill by skill
 
 | Skill | In this repo |
