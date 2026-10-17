@@ -3,7 +3,6 @@ using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using System.Text;
 
 namespace Anichron.Worker.Ingestion.Proxy;
 
@@ -41,15 +40,9 @@ internal sealed class FullPreviewGenerator(IImageProcessor imageProcessor, IOpti
         => imageProcessor.EncodeFullPreviewAsync(image, ct);
 }
 
-internal sealed class BlurhashGenerator(IImageProcessor imageProcessor, IOptions<WorkerSettings> options)
-    : IImageProxyGenerator
+internal sealed class BlurhashEncoder(IImageProcessor imageProcessor, IOptions<WorkerSettings> options)
 {
-    public string FileName => "blurhash.txt";
-    public ProxyType ProxyType => ProxyType.BlurHash;
     public ProxyBound Bound => new(ProxyEdge.LongEdge, options.Value.BlurhashSampleLongEdge);
-    public async Task<byte[]> GenerateAsync(Image<Rgb24> image, CancellationToken ct)
-    {
-        var hash = await imageProcessor.ComputeBlurhashAsync(image, ct);
-        return Encoding.UTF8.GetBytes(hash);
-    }
+    public Task<string> EncodeAsync(Image<Rgb24> image, CancellationToken ct)
+        => imageProcessor.ComputeBlurhashAsync(image, ct);
 }

@@ -224,6 +224,18 @@ public sealed class PersistenceMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_Always_SetsMetadataBlurhashFromContextAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext();
+        context.Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj";
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Asset!.Metadata!.Blurhash.Should().Be("LEHV6nWB2yk8pyo0adR*.7kCMdnj");
+    }
+
+    [Fact]
     public async Task InvokeAsync_SingleFileItem_UsesItemMediaTypeAsync()
     {
         var fx = new TestFixture();

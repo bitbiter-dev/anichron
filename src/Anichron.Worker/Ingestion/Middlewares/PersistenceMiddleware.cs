@@ -91,6 +91,7 @@ internal sealed partial class PersistenceMiddleware(
                 CameraModel = exif.CameraModel,
                 LensModel = exif.LensModel,
                 DurationInSeconds = exif.DurationInSeconds,
+                Blurhash = context.Blurhash,
             },
         };
     }

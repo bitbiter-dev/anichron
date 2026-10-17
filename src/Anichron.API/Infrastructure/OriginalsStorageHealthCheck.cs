@@ -1,5 +1,5 @@
+using Anichron.Infrastructure.Storage;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using System.IO.Abstractions;
 
 namespace Anichron.API.Infrastructure;
 
@@ -11,14 +11,14 @@ namespace Anichron.API.Infrastructure;
 // reporting Unhealthy would pull the whole API out of rotation for a partial loss of function.
 // A THROWING file system is a different condition (unreadable or hung mount rather than absent)
 // and does report Unhealthy, carrying the exception for diagnosis.
-internal sealed class OriginalsStorageHealthCheck(IFileSystem fileSystem) : IHealthCheck
+internal sealed class OriginalsStorageHealthCheck(IOriginalStore store) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         try
         {
             return Task.FromResult(
-                fileSystem.Directory.Exists(StoragePath.OriginalsRoot)
+                store.RootExists()
                     ? HealthCheckResult.Healthy("Originals storage directory found.")
                     : HealthCheckResult.Degraded("Originals storage directory not found."));
         }

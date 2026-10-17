@@ -87,7 +87,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<IImageProcessor, ImageSharpProcessor>();
             services.AddSingleton<IImageProxyGenerator, ThumbnailGenerator>();
             services.AddSingleton<IImageProxyGenerator, FullPreviewGenerator>();
-            services.AddSingleton<IImageProxyGenerator, BlurhashGenerator>();
+            services.AddSingleton<BlurhashEncoder>();
         }
 
         internal IServiceCollection AddWorkerHostedServices()
