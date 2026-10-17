@@ -5,6 +5,7 @@ using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
+using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -60,6 +61,8 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IInviteRepository), typeof(EfInviteRepository), ServiceLifetime.Scoped },
         { typeof(IUserStorageConfigRepository), typeof(EfUserStorageConfigRepository), ServiceLifetime.Scoped },
         { typeof(IMediaAssetReadRepository), typeof(EfMediaAssetReadRepository), ServiceLifetime.Scoped },
+        { typeof(IProxyStore), typeof(ProxyStore), ServiceLifetime.Singleton },
+        { typeof(IOriginalStore), typeof(OriginalStore), ServiceLifetime.Singleton },
         { typeof(IRegistrationValidator), typeof(RegistrationValidator), ServiceLifetime.Scoped },
         { typeof(ILockoutService), typeof(LockoutService), ServiceLifetime.Scoped },
         { typeof(ITokenService), typeof(TokenService), ServiceLifetime.Scoped },
@@ -69,7 +72,6 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IAdminUserService), typeof(AdminUserService), ServiceLifetime.Scoped },
         { typeof(IAdminStorageConfigService), typeof(AdminStorageConfigService), ServiceLifetime.Scoped },
         { typeof(IBootstrapResetService), typeof(BootstrapResetService), ServiceLifetime.Transient },
-        { typeof(IBlurhashReader), typeof(BlurhashReader), ServiceLifetime.Singleton },
     };
 
     [Theory]

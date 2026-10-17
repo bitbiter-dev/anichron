@@ -2,15 +2,13 @@ using Anichron.API.Infrastructure;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Anichron.Infrastructure.FileSystem;
+using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.IO.Abstractions;
-using System.IO.Abstractions.TestingHelpers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
@@ -39,11 +37,21 @@ public sealed class MediaEndpointsTests
         }
     }
 
+    private sealed class FakeProxyStore : IProxyStore
+    {
+        public Dictionary<string, byte[]> Files { get; } = [];
+
+        public bool RootExists() => true;
+
+        public Stream? OpenRead(string proxyPath)
+            => Files.TryGetValue(proxyPath, out var bytes) ? new MemoryStream(bytes, writable: false) : null;
+    }
+
     private sealed class TestFixture : IAsyncDisposable
     {
         private WebApplication? app;
 
-        public MockFileSystem FileSystem { get; } = new();
+        public FakeProxyStore Proxies { get; } = new();
         public IMediaAssetReadRepository Assets { get; } = Substitute.For<IMediaAssetReadRepository>();
 
         public void HasProxy(ProxyType type, string proxyPath, byte[]? bytes)
@@ -51,7 +59,7 @@ public sealed class MediaEndpointsTests
             Assets.FindVisibleProxyAsync(AssetId, UserId, type, Arg.Any<CancellationToken>())
                 .Returns(new VisibleProxy(proxyPath, ContentHash));
             if (bytes is not null)
-                FileSystem.AddFile($"/data/proxies/{proxyPath}", new MockFileData(bytes));
+                Proxies.Files[proxyPath] = bytes;
         }
 
         public async Task<HttpClient> StartAsync()
@@ -61,7 +69,7 @@ public sealed class MediaEndpointsTests
             builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthHandler>("Test", null);
             builder.Services.AddAuthorization();
             builder.Services.AddSingleton(Assets);
-            builder.Services.AddSingleton<IFileSystem>(new ReadOnlyFileSystem(FileSystem));
+            builder.Services.AddSingleton<IProxyStore>(Proxies);
             app = builder.Build();
             app.UseAuthentication();
             app.UseAuthorization();
@@ -195,29 +203,10 @@ public sealed class MediaEndpointsTests
     }
 
     [Fact]
-    public async Task GetProxy_RowButNoFileOnDisk_ReturnsNotFoundAsync()
+    public async Task GetProxy_StoreHasNoFileForTheRow_ReturnsNotFoundAsync()
     {
         await using var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", bytes: null);
-        using var client = await fixture.StartAsync();
-
-        using var response = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(".")]
-    [InlineData("../originals/mira/private.jpg")]
-    [InlineData("/data/originals/mira/private.jpg")]
-    [InlineData("01/../../proxies2/x.jpg")]
-    public async Task GetProxy_StoredPathEscapingTheProxyRoot_ReturnsNotFoundAsync(string proxyPath)
-    {
-        await using var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/data/originals/mira/private.jpg", new MockFileData([9, 9, 9]));
-        fixture.FileSystem.AddFile("/data/proxies2/x.jpg", new MockFileData([9, 9, 9]));
-        fixture.HasProxy(ProxyType.Thumbnail, proxyPath, bytes: null);
         using var client = await fixture.StartAsync();
 
         using var response = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);

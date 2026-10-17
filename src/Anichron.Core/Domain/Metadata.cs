@@ -22,4 +22,7 @@ public class Metadata
 
     // Video/File Specifics
     public int? DurationInSeconds { get; set; }
+
+    // Image Placeholder
+    public string? Blurhash { get; set; }
 }

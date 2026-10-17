@@ -22,9 +22,10 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void Photo_MapsItsFieldsAndProxyUrls()
     {
-        var asset = Photo(ExifOrientation.Upright, ProxyType.Thumbnail, ProxyType.FullPreview, ProxyType.BlurHash);
+        var asset = Photo(ExifOrientation.Upright, ProxyType.Thumbnail, ProxyType.FullPreview);
+        asset.Metadata!.Blurhash = "LEHV6nWB2yk8";
 
-        var dto = AssetDtoMapper.ToDto(asset, interaction: null, blurhash: "LEHV6nWB2yk8");
+        var dto = AssetDtoMapper.ToDto(asset, interaction: null);
 
         dto.Should().BeEquivalentTo(new AssetDto(
             AssetId,
@@ -50,7 +51,7 @@ public sealed class AssetDtoMapperTests
         var asset = Photo(ExifOrientation.Upright, ProxyType.Thumbnail, ProxyType.WebVideo);
         asset.MediaType = MediaType.Video;
 
-        var dto = AssetDtoMapper.ToDto(asset, null, null);
+        var dto = AssetDtoMapper.ToDto(asset, null);
 
         dto.MediaType.Should().Be("Video");
         dto.DurationSeconds.Should().Be(3);
@@ -73,7 +74,7 @@ public sealed class AssetDtoMapperTests
             ProxyFiles = [new ProxyFile { ProxyType = ProxyType.WebVideo }],
         };
 
-        var dto = AssetDtoMapper.ToDto(asset, null, null);
+        var dto = AssetDtoMapper.ToDto(asset, null);
 
         dto.MediaType.Should().Be("LivePhoto");
         dto.DurationSeconds.Should().BeNull();
@@ -94,7 +95,7 @@ public sealed class AssetDtoMapperTests
             ProxyFiles = [new ProxyFile { ProxyType = ProxyType.Thumbnail }],
         };
 
-        AssetDtoMapper.ToDto(asset, null, null).LivePhotoVideoUrl.Should().BeNull();
+        AssetDtoMapper.ToDto(asset, null).LivePhotoVideoUrl.Should().BeNull();
     }
 
     [Fact]
@@ -102,7 +103,7 @@ public sealed class AssetDtoMapperTests
     {
         var asset = new MediaAsset { Id = AssetId, MediaType = MediaType.Video };
 
-        var dto = AssetDtoMapper.ToDto(asset, null, null);
+        var dto = AssetDtoMapper.ToDto(asset, null);
 
         dto.Proxies.Should().Be(new AssetProxyUrls(null, null, null));
         dto.Blurhash.Should().BeNull();
@@ -119,7 +120,7 @@ public sealed class AssetDtoMapperTests
     [InlineData(8, 3024, 4032)]
     public void Dimensions_AreReportedUpright(int orientation, int width, int height)
     {
-        var dto = AssetDtoMapper.ToDto(Photo(orientation), null, null);
+        var dto = AssetDtoMapper.ToDto(Photo(orientation), null);
 
         dto.Width.Should().Be(width);
         dto.Height.Should().Be(height);
@@ -128,7 +129,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void NoInteractionRow_IsAllFalseWithDefaultWeight()
     {
-        AssetDtoMapper.ToDto(Photo(), null, null).Interaction
+        AssetDtoMapper.ToDto(Photo(), null).Interaction
             .Should().Be(new AssetInteractionDto(false, false, false, 1.0));
     }
 
@@ -139,7 +140,7 @@ public sealed class AssetDtoMapperTests
     {
         var interaction = new AssetInteraction { IsStarred = starred, IsLiked = liked, IsHidden = hidden };
 
-        AssetDtoMapper.ToDto(Photo(), interaction, null).Interaction
+        AssetDtoMapper.ToDto(Photo(), interaction).Interaction
             .Should().Be(new AssetInteractionDto(starred, liked, hidden, 1.0));
     }
 
@@ -148,7 +149,7 @@ public sealed class AssetDtoMapperTests
     {
         var interaction = new AssetInteraction { IsLiked = true };
 
-        AssetDtoMapper.ToDto(Photo(), interaction, null).Interaction
+        AssetDtoMapper.ToDto(Photo(), interaction).Interaction
             .Should().Be(new AssetInteractionDto(false, true, false, 2.0));
     }
 
@@ -158,7 +159,7 @@ public sealed class AssetDtoMapperTests
         var asset = Photo();
         asset.Interactions = [new AssetInteraction { IsStarred = true, IsLiked = true, IsHidden = true }];
 
-        AssetDtoMapper.ToDto(asset, null, null).Interaction
+        AssetDtoMapper.ToDto(asset, null).Interaction
             .Should().Be(new AssetInteractionDto(false, false, false, 1.0));
     }
 }

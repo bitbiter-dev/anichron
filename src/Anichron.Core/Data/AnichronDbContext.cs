@@ -163,6 +163,11 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                       + "Stored raw because 5 and 7 combine a rotation with a mirror and cannot be "
                       + "expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. "
                       + "Proxies keep this tag on unrotated pixels, so do not rotate them twice.");
+            entity.Property(m => m.Blurhash).HasComment(
+                "BlurHash placeholder string (4x3 components), computed by the Worker from the "
+                + "upright image. Kept here rather than as a proxy file so a response needs no disk "
+                + "read for it. Null for videos, and for images ingested before the column existed, "
+                + "which are not backfilled.");
             entity.HasKey(m => m.AssetId);
 
             // 1:1 with MediaAsset
@@ -187,9 +192,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "attempt so a retry overwrites its own debris instead of stranding it. "
                 + "IProxyDirectoryStrategy is the single place that rule lives.");
             entity.Property(p => p.ProxyType).HasComment(
-                "Thumbnail, WebVideo, FullPreview or BlurHash, persisted as text. Note BlurHash "
-                + "is an ordinary proxy ROW whose content is a file — not a string column on the "
-                + "asset.");
+                "Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder "
+                + "is not a proxy: it is the Metadata.Blurhash column.");
 
             entity.HasIndex(p => new { p.AssetId, p.ProxyType })
                   .IsUnique()

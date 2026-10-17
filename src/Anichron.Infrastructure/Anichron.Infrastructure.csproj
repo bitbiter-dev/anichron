@@ -15,4 +15,8 @@
     <PackageReference Include="System.IO.Abstractions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Anichron.Core\Anichron.Core.csproj" />
+  </ItemGroup>
+
 </Project>

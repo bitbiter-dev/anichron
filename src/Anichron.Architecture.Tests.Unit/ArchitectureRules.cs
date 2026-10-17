@@ -58,7 +58,7 @@ internal static class ArchitectureRules
                     .And().HaveNameMatching(@"^Log(Trace|Debug|Information|Warning|Error|Critical)?\("))),
         new(NoNotImplementedException,
             Types().That().ResideInAssembly(ApiAssembly, CoreAssembly, InfrastructureAssembly, WorkerAssembly)
-                .Should().NotDependOnAny(typeof(NotImplementedException))),
+                .Should().NotDependOnAnyTypesThat().HaveFullName(typeof(NotImplementedException).FullName)),
         new(DomainHasNoDataAnnotations,
             Types().That().ResideInNamespace(Domain)
                 .Should().NotDependOnAnyTypesThat().ResideInNamespace("System.ComponentModel.DataAnnotations")),

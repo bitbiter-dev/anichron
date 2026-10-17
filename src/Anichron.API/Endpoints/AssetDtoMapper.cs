@@ -8,7 +8,7 @@ internal static class AssetDtoMapper
     internal const double DefaultDisplayWeight = 1.0;
     internal const double LikedDisplayWeight = 2.0;
 
-    internal static AssetDto ToDto(MediaAsset asset, AssetInteraction? interaction, string? blurhash)
+    internal static AssetDto ToDto(MediaAsset asset, AssetInteraction? interaction)
     {
         var metadata = asset.Metadata;
         var quarterTurned = metadata?.Orientation >= ExifOrientation.FirstQuarterTurn;
@@ -26,7 +26,7 @@ internal static class AssetDtoMapper
                 ProxyUrl(asset, ProxyType.Thumbnail, ApiPaths.Assets.ThumbnailProxy),
                 ProxyUrl(asset, ProxyType.FullPreview, ApiPaths.Assets.PreviewProxy),
                 ProxyUrl(asset, ProxyType.WebVideo, ApiPaths.Assets.VideoProxy)),
-            blurhash,
+            metadata?.Blurhash,
             asset.PairedAsset is { } pairedMov
                 ? ProxyUrl(pairedMov, ProxyType.WebVideo, ApiPaths.Assets.VideoProxy)
                 : null,

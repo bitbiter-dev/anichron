@@ -208,7 +208,8 @@ namespace Anichron.Core.Migrations
                         .HasFilter("\"IsSoftDeleted\" = false");
 
                     b.HasIndex("StorageConfigId", "FilePath")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_MediaAssets_StorageConfigId_FilePath");
 
                     b.ToTable("MediaAssets", t =>
                         {
@@ -220,6 +221,10 @@ namespace Anichron.Core.Migrations
                 {
                     b.Property<Guid>("AssetId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Blurhash")
+                        .HasColumnType("text")
+                        .HasComment("BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. Null for videos, and for images ingested before the column existed, which are not backfilled.");
 
                     b.Property<string>("CameraMake")
                         .HasColumnType("text");
@@ -279,7 +284,7 @@ namespace Anichron.Core.Migrations
                     b.Property<string>("ProxyType")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasComment("Thumbnail, WebVideo, FullPreview or BlurHash, persisted as text. Note BlurHash is an ordinary proxy ROW whose content is a file — not a string column on the asset.");
+                        .HasComment("Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");

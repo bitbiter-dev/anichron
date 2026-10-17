@@ -9,7 +9,6 @@ public class ProxyFile
     // Stryker disable once String
     public string ProxyPath { get; set; } = string.Empty;
 
-    // Categorization: e.g., "Thumbnail", "StoryVideo", "BlurHash"
     public ProxyType ProxyType { get; set; }
 
     public long SizeBytes { get; set; }
