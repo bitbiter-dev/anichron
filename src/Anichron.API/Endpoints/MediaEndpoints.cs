@@ -1,6 +1,5 @@
 using Anichron.API.Infrastructure;
 using Anichron.Core.Data.Repository;
-using Anichron.Core.Domain;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
@@ -20,15 +19,6 @@ public static class MediaEndpoints
         return app;
     }
 
-    internal static (ProxyType Type, string ContentType)? ParseProxyKind(string type)
-        => type switch
-        {
-            ApiPaths.Assets.ThumbnailProxy => (ProxyType.Thumbnail, "image/jpeg"),
-            ApiPaths.Assets.PreviewProxy => (ProxyType.FullPreview, "image/jpeg"),
-            ApiPaths.Assets.VideoProxy => (ProxyType.WebVideo, "video/mp4"),
-            _ => null,
-        };
-
     internal static async Task<IResult> GetProxyAsync(
         Guid assetId,
         string type,
@@ -41,7 +31,7 @@ public static class MediaEndpoints
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Results.Unauthorized();
 
-        if (ParseProxyKind(type) is not { } kind)
+        if (ProxyKinds.FromSlug(type) is not { } kind)
             return Results.NotFound();
 
         var proxy = await assets.FindVisibleProxyAsync(assetId, userId, kind.Type, ct);

@@ -157,7 +157,7 @@ The API reads files only through two narrow stores in `Anichron.Infrastructure/S
 `AssetInteraction` state is per user and shapes that user's flashback queries (Epic 5+):
 - `hidden = true` → excluded from the user's flashback queries. Applied **at query level** by `NotHiddenFor(userId)` (#48), not a global filter; other users still see the asset
 - `starred = true` → always included; sorted first within its year group
-- `liked = true` → `DisplayWeight` 2.0 (otherwise 1.0), used for candidate weighting when a date has many assets across years. `DisplayWeight` is **computed**, never stored — there is no such column (#46)
+- `liked = true` → `DisplayWeight` 2.0 (otherwise 1.0), used for candidate weighting when a date has many assets across years. `DisplayWeight` is **computed** by `FlashbackWeight.For` in Core, never stored — there is no such column (#46)
 
 ## Conventions
 
