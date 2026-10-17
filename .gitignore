@@ -443,7 +443,11 @@ appsettings.Development.json
 src/Anichron.API/configuration/
 
 # AI agent
-.claude/
+.claude/*
+!.claude/settings.json
+
+# Local code graph (scripts/graph.sh)
+graphify-out/
 
 # JetBrains IDEs
 **/.idea/
