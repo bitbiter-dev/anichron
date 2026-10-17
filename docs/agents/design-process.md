@@ -135,6 +135,22 @@ objection replaces any workaround.
 The objection is done when the issue carries it and the new label, and no code for the issue is
 committed.
 
+## Adding an architecture rule
+
+A decision that can be checked by looking at types and their dependencies becomes an
+architecture rule in `src/Anichron.Architecture.Tests.Unit` (ArchUnitNET), not prose.
+
+1. Add the rule to `ArchitectureRules.All` with a kebab-case name. The tests pick it up.
+2. Run the project. Every current violator the rule finds is either fixed in the same PR or
+   gets an entry in `architecture-exceptions.json`: the rule, the type's full name, the **open**
+   issue that removes the violation, and the reason.
+3. The PR that fixes that issue deletes its entries. Three checks keep the list honest: a rule
+   fails on any violator without an entry, an entry fails once its type no longer violates, and
+   `scripts/arch-exceptions-check.sh` in CI fails once the entry's issue is closed.
+
+A rule is done when it fails on a deliberate violation (show the output in the PR) and passes
+with only issue-linked exceptions.
+
 ## Skill by skill
 
 | Skill | In this repo |

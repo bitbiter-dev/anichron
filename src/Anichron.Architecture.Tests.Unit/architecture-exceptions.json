@@ -1,0 +1,13 @@
+[
+  { "rule": "api-reads-no-file-system", "type": "Anichron.API.Services.BlurhashReader", "issue": 251, "reason": "Reads the blurhash file through IFileSystem until the narrow storage interfaces replace it." },
+  { "rule": "api-reads-no-file-system", "type": "Anichron.API.Infrastructure.OriginalsStorageHealthCheck", "issue": 251, "reason": "Checks the originals mount through IFileSystem until IOriginalStore.RootExists replaces it." },
+  { "rule": "api-reads-no-file-system", "type": "Anichron.API.Infrastructure.ProxyStorageHealthCheck", "issue": 251, "reason": "Checks the proxy mount through IFileSystem until IProxyStore.RootExists replaces it." },
+  { "rule": "api-reads-no-file-system", "type": "Anichron.API.Infrastructure.ServiceCollectionExtensions", "issue": 251, "reason": "Registers ReadOnlyFileSystem as the API's IFileSystem." },
+  { "rule": "api-reads-no-file-system", "type": "Anichron.API.Endpoints.MediaEndpoints", "issue": 251, "reason": "Opens proxy streams through IFileSystem until IProxyStore.OpenRead replaces it." },
+  { "rule": "no-not-implemented-exception", "type": "Anichron.Infrastructure.FileSystem.ReadOnlyFile", "issue": 251, "reason": "Part of ReadOnlyFileSystem, which #251 deletes." },
+  { "rule": "no-not-implemented-exception", "type": "Anichron.Infrastructure.FileSystem.ReadOnlyDirectory", "issue": 251, "reason": "Part of ReadOnlyFileSystem, which #251 deletes." },
+  { "rule": "no-not-implemented-exception", "type": "Anichron.Infrastructure.FileSystem.ReadOnlyFileStreamFactory", "issue": 251, "reason": "Part of ReadOnlyFileSystem, which #251 deletes." },
+  { "rule": "no-not-implemented-exception", "type": "Anichron.Infrastructure.FileSystem.UnimplementedFileInfoFactory", "issue": 251, "reason": "Part of ReadOnlyFileSystem, which #251 deletes." },
+  { "rule": "no-not-implemented-exception", "type": "Anichron.Infrastructure.FileSystem.UnimplementedDirectoryInfoFactory", "issue": 251, "reason": "Part of ReadOnlyFileSystem, which #251 deletes." },
+  { "rule": "no-not-implemented-exception", "type": "Anichron.Infrastructure.FileSystem.ReadOnlyRandomAccess", "issue": 251, "reason": "Part of ReadOnlyFileSystem, which #251 deletes." }
+]

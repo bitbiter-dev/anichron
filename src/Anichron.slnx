@@ -4,6 +4,7 @@
   </Folder>
   <Project Path="Anichron.API/Anichron.API.csproj" />
   <Project Path="Anichron.API.Tests.Unit/Anichron.API.Tests.Unit.csproj" />
+  <Project Path="Anichron.Architecture.Tests.Unit/Anichron.Architecture.Tests.Unit.csproj" />
   <Project Path="Anichron.Core/Anichron.Core.csproj" />
   <Project Path="Anichron.Infrastructure/Anichron.Infrastructure.csproj" />
   <Project Path="Anichron.Infrastructure.Tests.Unit/Anichron.Infrastructure.Tests.Unit.csproj" />

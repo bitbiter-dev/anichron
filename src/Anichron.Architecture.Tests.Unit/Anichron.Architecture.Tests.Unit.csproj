@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Anichron.API\Anichron.API.csproj" />
+    <ProjectReference Include="..\Anichron.Core\Anichron.Core.csproj" />
+    <ProjectReference Include="..\Anichron.Infrastructure\Anichron.Infrastructure.csproj" />
+    <ProjectReference Include="..\Anichron.Worker\Anichron.Worker.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="architecture-exceptions.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

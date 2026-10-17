@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
     steps:
       - uses: actions/checkout@v7
 
@@ -76,6 +77,12 @@ jobs:
           scripts/derive-db-docs.test.sh
           scripts/ci-gate.test.sh
           scripts/mutation-changed.test.sh
+          scripts/arch-exceptions-check.test.sh
+
+      - name: Architecture exceptions name open issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/arch-exceptions-check.sh
 
       # Regenerates docs/schema.sql and fails if anything moved. No database is needed —
       # `dotnet ef dbcontext script` works off the model — so this stays in this job rather
