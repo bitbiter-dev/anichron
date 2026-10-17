@@ -20,23 +20,25 @@ internal sealed partial class ProxyStagingWriter(
     // Naming a leftover and finding one are the same rule, so they live together: a consumer that
     // hunts for staging artifacts — compensation here, the orphan sweeper in #174 — must never
     // re-express how this writer names them.
-    internal const string TemporaryFileSearchPattern = "*" + TemporaryFileSuffix;
+    internal static string TemporaryPathFor(string proxyAbsolutePath, Guid attemptId)
+        => $"{proxyAbsolutePath}.{attemptId:N}{TemporaryFileSuffix}";
 
-    internal static string TemporaryPathFor(string proxyAbsolutePath)
-        => proxyAbsolutePath + TemporaryFileSuffix;
+    internal static string TemporaryFilesOf(Guid attemptId)
+        => $"*.{attemptId:N}{TemporaryFileSuffix}";
 
     // The one place a proxy reaches its final name: produceAsync writes the bytes to the temporary
     // path it is handed, and only a complete file is renamed into place and registered on the
     // context. The rename stays within one directory, so it is atomic.
     internal async Task WriteAsync(
         IngestionContext context,
+        Guid ownerAssetId,
         string relativePath,
         ProxyType proxyType,
         Func<string, CancellationToken, Task> produceAsync,
         CancellationToken ct)
     {
         var proxyAbsolutePath = fileSystem.Path.Combine(StoragePath.ProxiesRoot, relativePath);
-        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath);
+        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath, context.AssetId);
         try
         {
             if (fileSystem.Path.GetDirectoryName(proxyAbsolutePath) is { } directory)
@@ -49,7 +51,7 @@ internal sealed partial class ProxyStagingWriter(
             // Registered at the moment it lands, so the context always reflects what is on disk
             // and compensation can delete precisely the files this attempt wrote.
             context.AddProxyFile(
-                ProxyFileBuilder.Build(context, relativePath, proxyType, sizeBytes, guidFactory, clock));
+                ProxyFileBuilder.Build(ownerAssetId, relativePath, proxyType, sizeBytes, guidFactory, clock));
             Log.ProxyWritten(logger, proxyType, sizeBytes, context.Item.RelativePath);
         }
         finally

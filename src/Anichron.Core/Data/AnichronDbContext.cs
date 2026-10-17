@@ -177,8 +177,10 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         modelBuilder.Entity<ProxyFile>(entity =>
         {
             entity.ToTable(t => t.HasComment(
-                    "One row per generated artefact on the local SSD. An asset has several. Written "
-                    + "only by ProxyStagingWriter, at the moment the file reaches its final name."
+                    "One row per generated artefact on the local SSD. An asset has several, but at "
+                    + "most one per ProxyType, so of two attempts racing to add the same proxy only one "
+                    + "row lands. Written only by ProxyStagingWriter, at the moment the file reaches "
+                    + "its final name."
                 ));
             entity.Property(p => p.ProxyPath).HasComment(
                 "Path relative to the proxy root, sharded by CONTENT rather than by ingestion "
@@ -189,8 +191,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "is an ordinary proxy ROW whose content is a file — not a string column on the "
                 + "asset.");
 
-            // Stryker disable once Statement
-            entity.HasIndex(p => p.AssetId);
+            entity.HasIndex(p => new { p.AssetId, p.ProxyType })
+                  .IsUnique()
+                  .HasDatabaseName(ProxyFileIndexNames.OnePerAssetAndType);
             entity.Property(p => p.ProxyType).HasConversion<string>();
             entity.HasQueryFilter(e => !e.Asset.IsSoftDeleted);
         });

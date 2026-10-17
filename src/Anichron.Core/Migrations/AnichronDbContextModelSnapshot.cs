@@ -18,7 +18,7 @@ namespace Anichron.Core.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -286,11 +286,13 @@ namespace Anichron.Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssetId");
+                    b.HasIndex("AssetId", "ProxyType")
+                        .IsUnique()
+                        .HasDatabaseName("ix_proxyfiles_assetid_proxytype");
 
                     b.ToTable("ProxyFiles", t =>
                         {
-                            t.HasComment("One row per generated artefact on the local SSD. An asset has several. Written only by ProxyStagingWriter, at the moment the file reaches its final name.");
+                            t.HasComment("One row per generated artefact on the local SSD. An asset has several, but at most one per ProxyType, so of two attempts racing to add the same proxy only one row lands. Written only by ProxyStagingWriter, at the moment the file reaches its final name.");
                         });
                 });
 

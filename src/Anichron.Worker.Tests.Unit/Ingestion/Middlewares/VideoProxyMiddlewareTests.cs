@@ -250,7 +250,7 @@ public sealed class VideoProxyMiddlewareTests
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         await fixture.Generator.Received(1).TranscodeAsync(
-            "/nas/video.mp4", "/data/proxies/ab/cd/video_720p.mp4.tmp", Arg.Any<CancellationToken>());
+            "/nas/video.mp4", $"/data/proxies/ab/cd/video_720p.mp4.{context.AssetId:N}.tmp", Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -142,7 +142,7 @@ CREATE TABLE "ProxyFiles" (
     CONSTRAINT "PK_ProxyFiles" PRIMARY KEY ("Id"),
     CONSTRAINT "FK_ProxyFiles_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE
 );
-COMMENT ON TABLE "ProxyFiles" IS 'One row per generated artefact on the local SSD. An asset has several. Written only by ProxyStagingWriter, at the moment the file reaches its final name.';
+COMMENT ON TABLE "ProxyFiles" IS 'One row per generated artefact on the local SSD. An asset has several, but at most one per ProxyType, so of two attempts racing to add the same proxy only one row lands. Written only by ProxyStagingWriter, at the moment the file reaches its final name.';
 COMMENT ON COLUMN "ProxyFiles"."ProxyPath" IS 'Path relative to the proxy root, sharded by CONTENT rather than by ingestion attempt so a retry overwrites its own debris instead of stranding it. IProxyDirectoryStrategy is the single place that rule lives.';
 COMMENT ON COLUMN "ProxyFiles"."ProxyType" IS 'Thumbnail, WebVideo, FullPreview or BlurHash, persisted as text. Note BlurHash is an ordinary proxy ROW whose content is a file — not a string column on the asset.';
 
@@ -183,7 +183,7 @@ CREATE UNIQUE INDEX ix_mediaassets_storageconfigid_contenthash_active ON "MediaA
 CREATE UNIQUE INDEX "IX_MediaAssets_StorageConfigId_FilePath" ON "MediaAssets" ("StorageConfigId", "FilePath");
 
 
-CREATE INDEX "IX_ProxyFiles_AssetId" ON "ProxyFiles" ("AssetId");
+CREATE UNIQUE INDEX ix_proxyfiles_assetid_proxytype ON "ProxyFiles" ("AssetId", "ProxyType");
 
 
 CREATE UNIQUE INDEX "IX_RefreshTokens_TokenHash" ON "RefreshTokens" ("TokenHash");

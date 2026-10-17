@@ -2,9 +2,9 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Npgsql;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
@@ -15,6 +15,7 @@ internal sealed partial class PersistenceMiddleware(
     IFileSystem fileSystem,
     IClock clock,
     PairedMovResolver pairedMovResolver,
+    PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Persistence;
@@ -23,12 +24,15 @@ internal sealed partial class PersistenceMiddleware(
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         var asset = BuildAsset(context);
+        MediaAsset? mov = null;
 
         if (context.Item.SecondaryFile is { } secondary)
         {
             // Ordering guarantees ContentHashingMiddleware ran first and set SecondaryHash; suppression is safe.
-            asset.PairedAssetId = await pairedMovResolver.ResolveAsync(
+            mov = await pairedMovResolver.ResolveAsync(
                 secondary, context.SecondaryHash!, context.Config.Id, context.Exif!.DateCaptured, ct);
+            await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
+            asset.PairedAssetId = mov.Id;
         }
 
         repository.Add(asset);
@@ -36,10 +40,14 @@ internal sealed partial class PersistenceMiddleware(
         {
             await unitOfWork.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (IsActiveContentHashConflict(ex))
+        catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex))
         {
             if (await repository.FindByHashAsync(asset.ContentHash, asset.StorageConfigId, ct) is null)
+            {
+                if (mov is not null)
+                    context.ReleaseProxyFiles(mov.Id);
                 throw;
+            }
 
             Log.AlreadyPersisted(logger, context.Item.RelativePath);
             return;
@@ -71,7 +79,7 @@ internal sealed partial class PersistenceMiddleware(
             MediaType = mediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
-            ProxyFiles = [.. context.ProxyFiles],
+            ProxyFiles = [.. context.ProxyFiles.Where(proxy => proxy.AssetId == context.AssetId)],
             Metadata = new Metadata
             {
                 Width = exif.Width,
@@ -86,13 +94,6 @@ internal sealed partial class PersistenceMiddleware(
             },
         };
     }
-
-    private static bool IsActiveContentHashConflict(DbUpdateException ex)
-        => ex.InnerException is PostgresException
-        {
-            SqlState: PostgresErrorCodes.UniqueViolation,
-            ConstraintName: MediaAssetIndexNames.ActiveContentHashUnique,
-        };
 
     private LocalDateTime FallbackDate(string absolutePath)
     {

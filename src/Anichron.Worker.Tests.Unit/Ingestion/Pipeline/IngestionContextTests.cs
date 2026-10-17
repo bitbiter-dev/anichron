@@ -31,4 +31,23 @@ public sealed class IngestionContextTests
         context.Asset = asset;
         context.Asset.Should().BeSameAs(asset);
     }
+
+    [Fact]
+    public void ReleaseProxyFiles_DropsOnlyThatOwnersRegistrations()
+    {
+        var context = new IngestionContext
+        {
+            Item = new SingleFileItem("/abs/file.jpg", "file.jpg", MediaType.Image),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
+        };
+        var movId = Guid.NewGuid();
+        var own = new ProxyFile { AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
+        context.AddProxyFile(own);
+        context.AddProxyFile(new ProxyFile { AssetId = movId, ProxyType = ProxyType.WebVideo });
+
+        context.ReleaseProxyFiles(movId);
+
+        context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(own);
+    }
 }
