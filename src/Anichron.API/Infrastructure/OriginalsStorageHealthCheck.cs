@@ -9,7 +9,7 @@ namespace Anichron.API.Infrastructure;
 // ⚠️ Degraded, not Unhealthy, when the directory is missing. A vanished NAS mount stops
 // on-demand serving of originals, but proxies and every other endpoint keep working — so
 // reporting Unhealthy would pull the whole API out of rotation for a partial loss of function.
-// A THROWING file system is a different condition (unreadable or hung mount rather than absent)
+// A THROWING store is a different condition (unreadable or hung mount rather than absent)
 // and does report Unhealthy, carrying the exception for diagnosis.
 internal sealed class OriginalsStorageHealthCheck(IOriginalStore store) : IHealthCheck
 {

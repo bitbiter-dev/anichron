@@ -38,7 +38,7 @@ public sealed class OriginalsStorageHealthCheckTests
         result.Description.Should().Be("Originals storage directory not found.");
     }
 
-    // A throwing file system is a different condition from a missing directory — an unreadable
+    // A throwing store is a different condition from a missing directory — an unreadable
     // or hung mount, not an absent one — so it reports Unhealthy and carries the exception.
     [Fact]
     public async Task CheckHealthAsync_StoreThrows_ReturnsUnhealthy()

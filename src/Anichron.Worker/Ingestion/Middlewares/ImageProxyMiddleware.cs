@@ -34,11 +34,11 @@ internal sealed partial class ImageProxyMiddleware(
             .Select(g => new Step(g.Bound, () => WriteProxyAsync(g)))
             .ToArray();
         Step[] allSteps = [.. proxySteps, new Step(blurhashEncoder.Bound, EncodeBlurhashAsync)];
-        var steps = allSteps
+        var orderedSteps = allSteps
             .Select(s => (Step: s, Target: s.Bound.FitTo(image.Size)))
             .OrderByDescending(s => (long)s.Target.Width * s.Target.Height)
             .ToArray();
-        foreach (var (step, target) in steps)
+        foreach (var (step, target) in orderedSteps)
         {
             if (image.Size != target)
                 image.Mutate(x => x.Resize(target));
