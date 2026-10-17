@@ -61,6 +61,7 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IInviteRepository), typeof(EfInviteRepository), ServiceLifetime.Scoped },
         { typeof(IUserStorageConfigRepository), typeof(EfUserStorageConfigRepository), ServiceLifetime.Scoped },
         { typeof(IMediaAssetReadRepository), typeof(EfMediaAssetReadRepository), ServiceLifetime.Scoped },
+        { typeof(IAssetViewReader), typeof(EfAssetViewReader), ServiceLifetime.Scoped },
         { typeof(IProxyStore), typeof(ProxyStore), ServiceLifetime.Singleton },
         { typeof(IOriginalStore), typeof(OriginalStore), ServiceLifetime.Singleton },
         { typeof(IRegistrationValidator), typeof(RegistrationValidator), ServiceLifetime.Scoped },
@@ -87,6 +88,14 @@ public sealed class ApiServiceRegistrationTests
 
         provider.GetRequiredService<IClock>().Should().BeSameAs(NodaTime.SystemClock.Instance);
         provider.GetRequiredService<TimeProvider>().Should().BeSameAs(TimeProvider.System);
+    }
+
+    [Fact]
+    public void AddAuthServices_UsesTheServersTimeZone()
+    {
+        using var provider = AuthServices().BuildServiceProvider();
+
+        provider.GetRequiredService<DateTimeZone>().Should().BeSameAs(DateTimeZoneProviders.Tzdb.GetSystemDefault());
     }
 
     [Fact]
