@@ -131,4 +131,16 @@ public sealed class AssetDtoMapperTests
         AssetDtoMapper.ToDto(Photo with { IsLiked = true }).Interaction
             .Should().Be(new AssetInteractionDto(false, true, false, 2.0));
     }
+
+    [Theory]
+    [InlineData(MediaType.Image, "Image")]
+    [InlineData(MediaType.Video, "Video")]
+    [InlineData(MediaType.LivePhoto, "LivePhoto")]
+    public void MediaType_IsPublishedAsItsContractValue(MediaType type, string published)
+        => AssetDtoMapper.ToDto(Photo with { MediaType = type }).MediaType.Should().Be(published);
+
+    [Fact]
+    public void EveryMediaType_HasAPublishedValue()
+        => Enum.GetValues<MediaType>().Select(t => AssetDtoMapper.ToDto(Photo with { MediaType = t }).MediaType)
+            .Should().OnlyHaveUniqueItems().And.HaveCount(Enum.GetValues<MediaType>().Length);
 }

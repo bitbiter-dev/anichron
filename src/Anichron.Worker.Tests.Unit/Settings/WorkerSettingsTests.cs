@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Anichron.Worker.Tests.Unit.Settings;
 
-public sealed class WorkerSettingsValidatorTests
+public sealed class WorkerSettingsTests
 {
     private static readonly WorkerSettings ValidSettings = new()
     {
@@ -51,13 +51,29 @@ public sealed class WorkerSettingsValidatorTests
         => IsValid(ValidSettings with { ExcludedDirectories = excludedDirectories }).Should().BeTrue();
 
     [Theory]
-    [InlineData("2024/Private")]
-    [InlineData("tmp, Lightroom Previews/")]
-    [InlineData(@"Exports\\Old")]
-    public void Validate_ExcludedDirectoriesContainingAPath_ReturnsFailedNamingTheSetting(string excludedDirectories)
+    [InlineData("2024/Private", "2024/Private")]
+    [InlineData("/Private", "/Private")]
+    [InlineData("tmp, Lightroom Previews/", "Lightroom Previews/")]
+    [InlineData(@"Exports\\Old", @"Exports\\Old")]
+    public void Validate_ExcludedDirectoriesContainingAPath_ReportsThatEntryByName(string excludedDirectories, string entry)
         => GetFailures(ValidSettings with { ExcludedDirectories = excludedDirectories })
             .Should().ContainSingle()
-            .Which.MemberNames.Should().Equal(nameof(WorkerSettings.ExcludedDirectories));
+            .Which.Should().Match<ValidationResult>(r =>
+                r.MemberNames.SequenceEqual(new[] { nameof(WorkerSettings.ExcludedDirectories) })
+                && r.ErrorMessage == $"Worker:ExcludedDirectories takes folder names, not paths: '{entry}'.");
+
+    [Fact]
+    public void Validate_SeveralPathEntries_ReportsEachOne()
+        => GetFailures(ValidSettings with { ExcludedDirectories = "a/b, ok, c\\d" })
+            .Select(r => r.ErrorMessage)
+            .Should().Equal(
+                "Worker:ExcludedDirectories takes folder names, not paths: 'a/b'.",
+                "Worker:ExcludedDirectories takes folder names, not paths: 'c\\d'.");
+
+    [Fact]
+    public void ExcludedDirectoryNames_ParsesTheCommaSeparatedSetting()
+        => (ValidSettings with { ExcludedDirectories = " Lightroom Previews , ,tmp" }).ExcludedDirectoryNames()
+            .Should().Equal("Lightroom Previews", "tmp");
 
     [Fact]
     public void Validate_CrawlIntervalHoursZero_ReturnsFailed()
