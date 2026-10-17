@@ -33,8 +33,8 @@ internal sealed partial class ImageProxyMiddleware(
         var proxySteps = generators
             .Select(g => new Step(g.Bound, () => WriteProxyAsync(g)))
             .ToArray();
-        var steps = proxySteps
-            .Append(new Step(blurhashEncoder.Bound, EncodeBlurhashAsync))
+        Step[] allSteps = [.. proxySteps, new Step(blurhashEncoder.Bound, EncodeBlurhashAsync)];
+        var steps = allSteps
             .Select(s => (Step: s, Target: s.Bound.FitTo(image.Size)))
             .OrderByDescending(s => (long)s.Target.Width * s.Target.Height)
             .ToArray();

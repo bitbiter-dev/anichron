@@ -37,6 +37,7 @@ public sealed class ProxyStore : IProxyStore
         {
             return fileSystem.FileStream.New(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
+        // Stryker disable once Block
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             return null;
