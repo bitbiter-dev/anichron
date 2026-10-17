@@ -93,6 +93,7 @@ public static class ServiceCollectionExtensions
             services.Configure<PasswordPolicy>(configuration.GetSection("PasswordPolicy"));
             services.Configure<UsernamePolicy>(configuration.GetSection("UsernamePolicy"));
             services.AddSingleton<IClock>(SystemClock.Instance);
+            services.AddSingleton(DateTimeZoneProviders.Tzdb.GetSystemDefault());
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IJwtFactory, JwtFactory>();
             services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
@@ -102,6 +103,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IInviteRepository, EfInviteRepository>();
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             services.AddScoped<IMediaAssetReadRepository, EfMediaAssetReadRepository>();
+            services.AddScoped<IAssetViewReader, EfAssetViewReader>();
             services.AddSingleton<IProxyStore, ProxyStore>();
             services.AddSingleton<IOriginalStore, OriginalStore>();
             // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork

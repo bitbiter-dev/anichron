@@ -1,5 +1,6 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Domain;
 using ArchUnitNET.Fluent;
 using Microsoft.Extensions.Logging;
 using System.IO.Abstractions;
@@ -18,6 +19,7 @@ internal static class ArchitectureRules
     public const string ApiReadsNoFileSystem = "api-reads-no-file-system";
     public const string ApiReachesDataThroughRepositories = "api-reaches-data-through-repositories";
     public const string OnlyWorkerWritesMedia = "only-worker-writes-media";
+    public const string ApiReadsMediaThroughViews = "api-reads-media-through-views";
     public const string ProxiesReachFinalNameOnlyInStagingWriter = "proxies-reach-final-name-only-in-staging-writer";
     public const string LoggingIsSourceGenerated = "logging-is-source-generated";
     public const string NoNotImplementedException = "no-not-implemented-exception";
@@ -48,6 +50,9 @@ internal static class ArchitectureRules
         new(OnlyWorkerWritesMedia,
             Types().That().ResideInAssembly(ApiAssembly, InfrastructureAssembly)
                 .Should().NotDependOnAny(typeof(IMediaAssetRepository))),
+        new(ApiReadsMediaThroughViews,
+            Types().That().ResideInAssembly(ApiAssembly)
+                .Should().NotDependOnAny(typeof(MediaAsset), typeof(Metadata), typeof(ProxyFile), typeof(AssetInteraction))),
         new(ProxiesReachFinalNameOnlyInStagingWriter,
             Types().That().ResideInAssembly(WorkerAssembly).And().DoNotHaveFullName(StagingWriter)
                 .Should().NotCallAny(MethodMembers().That().AreDeclaredIn(typeof(IFile))

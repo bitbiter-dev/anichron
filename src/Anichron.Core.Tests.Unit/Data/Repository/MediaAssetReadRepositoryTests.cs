@@ -88,57 +88,6 @@ public sealed class MediaAssetReadRepositoryTests
         return (options, library);
     }
 
-    private static async Task<(MediaAsset? Found, Library Library)> FindAsync(
-        Func<Library, Guid> assetId, Func<Library, Guid> caller)
-    {
-        var (options, library) = await SeedAsync();
-        await using var db = new AnichronDbContext(options);
-        var found = await new EfMediaAssetReadRepository(db)
-            .FindVisibleAsync(assetId(library), caller(library), TestContext.Current.CancellationToken);
-        return (found, library);
-    }
-
-    [Fact]
-    public async Task FindVisibleAsync_OwnAsset_ReturnsIt()
-    {
-        var (found, library) = await FindAsync(l => l.MirasPhoto.Id, l => l.Mira.Id);
-
-        found.Should().NotBeNull();
-        found.Id.Should().Be(library.MirasPhoto.Id);
-    }
-
-    [Fact]
-    public async Task FindVisibleAsync_AnotherUsersAsset_ReturnsNull()
-        => (await FindAsync(l => l.AlicesPhoto.Id, l => l.Mira.Id)).Found.Should().BeNull();
-
-    [Fact]
-    public async Task FindVisibleAsync_SoftDeletedOwnAsset_ReturnsNull()
-        => (await FindAsync(l => l.MirasTrashedPhoto.Id, l => l.Mira.Id)).Found.Should().BeNull();
-
-    [Fact]
-    public async Task FindVisibleAsync_OwnAssetUnderAnInactiveConfig_ReturnsNull()
-        => (await FindAsync(l => l.MirasArchivedPhoto.Id, l => l.Mira.Id)).Found.Should().BeNull();
-
-    [Fact]
-    public async Task FindVisibleAsync_AdminAskingForAnotherUsersAsset_ReturnsNull()
-        => (await FindAsync(l => l.AlicesPhoto.Id, l => l.Admin.Id)).Found.Should().BeNull();
-
-    [Fact]
-    public async Task FindVisibleAsync_UnknownId_ReturnsNull()
-        => (await FindAsync(_ => Guid.NewGuid(), l => l.Mira.Id)).Found.Should().BeNull();
-
-    [Fact]
-    public async Task FindVisibleAsync_OwnAsset_IsNotTracked()
-    {
-        var (options, library) = await SeedAsync();
-        await using var db = new AnichronDbContext(options);
-
-        await new EfMediaAssetReadRepository(db)
-            .FindVisibleAsync(library.MirasPhoto.Id, library.Mira.Id, TestContext.Current.CancellationToken);
-
-        db.ChangeTracker.Entries().Should().BeEmpty();
-    }
-
     [Fact]
     public async Task VisibleTo_WithQueryFiltersIgnored_StillExcludesSoftDeletedAndInactiveAssets()
     {

@@ -53,4 +53,10 @@ internal static class ApiPaths
         internal static string ProxyUrl(Guid assetId, string type)
             => $"{Group}/{assetId}/proxies/{type}";
     }
+
+    internal static class Flashbacks
+    {
+        internal const string Group = "flashbacks";
+        internal const string OnThisDay = "/on-this-day";
+    }
 }
