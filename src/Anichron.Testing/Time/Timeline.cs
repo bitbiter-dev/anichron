@@ -13,7 +13,7 @@ public sealed class Timeline : IAsyncDisposable
     private readonly Lock gate = new();
     private readonly List<TimelineEvent> events = [];
     private readonly List<TaskCompletionSource<TimelineEvent>> slots = [];
-    private readonly List<(TaskCompletionSource Ended, Func<Task>? Stop)> watched = [];
+    private readonly List<(Task Ended, Func<Task>? Stop)> watched = [];
     private readonly CancellationTokenSource lifetime = new();
     private readonly TimeSpan silenceLimit;
     private int cursor;
@@ -48,18 +48,13 @@ public sealed class Timeline : IAsyncDisposable
 
     public void Watch(Task subject, Func<Task>? stop = null)
     {
-        var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        lock (gate)
-            watched.Add((ended, stop));
-        _ = subject.ContinueWith(
-            task =>
-            {
-                Append(new Finished(task.Status));
-                ended.SetResult();
-            },
+        var ended = subject.ContinueWith(
+            task => Append(new Finished(task.Status)),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
+        lock (gate)
+            watched.Add((ended, stop));
     }
 
     public async Task ExpectAsync(params TimelineEvent[] expected)
@@ -81,7 +76,7 @@ public sealed class Timeline : IAsyncDisposable
     {
         await lifetime.CancelAsync();
 
-        List<(TaskCompletionSource Ended, Func<Task>? Stop)> owned;
+        List<(Task Ended, Func<Task>? Stop)> owned;
         lock (gate)
             owned = [.. watched];
 
@@ -90,7 +85,7 @@ public sealed class Timeline : IAsyncDisposable
         {
             if (stop is not null)
                 await stop();
-            ends.Add(ended.Task);
+            ends.Add(ended);
         }
 
         await Task.WhenAll(ends).WaitAsync(silenceLimit, CancellationToken.None);
@@ -113,7 +108,11 @@ public sealed class Timeline : IAsyncDisposable
     {
         Task<TimelineEvent> next;
         lock (gate)
+        {
+            if (cursor < events.Count)
+                return events[cursor++];
             next = SlotAt(cursor).Task;
+        }
 
         try
         {

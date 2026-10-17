@@ -85,7 +85,7 @@ public sealed class RecurringWorkTests
         await using var timeline = new Timeline();
         CancellationToken seen = default;
 
-        timeline.Watch(StartAsync(timeline, token => { seen = token; timeline.Record("work"); return Task.CompletedTask; }, timeline.Lifetime));
+        timeline.Watch(StartAsync(timeline, async token => { seen = token; await Work(timeline)(token); }, timeline.Lifetime));
         await timeline.ExpectAsync(new Called("work"), new TimerArmed(Interval));
 
         seen.Should().Be(timeline.Lifetime);
