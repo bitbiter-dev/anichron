@@ -28,6 +28,14 @@ public sealed class ProxyKindsTests
         => ProxyKinds.UrlOf(Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"), type).Should().Be(url);
 
     [Fact]
+    public void UrlOf_UndefinedType_FailsLoudly()
+    {
+        var act = () => ProxyKinds.UrlOf(Guid.NewGuid(), (ProxyType)99);
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
     public void EveryProxyType_HasExactlyOneKind()
         => ProxyKinds.All.Select(k => k.Type).Should().BeEquivalentTo(Enum.GetValues<ProxyType>());
 }

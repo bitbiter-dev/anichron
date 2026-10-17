@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Anichron.Worker.Tests.Unit.Settings;
 
-public sealed class WorkerSettingsValidatorTests
+public sealed class WorkerSettingsTests
 {
     private static readonly WorkerSettings ValidSettings = new()
     {
@@ -52,6 +52,7 @@ public sealed class WorkerSettingsValidatorTests
 
     [Theory]
     [InlineData("2024/Private", "2024/Private")]
+    [InlineData("/Private", "/Private")]
     [InlineData("tmp, Lightroom Previews/", "Lightroom Previews/")]
     [InlineData(@"Exports\\Old", @"Exports\\Old")]
     public void Validate_ExcludedDirectoriesContainingAPath_ReportsThatEntryByName(string excludedDirectories, string entry)
