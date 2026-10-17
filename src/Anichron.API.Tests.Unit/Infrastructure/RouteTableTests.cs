@@ -123,10 +123,25 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
             .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Media" }));
 
     [Fact]
+    public void OnThisDayRoute_RequiresAnAuthenticatedUserButNotAdmin()
+    {
+        var route = Find("GET", "/api/v1/flashbacks/on-this-day");
+
+        route.Anonymous.Should().BeFalse();
+        route.Authenticated.Should().BeTrue();
+        route.Policies.Should().NotContain(AuthPolicies.Admin);
+    }
+
+    [Fact]
+    public void FlashbackRoutes_AreTaggedFlashbacks()
+        => Routes.Where(r => r.Pattern.StartsWith("/api/v1/flashbacks", StringComparison.Ordinal))
+            .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Flashbacks" }));
+
+    [Fact]
     public void Healthz_IsAnonymous()
         => Find("GET", "/api/v1/healthz").Anonymous.Should().BeTrue();
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(20);
+        => Routes.Should().HaveCount(21);
 }

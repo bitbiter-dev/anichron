@@ -784,6 +784,7 @@
       "anichron.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "Anichron.Core": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.13, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.13, )",
           "Microsoft.Extensions.Configuration": "[10.0.13, )",

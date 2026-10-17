@@ -15,6 +15,7 @@ internal sealed class IngestionContext
     public string? ContentHash { get; set; }
     public string? SecondaryHash { get; set; }
     public ExifData? Exif { get; set; }
+    public string? Blurhash { get; set; }
     public MediaAsset? Asset { get; set; }
 
     // Records what this attempt has actually put on disk: each proxy registers itself the

@@ -110,7 +110,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
     // ==========================================================================
 
     [Fact]
-    public void AddIngestionServices_RegistersThreeImageProxyGenerators_AsSingleton()
+    public void AddIngestionServices_RegistersTwoImageProxyGenerators_AsSingleton()
     {
         var services = new ServiceCollection();
 
@@ -119,7 +119,19 @@ public sealed class WorkerServiceCollectionExtensionsTests
         services.Count(d =>
             d.ServiceType == typeof(IImageProxyGenerator) &&
             d.Lifetime == ServiceLifetime.Singleton)
-        .Should().Be(3);
+        .Should().Be(2);
+    }
+
+    [Fact]
+    public void AddIngestionServices_RegistersTheBlurhashEncoder_AsSingleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIngestionServices();
+
+        services.Should().ContainSingle(d =>
+            d.ServiceType == typeof(BlurhashEncoder) &&
+            d.Lifetime == ServiceLifetime.Singleton);
     }
 
     [Fact]

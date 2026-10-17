@@ -10,7 +10,4 @@ public enum ProxyType
 
     /// <summary> Optimized full-screen JPEG for Story view </summary>
     FullPreview = 3,
-
-    /// <summary> Low-resolution string-based placeholder (optional) </summary>
-    BlurHash = 4
 }

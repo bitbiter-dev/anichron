@@ -11,6 +11,7 @@ using NodaTime;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
@@ -61,16 +62,14 @@ public sealed class ImageProxyMiddlewareTests
             imageProcessor ??= ImageProcessor;
             var options = Options.Create(settings ?? new WorkerSettings());
             return Build(
-            [
-                new ThumbnailGenerator(imageProcessor, options),
-                new FullPreviewGenerator(imageProcessor, options),
-                new BlurhashGenerator(imageProcessor, options),
-            ]);
+                [new ThumbnailGenerator(imageProcessor, options), new FullPreviewGenerator(imageProcessor, options)],
+                new BlurhashEncoder(imageProcessor, options));
         }
 
-        public ImageProxyMiddleware Build(IEnumerable<IImageProxyGenerator> generators)
+        public ImageProxyMiddleware Build(IEnumerable<IImageProxyGenerator> generators, BlurhashEncoder? blurhashEncoder = null)
         {
             return new(generators,
+                       blurhashEncoder ?? new BlurhashEncoder(ImageProcessor, Options.Create(new WorkerSettings())),
                        DirectoryStrategy,
                        new ProxyStagingWriter(
                            FileSystem,
@@ -120,14 +119,14 @@ public sealed class ImageProxyMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ImageItem_AddsThreeProxyFilesToContextAsync()
+    public async Task InvokeAsync_ImageItem_AddsTwoProxyFilesToContextAsync()
     {
         var fixture = new TestFixture();
         var context = MakeContext();
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        context.ProxyFiles.Should().HaveCount(3);
+        context.ProxyFiles.Should().HaveCount(2);
     }
 
     [Fact]
@@ -153,14 +152,14 @@ public sealed class ImageProxyMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ImageItem_AddsBlurhashProxyAsync()
+    public async Task InvokeAsync_ImageItem_PutsTheBlurhashOnTheContextAsync()
     {
         var fixture = new TestFixture();
         var context = MakeContext();
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        context.ProxyFiles.Should().ContainSingle(p => p.ProxyType == ProxyType.BlurHash);
+        context.Blurhash.Should().Be("LGFFaXYk^6#M@-5c,1J5@[or[Q6.");
     }
 
     [Fact]
@@ -219,14 +218,15 @@ public sealed class ImageProxyMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ImageItem_WritesBlurhashFileToDiskAsync()
+    public async Task InvokeAsync_ImageItem_WritesOnlyTheThumbnailAndPreviewFilesAsync()
     {
         var fixture = new TestFixture();
         var context = MakeContext();
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fixture.FileSystem.FileExists("/data/proxies/ab/cd/blurhash.txt").Should().BeTrue();
+        fixture.FileSystem.AllFiles.Where(path => path.StartsWith("/data/proxies/", StringComparison.Ordinal))
+            .Should().BeEquivalentTo("/data/proxies/ab/cd/thumbnail.jpg", "/data/proxies/ab/cd/preview.jpg");
     }
 
     [Fact]
@@ -315,6 +315,39 @@ public sealed class ImageProxyMiddlewareTests
         received.Should().Equal(
             ("large", new Size(60, 30), Corner.TopLeft),
             ("medium", new Size(20, 10), Corner.TopLeft),
+            ("small", new Size(8, 4), Corner.TopLeft));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_Blurhash_TakesItsTurnInTheLargestFirstChainOnItsOwnCopyAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(MarkedJpegWithOrientation(ExifOrientationMode.TopLeft)));
+        var events = new List<string>();
+        var received = new List<(string Name, Size Size, Corner Marker)>();
+        fixture.ImageProcessor.ComputeBlurhashAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var image = call.Arg<Image<Rgb24>>();
+                events.Add("blurhash");
+                received.Add(("blurhash", image.Size, MarkedCorner(image)));
+                image.Mutate(x => x.Flip(FlipMode.Horizontal));
+                return "hash";
+            });
+        IImageProxyGenerator[] generators =
+        [
+            new RecordingGenerator("small", new ProxyBound(ProxyEdge.LongEdge, 8), events, received),
+            new RecordingGenerator("large", new ProxyBound(ProxyEdge.LongEdge, 60), events, received),
+        ];
+        var encoder = new BlurhashEncoder(
+            fixture.ImageProcessor, Options.Create(new WorkerSettings { BlurhashSampleLongEdge = 20 }));
+
+        await fixture.Build(generators, encoder).InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        events.Should().Equal("start large", "end large", "blurhash", "start small", "end small");
+        received.Should().Equal(
+            ("large", new Size(60, 30), Corner.TopLeft),
+            ("blurhash", new Size(20, 10), Corner.TopLeft),
             ("small", new Size(8, 4), Corner.TopLeft));
     }
 
@@ -479,7 +512,8 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        context.ProxyFiles.Should().HaveCount(3);
+        context.ProxyFiles.Should().HaveCount(2);
+        context.Blurhash.Should().Be("LGFFaXYk^6#M@-5c,1J5@[or[Q6.");
     }
 
     [Fact]
@@ -490,10 +524,8 @@ public sealed class ImageProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        // Thumbnail [0x01,0x02] = 2 B; Preview [0x03,0x04] = 2 B; Blurhash = 28-char ASCII string = 28 B
         context.ProxyFiles.Single(p => p.ProxyType == ProxyType.Thumbnail).SizeBytes.Should().Be(2);
         context.ProxyFiles.Single(p => p.ProxyType == ProxyType.FullPreview).SizeBytes.Should().Be(2);
-        context.ProxyFiles.Single(p => p.ProxyType == ProxyType.BlurHash).SizeBytes.Should().Be(28);
     }
 
     [Fact]

@@ -31,9 +31,9 @@ public sealed class ImageProxyGeneratorsTests
     }
 
     [Fact]
-    public void BlurhashGenerator_Bound_IsLongEdgeFromSettings()
+    public void BlurhashEncoder_Bound_IsLongEdgeFromSettings()
     {
-        new BlurhashGenerator(Substitute.For<IImageProcessor>(), DefaultOptions).Bound
+        new BlurhashEncoder(Substitute.For<IImageProcessor>(), DefaultOptions).Bound
             .Should().Be(new ProxyBound(ProxyEdge.LongEdge, 64));
     }
 
@@ -96,19 +96,19 @@ public sealed class ImageProxyGeneratorsTests
     }
 
     // ==========================================================================
-    // BlurhashGenerator
+    // BlurhashEncoder
     // ==========================================================================
 
     [Fact]
-    public async Task GenerateAsync_ReturnsUtf8EncodedHashBytesAsync()
+    public async Task EncodeAsync_ReturnsTheProcessorsHashAsync()
     {
         var processor = Substitute.For<IImageProcessor>();
         processor.ComputeBlurhashAsync(Arg.Any<Image<Rgb24>>(), Arg.Any<CancellationToken>())
             .Returns("HASH");
         using var image = new Image<Rgb24>(1, 1);
 
-        var bytes = await new BlurhashGenerator(processor, DefaultOptions).GenerateAsync(image, CancellationToken.None);
+        var hash = await new BlurhashEncoder(processor, DefaultOptions).EncodeAsync(image, CancellationToken.None);
 
-        bytes.Should().Equal("HASH"u8.ToArray());
+        hash.Should().Be("HASH");
     }
 }

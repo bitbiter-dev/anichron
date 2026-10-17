@@ -7,15 +7,11 @@ public sealed record VisibleProxy(string ProxyPath, string ContentHash);
 
 public interface IMediaAssetReadRepository
 {
-    Task<MediaAsset?> FindVisibleAsync(Guid assetId, Guid userId, CancellationToken ct);
     Task<VisibleProxy?> FindVisibleProxyAsync(Guid assetId, Guid userId, ProxyType proxyType, CancellationToken ct);
 }
 
 public sealed class EfMediaAssetReadRepository(AnichronDbContext db) : IMediaAssetReadRepository
 {
-    public Task<MediaAsset?> FindVisibleAsync(Guid assetId, Guid userId, CancellationToken ct)
-        => db.MediaAssets.AsNoTracking().VisibleTo(userId).FirstOrDefaultAsync(a => a.Id == assetId, ct);
-
     public Task<VisibleProxy?> FindVisibleProxyAsync(Guid assetId, Guid userId, ProxyType proxyType, CancellationToken ct)
         => VisibleProxyQuery(db, assetId, userId, proxyType).FirstOrDefaultAsync(ct);
 

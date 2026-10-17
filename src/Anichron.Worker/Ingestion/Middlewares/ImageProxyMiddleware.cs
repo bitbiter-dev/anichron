@@ -10,6 +10,7 @@ namespace Anichron.Worker.Ingestion.Middlewares;
 
 internal sealed partial class ImageProxyMiddleware(
     IEnumerable<IImageProxyGenerator> generators,
+    BlurhashEncoder blurhashEncoder,
     IProxyDirectoryStrategy proxyDirectoryStrategy,
     ProxyStagingWriter stagingWriter,
     IFileSystem fileSystem,
@@ -29,18 +30,22 @@ internal sealed partial class ImageProxyMiddleware(
         using var image = await Image.LoadAsync<Rgb24>(ms, ct);
         image.Mutate(x => x.AutoOrient());
 
-        var steps = generators
-            .Select(g => (Generator: g, Target: g.Bound.FitTo(image.Size)))
+        var proxySteps = generators
+            .Select(g => new Step(g.Bound, () => WriteProxyAsync(g)))
+            .ToArray();
+        Step[] allSteps = [.. proxySteps, new Step(blurhashEncoder.Bound, EncodeBlurhashAsync)];
+        var orderedSteps = allSteps
+            .Select(s => (Step: s, Target: s.Bound.FitTo(image.Size)))
             .OrderByDescending(s => (long)s.Target.Width * s.Target.Height)
             .ToArray();
-        foreach (var (generator, target) in steps)
+        foreach (var (step, target) in orderedSteps)
         {
             if (image.Size != target)
                 image.Mutate(x => x.Resize(target));
-            await WriteProxyAsync(generator);
+            await step.RunAsync();
         }
 
-        Log.ProxiesGenerated(logger, steps.Length, context.Item.RelativePath);
+        Log.ProxiesGenerated(logger, proxySteps.Length, context.Item.RelativePath);
         await next(context, ct);
 
         Task WriteProxyAsync(IImageProxyGenerator generator)
@@ -60,7 +65,15 @@ internal sealed partial class ImageProxyMiddleware(
                 await fileSystem.File.WriteAllBytesAsync(temporaryPath, bytes, token);
             }
         }
+
+        async Task EncodeBlurhashAsync()
+        {
+            using var copy = image.Clone();
+            context.Blurhash = await blurhashEncoder.EncodeAsync(copy, ct);
+        }
     }
+
+    private sealed record Step(ProxyBound Bound, Func<Task> RunAsync);
 
     private static partial class Log
     {

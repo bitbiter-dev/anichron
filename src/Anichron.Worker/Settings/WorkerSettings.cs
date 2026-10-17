@@ -1,8 +1,9 @@
+using Anichron.Infrastructure.Configuration;
 using System.ComponentModel.DataAnnotations;
 
 namespace Anichron.Worker.Settings;
 
-public sealed record WorkerSettings
+public sealed record WorkerSettings : IValidatableObject
 {
     // Stryker disable once String
     public string User { get; init; } = string.Empty;
@@ -10,7 +11,6 @@ public sealed record WorkerSettings
     // Stryker disable once String
     public string RootPath { get; init; } = string.Empty;
 
-    [RegularExpression(@"^[^/\\]*$", ErrorMessage = "Worker:ExcludedDirectories takes folder names, not paths.")]
     public string ExcludedDirectories { get; init; } = string.Empty;
 
     [Range(1, int.MaxValue)]
@@ -45,4 +45,14 @@ public sealed record WorkerSettings
 
     [Range(1, int.MaxValue)]
     public int VideoBitrateKbps { get; init; } = 2000;
+
+    public IReadOnlyList<string> ExcludedDirectoryNames()
+        => ConfigurationList.Parse(ExcludedDirectories, static name => name);
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        => ExcludedDirectoryNames()
+            .Where(name => name.IndexOfAny(['/', '\\']) >= 0)
+            .Select(name => new ValidationResult(
+                $"Worker:ExcludedDirectories takes folder names, not paths: '{name}'.",
+                [nameof(ExcludedDirectories)]));
 }
