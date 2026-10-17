@@ -53,11 +53,7 @@ cd src && TMPDIR="$(mktemp -d)" dotnet stryker   # full sweep (~8 min); must run
 
 ⚠️ **Never run `dotnet stryker` with the shared `TMPDIR`.** Stryker's MTP runner passes the active mutant through `$TMPDIR/stryker-mutant-<n>.txt`, a path every run on the machine shares, so two agents mutating at the same time corrupt each other's results (survivors that tests do kill, scores down to 0%). `mutation-changed.sh` isolates itself; give a direct run its own `TMPDIR` as above. See `docs/mutation-testing.md`.
 
-All settings live in `src/stryker-config.json` — pass no flags that change **what gets measured**, so that a local run and the CI run stay comparable. **Two deliberate exceptions, and only two**: `.github/workflows/mutation-divergence.yml` passes `--concurrency`, because concurrency is the variable that job exists to test; and `scripts/mutation-changed.sh` passes `--mutate` to scope a local pre-check to the changed files, whose score covers only those files and is never compared with the CI score. Anywhere else, a measurement-affecting flag is a bug. **Never use `--since` or `--with-baseline`**: inside a git worktree they diff the main checkout instead of the worktree, test 0 mutants and exit `0` — a false green.
-
-The gate is the `thresholds` in `stryker-config.json` (`break`, `low`, `high` all 100); CI passes no threshold flags. They move together, since Stryker rejects a set that breaks `break <= low <= high` and exits `1` as if the tool were broken.
-
-**Never switch `test-runner` away from `mtp`**: the default `vstest` runner cannot observe xUnit v3 failures and silently reports `0.00%`. See `docs/mutation-testing.md` and `docs/adr/0001-mutation-testing-on-the-mtp-runner.md`.
+`scripts/mutation-guard.sh` (a CI step) enforces the setup rules: every setting lives in `src/stryker-config.json`, so a local run judges exactly as CI does; the `mtp` runner (`vstest` silently reports 0.00% under xUnit v3, ADR 0001); thresholds at 100; no `--since`/`--with-baseline` (in a worktree they test 0 mutants and exit `0`); `--concurrency` only in the divergence job and `--mutate` only in `mutation-changed.sh`; and an ADR 0005 entry for every Stryker directive and excluded path. When it fails, fix the setup, not the guard.
 
 #### Surviving mutants: test first, exclude only when equivalent
 

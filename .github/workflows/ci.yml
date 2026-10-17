@@ -77,6 +77,10 @@ jobs:
           scripts/mutation-changed.test.sh
           scripts/issue-readiness.test.sh
           scripts/arch-review-due.test.sh
+          scripts/mutation-guard.test.sh
+
+      - name: Mutation setup matches its rules
+        run: scripts/mutation-guard.sh
 
       # Regenerates docs/schema.sql and fails if anything moved. No database is needed —
       # `dotnet ef dbcontext script` works off the model — so this stays in this job rather
