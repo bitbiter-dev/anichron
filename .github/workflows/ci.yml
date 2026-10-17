@@ -78,6 +78,8 @@ jobs:
           scripts/issue-readiness.test.sh
           scripts/arch-review-due.test.sh
           scripts/mutation-guard.test.sh
+          scripts/graph.test.sh
+          scripts/graph-hint.test.sh
 
       - name: Mutation setup matches its rules
         run: scripts/mutation-guard.sh

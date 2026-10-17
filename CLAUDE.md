@@ -195,43 +195,16 @@ Processing uses a bounded-concurrency `Channel<T>` pipeline. The crawler produce
 - **Wiki** (early architecture decisions, e.g. ADR-3 on flashback weighting, which older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
 - **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. An open "Architecture review due" issue goes before anything else (procedure: `docs/agents/design-process.md`, "Architecture review"). Otherwise pick an open `ready-for-agent` issue with no open blocker. A `needs-design` issue is picked only to write or approve its design note; a `needs-decision` issue waits for the maintainer.
 
-## graphify (knowledge graph — orient here first)
+## Code graph (who uses a symbol)
 
-This repo ships a pre-built knowledge graph in `graphify-out/` so agents can orient
-themselves without grepping the whole tree. It captures call relationships, shared data,
-community structure, and the architecture/CI/domain concepts extracted from the docs.
-
-**Orient before exploring.** For any "how does X work / what calls Y / where is Z handled"
-question, query the graph first instead of grepping source blindly:
+To find what calls, references or implements a C# symbol, ask the graph before grepping:
 
 ```bash
-graphify query "<question>"      # scoped subgraph answer (much smaller than raw grep)
-graphify path "<A>" "<B>"        # shortest relationship path between two concepts
-graphify explain "<concept>"     # focused explanation of one node and its neighbours
+scripts/graph.sh affected <Symbol>   # everything that depends on it, tests included (depth 2, file:line)
+scripts/graph.sh explain <Symbol>    # its direct callers and callees
 ```
 
-- Read `graphify-out/GRAPH_REPORT.md` for a one-page map: god nodes (most-connected
-  abstractions), the ~25 named communities (Auth Service, Worker pipeline, EXIF Extraction,
-  Image/Video Proxy middleware, repositories, etc.), and surprising cross-file links.
-- Fall back to raw grep/Read only after the graph has oriented you, or to edit/debug
-  specific lines.
-
-**Keep it current — enforced before push.** The `pre-push` Husky group runs a
-`graphify-update` task that regenerates the graph and **fails the push if committed
-`graphify-out/graph.json` is stale**, so reviewers and future agents always inherit an
-accurate map. When it blocks you, commit the regenerated files and push again:
-
-```bash
-graphify update .                # AST-only re-extraction of changed files, no API cost
-git add graphify-out/graph.json graphify-out/GRAPH_REPORT.md && git commit
-```
-
-The check skips silently if `graphify` isn't installed (it's an optional dev aid, not part
-of the dotnet toolchain). Doc-only changes need a manual `/graphify --update`. Only
-`graph.json` (date-stable) and `GRAPH_REPORT.md` are committed; `graph.html`, `cache/`,
-`cost.json`, and `manifest.json` are gitignored (volatile or machine-specific). Without a
-local `manifest.json`, `graphify update` rebuilds from scratch (AST-only, cheap), so a fresh
-clone still produces a correct graph.
+It builds or refreshes the local, gitignored `graphify-out/` itself (seconds, no LLM). Use symbol names; free-text `graphify query` and `GRAPH_REPORT.md` are noisy and not worth the tokens. Grep stays the tool for text, config and anything that is not a symbol.
 
 ## Engineering process (objection, first caller, design note)
 
