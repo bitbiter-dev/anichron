@@ -1,4 +1,5 @@
 using ArchUnitNET.Loader;
+using Microsoft.Extensions.Logging;
 using System.IO.Abstractions;
 using System.Reflection;
 using ArchUnitArchitecture = ArchUnitNET.Domain.Architecture;
@@ -18,6 +19,8 @@ internal static class ArchitectureModel
 
     private static ArchUnitArchitecture Load()
         => new ArchLoader()
-            .LoadAssemblies(ApiAssembly, CoreAssembly, InfrastructureAssembly, WorkerAssembly, typeof(IFileSystem).Assembly)
+            .LoadAssemblies(
+                ApiAssembly, CoreAssembly, InfrastructureAssembly, WorkerAssembly,
+                typeof(IFileSystem).Assembly, typeof(LoggerExtensions).Assembly)
             .Build();
 }
