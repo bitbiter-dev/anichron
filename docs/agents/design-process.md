@@ -49,7 +49,8 @@ Whatever shape the skill produces, a `ready-for-agent` issue carries three parts
 - **First caller**: the code, endpoint or user that first uses what the issue builds. That caller
   ships in the same PR, or the issue is linked as blocking or blocked by the issue that delivers
   it.
-- **Design**: a link to the approved design note, or `Design: not needed because <reason>`.
+- **Design**: a link to the approved design note (its `#issuecomment-…` URL) or to the ADR that
+  settled it, or `Design: not needed because <reason>`.
 
 In an issue body, the last two are `## First caller` and `## Design` sections. In a `/triage`
 agent brief they are fields in the brief's own style, `**First caller:**` and `**Design:**`.
@@ -163,8 +164,8 @@ with only issue-linked exceptions.
 
 A backstop for what slips through the design step. The *Architecture review due* workflow
 (`scripts/arch-review-due.sh`) counts the PRs merged since the latest `arch-review/YYYY-MM-DD` tag,
-leaving out Dependabot's. At 10 it opens an "Architecture review due" issue, which is picked before
-anything else. The review:
+leaving out Dependabot's. At 10 it opens an "Architecture review due" issue, which CLAUDE.md's
+"What to work on next" puts first. The review:
 
 1. **Scope:** the range from the latest tag to master. Read it as an architect: design smells,
    SOLID, patterns extended past their purpose, building blocks with no caller, `if`/`else` used

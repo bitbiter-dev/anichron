@@ -5,6 +5,10 @@
 # closed: the PR that closed it should have deleted the exception. Needs `gh`
 # authenticated for the repository (GH_TOKEN in CI). See
 # docs/agents/design-process.md, "Adding an architecture rule".
+#
+# Exit 0: every exception names an open issue. Exit 1: some name a closed
+# issue, listed on stderr. Exit 2: the exceptions or an issue's state could not
+# be read.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -18,7 +22,10 @@ fi
 closed=()
 while IFS= read -r issue; do
   [ -n "$issue" ] || continue
-  state=$(gh issue view "$issue" --json state --jq .state)
+  if ! state=$(gh issue view "$issue" --json state --jq .state); then
+    echo "cannot read the state of issue #$issue" >&2
+    exit 2
+  fi
   if [ "$state" != "OPEN" ]; then
     closed+=("$issue")
   fi

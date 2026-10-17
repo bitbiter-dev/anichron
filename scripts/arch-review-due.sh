@@ -26,7 +26,7 @@ if [ "$count" -lt "$threshold" ]; then
   exit 0
 fi
 
-open=$(gh issue list --state open --search "in:title \"$title_prefix\"" --json number,title \
+open=$(gh issue list --state open --limit 1000 --json number,title \
   --jq "[.[] | select(.title | startswith(\"$title_prefix\"))][0].number // empty")
 
 if [ -n "$open" ]; then

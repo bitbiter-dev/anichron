@@ -52,6 +52,8 @@ check 'two exceptions on one open issue pass' \
 lookups=$(wc -l <"$work/calls" | tr -d ' ')
 if [ "$lookups" = 1 ]; then pass 'each issue is looked up once'; else fail 'each issue is looked up once' '1 gh call' "$lookups gh calls"; fi
 check 'unreadable json is a usage error' 'not json' 2 'cannot read exceptions'
+check 'a failed issue lookup is an error, not a closed issue' \
+  '[{"rule":"r","type":"A.B","issue":30,"reason":"x"}]' 2 'cannot read the state of issue #30'
 
 if [ "$failures" -gt 0 ]; then
   printf '\n%d failure(s)\n' "$failures"

@@ -50,6 +50,16 @@ check 'both parts missing names both' 1 'Design' \
   "$(issue 300 ready-for-agent 'Just a body.')"
 check 'parts given only in an agent brief comment count' 0 '' \
   "$(issue 300 ready-for-agent 'Original report.' $'## Agent Brief\n\n**Summary:** x\n**First caller:** the story player\n**Design:** Design: not needed because it is a bug fix in place.')"
+check 'the natural brief form "**Design:** not needed because" counts' 0 '' \
+  "$(issue 300 ready-for-agent 'Original report.' $'## Agent Brief\n\n**First caller:** the story player\n**Design:** not needed because it is a bug fix in place.')"
+check 'headings match regardless of case and a trailing colon' 0 '' \
+  "$(issue 300 ready-for-agent $'## First Caller:\nCI.\n\n## DESIGN\nDesign: not needed because it is docs only.')"
+check 'brief fields may be list items' 0 '' \
+  "$(issue 300 ready-for-agent 'Report.' $'## Agent Brief\n\n- **First caller:** CI\n- **Design:** not needed because it is docs only.')"
+check 'a bare issue number is not a design note' 1 'Design' \
+  "$(issue 300 ready-for-agent $'## First caller\nCI.\n\n## Design\nTBD, waiting on #250')"
+check 'an ADR link counts as the design' 0 '' \
+  "$(issue 300 ready-for-agent $'## First caller\nCI.\n\n## Design\nSee docs/adr/0006-design-before-implementation.md')"
 check 'a comment that is not an agent brief does not count' 1 'First caller' \
   "$(issue 300 ready-for-agent 'Original report.' $'**First caller:** someone\n**Design:** Design: not needed because reasons given.')"
 check 'a legacy issue (#261 or below) is skipped' 0 '' "$(issue 261 ready-for-agent 'Just a body.')"

@@ -9,6 +9,9 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: arch-review-due
+
 jobs:
   count:
     name: Count PRs since the last architecture review

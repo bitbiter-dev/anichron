@@ -27,14 +27,20 @@ grep -q '^epic:' <<<"$labels" && exit 0
 
 texts=$(jq -r '[.body // ""] + [.comments[]?.body | select(test("(?m)^## Agent Brief"))] | join("\n\n## \n\n")' <<<"$issue")
 
-# The text of a `## <name>` section and of every `**<name>:**` field line.
+# The text of a `## <name>` section and of every `**<name>:**` field line,
+# matched case-insensitively, with an optional trailing colon on the heading and
+# an optional list marker before the field.
 part() {
-  awk -v name="$1" '
-    BEGIN { heading = "^##[[:space:]]+" name "[[:space:]]*$"; field = "^\\*\\*" name ":\\*\\*" }
-    $0 ~ heading { inside = 1; next }
+  awk -v name="$(tr '[:upper:]' '[:lower:]' <<<"$1")" '
+    BEGIN {
+      heading = "^##[[:space:]]+" name ":?[[:space:]]*$"
+      field = "^[[:space:]]*([-*][[:space:]]+)?\\*\\*" name ":?\\*\\*:?"
+    }
+    { line = tolower($0) }
+    line ~ heading { inside = 1; next }
     inside && /^##?[[:space:]]/ { inside = 0 }
     inside { print; next }
-    $0 ~ field { sub(field, ""); print }
+    line ~ field { match(line, field); print substr($0, RLENGTH + 1) }
   ' <<<"$texts"
 }
 
@@ -45,8 +51,8 @@ if ! grep -q '[^[:space:]]' <<<"$(part 'First caller')"; then
 fi
 
 design=$(part 'Design')
-if ! grep -Eq 'Design: not needed because[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]|https?://|#[0-9]+|issuecomment' <<<"$design"; then
-  missing+=('Design: a "## Design" section or "**Design:**" field with a link to the approved design note, or "Design: not needed because <reason>"')
+if ! grep -Eiq '(^|[^[:alnum:]])not needed because[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]|#issuecomment-[0-9]+|docs/adr/[0-9]{4}-' <<<"$design"; then
+  missing+=('Design: a "## Design" section or "**Design:**" field with a link to the approved design note (an #issuecomment link) or an ADR, or "Design: not needed because <reason>"')
 fi
 
 if [ "${#missing[@]}" -gt 0 ]; then
