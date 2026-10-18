@@ -7,7 +7,6 @@ using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
@@ -49,14 +48,14 @@ internal sealed class ClassificationFixture
         Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => AddedProxies.Add(call.Arg<ProxyFile>()));
 
         var saver = new IngestionSaver(UnitOfWork, Repository);
-        var stagingWriter = new ProxyStagingWriter(FileSystem, Clock, GuidFactory, Substitute.For<ILogger<ProxyStagingWriter>>());
+        var stagingWriter = new ProxyStagingWriter(FileSystem, Clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());
         var pairer = new LivePhotoPairer(
             new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
             new PairedMovProxyWriter(
                 [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
-                Substitute.For<ILogger<PairedMovProxyWriter>>()),
+                new FakeLogger<PairedMovProxyWriter>()),
             saver,
-            Substitute.For<ILogger<LivePhotoPairer>>());
+            new FakeLogger<LivePhotoPairer>());
         return new(new IngestionClassifier(Repository, FileSystem), pairer, new KnownFileReconciler(Clock, Logger), saver);
     }
 

@@ -2,8 +2,8 @@ using Anichron.API.Services;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using NSubstitute.ExceptionExtensions;
 
 namespace Anichron.API.Tests.Unit.Services;
@@ -215,7 +215,7 @@ public sealed class AdminStorageConfigServiceTests
         var userId = Guid.NewGuid();
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
         fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation(StorageConfigIndexNames.RootPathUnique));
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(StorageConfigIndexNames.RootPathUnique));
 
         var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
@@ -230,18 +230,12 @@ public sealed class AdminStorageConfigServiceTests
         var userId = Guid.NewGuid();
         fixture.Users.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new User { Id = userId });
         fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation("some_other_index"));
+            .ThrowsAsync(DatabaseErrors.UniqueViolation("some_other_index"));
 
         var act = () => fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         await act.Should().ThrowAsync<DbUpdateException>();
     }
-
-    private static DbUpdateException UniqueViolation(string constraintName)
-        => new("duplicate key", new PostgresException(
-            "duplicate key", "ERROR", "ERROR", PostgresErrorCodes.UniqueViolation,
-            null, null, 0, 0, null, null, null, null, null, null,
-            constraintName, null, null, null));
 
     // ==========================================================================
     // DeleteAsync

@@ -7,16 +7,16 @@ using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
-internal sealed partial class NewAssetWriter(
+internal sealed partial class NewContentWriter(
     IMediaAssetRepository repository,
     IngestionSaver saver,
     IFileSystem fileSystem,
     IClock clock,
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter,
-    ILogger<NewAssetWriter> logger) : IAssetWriter
+    ILogger<NewContentWriter> logger) : IOutcomeWriter
 {
-    public FileOutcome Writes => FileOutcome.New;
+    public FileOutcome Outcome => FileOutcome.New;
 
     public async Task<MediaAsset?> TryWriteAsync(IngestionContext context, CancellationToken ct)
     {

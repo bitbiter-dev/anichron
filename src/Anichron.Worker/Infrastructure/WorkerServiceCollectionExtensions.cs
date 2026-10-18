@@ -65,7 +65,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IngestionClassifier>();
             services.AddScoped<LivePhotoPairer>();
             services.AddScoped<KnownFileReconciler>();
-            services.AddScoped<IAssetWriter, NewAssetWriter>();
+            services.AddScoped<IOutcomeWriter, NewContentWriter>();
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ClassificationMiddleware>();
@@ -77,9 +77,6 @@ internal static class WorkerServiceCollectionExtensions
             return services;
         }
 
-        // void, not IServiceCollection: these two are private and both call sites above invoke
-        // them as statements, so the fluent return was never consumed. The internal members keep
-        // returning IServiceCollection because they are part of the chainable surface.
         private void AddVideoProxyServices()
         {
             services.AddSingleton<IProcessLauncher, SystemProcessLauncher>();

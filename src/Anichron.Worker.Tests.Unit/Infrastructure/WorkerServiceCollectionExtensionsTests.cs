@@ -218,7 +218,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IngestionClassifier), typeof(IngestionClassifier), ServiceLifetime.Scoped },
         { typeof(LivePhotoPairer), typeof(LivePhotoPairer), ServiceLifetime.Scoped },
         { typeof(KnownFileReconciler), typeof(KnownFileReconciler), ServiceLifetime.Scoped },
-        { typeof(IAssetWriter), typeof(NewAssetWriter), ServiceLifetime.Scoped },
+        { typeof(IOutcomeWriter), typeof(NewContentWriter), ServiceLifetime.Scoped },
         { typeof(IProcessLauncher), typeof(SystemProcessLauncher), ServiceLifetime.Singleton },
         { typeof(IVideoProcessor), typeof(FfmpegVideoProcessor), ServiceLifetime.Singleton },
         { typeof(IImageProcessor), typeof(ImageSharpProcessor), ServiceLifetime.Singleton },

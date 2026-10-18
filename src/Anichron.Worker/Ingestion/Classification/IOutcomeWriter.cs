@@ -3,9 +3,9 @@ using Anichron.Worker.Ingestion.Pipeline;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
-internal interface IAssetWriter
+internal interface IOutcomeWriter
 {
-    FileOutcome Writes { get; }
+    FileOutcome Outcome { get; }
 
     Task<MediaAsset?> TryWriteAsync(IngestionContext context, CancellationToken ct);
 }

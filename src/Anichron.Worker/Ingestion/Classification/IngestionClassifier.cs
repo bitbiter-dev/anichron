@@ -9,7 +9,6 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
 {
     public async Task<IngestionClassification> ClassifyAsync(IngestionContext context, CancellationToken ct)
     {
-        // Ordering guarantees ContentHashingMiddleware ran first and set both hashes; suppression is safe.
         var (item, contentHash, secondaryHash) = (context.Item, context.ContentHash!, context.SecondaryHash!);
         var mov = item.SecondaryFile;
         string[] hashes = mov is null ? [contentHash] : [contentHash, secondaryHash];

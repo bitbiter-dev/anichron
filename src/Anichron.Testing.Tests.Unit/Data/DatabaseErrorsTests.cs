@@ -12,6 +12,11 @@ public sealed class DatabaseErrorsTests
                 e.SqlState == PostgresErrorCodes.UniqueViolation && e.ConstraintName == "ix_some_index");
 
     [Fact]
+    public void UniqueViolation_WithoutAConstraint_NamesNone()
+        => DatabaseErrors.UniqueViolation().InnerException.Should().BeOfType<PostgresException>()
+            .Which.ConstraintName.Should().BeNull();
+
+    [Fact]
     public void Violation_CarriesTheGivenSqlState()
         => DatabaseErrors.Violation(PostgresErrorCodes.ForeignKeyViolation, "fk_some").InnerException
             .Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);

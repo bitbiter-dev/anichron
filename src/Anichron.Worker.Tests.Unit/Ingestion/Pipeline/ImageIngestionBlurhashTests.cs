@@ -8,7 +8,7 @@ using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using SixLabors.ImageSharp;
@@ -42,7 +42,7 @@ public sealed class ImageIngestionBlurhashTests
         repository.Add(Arg.Do<MediaAsset>(asset => persisted = asset));
         var options = Options.Create(new WorkerSettings());
         var processor = new ImageSharpProcessor(options);
-        var stagingWriter = new ProxyStagingWriter(fileSystem, clock, guids, Substitute.For<ILogger<ProxyStagingWriter>>());
+        var stagingWriter = new ProxyStagingWriter(fileSystem, clock, guids, new FakeLogger<ProxyStagingWriter>());
         IIngestionMiddleware[] middlewares =
         [
             new ImageProxyMiddleware(
@@ -51,10 +51,10 @@ public sealed class ImageIngestionBlurhashTests
                 new TwoLevelHexShardStrategy(),
                 stagingWriter,
                 fileSystem,
-                Substitute.For<ILogger<ImageProxyMiddleware>>()),
+                new FakeLogger<ImageProxyMiddleware>()),
             new PersistenceMiddleware(
                 [
-                    new NewAssetWriter(
+                    new NewContentWriter(
                         repository,
                         new IngestionSaver(Substitute.For<IUnitOfWork>(), repository),
                         fileSystem,
@@ -62,10 +62,10 @@ public sealed class ImageIngestionBlurhashTests
                         new PairedMovResolver(repository, fileSystem, clock, guids),
                         new PairedMovProxyWriter(
                             [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
-                            Substitute.For<ILogger<PairedMovProxyWriter>>()),
-                        Substitute.For<ILogger<NewAssetWriter>>()),
+                            new FakeLogger<PairedMovProxyWriter>()),
+                        new FakeLogger<NewContentWriter>()),
                 ],
-                Substitute.For<ILogger<PersistenceMiddleware>>()),
+                new FakeLogger<PersistenceMiddleware>()),
         ];
         var context = new IngestionContext
         {
@@ -77,7 +77,7 @@ public sealed class ImageIngestionBlurhashTests
             Exif = ExifData.Empty,
         };
 
-        await IngestionPipelineBuilder.Build(middlewares, Substitute.For<ILogger>())(context, CancellationToken.None);
+        await IngestionPipelineBuilder.Build(middlewares, new FakeLogger())(context, CancellationToken.None);
 
         persisted.Should().NotBeNull();
         persisted.Metadata!.Blurhash.Should().HaveLength(28);

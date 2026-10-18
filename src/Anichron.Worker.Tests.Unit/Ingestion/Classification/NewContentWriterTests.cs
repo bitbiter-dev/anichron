@@ -8,14 +8,14 @@ using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
 using NSubstitute.ExceptionExtensions;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Classification;
 
-public sealed class NewAssetWriterTests
+public sealed class NewContentWriterTests
 {
     private sealed class TestFixture
     {
@@ -45,7 +45,7 @@ public sealed class NewAssetWriterTests
 
         public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
 
-        public NewAssetWriter Build()
+        public NewContentWriter Build()
         {
             MovGenerator.FileName.Returns("video_720p.mp4");
             MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
@@ -55,13 +55,13 @@ public sealed class NewAssetWriterTests
                 FileSystem,
                 Clock,
                 GuidFactory,
-                Substitute.For<ILogger<ProxyStagingWriter>>());
+                new FakeLogger<ProxyStagingWriter>());
             return new(Repository, new IngestionSaver(UnitOfWork, Repository), FileSystem, Clock,
                 new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
-                    Substitute.For<ILogger<PairedMovProxyWriter>>()),
-                Substitute.For<ILogger<NewAssetWriter>>());
+                    new FakeLogger<PairedMovProxyWriter>()),
+                new FakeLogger<NewContentWriter>());
         }
     }
 
@@ -93,8 +93,8 @@ public sealed class NewAssetWriterTests
     }
 
     [Fact]
-    public void Writes_NewContent()
-        => new TestFixture().Build().Writes.Should().Be(FileOutcome.New);
+    public void Outcome_IsNew()
+        => new TestFixture().Build().Outcome.Should().Be(FileOutcome.New);
 
     // ==========================================================================
     // TryWriteAsync

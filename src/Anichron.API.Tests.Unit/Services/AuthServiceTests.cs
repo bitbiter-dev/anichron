@@ -3,8 +3,8 @@ using Anichron.API.Services;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using System.Diagnostics;
 
 namespace Anichron.API.Tests.Unit.Services;
@@ -38,7 +38,6 @@ public sealed class AuthServiceTests
             UnitOfWork
                 .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo => callInfo.Arg<Func<Task>>()());
-            // Default: return a valid invite so existing register tests are unaffected
             _invites.FindValidByHashAsync(Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>())
                 .Returns(new Invite { Id = Guid.NewGuid(), CreatedByUserId = Guid.NewGuid() });
         }
@@ -145,13 +144,6 @@ public sealed class AuthServiceTests
         public AuthService CreateTestee() => new(
             Users, _invites, UnitOfWork, _clock, _guidFactory, PasswordHasher, _validator, TokenService, Lockout, ResponseFloor);
     }
-
-    // ConstraintName has no setter in Npgsql 10 — must use the full constructor.
-    private static DbUpdateException UniqueViolation(string? constraintName = null)
-        => new("duplicate key", new PostgresException(
-            "duplicate key", "ERROR", "ERROR", "23505",
-            null, null, 0, 0, null, null, null, null, null, null,
-            constraintName, null, null, null));
 
     // ==========================================================================
     // RegisterAsync
@@ -273,7 +265,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentEmailUniqueViolation_ReturnsEmailTaken()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation("ix_users_email"));
+            .WithSaveChangesThrows(DatabaseErrors.UniqueViolation("ix_users_email"));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
@@ -289,7 +281,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentUsernameUniqueViolation_ReturnsUsernameTaken()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation("ix_users_username"));
+            .WithSaveChangesThrows(DatabaseErrors.UniqueViolation("ix_users_username"));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
@@ -305,7 +297,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ConcurrentViolationWithUnknownConstraintName_ThrowsUnreachableException()
     {
         var fixture = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation(null));
+            .WithSaveChangesThrows(DatabaseErrors.UniqueViolation(null));
         var testee = fixture.CreateTestee();
 
         var act = async () => await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
@@ -316,8 +308,6 @@ public sealed class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_InputNormalization_NormalizesBeforeChecking()
     {
-        // AnyByUsernameAsync only returns true for the exact normalized form.
-        // If the service does not trim/lowercase, the check passes and registration proceeds.
         var fixture = new TestFixture()
             .WithNormalizedUsernameExists("alice");
         var testee = fixture.CreateTestee();
@@ -394,7 +384,6 @@ public sealed class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_ConcurrentInviteRace_ReturnsInviteTokenInvalid()
     {
-        // Simulates xmin concurrency conflict: two requests race to consume the same invite.
         var fixture = new TestFixture()
             .WithSaveChangesThrows(new DbUpdateConcurrencyException("concurrency conflict", (Exception?)null));
         var testee = fixture.CreateTestee();
@@ -498,11 +487,6 @@ public sealed class AuthServiceTests
         });
     }
 
-    // Issue #173: the equal-work guarantee now lives in the hasher, which spends a full Argon2
-    // pass on a null hash. This pins the call site's half of that bargain — it must hand the
-    // hasher a null rather than short-circuiting, and must not resurrect a precomputed dummy
-    // hash (the old field initializer cost 64 MiB on *every* request that resolved IAuthService,
-    // including ones that never logged anyone in).
     [Fact]
     public async Task LoginAsync_UnknownUser_VerifiesAgainstANullHashExactlyOnce()
     {
@@ -578,7 +562,6 @@ public sealed class AuthServiceTests
     public async Task LoginAsync_WrongPasswordAndNotLocked_DelegatesToLockoutService()
     {
         var user = new User { PasswordHash = "hashed_value" };
-        // IsLockedOut returns false by default — covers both never-locked and expired-lockout cases
         var fixture = new TestFixture().WithUser(user);
         var testee = fixture.CreateTestee();
 
@@ -962,7 +945,7 @@ public sealed class AuthServiceTests
     public async Task AdminCreateUserAsync_DbUniqueViolationOnEmail_ReturnsEmailTakenError()
     {
         var testee = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation("ix_users_email"))
+            .WithSaveChangesThrows(DatabaseErrors.UniqueViolation("ix_users_email"))
             .CreateTestee();
 
         var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
@@ -974,7 +957,7 @@ public sealed class AuthServiceTests
     public async Task AdminCreateUserAsync_DbUniqueViolationOnUsername_ReturnsUsernameTakenError()
     {
         var testee = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation("ix_users_username"))
+            .WithSaveChangesThrows(DatabaseErrors.UniqueViolation("ix_users_username"))
             .CreateTestee();
 
         var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
@@ -986,7 +969,7 @@ public sealed class AuthServiceTests
     public async Task AdminCreateUserAsync_UnknownConstraintViolation_ThrowsUnreachableException()
     {
         var testee = new TestFixture()
-            .WithSaveChangesThrows(UniqueViolation(null))
+            .WithSaveChangesThrows(DatabaseErrors.UniqueViolation(null))
             .CreateTestee();
 
         var act = async () => await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);

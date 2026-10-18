@@ -15,7 +15,6 @@ internal sealed class PairedMovResolver(
 {
     public MediaAsset Resolve(IngestionContext context, LocalDateTime? dateCaptured)
     {
-        // Ordering guarantees ClassificationMiddleware ran first and classified the MOV; suppression is safe.
         var stored = context.Classification!.Secondary!.Stored;
         if (stored is not null)
             return stored;

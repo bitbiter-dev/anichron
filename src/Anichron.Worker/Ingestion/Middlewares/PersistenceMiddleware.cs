@@ -4,7 +4,7 @@ using Anichron.Worker.Ingestion.Pipeline;
 namespace Anichron.Worker.Ingestion.Middlewares;
 
 internal sealed partial class PersistenceMiddleware(
-    IEnumerable<IAssetWriter> writers,
+    IEnumerable<IOutcomeWriter> writers,
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Persistence;
@@ -12,9 +12,8 @@ internal sealed partial class PersistenceMiddleware(
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
-        // Ordering guarantees ClassificationMiddleware ran first; suppression is safe.
         var outcome = context.Classification!.Primary.Outcome;
-        var writer = writers.Single(w => w.Writes == outcome);
+        var writer = writers.Single(candidate => candidate.Outcome == outcome);
         var asset = await writer.TryWriteAsync(context, ct);
         if (asset is null)
             return;

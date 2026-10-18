@@ -14,8 +14,8 @@ public sealed class PersistenceMiddlewareTests
 
     private sealed class TestFixture
     {
-        public IAssetWriter NewWriter { get; } = Writer(FileOutcome.New);
-        public IAssetWriter OtherWriter { get; } = Writer(FileOutcome.Moved);
+        public IOutcomeWriter NewWriter { get; } = Writer(FileOutcome.New);
+        public IOutcomeWriter OtherWriter { get; } = Writer(FileOutcome.Moved);
         public FakeLogger<PersistenceMiddleware> Logger { get; } = new();
         public bool NextCalled { get; private set; }
 
@@ -26,10 +26,10 @@ public sealed class PersistenceMiddlewareTests
                 return Task.CompletedTask;
             }, CancellationToken.None);
 
-        private static IAssetWriter Writer(FileOutcome outcome)
+        private static IOutcomeWriter Writer(FileOutcome outcome)
         {
-            var writer = Substitute.For<IAssetWriter>();
-            writer.Writes.Returns(outcome);
+            var writer = Substitute.For<IOutcomeWriter>();
+            writer.Outcome.Returns(outcome);
             return writer;
         }
     }

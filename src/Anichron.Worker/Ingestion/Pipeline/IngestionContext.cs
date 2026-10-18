@@ -20,9 +20,7 @@ internal sealed class IngestionContext
     public string? Blurhash { get; set; }
     public MediaAsset? Asset { get; set; }
 
-    // Records what this attempt has actually put on disk: each proxy registers itself the
-    // moment it is renamed into place, so compensation on failure can delete precisely those
-    // files. Image proxies are generated concurrently, hence the lock and the snapshot.
+    // Image proxies register concurrently.
     public IReadOnlyList<ProxyFile> ProxyFiles
     {
         get
