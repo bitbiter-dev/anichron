@@ -92,8 +92,6 @@ public sealed class NewAssetWriterTests
         };
     }
 
-    private static DbUpdateException UniqueViolation(string constraintName) => DatabaseErrors.UniqueViolation(constraintName);
-
     [Fact]
     public void Writes_NewContent()
         => new TestFixture().Build().Writes.Should().Be(FileOutcome.New);
@@ -407,7 +405,7 @@ public sealed class NewAssetWriterTests
         var fx = new TestFixture();
         var context = MakeContext();
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
         fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>())
             .Returns(new MediaAsset { ContentHash = "deadbeef" });
 
@@ -423,7 +421,7 @@ public sealed class NewAssetWriterTests
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
         fx.Repository.FindByHashAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((MediaAsset?)null);
 
@@ -444,7 +442,7 @@ public sealed class NewAssetWriterTests
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
         var heicProxy = new ProxyFile { AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(heicProxy);
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(UniqueViolation(constraintName));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(DatabaseErrors.UniqueViolation(constraintName));
 
         var act = () => fx.Build().TryWriteAsync(context, CancellationToken.None);
 
@@ -461,7 +459,7 @@ public sealed class NewAssetWriterTests
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
+            .ThrowsAsync(DatabaseErrors.UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
 
         var act = () => fx.Build().TryWriteAsync(context, CancellationToken.None);
 
@@ -475,7 +473,7 @@ public sealed class NewAssetWriterTests
         var fx = new TestFixture();
         var context = MakeContext();
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
+            .ThrowsAsync(DatabaseErrors.UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
 
         var act = () => fx.Build().TryWriteAsync(context, CancellationToken.None);
 
