@@ -6,6 +6,7 @@ using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using CrawlingWorker = Anichron.Worker.Crawling.Worker;
@@ -36,6 +37,8 @@ public sealed class WorkerTests
                 .Returns([]);
         }
 
+        public FakeLogger<CrawlingWorker> Logger { get; } = new();
+
         public CrawlingWorker Build(TimeProvider? timeProvider = null)
             => new(
                 scopeFactory,
@@ -43,7 +46,7 @@ public sealed class WorkerTests
                 Pipeline,
                 timeProvider ?? new FakeTimeProvider(),
                 Options.Create(new WorkerSettings { CrawlIntervalHours = IntervalHours }),
-                Substitute.For<ILogger<CrawlingWorker>>());
+                Logger);
     }
 
     // ==========================================================================
@@ -172,5 +175,89 @@ public sealed class WorkerTests
         await crawlingWorker.CrawlAllAsync(CancellationToken.None);
 
         await fixture.Pipeline.Received(1).RunAsync(config, Arg.Any<CancellationToken>());
+    }
+
+    // ==========================================================================
+    // A failing config
+    // ==========================================================================
+
+    [Fact]
+    public async Task CrawlAllAsync_ConfigCrawlFails_LogsItsRootAndCrawlsTheNextConfigAsync()
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        var missing = new UserStorageConfig { Id = Guid.NewGuid(), UserId = userId, RootPath = "/data/originals/mira" };
+        var next = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/data/originals/alice" };
+        fixture.ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>()).Returns([missing, next]);
+        fixture.Pipeline.RunAsync(missing, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new DirectoryNotFoundException("gone")));
+        var crawlingWorker = fixture.Build();
+
+        await crawlingWorker.CrawlAllAsync(Ct);
+
+        await fixture.Pipeline.Received(1).RunAsync(next, Arg.Any<CancellationToken>());
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error)
+            .Which.Should().Match<FakeLogRecord>(r =>
+                r.Message == $"Crawl of /data/originals/mira (userId={userId}) failed; crawling the next storage config."
+                && r.Exception is DirectoryNotFoundException);
+    }
+
+    [Fact]
+    public async Task CrawlAllAsync_ShutdownDuringACrawl_StopsWithoutLoggingAFailureAsync()
+    {
+        var fixture = new TestFixture();
+        var first = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/data/originals/mira" };
+        var second = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/data/originals/alice" };
+        fixture.ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>()).Returns([first, second]);
+        using var shutdown = new CancellationTokenSource();
+        await shutdown.CancelAsync();
+        fixture.Pipeline.RunAsync(first, Arg.Any<CancellationToken>()).Returns(Task.FromCanceled(shutdown.Token));
+        var crawlingWorker = fixture.Build();
+
+        var act = () => crawlingWorker.CrawlAllAsync(shutdown.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await fixture.Pipeline.DidNotReceive().RunAsync(second, Arg.Any<CancellationToken>());
+        fixture.Logger.Collector.GetSnapshot().Should().NotContain(r => r.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task CrawlAllAsync_CancellationWithoutShutdown_IsLoggedAsACrawlFailureAsync()
+    {
+        var fixture = new TestFixture();
+        var config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/data/originals/mira" };
+        fixture.ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>()).Returns([config]);
+        fixture.Pipeline.RunAsync(config, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new OperationCanceledException("timed out")));
+        var crawlingWorker = fixture.Build();
+
+        await crawlingWorker.CrawlAllAsync(Ct);
+
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CrawlFails_KeepsRunningAndCrawlsAgainAfterTheIntervalAsync()
+    {
+        await using var timeline = new Timeline();
+        var fixture = new TestFixture();
+        var config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/data/originals/mira" };
+        fixture.ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>()).Returns([config]);
+        fixture.Pipeline.RunAsync(config, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                timeline.Record("crawl");
+                return Task.FromException(new DirectoryNotFoundException("gone"));
+            });
+        var worker = fixture.Build(timeline.Clock);
+        await worker.StartAsync(Ct);
+        timeline.Watch(worker.ExecuteTask!, () => worker.StopAsync(CancellationToken.None));
+        await timeline.ExpectAsync(new Called("crawl"), new TimerArmed(TimeSpan.FromHours(3)));
+
+        timeline.Clock.Advance(TimeSpan.FromHours(3));
+
+        await timeline.ExpectAsync(
+            new TimerFired(TimeSpan.FromHours(3)), new Called("crawl"), new TimerArmed(TimeSpan.FromHours(3)));
+        worker.ExecuteTask!.IsCompleted.Should().BeFalse();
     }
 }
