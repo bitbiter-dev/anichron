@@ -198,7 +198,7 @@ public sealed class WorkerTests
         await fixture.Pipeline.Received(1).RunAsync(next, Arg.Any<CancellationToken>());
         fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error)
             .Which.Should().Match<FakeLogRecord>(r =>
-                r.Message == $"Crawl of /data/originals/mira (userId={userId}) failed; crawling the next storage config."
+                r.Message == $"Crawl of /data/originals/mira (userId={userId}) failed."
                 && r.Exception is DirectoryNotFoundException);
     }
 
@@ -233,7 +233,8 @@ public sealed class WorkerTests
 
         await crawlingWorker.CrawlAllAsync(Ct);
 
-        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error);
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error)
+            .Which.Exception.Should().BeOfType<OperationCanceledException>();
     }
 
     [Fact]

@@ -61,7 +61,7 @@ internal sealed partial class Worker(
         [LoggerMessage(Level = LogLevel.Information, Message = "Crawling {RootPath} (userId={UserId}).")]
         public static partial void CrawlingPath(ILogger logger, string rootPath, Guid userId);
 
-        [LoggerMessage(Level = LogLevel.Error, Message = "Crawl of {RootPath} (userId={UserId}) failed; crawling the next storage config.")]
+        [LoggerMessage(Level = LogLevel.Error, Message = "Crawl of {RootPath} (userId={UserId}) failed.")]
         public static partial void CrawlFailed(ILogger logger, string rootPath, Guid userId, Exception ex);
     }
 }
