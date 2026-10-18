@@ -1,5 +1,6 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Worker.Ingestion;
 using Anichron.Worker.Scheduling;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
@@ -39,10 +40,17 @@ internal sealed partial class Worker(
             await CrawlAsync(config, ct);
     }
 
-    private Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
+    private async Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
     {
         Log.CrawlingPath(logger, config.RootPath, config.UserId);
-        return ingestionPipeline.RunAsync(config, ct);
+        try
+        {
+            await ingestionPipeline.RunAsync(config, ct);
+        }
+        catch (Exception ex) when (!IngestionShutdown.IsInProgress(ex, ct))
+        {
+            Log.CrawlFailed(logger, config.RootPath, config.UserId, ex);
+        }
     }
 
     private static partial class Log
@@ -52,5 +60,8 @@ internal sealed partial class Worker(
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Crawling {RootPath} (userId={UserId}).")]
         public static partial void CrawlingPath(ILogger logger, string rootPath, Guid userId);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Crawl of {RootPath} (userId={UserId}) failed.")]
+        public static partial void CrawlFailed(ILogger logger, string rootPath, Guid userId, Exception ex);
     }
 }
