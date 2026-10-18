@@ -33,7 +33,10 @@ internal sealed class IngestionContext
     }
 
     public IReadOnlyList<ProxyFile> ProxyFilesOf(Guid ownerAssetId)
-        => [.. ProxyFiles.Where(proxy => proxy.AssetId == ownerAssetId)];
+    {
+        lock (proxyFilesLock)
+            return [.. proxyFiles.Where(proxy => proxy.AssetId == ownerAssetId)];
+    }
 
     public void AddProxyFile(ProxyFile proxyFile)
     {

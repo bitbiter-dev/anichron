@@ -21,7 +21,7 @@ public interface IMediaAssetRepository
     Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct);
 
     void Add(MediaAsset asset);
-    void AddProxyFile(ProxyFile proxyFile);
+    void AddProxyFiles(IEnumerable<ProxyFile> proxyFiles);
     void RemoveProxyFile(ProxyFile proxyFile);
 }
 
@@ -49,8 +49,8 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
     public void Add(MediaAsset asset)
         => db.MediaAssets.Add(asset);
 
-    public void AddProxyFile(ProxyFile proxyFile)
-        => db.ProxyFiles.Add(proxyFile);
+    public void AddProxyFiles(IEnumerable<ProxyFile> proxyFiles)
+        => db.ProxyFiles.AddRange(proxyFiles);
 
     public void RemoveProxyFile(ProxyFile proxyFile)
         => db.ProxyFiles.Remove(proxyFile);

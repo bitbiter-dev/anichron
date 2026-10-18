@@ -84,7 +84,7 @@ public sealed class PairedMovProxyWriterTests
         var fixture = new TestFixture();
         var context = MakePairContext();
         var added = new List<ProxyFile>();
-        fixture.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
+        fixture.Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
 
         await fixture.Build().WriteMissingAsync(context, Mov(), CancellationToken.None);
 
@@ -104,8 +104,8 @@ public sealed class PairedMovProxyWriterTests
 
         await fixture.Build().WriteMissingAsync(context, Mov(), CancellationToken.None);
 
-        fixture.Repository.Received(1).AddProxyFile(Arg.Any<ProxyFile>());
-        fixture.Repository.DidNotReceive().AddProxyFile(Arg.Is<ProxyFile>(p => p.AssetId == context.AssetId));
+        fixture.Repository.Received(1).AddProxyFiles(Arg.Is<IEnumerable<ProxyFile>>(rows => rows.Count() == 1 && rows.All(p => p.AssetId == MovId)));
+        fixture.Repository.DidNotReceive().AddProxyFiles(Arg.Is<IEnumerable<ProxyFile>>(rows => rows.Any(p => p.AssetId == context.AssetId)));
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class PairedMovProxyWriterTests
 
         wrote.Should().BeFalse();
         fixture.TranscodedSources.Should().BeEmpty();
-        fixture.Repository.DidNotReceive().AddProxyFile(Arg.Any<ProxyFile>());
+        fixture.Repository.DidNotReceive().AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>());
         context.ProxyFiles.Should().BeEmpty();
     }
 

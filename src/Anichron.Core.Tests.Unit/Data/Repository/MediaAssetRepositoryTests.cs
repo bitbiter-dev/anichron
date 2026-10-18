@@ -133,14 +133,19 @@ public sealed class MediaAssetRepositoryTests
             .Should().BeEmpty();
 
     [Fact]
-    public void AddProxyFile_TracksTheRowForInsertEvenWithItsIdPreset()
+    public void AddProxyFiles_TracksEveryRowForInsertEvenWithItsIdPreset()
     {
         using var db = AnichronDbContexts.InMemory();
-        var proxy = new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo };
+        var assetId = Guid.NewGuid();
+        ProxyFile[] proxies =
+        [
+            new() { Id = Guid.NewGuid(), AssetId = assetId, ProxyType = ProxyType.Thumbnail },
+            new() { Id = Guid.NewGuid(), AssetId = assetId, ProxyType = ProxyType.FullPreview },
+        ];
 
-        new EfMediaAssetRepository(db).AddProxyFile(proxy);
+        new EfMediaAssetRepository(db).AddProxyFiles(proxies);
 
-        db.Entry(proxy).State.Should().Be(EntityState.Added);
+        proxies.Select(proxy => db.Entry(proxy).State).Should().Equal(EntityState.Added, EntityState.Added);
     }
 
     [Fact]

@@ -20,10 +20,21 @@ public class MediaAsset
     public string ContentHash { get; set; } = string.Empty; // XXHash64 for move tracking
 
     // Temporal Data (Optimized for "On This Day")
-    public LocalDateTime DateCaptured { get; set; }
-    public int Month { get; set; }
-    public int Day { get; set; }
-    public int Year { get; set; }
+    public LocalDateTime DateCaptured
+    {
+        get;
+        set
+        {
+            field = value;
+            Month = value.Month;
+            Day = value.Day;
+            Year = value.Year;
+        }
+    }
+
+    public int Month { get; private set; }
+    public int Day { get; private set; }
+    public int Year { get; private set; }
 
     // Metadata & State
     public MediaType MediaType { get; set; }
@@ -46,12 +57,4 @@ public class MediaAsset
     public virtual ICollection<ProxyFile> ProxyFiles { get; set; } = [];
 
     public virtual ICollection<AssetInteraction> Interactions { get; set; } = [];
-
-    public void SetCaptureDate(LocalDateTime dateCaptured)
-    {
-        DateCaptured = dateCaptured;
-        Month = dateCaptured.Month;
-        Day = dateCaptured.Day;
-        Year = dateCaptured.Year;
-    }
 }

@@ -35,8 +35,7 @@ internal sealed class NewContentWriter(
         DescribeContent(asset, metadata, context);
 
         repository.Add(asset);
-        foreach (var proxy in context.ProxyFilesOf(asset.Id))
-            repository.AddProxyFile(proxy);
+        repository.AddProxyFiles(context.ProxyFilesOf(asset.Id));
         return Task.FromResult(asset);
     }
 }

@@ -59,6 +59,7 @@ public sealed class ContentChangedWriterTests
                 ContentHash = "0ldc0ntent",
                 MediaType = MediaType.Image,
                 LastSeenOnNas = FirstSeen,
+                DateCaptured = new LocalDateTime(2019, 3, 4, 5, 6),
                 ProxyFiles =
                 [
                     OldProxy(ProxyType.Thumbnail, "0l/old/thumbnail.jpg"),
@@ -66,14 +67,13 @@ public sealed class ContentChangedWriterTests
                 ],
                 Interactions = [new AssetInteraction { AssetId = StoredId, UserId = Guid.NewGuid(), IsStarred = true }],
             };
-            Stored.SetCaptureDate(new LocalDateTime(2019, 3, 4, 5, 6));
             Repository.LoadMetadataAsync(Stored, Arg.Any<CancellationToken>())
                 .Returns(_ =>
                 {
                     Stored.Metadata = StoredMetadata;
                     return Task.CompletedTask;
                 });
-            Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => Added.Add(call.Arg<ProxyFile>()));
+            Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => Added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
             Repository.When(r => r.RemoveProxyFile(Arg.Any<ProxyFile>())).Do(call => Removed.Add(call.Arg<ProxyFile>()));
         }
 

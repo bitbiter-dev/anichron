@@ -41,7 +41,7 @@ internal abstract partial class ProcessedContentWriter(
     {
         var exif = context.Exif!;
         asset.ContentHash = context.ContentHash!;
-        asset.SetCaptureDate(CaptureDate.Resolve(exif.DateCaptured, fileSystem, context.Item.AbsolutePath));
+        asset.DateCaptured = CaptureDate.FromExifOrLastWrite(exif.DateCaptured, fileSystem, context.Item.AbsolutePath);
         asset.MediaType = context.Item.PrimaryMediaType;
         asset.LastSeenOnNas = clock.GetCurrentInstant();
 

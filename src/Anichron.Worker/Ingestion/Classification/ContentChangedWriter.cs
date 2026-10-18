@@ -36,11 +36,12 @@ internal sealed partial class ContentChangedWriter(
         foreach (var proxy in stale.ToList())
             repository.RemoveProxyFile(proxy);
 
+        var added = new List<ProxyFile>();
         foreach (var proxy in generated)
         {
             if (asset.ProxyFiles.FirstOrDefault(old => old.ProxyType == proxy.ProxyType) is not { } existing)
             {
-                repository.AddProxyFile(proxy);
+                added.Add(proxy);
                 continue;
             }
 
@@ -48,6 +49,8 @@ internal sealed partial class ContentChangedWriter(
             existing.SizeBytes = proxy.SizeBytes;
             existing.CreatedAt = proxy.CreatedAt;
         }
+
+        repository.AddProxyFiles(added);
     }
 
     private static partial class Log

@@ -6,25 +6,20 @@ namespace Anichron.Core.Tests.Unit.Domain;
 public sealed class MediaAssetTests
 {
     [Fact]
-    public void SetCaptureDate_SetsTheDateAndItsFlashbackParts()
+    public void DateCaptured_Set_SetsTheFlashbackDateParts()
     {
-        var asset = new MediaAsset();
+        var asset = new MediaAsset { DateCaptured = new LocalDateTime(2019, 7, 23, 18, 5) };
 
-        asset.SetCaptureDate(new LocalDateTime(2021, 11, 7, 18, 30));
-
-        asset.DateCaptured.Should().Be(new LocalDateTime(2021, 11, 7, 18, 30));
-        (asset.Year, asset.Month, asset.Day).Should().Be((2021, 11, 7));
+        asset.Should().BeEquivalentTo(new { Year = 2019, Month = 7, Day = 23 });
     }
 
     [Fact]
-    public void SetCaptureDate_CalledAgain_ReplacesEveryPart()
+    public void DateCaptured_SetAgain_ReplacesTheFlashbackDateParts()
     {
-        var asset = new MediaAsset();
-        asset.SetCaptureDate(new LocalDateTime(2021, 11, 7, 18, 30));
+        var asset = new MediaAsset { DateCaptured = new LocalDateTime(2019, 7, 23, 18, 5) };
 
-        asset.SetCaptureDate(new LocalDateTime(2024, 2, 29, 6, 0));
+        asset.DateCaptured = new LocalDateTime(2024, 2, 29, 9, 0);
 
-        asset.DateCaptured.Should().Be(new LocalDateTime(2024, 2, 29, 6, 0));
-        (asset.Year, asset.Month, asset.Day).Should().Be((2024, 2, 29));
+        asset.Should().BeEquivalentTo(new { Year = 2024, Month = 2, Day = 29 });
     }
 }

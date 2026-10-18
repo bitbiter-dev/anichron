@@ -27,11 +27,11 @@ internal sealed class PairedMovResolver(
             FilePath = mov.RelativePath,
             FileName = Path.GetFileName(mov.RelativePath),
             ContentHash = context.SecondaryHash!,
+            DateCaptured = CaptureDate.FromExifOrLastWrite(dateCaptured, fileSystem, mov.AbsolutePath),
             MediaType = mov.MediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
         };
-        asset.SetCaptureDate(CaptureDate.Resolve(dateCaptured, fileSystem, mov.AbsolutePath));
         repository.Add(asset);
         return asset;
     }
