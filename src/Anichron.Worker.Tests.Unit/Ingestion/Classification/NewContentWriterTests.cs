@@ -338,7 +338,7 @@ public sealed class NewContentWriterTests
     {
         var fx = new TestFixture();
         var added = new List<ProxyFile>();
-        fx.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
+        fx.Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
         var context = MakeContext();
         var proxyFile = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(proxyFile);
@@ -386,7 +386,7 @@ public sealed class NewContentWriterTests
         asset!.PairedAssetId.Should().Be(existingMov.Id);
         await fx.MovGenerator.DidNotReceive().TranscodeAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        fx.Repository.DidNotReceive().AddProxyFile(Arg.Any<ProxyFile>());
+        fx.Repository.DidNotReceive().AddProxyFiles(Arg.Is<IEnumerable<ProxyFile>>(rows => rows.Any()));
     }
 
     [Fact]
@@ -396,7 +396,7 @@ public sealed class NewContentWriterTests
         var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
         fx.GuidFactory.NewGuid().Returns(movId, Guid.Parse("99999999-9999-9999-9999-999999999999"));
         var added = new List<ProxyFile>();
-        fx.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
+        fx.Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
@@ -414,7 +414,7 @@ public sealed class NewContentWriterTests
     {
         var fx = new TestFixture();
         var added = new List<ProxyFile>();
-        fx.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
+        fx.Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
         var context = MakeContext();
         var own = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(own);

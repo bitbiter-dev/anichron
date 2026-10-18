@@ -41,7 +41,7 @@ public sealed class ImageIngestionBlurhashTests
         MediaAsset? persisted = null;
         repository.Add(Arg.Do<MediaAsset>(asset => persisted = asset));
         var proxyRows = new List<ProxyFile>();
-        repository.AddProxyFile(Arg.Do<ProxyFile>(proxyRows.Add));
+        repository.AddProxyFiles(Arg.Do<IEnumerable<ProxyFile>>(proxyRows.AddRange));
         var options = Options.Create(new WorkerSettings());
         var processor = new ImageSharpProcessor(options);
         var stagingWriter = new ProxyStagingWriter(fileSystem, clock, guids, new FakeLogger<ProxyStagingWriter>());

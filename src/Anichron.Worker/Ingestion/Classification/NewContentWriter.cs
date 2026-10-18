@@ -31,8 +31,7 @@ internal sealed partial class NewContentWriter(
         }
 
         repository.Add(asset);
-        foreach (var proxy in context.ProxyFilesOf(asset.Id))
-            repository.AddProxyFile(proxy);
+        repository.AddProxyFiles(context.ProxyFilesOf(asset.Id));
 
         if (await saver.TrySaveNewAsync(context, asset, mov?.Id, ct))
             return asset;
