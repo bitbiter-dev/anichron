@@ -45,6 +45,8 @@ dotnet test src/SomeProject.Tests.Unit/SomeProject.Tests.Unit.csproj
 dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 ```
 
+An integration test project, or a filter matching integration tests, runs nothing without `-p:TestSuite=Integration` (or `All`).
+
 Test projects are recognised by name: `*.Tests.Unit` for unit tests and `*.Tests.Integration` for integration tests. `Directory.Build.props` applies the test SDK to both: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. `Directory.Build.targets` makes only the projects in the selected `TestSuite` (`Unit` by default, `Integration` or `All`) test projects, so `dotnet test` and Stryker never run the integration suite. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
 **Unit or integration?** A test belongs in `Anichron.Tests.Integration` only when its subject is behaviour that only real PostgreSQL has: `ExecuteUpdate`/`ExecuteDelete`, transactions, advisory locks, row locking, constraint and partial-index enforcement. Everything else is a unit test, including a query's SQL shape (assert on `ToQueryString()` with `AnichronDbContexts.NpgsqlModel()`). The integration project starts one PostgreSQL container per run (`PostgresServer`, the same image as `src/docker-compose.yml`). Each test gets its own database, from `CreateMigratedDatabaseAsync` (real migrations) or `CreateDatabaseAsync` (empty). Its CI job is `Integration tests`, and it runs outside mutation testing, so the members it covers keep their `// Stryker disable all` and ADR 0005 rows.

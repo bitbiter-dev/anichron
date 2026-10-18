@@ -55,7 +55,8 @@ public sealed class MigrateWithAdvisoryLockTests(PostgresServer server)
 
     private static async Task<NpgsqlConnection> OpenAsync(string connectionString, CancellationToken ct)
     {
-        var connection = new NpgsqlConnection(connectionString);
+        var connection = new NpgsqlConnection(
+            new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false }.ConnectionString);
         await connection.OpenAsync(ct);
         return connection;
     }
