@@ -46,4 +46,12 @@ public class MediaAsset
     public virtual ICollection<ProxyFile> ProxyFiles { get; set; } = [];
 
     public virtual ICollection<AssetInteraction> Interactions { get; set; } = [];
+
+    public void SetCaptureDate(LocalDateTime dateCaptured)
+    {
+        DateCaptured = dateCaptured;
+        Month = dateCaptured.Month;
+        Day = dateCaptured.Day;
+        Year = dateCaptured.Year;
+    }
 }

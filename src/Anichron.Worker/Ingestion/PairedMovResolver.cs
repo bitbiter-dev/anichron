@@ -20,9 +20,6 @@ internal sealed class PairedMovResolver(
             return stored;
 
         var mov = context.Item.SecondaryFile!;
-        var date = dateCaptured
-            ?? LocalDateTime.FromDateTime(fileSystem.FileInfo.New(mov.AbsolutePath).LastWriteTime);
-
         var asset = new MediaAsset
         {
             Id = guidFactory.NewGuid(),
@@ -30,14 +27,11 @@ internal sealed class PairedMovResolver(
             FilePath = mov.RelativePath,
             FileName = Path.GetFileName(mov.RelativePath),
             ContentHash = context.SecondaryHash!,
-            DateCaptured = date,
-            Month = date.Month,
-            Day = date.Day,
-            Year = date.Year,
             MediaType = mov.MediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
         };
+        asset.SetCaptureDate(CaptureDate.Resolve(dateCaptured, fileSystem, mov.AbsolutePath));
         repository.Add(asset);
         return asset;
     }

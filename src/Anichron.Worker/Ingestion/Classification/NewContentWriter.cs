@@ -42,19 +42,13 @@ internal sealed partial class NewContentWriter(
     {
         var relativePath = context.Item.RelativePath;
         var exif = context.Exif!;
-        var dateCaptured = exif.DateCaptured ?? FallbackDate(context.Item.AbsolutePath);
-
-        return new MediaAsset
+        var asset = new MediaAsset
         {
             Id = context.AssetId,
             StorageConfigId = context.Config.Id,
             FilePath = relativePath,
             FileName = Path.GetFileName(relativePath),
             ContentHash = context.ContentHash!,
-            DateCaptured = dateCaptured,
-            Month = dateCaptured.Month,
-            Day = dateCaptured.Day,
-            Year = dateCaptured.Year,
             MediaType = context.Item.PrimaryMediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
@@ -73,12 +67,8 @@ internal sealed partial class NewContentWriter(
                 Blurhash = context.Blurhash,
             },
         };
-    }
-
-    private LocalDateTime FallbackDate(string absolutePath)
-    {
-        var lastWrite = fileSystem.FileInfo.New(absolutePath).LastWriteTime;
-        return LocalDateTime.FromDateTime(lastWrite);
+        asset.SetCaptureDate(CaptureDate.Resolve(exif.DateCaptured, fileSystem, context.Item.AbsolutePath));
+        return asset;
     }
 
     private static partial class Log
