@@ -32,7 +32,7 @@ internal sealed partial class PairedMovProxyWriter(
                 ct);
         }
 
-        foreach (var proxy in context.ProxyFiles.Where(proxy => proxy.AssetId == mov.Id))
+        foreach (var proxy in context.ProxyFilesOf(mov.Id))
             repository.AddProxyFile(proxy);
 
         Log.ProxiesGenerated(logger, missing.Length, context.Item.SecondaryFile.RelativePath);

@@ -31,6 +31,9 @@ internal sealed partial class NewContentWriter(
         }
 
         repository.Add(asset);
+        foreach (var proxy in context.ProxyFilesOf(asset.Id))
+            repository.AddProxyFile(proxy);
+
         if (await saver.TrySaveNewAsync(context, asset, mov?.Id, ct))
             return asset;
 
@@ -52,7 +55,6 @@ internal sealed partial class NewContentWriter(
             MediaType = context.Item.PrimaryMediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
-            ProxyFiles = [.. context.ProxyFiles.Where(proxy => proxy.AssetId == context.AssetId)],
             Metadata = new Metadata
             {
                 Width = exif.Width,

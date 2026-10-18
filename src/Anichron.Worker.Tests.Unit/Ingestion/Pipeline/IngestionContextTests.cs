@@ -50,4 +50,21 @@ public sealed class IngestionContextTests
 
         context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(own);
     }
+
+    [Fact]
+    public void ProxyFilesOf_ReturnsOnlyThatOwnersRegistrations()
+    {
+        var context = new IngestionContext
+        {
+            Item = new SingleFileItem("/abs/file.jpg", "file.jpg", MediaType.Image),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AssetId = Guid.NewGuid(),
+        };
+        var movId = Guid.NewGuid();
+        var mov = new ProxyFile { AssetId = movId, ProxyType = ProxyType.WebVideo };
+        context.AddProxyFile(new ProxyFile { AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail });
+        context.AddProxyFile(mov);
+
+        context.ProxyFilesOf(movId).Should().ContainSingle().Which.Should().BeSameAs(mov);
+    }
 }

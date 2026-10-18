@@ -308,16 +308,16 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_CopiesProxyFilesFromContextToAssetAsync()
+    public async Task TryWriteAsync_Always_AddsTheProxyFilesFromContextToTheRepositoryAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
         var proxyFile = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(proxyFile);
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.Build().TryWriteAsync(context, CancellationToken.None);
 
-        asset!.ProxyFiles.Should().ContainSingle(p => p.Id == proxyFile.Id);
+        fx.Repository.Received(1).AddProxyFile(proxyFile);
     }
 
     [Fact]
@@ -382,17 +382,19 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_CopiesOnlyTheAssetsOwnProxyFilesToItAsync()
+    public async Task TryWriteAsync_Always_AddsOnlyTheAssetsOwnProxyFilesAsync()
     {
         var fx = new TestFixture();
+        var added = new List<ProxyFile>();
+        fx.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
         var context = MakeContext();
         var own = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(own);
         context.AddProxyFile(new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo });
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.Build().TryWriteAsync(context, CancellationToken.None);
 
-        asset!.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(own);
+        added.Should().ContainSingle().Which.Should().BeSameAs(own);
     }
 
     // ==========================================================================
