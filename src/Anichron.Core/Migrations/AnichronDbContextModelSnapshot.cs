@@ -333,7 +333,7 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("RefreshTokens", t =>
                         {
-                            t.HasComment("Issued and revoked by the API; expired rows are swept by the Worker's TokenCleanupService. One of the few tables both services touch.");
+                            t.HasComment("Issued and revoked by the API; expired rows are swept by the Worker's TokenCleanup work item. One of the few tables both services touch.");
                         });
                 });
 

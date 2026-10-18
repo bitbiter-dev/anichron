@@ -43,7 +43,7 @@ CREATE TABLE "RefreshTokens" (
     CONSTRAINT "PK_RefreshTokens" PRIMARY KEY ("Id"),
     CONSTRAINT "FK_RefreshTokens_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
 );
-COMMENT ON TABLE "RefreshTokens" IS 'Issued and revoked by the API; expired rows are swept by the Worker''s TokenCleanupService. One of the few tables both services touch.';
+COMMENT ON TABLE "RefreshTokens" IS 'Issued and revoked by the API; expired rows are swept by the Worker''s TokenCleanup work item. One of the few tables both services touch.';
 COMMENT ON COLUMN "RefreshTokens"."TokenHash" IS 'Hash, never the token itself — a database disclosure must not hand out usable sessions.';
 
 

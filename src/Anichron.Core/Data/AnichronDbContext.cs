@@ -207,7 +207,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         {
             entity.ToTable(t => t.HasComment(
                     "Issued and revoked by the API; expired rows are swept by the Worker's "
-                    + "TokenCleanupService. One of the few tables both services touch."
+                    + "TokenCleanup work item. One of the few tables both services touch."
                 ));
             entity.Property(r => r.TokenHash).HasComment(
                 "Hash, never the token itself — a database disclosure must not hand out usable "

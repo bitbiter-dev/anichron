@@ -111,7 +111,7 @@ for every deployment. The proxy root is no longer a setting at all since #43: it
   `ServiceCollection` and resolve the configured options.
 
 - **`Log.*` hides four mutants that existing tests do kill**: the two log calls in
-  `LoggingMiddleware`, `TokenCleanupService`'s deleted-count log, and `PwnedPasswordClient`'s
+  `LoggingMiddleware`, `TokenCleanupService`'s deleted-count log (now `TokenCleanupHandler`'s), and `PwnedPasswordClient`'s
   "check unavailable" warning. Accepted — the tests stay and still guard those lines; they just no
   longer count toward the score. `LoggingMiddleware` is left with almost no mutants of its own as a
   result, which is expected for a class whose only behaviour is logging.

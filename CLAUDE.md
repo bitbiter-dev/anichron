@@ -95,11 +95,12 @@ Four projects with strict separation of concerns:
 | `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects (every other project references Core, so a reference back would be circular and fail the build). |
 | `Anichron.Infrastructure` | Shared host plumbing used by API and Worker: configuration (`DatabaseConfiguration` reads the connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets; INI bootstrap; `ConfigurationList`), migration under a PostgreSQL advisory lock, and the API's read-only stores (`IProxyStore`, `IOriginalStore`). Each host wires its own DI. |
 | `Anichron.API` | ASP.NET Core Minimal APIs (the only web project: `libraries-are-not-web` keeps ASP.NET Core out of Core, Infrastructure and Worker, and the two hosts never use each other) — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data. Media endpoints so far: proxy serving (#43) and On This Day (`GET /api/v1/flashbacks/on-this-day`, #38); originals (#44) are deferred past v1.0. All routes prefixed `/api/v1/`. |
-| `Anichron.Worker` | `BackgroundService`s — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, expired-refresh-token cleanup; reconciliation is planned (Epic 4) |
+| `Anichron.Worker` | `BackgroundService`s — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, and the work queue's executor and scheduler (maintenance such as expired-refresh-token cleanup runs as work items); reconciliation is planned (Epic 4) |
 
 **Write ownership is split by domain, not centralized.**
-- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media: outside its DI wiring it never touches `AnichronDbContext` (architecture rule `api-reaches-data-through-repositories`), and the media write repository stays out of it (`only-worker-writes-media`). Its one identity-side write is `TokenCleanupService` deleting expired refresh tokens.
+- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, plus all reconciliation and soft-deletes happen here. The API never writes media: outside its DI wiring it never touches `AnichronDbContext` (architecture rule `api-reaches-data-through-repositories`), and the media write repository stays out of it (`only-worker-writes-media`). Its one identity-side write is the `TokenCleanup` work item's handler deleting expired refresh tokens.
 - **API owns all *identity/auth/admin* writes** — registration, login/refresh-token issuance and revocation, lockout state, invites, and admin user/storage-config CRUD all persist through API services (`AuthService`, `AdminUserService`, `AdminStorageConfigService`, `TokenService`, etc.) via `IUnitOfWork.SaveChangesAsync`. The API is read-only *only with respect to media*. The one exception is `AssetInteraction` (star/like/hide, #46): per-user state, to be written by the API.
+- **Work items** are inserted only through `IWorkQueue` (architecture rule `only-work-queue-inserts-work-items`); every later state change belongs to the Worker's executor, and handlers live only in the Worker (`work-handlers-live-in-worker`). See "Work queue" below.
 - Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
 A planned `Anichron.UI` (NextJS/React) for the Instagram Story-style flashback experience is documented but not yet in the solution.
@@ -117,7 +118,7 @@ into PostgreSQL and therefore into `docs/schema.sql` and any schema-doc tool poi
 database. If you find yourself about to explain *why* a column exists in a Markdown file, put it in
 a `HasComment` instead — see `docs/adr/0004-schema-documentation.md`.
 
-**Nine entities**, all EF Core config via **Fluent API only** (architecture rule `domain-has-no-data-annotations`). Columns are
+**Ten entities**, all EF Core config via **Fluent API only** (architecture rule `domain-has-no-data-annotations`). Columns are
 **PascalCase** — the only explicitly-named column in the whole model is `Invites.xmin`. Table names
 do not always match entity names (`AssetInteraction` → `Interactions`, `UserStorageConfig` →
 `StorageConfigs`):
@@ -129,8 +130,9 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - `AssetInteraction` — per-user state (starred, liked, hidden, view count, last viewed); unique on `(UserId, AssetId)`
 - `UserStorageConfig` — NAS root paths per user; `RootPath` is **globally unique** — a path cannot be assigned to more than one storage config across all users. Paths are stored canonical (absolute, `.`/`..`/`//` collapsed, no trailing slash) via `StoragePath.Canonicalize`, so `/p` and `/p/` cannot both be assigned. A `RootPath` must be a folder strictly inside `StoragePath.OriginalsRoot` (`/data/originals`), never the root itself, and may not contain or be contained by another config's root (`StoragePath.Overlaps`) — nested roots would index the same files twice
 - `User` — owns storage configs and interactions
-- `RefreshToken` — issued and revoked by the API, expired rows deleted by the Worker's `TokenCleanupService`; `TokenHash` unique
+- `RefreshToken` — issued and revoked by the API, expired rows deleted by the Worker's `TokenCleanup` work item; `TokenHash` unique
 - `Invite` — admin-issued registration tokens; `TokenHash` unique, and the only entity carrying an optimistic-concurrency token (`xmin`)
+- `WorkItem` — one durable unit of Worker work (`Kind`, jsonb `Payload`, optional `DedupKey`, status, lease, attempt, progress snapshot, result or error); see "Work queue"
 
 ### Key EF Core / Database Decisions
 
@@ -188,6 +190,16 @@ Each user has a private set of `UserStorageConfig` entries pointing to NAS roots
 **Media is private per user.** Every media read goes through one visibility rule (`MediaAssetVisibility.VisibleTo(userId)`): an asset is visible only to the owner of its storage config, only while that config is active, and never once soft-deleted — `VisibleTo` checks all three itself, so it holds even under `IgnoreQueryFilters()`. It covers the asset only: related data needs its own filter (`Interactions` to the caller's rows, `Burst` members through `VisibleTo` again). Endpoints map "not visible" to **`404`, never `403`**, so other users' asset ids cannot be probed. Admins get no media access — their powers cover identity and storage configs only.
 
 **Asset lists are read through `IAssetViewReader`** (`Anichron.Core/Data/Repository/AssetViewReader.cs`, #253). It always applies `VisibleTo` and `NotHiddenFor` to the caller, then the caller's `IAssetSelection` (e.g. `OnThisDay`, which filters only on `MediaAsset` columns), then left-joins the caller's own interaction row, all projected into a flat `AssetView` in one SQL statement. A new list view adds a selection class; it never changes the reader, and no API type touches a media entity (architecture rule `api-reads-media-through-views`). Grouping and ordering (`FlashbackYears`: years newest first, starred first, then capture time) happen in memory on the result.
+
+### Work queue
+
+Durable work for the Worker lives in `WorkItems` (#276, ADR 0008). Today its kinds are periodic maintenance (`TokenCleanup`, `WorkItemRetention`); the crawl (#281) and admin requests (#174) follow.
+
+- **Producing:** `IWorkQueue.EnqueueAsync` (`EfWorkQueue`, Core) is the only insert. A payload with a `DedupKey` coalesces: while an item with that key is `Queued`, enqueueing returns it (a partial unique index absorbs racing inserts).
+- **Scheduling:** every Worker runs `WorkScheduler`. Each poll (`Worker:WorkPollIntervalSeconds`, 5 s) it recovers expired leases, then asks each `IWorkSchedule` whether its kind is due: nothing queued or running with its key and nothing finished within its interval. No timer state is kept, so overdue work runs right after downtime.
+- **Executing:** `WorkExecutor` claims the oldest queued item (`FOR UPDATE SKIP LOCKED`), one at a time, under a lease (`WorkLeaseSeconds`, 60 s) that a heartbeat (`WorkHeartbeatSeconds`, 2 s) extends while writing the progress snapshot. Every write about a running item is fenced by `(Id, Attempt)`. A fenced heartbeat cancels the handler and writes nothing more; a shutdown releases the item without a stall; a handler exception fails it with no retry. An expired lease requeues the item and counts a stall; the `WorkMaxStalls`th (3) fails it as stalled. `WorkItemRetention` deletes items finished more than `WorkItemRetentionDays` (30) ago.
+- **Adding a kind:** a `WorkKind` value, a payload record in Core implementing `IWorkPayload` (static `Kind`, optional `DedupKey`), an `IWorkHandler<TPayload>` in the Worker registered with `AddWorkHandler`, and for a periodic kind a `WorkSchedule<TPayload>` subclass. `WorkHandlerRegistry` fails startup unless every kind has exactly one payload and one handler; nothing switches on the kind.
+- **Handler contract:** delivery is at least once. Each run starts from scratch and converges, side effects are safe to repeat, and the returned summary becomes `Result`.
 
 ### Worker Processing Model
 
