@@ -31,6 +31,8 @@ internal sealed partial class NewContentWriter(
         }
 
         repository.Add(asset);
+        repository.AddProxyFiles(context.ProxyFilesOf(asset.Id));
+
         if (await saver.TrySaveNewAsync(context, asset, mov?.Id, ct))
             return asset;
 
@@ -42,7 +44,6 @@ internal sealed partial class NewContentWriter(
     {
         var relativePath = context.Item.RelativePath;
         var exif = context.Exif!;
-        var dateCaptured = exif.DateCaptured ?? FallbackDate(context.Item.AbsolutePath);
 
         return new MediaAsset
         {
@@ -51,14 +52,10 @@ internal sealed partial class NewContentWriter(
             FilePath = relativePath,
             FileName = Path.GetFileName(relativePath),
             ContentHash = context.ContentHash!,
-            DateCaptured = dateCaptured,
-            Month = dateCaptured.Month,
-            Day = dateCaptured.Day,
-            Year = dateCaptured.Year,
+            DateCaptured = CaptureDate.FromExifOrLastWrite(exif.DateCaptured, fileSystem, context.Item.AbsolutePath),
             MediaType = context.Item.PrimaryMediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
-            ProxyFiles = [.. context.ProxyFiles.Where(proxy => proxy.AssetId == context.AssetId)],
             Metadata = new Metadata
             {
                 Width = exif.Width,
@@ -73,12 +70,6 @@ internal sealed partial class NewContentWriter(
                 Blurhash = context.Blurhash,
             },
         };
-    }
-
-    private LocalDateTime FallbackDate(string absolutePath)
-    {
-        var lastWrite = fileSystem.FileInfo.New(absolutePath).LastWriteTime;
-        return LocalDateTime.FromDateTime(lastWrite);
     }
 
     private static partial class Log

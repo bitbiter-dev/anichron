@@ -282,6 +282,32 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
+    public async Task TryWriteAsync_LivePhotoPairWithoutExifDate_DatesEachHalfByItsOwnFileAsync()
+    {
+        MediaAsset? movAsset = null;
+        var fx = new TestFixture();
+        fx.FileSystem.AddFile("/abs/photo.heic", new MockFileData([])
+        {
+            LastWriteTime = new DateTimeOffset(new DateTime(2021, 3, 4, 8, 0, 0, DateTimeKind.Local)),
+        });
+        fx.FileSystem.AddFile("/abs/photo.mov", new MockFileData([])
+        {
+            LastWriteTime = new DateTimeOffset(new DateTime(2021, 3, 5, 9, 0, 0, DateTimeKind.Local)),
+        });
+        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
+            .Do(call => movAsset = call.Arg<MediaAsset>());
+        var context = MakeContext(
+            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
+            exif: DefaultExif with { DateCaptured = null });
+
+        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+
+        asset!.DateCaptured.Should().Be(new LocalDateTime(2021, 3, 4, 8, 0));
+        movAsset!.DateCaptured.Should().Be(new LocalDateTime(2021, 3, 5, 9, 0));
+        (movAsset.Year, movAsset.Month, movAsset.Day).Should().Be((2021, 3, 5));
+    }
+
+    [Fact]
     public async Task TryWriteAsync_LivePhotoPairItem_HeicPairedAssetIdPointsToMovAsync()
     {
         MediaAsset? movAsset = null;
@@ -308,16 +334,18 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_CopiesProxyFilesFromContextToAssetAsync()
+    public async Task TryWriteAsync_Always_AddsTheContextsProxyFilesToTheRepositoryAsync()
     {
         var fx = new TestFixture();
+        var added = new List<ProxyFile>();
+        fx.Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
         var context = MakeContext();
         var proxyFile = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(proxyFile);
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.Build().TryWriteAsync(context, CancellationToken.None);
 
-        asset!.ProxyFiles.Should().ContainSingle(p => p.Id == proxyFile.Id);
+        added.Should().ContainSingle(p => p.Id == proxyFile.Id);
     }
 
     [Fact]
@@ -358,7 +386,7 @@ public sealed class NewContentWriterTests
         asset!.PairedAssetId.Should().Be(existingMov.Id);
         await fx.MovGenerator.DidNotReceive().TranscodeAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        fx.Repository.DidNotReceive().AddProxyFile(Arg.Any<ProxyFile>());
+        fx.Repository.DidNotReceive().AddProxyFiles(Arg.Is<IEnumerable<ProxyFile>>(rows => rows.Any()));
     }
 
     [Fact]
@@ -368,7 +396,7 @@ public sealed class NewContentWriterTests
         var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
         fx.GuidFactory.NewGuid().Returns(movId, Guid.Parse("99999999-9999-9999-9999-999999999999"));
         var added = new List<ProxyFile>();
-        fx.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
+        fx.Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
@@ -382,17 +410,19 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_CopiesOnlyTheAssetsOwnProxyFilesToItAsync()
+    public async Task TryWriteAsync_Always_AddsOnlyTheAssetsOwnProxyFilesAsync()
     {
         var fx = new TestFixture();
+        var added = new List<ProxyFile>();
+        fx.Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
         var context = MakeContext();
         var own = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(own);
         context.AddProxyFile(new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo });
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.Build().TryWriteAsync(context, CancellationToken.None);
 
-        asset!.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(own);
+        added.Should().ContainSingle().Which.Should().BeSameAs(own);
     }
 
     // ==========================================================================

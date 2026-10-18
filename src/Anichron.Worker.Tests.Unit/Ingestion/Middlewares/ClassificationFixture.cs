@@ -45,7 +45,7 @@ internal sealed class ClassificationFixture
         MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
         MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
-        Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => AddedProxies.Add(call.Arg<ProxyFile>()));
+        Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => AddedProxies.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
 
         var saver = new IngestionSaver(UnitOfWork, Repository);
         var stagingWriter = new ProxyStagingWriter(FileSystem, Clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());

@@ -40,6 +40,8 @@ public sealed class ImageIngestionBlurhashTests
         var repository = Substitute.For<IMediaAssetRepository>();
         MediaAsset? persisted = null;
         repository.Add(Arg.Do<MediaAsset>(asset => persisted = asset));
+        var proxyRows = new List<ProxyFile>();
+        repository.AddProxyFiles(Arg.Do<IEnumerable<ProxyFile>>(proxyRows.AddRange));
         var options = Options.Create(new WorkerSettings());
         var processor = new ImageSharpProcessor(options);
         var stagingWriter = new ProxyStagingWriter(fileSystem, clock, guids, new FakeLogger<ProxyStagingWriter>());
@@ -81,7 +83,8 @@ public sealed class ImageIngestionBlurhashTests
 
         persisted.Should().NotBeNull();
         persisted.Metadata!.Blurhash.Should().HaveLength(28);
-        persisted.ProxyFiles.Select(p => p.ProxyType).Should().BeEquivalentTo([ProxyType.Thumbnail, ProxyType.FullPreview]);
+        proxyRows.Should().OnlyContain(p => p.AssetId == persisted.Id);
+        proxyRows.Select(p => p.ProxyType).Should().BeEquivalentTo([ProxyType.Thumbnail, ProxyType.FullPreview]);
         fileSystem.AllFiles.Where(path => path.StartsWith(StoragePath.ProxiesRoot + "/", StringComparison.Ordinal))
             .Select(Path.GetFileName)
             .Should().BeEquivalentTo("thumbnail.jpg", "preview.jpg");
