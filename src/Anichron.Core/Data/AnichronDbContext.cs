@@ -19,6 +19,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<AssetInteraction> Interactions => Set<AssetInteraction>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Invite> Invites => Set<Invite>();
+    public DbSet<WorkItem> WorkItems => Set<WorkItem>();
 
     // Stryker disable all
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken ct = default)
@@ -309,6 +310,63 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.HasMany(s => s.Assets)
                   .WithOne(a => a.StorageConfig)
                   .HasForeignKey(a => a.StorageConfigId);
+        });
+
+        modelBuilder.Entity<WorkItem>(entity =>
+        {
+            entity.ToTable(t => t.HasComment(
+                    "Durable work for the Worker: periodic maintenance today, admin requests later. "
+                    + "Only IWorkQueue inserts rows; every later state change belongs to the Worker's "
+                    + "executor. Delivery is at least once, so handlers start from scratch and converge."
+                ));
+            entity.Property(w => w.Kind).HasConversion<string>().HasComment(
+                "WorkKind, persisted as text. Picks the payload type and the handler through the "
+                + "registry, never through a switch.");
+            entity.Property(w => w.Payload).HasColumnType("jsonb").HasComment(
+                "The kind's IWorkPayload, serialised with System.Text.Json and NodaTime settings.");
+            entity.Property(w => w.DedupKey).HasComment(
+                "Opt-in coalescing. While an item with this key is Queued, enqueueing the same key "
+                + "returns that item instead of adding a second; the partial unique index enforces it.");
+            entity.Property(w => w.RequestedBy).HasComment(
+                "The admin who asked for the work; null when a Worker's scheduler enqueued it.");
+            entity.Property(w => w.Status).HasConversion<string>().HasComment(
+                "Queued, Running, Succeeded, Failed or Cancelled, persisted as text.");
+            entity.Property(w => w.Attempt).HasComment(
+                "Incremented by every claim. Every write a Worker makes while running an item is "
+                + "fenced by (Id, Attempt), so an attempt that lost its lease changes nothing.");
+            entity.Property(w => w.Stalls).HasComment(
+                "Lease expiries, counted by lease recovery. A graceful shutdown hands the item back "
+                + "without counting one; the item fails as stalled once the limit is reached.");
+            entity.Property(w => w.ClaimedBy).HasComment(
+                "The claiming Worker for display: its WORKER__USER or 'all', then its host name.");
+            entity.Property(w => w.LeaseUntil).HasComment(
+                "Extended by every heartbeat. A Running item past it belongs to a dead or paused "
+                + "Worker and goes back to the queue.");
+            entity.Property(w => w.UpdatedAt).HasComment(
+                "Moves on every insert, claim, heartbeat and transition, so a reader can ask what "
+                + "changed since a point in time.");
+            entity.Property(w => w.ProgressNote).HasComment(
+                "The latest progress snapshot (done, optional total, note), overwritten by each "
+                + "heartbeat; no history is kept.");
+            entity.Property(w => w.Result).HasColumnType("jsonb").HasComment(
+                "The handler's results summary, written when the item succeeds.");
+
+            entity.HasIndex(w => w.RequestedAt)
+                  .HasFilter(@"""Status"" = 'Queued'")
+                  .HasDatabaseName("ix_workitems_claim");
+            entity.HasIndex(w => w.DedupKey)
+                  .IsUnique()
+                  .HasFilter(@"""Status"" = 'Queued' AND ""DedupKey"" IS NOT NULL")
+                  .HasDatabaseName(WorkItemIndexNames.QueuedDedupKeyUnique);
+            entity.HasIndex(w => w.LeaseUntil)
+                  .HasFilter(@"""Status"" = 'Running'")
+                  .HasDatabaseName("ix_workitems_lease");
+            entity.HasIndex(w => w.UpdatedAt);
+
+            entity.HasOne<User>()
+                  .WithMany()
+                  .HasForeignKey(w => w.RequestedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
