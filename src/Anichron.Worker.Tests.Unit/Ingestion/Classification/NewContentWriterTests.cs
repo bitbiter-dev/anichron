@@ -81,6 +81,7 @@ public sealed class NewContentWriterTests
         {
             Item = resolvedItem,
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
             ContentHash = contentHash,
             SecondaryHash = isPair ? "cafebabe" : null,

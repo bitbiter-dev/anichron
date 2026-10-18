@@ -42,7 +42,7 @@ public sealed class ProxyStagingWriterTests
     {
         Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
-        AssetId = AttemptId,
+        AttemptId = AttemptId,
         ContentHash = "0123456789abcdef",
     };
 

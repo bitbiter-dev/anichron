@@ -38,7 +38,7 @@ internal sealed partial class ProxyStagingWriter(
         CancellationToken ct)
     {
         var proxyAbsolutePath = fileSystem.Path.Combine(StoragePath.ProxiesRoot, relativePath);
-        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath, context.AssetId);
+        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath, context.AttemptId);
         try
         {
             if (fileSystem.Path.GetDirectoryName(proxyAbsolutePath) is { } directory)

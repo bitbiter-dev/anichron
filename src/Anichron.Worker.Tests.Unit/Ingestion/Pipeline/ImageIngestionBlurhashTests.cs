@@ -73,6 +73,7 @@ public sealed class ImageIngestionBlurhashTests
         {
             Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
             Classification = new(new FileClassification(FileOutcome.New, null), null, PairingAction.None),

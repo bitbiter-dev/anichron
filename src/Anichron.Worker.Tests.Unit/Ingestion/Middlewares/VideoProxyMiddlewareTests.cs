@@ -62,6 +62,7 @@ public sealed class VideoProxyMiddlewareTests
         {
             Item = new SingleFileItem("/nas/video.mp4", "video.mp4", mediaType),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
             SecondaryHash = "fedcba9876543210",
@@ -250,7 +251,7 @@ public sealed class VideoProxyMiddlewareTests
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         await fixture.Generator.Received(1).TranscodeAsync(
-            "/nas/video.mp4", $"/data/proxies/ab/cd/video_720p.mp4.{context.AssetId:N}.tmp", Arg.Any<CancellationToken>());
+            "/nas/video.mp4", $"/data/proxies/ab/cd/video_720p.mp4.{context.AttemptId:N}.tmp", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -329,6 +330,7 @@ public sealed class VideoProxyMiddlewareTests
         {
             Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
         };
         new TestFixture().Build().CanInvoke(context).Should().BeFalse();

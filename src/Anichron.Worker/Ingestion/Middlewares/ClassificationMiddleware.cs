@@ -16,6 +16,7 @@ internal sealed class ClassificationMiddleware(
     {
         var classification = await classifier.ClassifyAsync(context, ct);
         context.Classification = classification;
+        context.AssetId = classification.Primary.Stored?.Id ?? context.AttemptId;
         if (classification.NeedsProcessing)
         {
             await next(context, ct);

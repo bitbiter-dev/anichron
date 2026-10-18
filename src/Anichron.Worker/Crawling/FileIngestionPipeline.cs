@@ -128,7 +128,7 @@ internal sealed partial class FileIngestionPipeline(
             var runner = diScope.ServiceProvider.GetRequiredService<IIngestionPipelineRunner>();
             try
             {
-                var context = new IngestionContext { Item = item, Config = config, AssetId = guidFactory.NewGuid() };
+                var context = new IngestionContext { Item = item, Config = config, AttemptId = guidFactory.NewGuid() };
                 await runner.RunAsync(context, ct);
             }
             catch (Exception ex) when (IngestionShutdown.IsInProgress(ex, ct))
