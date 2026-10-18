@@ -88,6 +88,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<LivePhotoPairer>();
             services.AddScoped<KnownFileReconciler>();
             services.AddScoped<IOutcomeWriter, NewContentWriter>();
+            services.AddScoped<IOutcomeWriter, ContentChangedWriter>();
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ClassificationMiddleware>();

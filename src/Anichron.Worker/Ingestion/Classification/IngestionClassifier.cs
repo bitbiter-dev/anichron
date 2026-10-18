@@ -19,14 +19,14 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
         var rootPath = context.Config.RootPath;
         var primary = Classify(rows, contentHash, item.RelativePath, rootPath);
         var secondary = mov is null ? null : Classify(rows, secondaryHash, mov.RelativePath, rootPath);
-        return new(primary, secondary, PairingFor(primary.Stored, secondary));
+        return new(primary, secondary, PairingFor(primary, secondary));
     }
 
     private FileClassification Classify(IReadOnlyList<MediaAsset> rows, string contentHash, string relativePath, string rootPath)
     {
         var stored = rows.FirstOrDefault(row => !row.IsSoftDeleted && row.ContentHash == contentHash);
         if (stored is null)
-            return new(FileOutcome.New, null);
+            return ClassifyUnknownContent(rows, relativePath);
         if (stored.FilePath == relativePath)
             return new(FileOutcome.Unchanged, stored);
         if (fileSystem.File.Exists(fileSystem.Path.Combine(rootPath, stored.FilePath)))
@@ -36,12 +36,18 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
         return new(FileOutcome.Moved, stored);
     }
 
-    private static PairingAction PairingFor(MediaAsset? storedPrimary, FileClassification? secondary)
-        => (storedPrimary, secondary) switch
+    private static FileClassification ClassifyUnknownContent(IReadOnlyList<MediaAsset> rows, string relativePath)
+    {
+        var atPath = rows.FirstOrDefault(row => !row.IsSoftDeleted && row.FilePath == relativePath);
+        return atPath is null ? new(FileOutcome.New, null) : new(FileOutcome.ContentChanged, atPath);
+    }
+
+    private static PairingAction PairingFor(FileClassification primary, FileClassification? secondary)
+        => (primary, secondary) switch
         {
-            (null, _) or (_, null) => PairingAction.None,
-            ({ PairedAssetId: null }, _) => PairingAction.AttachMov,
-            ({ PairedAssetId: var pairedId }, { Stored.Id: var movId }) when pairedId == movId => PairingAction.BackfillMovProxy,
+            ({ Stored: null } or { Outcome: FileOutcome.ContentChanged }, _) or (_, null) => PairingAction.None,
+            ({ Stored.PairedAssetId: null }, _) => PairingAction.AttachMov,
+            ({ Stored.PairedAssetId: var pairedId }, { Stored.Id: var movId }) when pairedId == movId => PairingAction.BackfillMovProxy,
             _ => PairingAction.None,
         };
 }

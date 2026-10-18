@@ -13,7 +13,7 @@ public sealed class LoggingMiddlewareTests
     {
         Item = new SingleFileItem(absolutePath, "photo.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
-        AssetId = Guid.NewGuid(),
+        AttemptId = Guid.NewGuid(),
     };
 
     // ==========================================================================

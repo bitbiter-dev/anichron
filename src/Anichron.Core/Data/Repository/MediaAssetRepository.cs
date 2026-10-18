@@ -18,8 +18,11 @@ public interface IMediaAssetRepository
         IReadOnlyCollection<string> filePaths,
         CancellationToken ct);
 
+    Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct);
+
     void Add(MediaAsset asset);
-    void AddProxyFile(ProxyFile proxyFile);
+    void AddProxyFiles(IEnumerable<ProxyFile> proxyFiles);
+    void RemoveProxyFile(ProxyFile proxyFile);
 }
 
 public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRepository
@@ -40,9 +43,15 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
                 && ((!a.IsSoftDeleted && contentHashes.Contains(a.ContentHash)) || filePaths.Contains(a.FilePath)))
             .ToListAsync(ct);
 
+    public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
+        => db.Entry(asset).Reference(a => a.Metadata).LoadAsync(ct);
+
     public void Add(MediaAsset asset)
         => db.MediaAssets.Add(asset);
 
-    public void AddProxyFile(ProxyFile proxyFile)
-        => db.ProxyFiles.Add(proxyFile);
+    public void AddProxyFiles(IEnumerable<ProxyFile> proxyFiles)
+        => db.ProxyFiles.AddRange(proxyFiles);
+
+    public void RemoveProxyFile(ProxyFile proxyFile)
+        => db.ProxyFiles.Remove(proxyFile);
 }

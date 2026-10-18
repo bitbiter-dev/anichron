@@ -22,6 +22,7 @@ public sealed class IngestionSaverTests
         {
             Item = new SingleFileItem("/abs/photo.heic", "photo.heic", MediaType.Image),
             Config = new UserStorageConfig { Id = ConfigId, UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
         };
 

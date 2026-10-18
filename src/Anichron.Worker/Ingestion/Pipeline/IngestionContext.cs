@@ -11,7 +11,9 @@ internal sealed class IngestionContext
     public required IngestionItem Item { get; init; }
     public required UserStorageConfig Config { get; init; }
 
-    public required Guid AssetId { get; init; }
+    public required Guid AttemptId { get; init; }
+
+    public Guid AssetId { get; set; }
 
     public string? ContentHash { get; set; }
     public string? SecondaryHash { get; set; }
@@ -28,6 +30,12 @@ internal sealed class IngestionContext
             lock (proxyFilesLock)
                 return [.. proxyFiles];
         }
+    }
+
+    public IReadOnlyList<ProxyFile> ProxyFilesOf(Guid ownerAssetId)
+    {
+        lock (proxyFilesLock)
+            return [.. proxyFiles.Where(proxy => proxy.AssetId == ownerAssetId)];
     }
 
     public void AddProxyFile(ProxyFile proxyFile)

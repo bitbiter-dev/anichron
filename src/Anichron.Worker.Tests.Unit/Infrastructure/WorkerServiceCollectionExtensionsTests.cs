@@ -276,7 +276,6 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IngestionClassifier), typeof(IngestionClassifier), ServiceLifetime.Scoped },
         { typeof(LivePhotoPairer), typeof(LivePhotoPairer), ServiceLifetime.Scoped },
         { typeof(KnownFileReconciler), typeof(KnownFileReconciler), ServiceLifetime.Scoped },
-        { typeof(IOutcomeWriter), typeof(NewContentWriter), ServiceLifetime.Scoped },
         { typeof(IProcessLauncher), typeof(SystemProcessLauncher), ServiceLifetime.Singleton },
         { typeof(IVideoProcessor), typeof(FfmpegVideoProcessor), ServiceLifetime.Singleton },
         { typeof(IImageProcessor), typeof(ImageSharpProcessor), ServiceLifetime.Singleton },
@@ -292,6 +291,18 @@ public sealed class WorkerServiceCollectionExtensionsTests
 
         services.Should().ContainSingle(d => d.ServiceType == service)
             .Which.Should().Match<ServiceDescriptor>(d => d.ImplementationType == implementation && d.Lifetime == lifetime);
+    }
+
+    [Fact]
+    public void AddIngestionServices_RegistersAScopedWriterForEveryOutcomeThatNeedsProcessing()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIngestionServices();
+
+        var writers = services.Where(d => d.ServiceType == typeof(IOutcomeWriter)).ToList();
+        writers.Select(d => d.ImplementationType).Should().BeEquivalentTo([typeof(NewContentWriter), typeof(ContentChangedWriter)]);
+        writers.Should().OnlyContain(d => d.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]

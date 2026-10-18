@@ -86,6 +86,7 @@ public sealed class ImageProxyMiddlewareTests
         {
             Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", mediaType),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
             SecondaryHash = "fedcba9876543210",
@@ -483,6 +484,7 @@ public sealed class ImageProxyMiddlewareTests
         {
             Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
             SecondaryHash = "fedcba9876543210",
@@ -505,6 +507,7 @@ public sealed class ImageProxyMiddlewareTests
         {
             Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
+            AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
             SecondaryHash = "fedcba9876543210",

@@ -36,7 +36,7 @@ public sealed class IngestionClassifierTests
     {
         Item = new SingleFileItem($"/abs/{relativePath}", relativePath, MediaType.Image),
         Config = Config,
-        AssetId = Guid.NewGuid(),
+        AttemptId = Guid.NewGuid(),
         ContentHash = "abc123",
     };
 
@@ -44,7 +44,7 @@ public sealed class IngestionClassifierTests
     {
         Item = new LivePhotoPairItem($"/abs/{heicPath}", heicPath, $"/abs/{movPath}", movPath),
         Config = Config,
-        AssetId = Guid.NewGuid(),
+        AttemptId = Guid.NewGuid(),
         ContentHash = "abc123",
         SecondaryHash = "cafebabe",
     };
@@ -137,6 +137,41 @@ public sealed class IngestionClassifierTests
         var result = await fx.ClassifyAsync(Single("2024/photo.jpg"));
 
         result.Primary.Outcome.Should().Be(FileOutcome.New);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_UnknownHashAtAPathAnActiveRowHolds_IsContentChangedAndNeedsProcessing()
+    {
+        var fx = new TestFixture();
+        var stored = Row("f00d", "2023/photo.jpg");
+        fx.Store(stored);
+
+        var result = await fx.ClassifyAsync(Single("2023/photo.jpg"));
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.ContentChanged, stored));
+        result.NeedsProcessing.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_UnknownHashAtAPathOnlyASoftDeletedRowHolds_IsNew()
+    {
+        var fx = new TestFixture();
+        fx.Store(Row("f00d", "2023/photo.jpg", softDeleted: true));
+
+        var result = await fx.ClassifyAsync(Single("2023/photo.jpg"));
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.New, null));
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_UnknownHashWhileAnActiveRowHoldsAnotherPath_IsNew()
+    {
+        var fx = new TestFixture();
+        fx.Store(Row("f00d", "2023/other.jpg"));
+
+        var result = await fx.ClassifyAsync(Single("2023/photo.jpg"));
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.New, null));
     }
 
     [Fact]
@@ -247,5 +282,41 @@ public sealed class IngestionClassifierTests
         fx.Store(Row("abc123", "live.heic", pairedAssetId: MovId));
 
         (await fx.ClassifyAsync(Pair())).Pairing.Should().Be(PairingAction.None);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_EditedHeicPairedToThisStoredMov_LeavesThePairingToPersistence()
+    {
+        var fx = new TestFixture();
+        var heic = Row("f00d", "live.heic", pairedAssetId: MovId);
+        fx.Store(heic, Row("cafebabe", "live.mov", id: MovId));
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.ContentChanged, heic));
+        result.Pairing.Should().Be(PairingAction.None);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_EditedUnpairedHeic_LeavesThePairingToPersistence()
+    {
+        var fx = new TestFixture();
+        fx.Store(Row("f00d", "live.heic"));
+
+        (await fx.ClassifyAsync(Pair())).Pairing.Should().Be(PairingAction.None);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_EditedMov_IsContentChangedOnItsOwn()
+    {
+        var fx = new TestFixture();
+        var heic = Row("abc123", "live.heic", pairedAssetId: MovId);
+        var mov = Row("beef", "live.mov", id: MovId);
+        fx.Store(heic, mov);
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.Unchanged, heic));
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.ContentChanged, mov));
     }
 }

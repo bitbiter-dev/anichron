@@ -133,13 +133,48 @@ public sealed class MediaAssetRepositoryTests
             .Should().BeEmpty();
 
     [Fact]
-    public void AddProxyFile_TracksTheRowForInsertEvenWithItsIdPreset()
+    public void AddProxyFiles_TracksEveryRowForInsertEvenWithItsIdPreset()
+    {
+        using var db = AnichronDbContexts.InMemory();
+        var assetId = Guid.NewGuid();
+        ProxyFile[] proxies =
+        [
+            new() { Id = Guid.NewGuid(), AssetId = assetId, ProxyType = ProxyType.Thumbnail },
+            new() { Id = Guid.NewGuid(), AssetId = assetId, ProxyType = ProxyType.FullPreview },
+        ];
+
+        new EfMediaAssetRepository(db).AddProxyFiles(proxies);
+
+        proxies.Select(proxy => db.Entry(proxy).State).Should().Equal(EntityState.Added, EntityState.Added);
+    }
+
+    [Fact]
+    public void RemoveProxyFile_TracksTheRowForDelete()
     {
         using var db = AnichronDbContexts.InMemory();
         var proxy = new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo };
+        db.ProxyFiles.Attach(proxy);
 
-        new EfMediaAssetRepository(db).AddProxyFile(proxy);
+        new EfMediaAssetRepository(db).RemoveProxyFile(proxy);
 
-        db.Entry(proxy).State.Should().Be(EntityState.Added);
+        db.Entry(proxy).State.Should().Be(EntityState.Deleted);
+    }
+
+    [Fact]
+    public async Task LoadMetadataAsync_LoadsTheAssetsMetadataRow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var asset = AssetAt(ConfigA, "cafe", "a.jpg");
+        asset.Metadata = new Metadata { AssetId = asset.Id, Width = 640, Height = 480 };
+        await using var seed = CreateDb(out var name);
+        seed.MediaAssets.Add(asset);
+        await seed.SaveChangesAsync(ct);
+        await using var db = AnichronDbContexts.InMemory(name);
+        var tracked = await db.MediaAssets.SingleAsync(a => a.Id == asset.Id, ct);
+
+        await new EfMediaAssetRepository(db).LoadMetadataAsync(tracked, ct);
+
+        tracked.Metadata.Should().NotBeNull();
+        tracked.Metadata.Width.Should().Be(640);
     }
 }
