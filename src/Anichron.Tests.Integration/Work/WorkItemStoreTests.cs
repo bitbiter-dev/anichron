@@ -179,6 +179,84 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     }
 
     [Fact]
+    public async Task ReleaseAsync_SameKeyAlreadyQueued_SupersedesTheReleasedItemAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+        var running = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var waiting = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+
+        await work.Store.ReleaseAsync(running.Attempt, At(5), Ct);
+
+        var released = await work.ItemAsync(running.Attempt.Id, Ct);
+        (released.Status, released.Error, released.Stalls).Should().Be(
+            (WorkItemStatus.Cancelled, EfWorkItemStore.SupersededError, 0));
+        released.FinishedAt.Should().Be(At(5));
+        (await work.ItemAsync(waiting, Ct)).Status.Should().Be(WorkItemStatus.Queued);
+    }
+
+    [Fact]
+    public async Task RecoverExpiredLeasesAsync_SameKeyAlreadyQueued_SupersedesItAndStillRecoversTheRestAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+        var keyed = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        work.Clock.Now = At(1);
+        var other = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        await work.Store.ClaimAsync("worker", At(1), Lease, Ct);
+        var waiting = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+
+        await work.Store.RecoverExpiredLeasesAsync(At(62), 3, Ct);
+
+        var superseded = await work.ItemAsync(keyed.Attempt.Id, Ct);
+        (superseded.Status, superseded.Error, superseded.Stalls).Should().Be(
+            (WorkItemStatus.Cancelled, EfWorkItemStore.SupersededError, 1));
+        (await work.ItemAsync(other, Ct)).Status.Should().Be(WorkItemStatus.Queued);
+        (await work.ItemAsync(waiting, Ct)).Status.Should().Be(WorkItemStatus.Queued);
+    }
+
+    [Fact]
+    public async Task RecoverExpiredLeasesAsync_TwoExpiredItemsShareAKey_RequeuesOneAndSupersedesTheOtherAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+        await work.Store.ClaimAsync("worker", At(0), Lease, Ct);
+        work.Clock.Now = At(1);
+        await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+        await work.Store.ClaimAsync("worker", At(1), Lease, Ct);
+
+        await work.Store.RecoverExpiredLeasesAsync(At(62), 3, Ct);
+
+        (await work.ItemsAsync(Ct)).Select(w => w.Status)
+            .Should().BeEquivalentTo([WorkItemStatus.Queued, WorkItemStatus.Cancelled]);
+    }
+
+    [Fact]
+    public async Task ClaimAsync_KindThisWorkerDoesNotKnow_LeavesItQueuedAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        var unknown = Guid.NewGuid();
+        var requestedAt = At(-10);
+        const string payload = "{}";
+        await using (var db = work.CreateDbContext())
+        {
+            await db.Database.ExecuteSqlAsync($"""
+                INSERT INTO "WorkItems" ("Id", "Kind", "Payload", "RequestedAt", "Status", "Attempt", "Stalls", "UpdatedAt", "ProgressDone")
+                VALUES ({unknown}, 'FromANewerRelease', CAST({payload} AS jsonb), {requestedAt}, 'Queued', 0, 0, {requestedAt}, 0)
+                """, Ct);
+        }
+
+        var known = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+
+        (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!.Attempt.Id.Should().Be(known);
+        (await work.Store.ClaimAsync("worker", At(0), Lease, Ct)).Should().BeNull();
+        await using var check = work.CreateDbContext();
+        (await check.Database
+            .SqlQuery<string>($"""SELECT "Status" AS "Value" FROM "WorkItems" WHERE "Id" = {unknown}""")
+            .ToListAsync(Ct)).Should().Equal("Queued");
+    }
+
+    [Fact]
     public async Task SucceedAsync_StoresTheResultAndTheFinalProgressAsync()
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
