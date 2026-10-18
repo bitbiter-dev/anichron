@@ -90,7 +90,9 @@ The directive is left bare — the reason lives here, not in the code.
 These are **not** tested against a second SQL engine such as SQLite. A substitute engine
 diverges from PostgreSQL in exactly the places this model relies on (partial-index filters,
 `xmin`, NodaTime types, collation), so a green test there would claim coverage it does not
-have. They stay excluded until tests run against real PostgreSQL.
+have. Where they are tested, it is against real PostgreSQL in `Anichron.Tests.Integration`
+(`DeleteExpiredAsync` and `MigrateWithAdvisoryLockAsync` so far). That project is outside the
+Stryker run, so the members stay excluded from mutation.
 
 `WorkerSettings.FfmpegPath` is **not** in that list. It is a real default and is tested. `RootPath`
 lost its default in #221: it names one user's folder inside `/data/originals`, so no value is right

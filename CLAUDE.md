@@ -29,8 +29,14 @@ dotnet run --project src/Anichron.Worker
 ## Testing
 
 ```bash
-# Run all tests
+# Run the unit tests (the default suite)
 dotnet test
+
+# Run the integration tests (needs a running Docker daemon)
+dotnet test -p:TestSuite=Integration
+
+# Run both
+dotnet test -p:TestSuite=All
 
 # Run tests for a specific project
 dotnet test src/SomeProject.Tests.Unit/SomeProject.Tests.Unit.csproj
@@ -39,7 +45,9 @@ dotnet test src/SomeProject.Tests.Unit/SomeProject.Tests.Unit.csproj
 dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 ```
 
-Test projects must be named `*.Tests.Unit` — `Directory.Build.props` auto-applies the test SDK to any project matching that pattern: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. Internal members are exposed to test projects via `InternalsVisibleTo`.
+Test projects are recognised by name: `*.Tests.Unit` for unit tests and `*.Tests.Integration` for integration tests. `Directory.Build.props` applies the test SDK to both: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. `Directory.Build.targets` makes only the projects in the selected `TestSuite` (`Unit` by default, `Integration` or `All`) test projects, so `dotnet test` and Stryker never run the integration suite. Internal members are exposed to test projects via `InternalsVisibleTo`.
+
+**Unit or integration?** A test belongs in `Anichron.Tests.Integration` only when its subject is behaviour that only real PostgreSQL has: `ExecuteUpdate`/`ExecuteDelete`, transactions, advisory locks, row locking, constraint and partial-index enforcement. Everything else is a unit test, including a query's SQL shape (assert on `ToQueryString()` with `AnichronDbContexts.NpgsqlModel()`). The integration project starts one PostgreSQL container per run (`PostgresServer`, the same image as `src/docker-compose.yml`). Each test gets its own database, from `CreateMigratedDatabaseAsync` (real migrations) or `CreateDatabaseAsync` (empty). Its CI job is `Integration tests`, and it runs outside mutation testing, so the members it covers keep their `// Stryker disable all` and ADR 0005 rows.
 
 Shared test infrastructure lives in `Anichron.Testing`, referenced by the test projects only and tested by `Anichron.Testing.Tests.Unit`; it is excluded from mutation (ADR 0005, rule 4). Use it instead of a private copy:
 

@@ -34,14 +34,17 @@
     <SixLaborsLicenseFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../sixlabors.lic'))</SixLaborsLicenseFile>
   </PropertyGroup>
   
-  <PropertyGroup Label="Project Properties Evaluation">
-    <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">True</IsTestProject>
+  <PropertyGroup Label="Test suites">
+    <TestSuite Condition="'$(TestSuite)' == ''">Unit</TestSuite>
+    <IsUnitTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">True</IsUnitTestProject>
+    <IsIntegrationTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">True</IsIntegrationTestProject>
+    <IsTestCodeProject Condition="'$(IsUnitTestProject)' == 'True' or '$(IsIntegrationTestProject)' == 'True'">True</IsTestCodeProject>
   </PropertyGroup>
 
   <PropertyGroup>
     <NoWarn>1701;1702;1591</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(IsTestProject)' == 'True'">
+  <PropertyGroup Condition="'$(IsTestCodeProject)' == 'True'">
     <NoWarn>IDE1006</NoWarn>
   </PropertyGroup>
   
@@ -51,7 +54,7 @@
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(IsTestProject)' == 'True'">
+  <ItemGroup Condition="'$(IsTestCodeProject)' == 'True'">
     <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -67,9 +70,9 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(IsTestProject)' != 'True'">
+  <ItemGroup Condition="'$(IsTestCodeProject)' != 'True'">
     <InternalsVisibleTo Include="$(MSBuildProjectName).Tests.Unit" />
-    <InternalsVisibleTo Include="$(MSBuildProjectName).Tests.Integration" />
+    <InternalsVisibleTo Include="Anichron.Tests.Integration" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 </Project>
