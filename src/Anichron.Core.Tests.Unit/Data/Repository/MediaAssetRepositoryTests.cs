@@ -71,40 +71,66 @@ public sealed class MediaAssetRepositoryTests
         db.Entry(asset).State.Should().Be(EntityState.Added);
     }
 
-    [Fact]
-    public async Task FindByHashWithProxyFilesAsync_ReturnsTheConfigsAssetWithItsProxyRowsLoaded()
+    private static MediaAsset AssetAt(Guid configId, string hash, string filePath, bool softDeleted = false)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            StorageConfigId = configId,
+            ContentHash = hash,
+            FilePath = filePath,
+            FileName = filePath,
+            IsSoftDeleted = softDeleted,
+        };
+
+    private static async Task<IReadOnlyList<MediaAsset>> FindByHashesOrPathsAsync(
+        MediaAsset[] seeded, string[] hashes, string[] paths)
     {
         var ct = TestContext.Current.CancellationToken;
-        var wanted = MakeAsset(ConfigA, "cafe");
-        wanted.ProxyFiles = [new ProxyFile { Id = Guid.NewGuid(), ProxyType = ProxyType.WebVideo, ProxyPath = "ca/x/video_720p.mp4" }];
-        var otherConfig = MakeAsset(ConfigB, "cafe");
-        var otherHash = MakeAsset(ConfigA, "beef");
         await using var seed = CreateDb(out var name);
-        seed.MediaAssets.AddRange(wanted, otherConfig, otherHash);
+        seed.MediaAssets.AddRange(seeded);
         await seed.SaveChangesAsync(ct);
         await using var db = AnichronDbContexts.InMemory(name);
 
-        var result = await new EfMediaAssetRepository(db).FindByHashWithProxyFilesAsync("cafe", ConfigA, ct);
-
-        result.Should().NotBeNull();
-        result.Id.Should().Be(wanted.Id);
-        result.ProxyFiles.Should().ContainSingle().Which.ProxyType.Should().Be(ProxyType.WebVideo);
+        return await new EfMediaAssetRepository(db).FindByHashesOrPathsAsync(ConfigA, hashes, paths, ct);
     }
 
-    [Theory]
-    [InlineData("cafe", false)]
-    [InlineData("beef", true)]
-    public async Task FindByHashWithProxyFilesAsync_AssetMatchingOnlyHashOrOnlyConfig_ReturnsNull(string hash, bool sameConfig)
+    [Fact]
+    public async Task FindByHashesOrPathsAsync_ActiveRowOfAHash_ComesBackWithItsProxyRows()
     {
-        var ct = TestContext.Current.CancellationToken;
-        await using var db = AnichronDbContexts.InMemory();
-        db.MediaAssets.Add(MakeAsset(sameConfig ? ConfigA : ConfigB, hash));
-        await db.SaveChangesAsync(ct);
+        var wanted = AssetAt(ConfigA, "cafe", "a.mov");
+        wanted.ProxyFiles = [new ProxyFile { Id = Guid.NewGuid(), ProxyType = ProxyType.WebVideo, ProxyPath = "ca/x/video_720p.mp4" }];
 
-        var result = await new EfMediaAssetRepository(db).FindByHashWithProxyFilesAsync("cafe", ConfigA, ct);
+        var result = await FindByHashesOrPathsAsync([wanted], ["beef", "cafe"], ["elsewhere.mov"]);
 
-        result.Should().BeNull();
+        result.Should().ContainSingle().Which.Id.Should().Be(wanted.Id);
+        result[0].ProxyFiles.Should().ContainSingle().Which.ProxyType.Should().Be(ProxyType.WebVideo);
     }
+
+    [Fact]
+    public async Task FindByHashesOrPathsAsync_SoftDeletedRowMatchedOnlyByHash_IsLeftOut()
+        => (await FindByHashesOrPathsAsync([AssetAt(ConfigA, "cafe", "a.jpg", softDeleted: true)], ["cafe"], ["b.jpg"]))
+            .Should().BeEmpty();
+
+    [Fact]
+    public async Task FindByHashesOrPathsAsync_RowAtAPath_ComesBackEvenWhenSoftDeleted()
+    {
+        var active = AssetAt(ConfigA, "beef", "a.jpg");
+        var trashed = AssetAt(ConfigA, "f00d", "b.jpg", softDeleted: true);
+
+        var result = await FindByHashesOrPathsAsync([active, trashed], ["cafe"], ["a.jpg", "b.jpg"]);
+
+        result.Select(a => a.Id).Should().BeEquivalentTo([active.Id, trashed.Id]);
+    }
+
+    [Fact]
+    public async Task FindByHashesOrPathsAsync_RowsOfAnotherConfig_AreLeftOut()
+        => (await FindByHashesOrPathsAsync([AssetAt(ConfigB, "cafe", "a.jpg")], ["cafe"], ["a.jpg"]))
+            .Should().BeEmpty();
+
+    [Fact]
+    public async Task FindByHashesOrPathsAsync_RowMatchingNeitherHashNorPath_IsLeftOut()
+        => (await FindByHashesOrPathsAsync([AssetAt(ConfigA, "beef", "b.jpg")], ["cafe"], ["a.jpg"]))
+            .Should().BeEmpty();
 
     [Fact]
     public void AddProxyFile_TracksTheRowForInsertEvenWithItsIdPreset()

@@ -4,9 +4,11 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Npgsql;
 
 namespace Anichron.API.Tests.Unit.Services;
@@ -20,7 +22,7 @@ public sealed class BootstrapSeederTests
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
         public IPasswordHasher PasswordHasher { get; } = Substitute.For<IPasswordHasher>();
         private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
-        private readonly ILogger<BootstrapSeeder> _logger = Substitute.For<ILogger<BootstrapSeeder>>();
+        private readonly ILogger<BootstrapSeeder> _logger = new FakeLogger<BootstrapSeeder>();
 
         public TestFixture()
         {
@@ -57,18 +59,6 @@ public sealed class BootstrapSeederTests
         public BootstrapSeeder CreateTestee() => new(
             Users, UnitOfWork, _guidFactory, PasswordHasher, _configuration, _logger);
     }
-
-    private static DbUpdateException UniqueViolation()
-        => new("duplicate key", new PostgresException(
-            "duplicate key", "ERROR", "ERROR", "23505",
-            null, null, 0, 0, null, null, null, null, null, null,
-            null, null, null, null));
-
-    private static DbUpdateException NonUniqueViolation()
-        => new("constraint violation", new PostgresException(
-            "constraint violation", "ERROR", "ERROR", "23000",
-            null, null, 0, 0, null, null, null, null, null, null,
-            null, null, null, null));
 
     // ==========================================================================
     // SeedAsync
@@ -206,7 +196,7 @@ public sealed class BootstrapSeederTests
     [Fact]
     public async Task SeedAsync_ConcurrentSeed_SwallowsUniqueViolation()
     {
-        var fixture = new TestFixture().WithSaveChangesThrows(UniqueViolation());
+        var fixture = new TestFixture().WithSaveChangesThrows(DatabaseErrors.UniqueViolation());
         var testee = fixture.CreateTestee();
 
         var act = async () => await testee.SeedAsync(CancellationToken.None);
@@ -217,7 +207,7 @@ public sealed class BootstrapSeederTests
     [Fact]
     public async Task SeedAsync_OtherDbException_Propagates()
     {
-        var fixture = new TestFixture().WithSaveChangesThrows(NonUniqueViolation());
+        var fixture = new TestFixture().WithSaveChangesThrows(DatabaseErrors.Violation(PostgresErrorCodes.IntegrityConstraintViolation));
         var testee = fixture.CreateTestee();
 
         var act = async () => await testee.SeedAsync(CancellationToken.None);

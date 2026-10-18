@@ -1,515 +1,97 @@
-using Anichron.Core;
-using Anichron.Core.Data;
-using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
-using Anichron.Worker.Ingestion.Proxy;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using NodaTime;
-using Npgsql;
-using NSubstitute.ExceptionExtensions;
-using System.IO.Abstractions.TestingHelpers;
+using Microsoft.Extensions.Logging.Testing;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
 public sealed class PersistenceMiddlewareTests
 {
+    private static readonly Guid AssetId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+
     private sealed class TestFixture
     {
-        public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
-        public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
-        public MockFileSystem FileSystem { get; }
-        public Instant Now { get; }
+        public IOutcomeWriter NewWriter { get; } = Writer(FileOutcome.New);
+        public IOutcomeWriter OtherWriter { get; } = Writer(FileOutcome.Moved);
+        public FakeLogger<PersistenceMiddleware> Logger { get; } = new();
+        public bool NextCalled { get; private set; }
 
-        public TestFixture()
-        {
-            Now = Instant.FromUtc(2026, 5, 19, 10, 0, 0);
-            var clock = Substitute.For<IClock>();
-            clock.GetCurrentInstant().Returns(Now);
-            Clock = clock;
-            FileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
+        public Task InvokeAsync(IngestionContext context)
+            => new PersistenceMiddleware([OtherWriter, NewWriter], Logger).InvokeAsync(context, (_, _) =>
             {
-                ["/abs/photo.jpg"] = new MockFileData([])
-                {
-                    LastWriteTime = new DateTimeOffset(new DateTime(2023, 6, 15, 12, 0, 0, DateTimeKind.Local)),
-                },
-            });
-        }
+                NextCalled = true;
+                return Task.CompletedTask;
+            }, CancellationToken.None);
 
-        public IClock Clock { get; }
-
-        public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
-
-        public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
-
-        public PersistenceMiddleware Build()
+        private static IOutcomeWriter Writer(FileOutcome outcome)
         {
-            MovGenerator.FileName.Returns("video_720p.mp4");
-            MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
-            MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
-            var stagingWriter = new ProxyStagingWriter(
-                FileSystem,
-                Clock,
-                GuidFactory,
-                Substitute.For<ILogger<ProxyStagingWriter>>());
-            return new(Repository, UnitOfWork, FileSystem, Clock,
-                new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
-                new PairedMovProxyWriter(
-                    [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
-                    Substitute.For<ILogger<PairedMovProxyWriter>>()),
-                Substitute.For<ILogger<PersistenceMiddleware>>());
+            var writer = Substitute.For<IOutcomeWriter>();
+            writer.Outcome.Returns(outcome);
+            return writer;
         }
     }
 
-    private static readonly ExifData DefaultExif =
-        new(100, 200, 0, new LocalDateTime(2023, 6, 15, 10, 0), null, null, null, null, null, null);
-
-    private static IngestionContext MakeContext(
-        IngestionItem? item = null,
-        string? contentHash = "deadbeef",
-        ExifData? exif = null)
+    private static IngestionContext Context(FileOutcome outcome) => new()
     {
-        var resolvedItem = item ?? new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image);
-        return new IngestionContext
-        {
-            Item = resolvedItem,
-            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
-            AssetId = Guid.NewGuid(),
-            ContentHash = contentHash,
-            SecondaryHash = resolvedItem.SecondaryFile is not null ? "cafebabe" : null,
-            Exif = exif ?? DefaultExif,
-        };
-    }
-
-    private static DbUpdateException UniqueViolation(string constraintName)
-        => new("duplicate key", new PostgresException(
-            "duplicate key", "ERROR", "ERROR", PostgresErrorCodes.UniqueViolation,
-            null, null, 0, 0, null, null, null, null, null, null,
-            constraintName, null, null, null));
-
-    private static Task NoOpNextAsync(IngestionContext ctx, CancellationToken ct)
-    {
-        _ = (ctx, ct);
-        return Task.CompletedTask;
-    }
-
-    // ==========================================================================
-    // InvokeAsync
-    // ==========================================================================
+        Item = new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image),
+        Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AssetId = AssetId,
+        Classification = new(new FileClassification(outcome, null), null, PairingAction.None),
+    };
 
     [Fact]
-    public async Task InvokeAsync_Always_AddsAssetToRepositoryAsync()
+    public async Task InvokeAsync_UsesTheWriterForThePrimaryOutcomeAsync()
     {
         var fx = new TestFixture();
-        var context = MakeContext();
+        var context = Context(FileOutcome.New);
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fx.InvokeAsync(context);
 
-        fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
+        await fx.NewWriter.Received(1).TryWriteAsync(context, Arg.Any<CancellationToken>());
+        await fx.OtherWriter.DidNotReceive().TryWriteAsync(Arg.Any<IngestionContext>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task InvokeAsync_Always_CallsSaveChangesAsync()
+    public async Task InvokeAsync_NoWriterForTheOutcome_ThrowsWithoutCallingNextAsync()
     {
         var fx = new TestFixture();
 
-        await fx.Build().InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+        var act = () => fx.InvokeAsync(Context(FileOutcome.Unchanged));
 
-        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await act.Should().ThrowExactlyAsync<InvalidOperationException>();
+        fx.NextCalled.Should().BeFalse();
     }
 
     [Fact]
-    public async Task InvokeAsync_Always_SetsContextAssetAsync()
+    public async Task InvokeAsync_Written_SetsTheAssetLogsAndCallsNextAsync()
     {
         var fx = new TestFixture();
-        var context = MakeContext();
+        var context = Context(FileOutcome.New);
+        var asset = new MediaAsset { Id = AssetId };
+        fx.NewWriter.TryWriteAsync(context, Arg.Any<CancellationToken>()).Returns(asset);
 
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        await fx.InvokeAsync(context);
 
-        context.Asset.Should().NotBeNull();
+        context.Asset.Should().BeSameAs(asset);
+        fx.NextCalled.Should().BeTrue();
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Information
+                && r.Message == "Persisted photo.jpg as asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
     }
 
     [Fact]
-    public async Task InvokeAsync_Always_CallsNextAsync()
+    public async Task InvokeAsync_ContentCommittedConcurrently_StopsWithoutAnAssetAsync()
     {
         var fx = new TestFixture();
-        var nextCalled = false;
-        Task NextAsync(IngestionContext ctx, CancellationToken ct)
-        {
-            _ = (ctx, ct);
-            nextCalled = true;
-            return Task.CompletedTask;
-        }
+        var context = Context(FileOutcome.New);
+        fx.NewWriter.TryWriteAsync(context, Arg.Any<CancellationToken>()).Returns((MediaAsset?)null);
 
-        await fx.Build().InvokeAsync(MakeContext(), NextAsync, CancellationToken.None);
+        await fx.InvokeAsync(context);
 
-        nextCalled.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_WithExifDateCaptured_SetsMonthDayYearFromExifAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.Month.Should().Be(6);
-        context.Asset.Day.Should().Be(15);
-        context.Asset.Year.Should().Be(2023);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_ExifDateDiffersFromTheFileDate_TheExifDateWinsAsync()
-    {
-        var fx = new TestFixture();
-        var exifDate = new LocalDateTime(2020, 1, 2, 3, 4, 5);
-        var context = MakeContext(exif: DefaultExif with { DateCaptured = exifDate });
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.DateCaptured.Should().Be(exifDate);
-        (context.Asset.Year, context.Asset.Month, context.Asset.Day).Should().Be((2020, 1, 2));
-    }
-
-    [Fact]
-    public async Task InvokeAsync_NewAsset_IsNotSoftDeletedAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.IsSoftDeleted.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_WithNullDateCaptured_FallsBackToFileLastWriteTimeAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext(exif: DefaultExif with { DateCaptured = null });
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.Year.Should().Be(2023);
-        context.Asset.Month.Should().Be(6);
-        context.Asset.Day.Should().Be(15);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_Always_SetsLastSeenOnNasFromClockAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.LastSeenOnNas.Should().Be(fx.Now);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_Always_SetsMetadataFromExifAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.Metadata!.Width.Should().Be(100);
-        context.Asset.Metadata.Height.Should().Be(200);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_Always_SetsMetadataBlurhashFromContextAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-        context.Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj";
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.Metadata!.Blurhash.Should().Be("LEHV6nWB2yk8pyo0adR*.7kCMdnj");
-    }
-
-    [Fact]
-    public async Task InvokeAsync_SingleFileItem_UsesItemMediaTypeAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext(item: new SingleFileItem("/abs/video.mp4", "video.mp4", MediaType.Video));
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.MediaType.Should().Be(MediaType.Video);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_Always_SetsContentHashFromContextAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext(contentHash: "deadbeef");
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.ContentHash.Should().Be("deadbeef");
-    }
-
-    [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_HeicHasLivePhotoMediaTypeAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.MediaType.Should().Be(MediaType.LivePhoto);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_AddsTwoAssetsToRepositoryAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        fx.Repository.Received(2).Add(Arg.Any<MediaAsset>());
-    }
-
-    [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_MovHasVideoMediaTypeAsync()
-    {
-        MediaAsset? movAsset = null;
-        var fx = new TestFixture();
-        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
-            .Do(call => movAsset = call.Arg<MediaAsset>());
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        movAsset.Should().NotBeNull();
-        movAsset.ContentHash.Should().Be("cafebabe");
-        movAsset.IsSoftDeleted.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_HeicPairedAssetIdPointsToMovAsync()
-    {
-        MediaAsset? movAsset = null;
-        var fx = new TestFixture();
-        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
-            .Do(call => movAsset = call.Arg<MediaAsset>());
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.PairedAssetId.Should().Be(movAsset!.Id);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_Always_UsesContextAssetIdForPrimaryAssetAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.Id.Should().Be(context.AssetId);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_Always_CopiesProxyFilesFromContextToAssetAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-        var proxyFile = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
-        context.AddProxyFile(proxyFile);
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.ProxyFiles.Should().ContainSingle(p => p.Id == proxyFile.Id);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_UsesGuidFactoryForSecondaryAssetIdAsync()
-    {
-        var fx = new TestFixture();
-        var expectedId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
-        fx.GuidFactory.NewGuid().Returns(expectedId);
-        MediaAsset? movAsset = null;
-        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
-            .Do(call => movAsset = call.Arg<MediaAsset>());
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        movAsset!.Id.Should().Be(expectedId);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_LivePhotoPairWithMovAlreadyPersisted_PairsHeicToExistingMovAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-        var existingMov = new MediaAsset
-        {
-            Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
-            ContentHash = "cafebabe",
-            ProxyFiles = [new ProxyFile { ProxyType = ProxyType.WebVideo }],
-        };
-        fx.Repository.FindByHashWithProxyFilesAsync("cafebabe", context.Config.Id, Arg.Any<CancellationToken>())
-            .Returns(existingMov);
-        var nextCalled = false;
-
-        await fx.Build().InvokeAsync(context, (_, _) =>
-        {
-            nextCalled = true;
-            return Task.CompletedTask;
-        }, CancellationToken.None);
-
-        fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
-        fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(a => a.Id == context.AssetId));
-        context.Asset!.PairedAssetId.Should().Be(existingMov.Id);
-        nextCalled.Should().BeTrue();
-        await fx.MovGenerator.DidNotReceive().TranscodeAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        fx.Repository.DidNotReceive().AddProxyFile(Arg.Any<ProxyFile>());
-    }
-
-    [Fact]
-    public async Task InvokeAsync_LivePhotoPairItem_TranscodesTheMovAsTheMovsOwnProxyAsync()
-    {
-        var fx = new TestFixture();
-        var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
-        fx.GuidFactory.NewGuid().Returns(movId, Guid.Parse("99999999-9999-9999-9999-999999999999"));
-        var added = new List<ProxyFile>();
-        fx.Repository.When(r => r.AddProxyFile(Arg.Any<ProxyFile>())).Do(call => added.Add(call.Arg<ProxyFile>()));
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
-        var row = added.Should().ContainSingle().Which;
-        row.AssetId.Should().Be(movId);
-        row.ProxyType.Should().Be(ProxyType.WebVideo);
-        context.Asset!.ProxyFiles.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_Always_CopiesOnlyTheAssetsOwnProxyFilesToItAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-        var own = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
-        context.AddProxyFile(own);
-        context.AddProxyFile(new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo });
-
-        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        context.Asset!.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(own);
-    }
-
-    // ==========================================================================
-    // InvokeAsync — unique violations
-    // ==========================================================================
-
-    [Fact]
-    public async Task InvokeAsync_ActiveHashConflictWithPersistedPrimary_SkipsWithoutThrowingAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
-        fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>())
-            .Returns(new MediaAsset { ContentHash = "deadbeef" });
-        var nextCalled = false;
-
-        var act = () => fx.Build().InvokeAsync(context, (_, _) =>
-        {
-            nextCalled = true;
-            return Task.CompletedTask;
-        }, CancellationToken.None);
-
-        await act.Should().NotThrowAsync();
-        nextCalled.Should().BeFalse();
         context.Asset.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_ActiveHashConflictWithoutPersistedPrimary_RethrowsAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
-        fx.Repository.FindByHashAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((MediaAsset?)null);
-
-        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        await act.Should().ThrowAsync<DbUpdateException>();
-    }
-
-    [Theory]
-    [InlineData(MediaAssetIndexNames.ActiveContentHashUnique)]
-    [InlineData(ProxyFileIndexNames.OnePerAssetAndType)]
-    public async Task InvokeAsync_PairLosesTheRaceForItsMov_ReleasesTheMovsProxiesBeforeRethrowingAsync(string constraintName)
-    {
-        var fx = new TestFixture();
-        var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
-        fx.GuidFactory.NewGuid().Returns(movId);
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-        var heicProxy = new ProxyFile { AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
-        context.AddProxyFile(heicProxy);
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(UniqueViolation(constraintName));
-
-        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        await act.Should().ThrowAsync<DbUpdateException>();
-        context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(heicProxy);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_PairFailsForAnotherReason_KeepsTheMovsProxiesForCompensationAsync()
-    {
-        var fx = new TestFixture();
-        var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
-        fx.GuidFactory.NewGuid().Returns(movId);
-        var context = MakeContext(
-            item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
-
-        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        await act.Should().ThrowAsync<DbUpdateException>();
-        context.ProxyFiles.Should().ContainSingle(p => p.AssetId == movId);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_OtherUniqueViolation_RethrowsWithoutLookupAsync()
-    {
-        var fx = new TestFixture();
-        var context = MakeContext();
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
-
-        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        await act.Should().ThrowAsync<DbUpdateException>();
-        await fx.Repository.DidNotReceive()
-            .FindByHashAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        fx.NextCalled.Should().BeFalse();
     }
 }

@@ -1,4 +1,5 @@
 using Anichron.Core.Domain;
+using Anichron.Worker.Ingestion.Classification;
 
 namespace Anichron.Worker.Ingestion.Pipeline;
 
@@ -14,13 +15,12 @@ internal sealed class IngestionContext
 
     public string? ContentHash { get; set; }
     public string? SecondaryHash { get; set; }
+    public IngestionClassification? Classification { get; set; }
     public ExifData? Exif { get; set; }
     public string? Blurhash { get; set; }
     public MediaAsset? Asset { get; set; }
 
-    // Records what this attempt has actually put on disk: each proxy registers itself the
-    // moment it is renamed into place, so compensation on failure can delete precisely those
-    // files. Image proxies are generated concurrently, hence the lock and the snapshot.
+    // Image proxies register concurrently.
     public IReadOnlyList<ProxyFile> ProxyFiles
     {
         get

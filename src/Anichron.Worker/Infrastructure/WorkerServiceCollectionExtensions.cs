@@ -4,6 +4,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Infrastructure.Configuration;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
@@ -60,10 +61,14 @@ internal static class WorkerServiceCollectionExtensions
             services.AddVideoProxyServices();
             services.AddScoped<PairedMovResolver>();
             services.AddScoped<PairedMovProxyWriter>();
+            services.AddScoped<IngestionSaver>();
+            services.AddScoped<IngestionClassifier>();
+            services.AddScoped<LivePhotoPairer>();
+            services.AddScoped<KnownFileReconciler>();
+            services.AddScoped<IOutcomeWriter, NewContentWriter>();
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
-            services.AddScoped<IIngestionMiddleware, LivePhotoPairingMiddleware>();
-            services.AddScoped<IIngestionMiddleware, IdempotencyCheckMiddleware>();
+            services.AddScoped<IIngestionMiddleware, ClassificationMiddleware>();
             services.AddScoped<IIngestionMiddleware, ExifExtractionMiddleware>();
             services.AddScoped<IIngestionMiddleware, ImageProxyMiddleware>();
             services.AddScoped<IIngestionMiddleware, VideoProxyMiddleware>();
@@ -72,9 +77,6 @@ internal static class WorkerServiceCollectionExtensions
             return services;
         }
 
-        // void, not IServiceCollection: these two are private and both call sites above invoke
-        // them as statements, so the fluent return was never consumed. The internal members keep
-        // returning IServiceCollection because they are part of the chainable surface.
         private void AddVideoProxyServices()
         {
             services.AddSingleton<IProcessLauncher, SystemProcessLauncher>();

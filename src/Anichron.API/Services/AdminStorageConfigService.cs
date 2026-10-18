@@ -2,7 +2,6 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace Anichron.API.Services;
 
@@ -59,11 +58,7 @@ public sealed class AdminStorageConfigService(
         {
             await unitOfWork.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
-        {
-            SqlState: PostgresErrorCodes.UniqueViolation,
-            ConstraintName: StorageConfigIndexNames.RootPathUnique,
-        })
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation(StorageConfigIndexNames.RootPathUnique))
         {
             return AuthResult.Fail<UserStorageConfig>(AuthError.PathAlreadyAssigned);
         }
