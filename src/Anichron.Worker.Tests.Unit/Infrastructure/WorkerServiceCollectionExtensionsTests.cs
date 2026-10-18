@@ -4,6 +4,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Infrastructure;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
@@ -68,7 +69,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
     // ==========================================================================
 
     [Fact]
-    public void AddIngestionServices_RegistersEightMiddlewares_AsScoped()
+    public void AddIngestionServices_RegistersSevenMiddlewares_AsScoped()
     {
         var services = new ServiceCollection();
 
@@ -77,7 +78,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
         services.Count(d =>
             d.ServiceType == typeof(IIngestionMiddleware) &&
             d.Lifetime == ServiceLifetime.Scoped)
-        .Should().Be(8);
+        .Should().Be(7);
     }
 
     [Fact]
@@ -213,6 +214,11 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IFileIngestionPipeline), typeof(FileIngestionPipeline), ServiceLifetime.Singleton },
         { typeof(PairedMovResolver), typeof(PairedMovResolver), ServiceLifetime.Scoped },
         { typeof(PairedMovProxyWriter), typeof(PairedMovProxyWriter), ServiceLifetime.Scoped },
+        { typeof(IngestionSaver), typeof(IngestionSaver), ServiceLifetime.Scoped },
+        { typeof(IngestionClassifier), typeof(IngestionClassifier), ServiceLifetime.Scoped },
+        { typeof(LivePhotoPairer), typeof(LivePhotoPairer), ServiceLifetime.Scoped },
+        { typeof(KnownFileReconciler), typeof(KnownFileReconciler), ServiceLifetime.Scoped },
+        { typeof(IAssetWriter), typeof(NewAssetWriter), ServiceLifetime.Scoped },
         { typeof(IProcessLauncher), typeof(SystemProcessLauncher), ServiceLifetime.Singleton },
         { typeof(IVideoProcessor), typeof(FfmpegVideoProcessor), ServiceLifetime.Singleton },
         { typeof(IImageProcessor), typeof(ImageSharpProcessor), ServiceLifetime.Singleton },

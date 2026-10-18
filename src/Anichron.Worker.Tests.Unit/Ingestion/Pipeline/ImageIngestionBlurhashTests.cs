@@ -3,6 +3,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
@@ -52,14 +53,18 @@ public sealed class ImageIngestionBlurhashTests
                 fileSystem,
                 Substitute.For<ILogger<ImageProxyMiddleware>>()),
             new PersistenceMiddleware(
-                repository,
-                Substitute.For<IUnitOfWork>(),
-                fileSystem,
-                clock,
-                new PairedMovResolver(repository, fileSystem, clock, guids),
-                new PairedMovProxyWriter(
-                    [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
-                    Substitute.For<ILogger<PairedMovProxyWriter>>()),
+                [
+                    new NewAssetWriter(
+                        repository,
+                        new IngestionSaver(Substitute.For<IUnitOfWork>(), repository),
+                        fileSystem,
+                        clock,
+                        new PairedMovResolver(repository, fileSystem, clock, guids),
+                        new PairedMovProxyWriter(
+                            [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
+                            Substitute.For<ILogger<PairedMovProxyWriter>>()),
+                        Substitute.For<ILogger<NewAssetWriter>>()),
+                ],
                 Substitute.For<ILogger<PersistenceMiddleware>>()),
         ];
         var context = new IngestionContext
@@ -68,6 +73,7 @@ public sealed class ImageIngestionBlurhashTests
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
+            Classification = new(new FileClassification(FileOutcome.New, null), null, PairingAction.None),
             Exif = ExifData.Empty,
         };
 

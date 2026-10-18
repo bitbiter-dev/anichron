@@ -1,6 +1,7 @@
 using Anichron.Core;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Worker.Ingestion.Pipeline;
 using NodaTime;
 using System.IO.Abstractions;
 
@@ -12,27 +13,24 @@ internal sealed class PairedMovResolver(
     IClock clock,
     IGuidFactory guidFactory)
 {
-    public async Task<MediaAsset> ResolveAsync(
-        SecondaryFileDescriptor mov,
-        string contentHash,
-        Guid storageConfigId,
-        LocalDateTime? dateCaptured,
-        CancellationToken ct)
+    public MediaAsset Resolve(IngestionContext context, LocalDateTime? dateCaptured)
     {
-        var existing = await repository.FindByHashWithProxyFilesAsync(contentHash, storageConfigId, ct);
-        if (existing is not null)
-            return existing;
+        // Ordering guarantees ClassificationMiddleware ran first and classified the MOV; suppression is safe.
+        var stored = context.Classification!.Secondary!.Stored;
+        if (stored is not null)
+            return stored;
 
+        var mov = context.Item.SecondaryFile!;
         var date = dateCaptured
             ?? LocalDateTime.FromDateTime(fileSystem.FileInfo.New(mov.AbsolutePath).LastWriteTime);
 
         var asset = new MediaAsset
         {
             Id = guidFactory.NewGuid(),
-            StorageConfigId = storageConfigId,
+            StorageConfigId = context.Config.Id,
             FilePath = mov.RelativePath,
             FileName = Path.GetFileName(mov.RelativePath),
-            ContentHash = contentHash,
+            ContentHash = context.SecondaryHash!,
             DateCaptured = date,
             Month = date.Month,
             Day = date.Day,

@@ -13,8 +13,7 @@ internal static class IngestionOrder
 {
     public const int Logging = 0;
     public const int ContentHashing = 10;
-    public const int LivePhotoPairing = 15;
-    public const int IdempotencyCheck = 20;
+    public const int Classification = 20;
     public const int ExifExtraction = 30;
     public const int ImageProxy = 40;
     public const int VideoProxy = 50;
