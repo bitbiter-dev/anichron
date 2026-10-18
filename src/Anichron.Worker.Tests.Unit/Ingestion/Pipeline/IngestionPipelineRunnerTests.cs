@@ -1,5 +1,6 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Tests.Unit.TestDoubles;
@@ -35,7 +36,7 @@ public sealed class IngestionPipelineRunnerTests
     {
         Item = new SingleFileItem("/abs/file.jpg", "file.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
-        AssetId = Guid.Parse("abababab-abab-abab-abab-abababababab"),
+        AttemptId = Guid.Parse("abababab-abab-abab-abab-abababababab"),
         ContentHash = "0123456789abcdef",
     };
 
@@ -124,6 +125,32 @@ public sealed class IngestionPipelineRunnerTests
         await act.Should().ThrowAsync<InvalidOperationException>();
         fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeFalse();
         fixture.FileSystem.FileExists("/data/proxies/ab/cd/preview.jpg").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RunAsync_EditedFileFailsAfterItsNewProxies_KeepsTheRowsPreviousProxiesAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.DirectoryStrategy.GetDirectory(Arg.Any<Guid>(), "0ldc0ntent").Returns("0l/old");
+        fixture.FileSystem.AddFile("/data/proxies/0l/old/thumbnail.jpg", new MockFileData([0x02]));
+        var stored = new MediaAsset
+        {
+            Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+            ContentHash = "0ldc0ntent",
+            ProxyFiles = [new ProxyFile { ProxyType = ProxyType.Thumbnail, ProxyPath = "0l/old/thumbnail.jpg" }],
+        };
+        var context = MakeContext();
+        context.AssetId = stored.Id;
+        context.Classification = new(new FileClassification(FileOutcome.ContentChanged, stored), null, PairingAction.None);
+        var runner = fixture.Build(
+            new ProxyWritingMiddleware(10, fixture.FileSystem, "ab/cd/thumbnail.jpg"),
+            new ThrowingMiddleware(20, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(context, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/0l/old/thumbnail.jpg").Should().BeTrue();
     }
 
     [Fact]

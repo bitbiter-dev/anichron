@@ -66,7 +66,7 @@ internal sealed class ClassificationFixture
     {
         Item = new SingleFileItem($"/abs/{relativePath}", relativePath, MediaType.Image),
         Config = new UserStorageConfig { Id = ConfigId, UserId = Guid.NewGuid(), RootPath = "/abs" },
-        AssetId = Guid.NewGuid(),
+        AttemptId = Guid.NewGuid(),
         ContentHash = "abc123",
     };
 
@@ -74,7 +74,7 @@ internal sealed class ClassificationFixture
     {
         Item = new LivePhotoPairItem($"/abs/{heicPath}", heicPath, $"/abs/{movPath}", movPath),
         Config = new UserStorageConfig { Id = ConfigId, UserId = Guid.NewGuid(), RootPath = "/abs" },
-        AssetId = Guid.NewGuid(),
+        AttemptId = Guid.NewGuid(),
         ContentHash = "abc123",
         SecondaryHash = "cafebabe",
     };

@@ -9,6 +9,7 @@ internal enum FileOutcome
     Moved = 2,
     DuplicateCopy = 3,
     PathTaken = 4,
+    ContentChanged = 5,
 }
 
 internal enum PairingAction
@@ -25,5 +26,5 @@ internal sealed record IngestionClassification(
     FileClassification? Secondary,
     PairingAction Pairing)
 {
-    public bool NeedsProcessing => Primary.Outcome == FileOutcome.New;
+    public bool NeedsProcessing => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged;
 }

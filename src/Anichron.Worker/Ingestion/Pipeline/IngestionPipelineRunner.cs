@@ -56,7 +56,7 @@ internal sealed partial class IngestionPipelineRunner(
     {
         var directory = fileSystem.Path.Combine(
             proxyRoot, proxyDirectoryStrategy.GetDirectory(context.Config.Id, contentHash));
-        DiscardTemporaryFiles(directory, context.AssetId);
+        DiscardTemporaryFiles(directory, context.AttemptId);
         TryRemoveIfEmpty(directory);
     }
 

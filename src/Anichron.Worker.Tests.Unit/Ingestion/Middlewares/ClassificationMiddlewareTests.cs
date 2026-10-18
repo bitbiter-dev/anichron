@@ -71,6 +71,56 @@ public sealed class ClassificationMiddlewareTests
         (await NextCalledAsync(fx, Single())).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task InvokeAsync_UnknownHash_OwnsTheProxiesUnderTheAttemptIdAsync()
+    {
+        var fx = new ClassificationFixture();
+        var context = Single();
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.AssetId.Should().Be(context.AttemptId);
+    }
+
+    // ==========================================================================
+    // Content changed at the same path
+    // ==========================================================================
+
+    [Fact]
+    public async Task InvokeAsync_EditedFile_CallsNextWithTheStoredRowAsTheOwnerAsync()
+    {
+        var fx = new ClassificationFixture();
+        var stored = Stored("photo.jpg", contentHash: "f00d");
+        fx.Store(stored);
+        var context = Single("photo.jpg");
+
+        (await NextCalledAsync(fx, context)).Should().BeTrue();
+
+        context.Classification!.Primary.Should().Be(new FileClassification(FileOutcome.ContentChanged, stored));
+        context.AssetId.Should().Be(stored.Id);
+        context.AttemptId.Should().NotBe(stored.Id);
+        await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_UnchangedHeicWithEditedMov_LeavesBothRowsAndSavesOnlyTheHeicRefreshAsync()
+    {
+        var fx = new ClassificationFixture();
+        var heic = Stored("photo.heic");
+        var mov = StoredMov("photo.mov");
+        mov.ContentHash = "0ldm0v";
+        mov.ProxyFiles = [new ProxyFile { AssetId = mov.Id, ProxyType = ProxyType.WebVideo }];
+        heic.PairedAssetId = mov.Id;
+        fx.Store(heic, mov);
+
+        (await NextCalledAsync(fx, Pair())).Should().BeFalse();
+
+        heic.LastSeenOnNas.Should().Be(Now);
+        mov.ContentHash.Should().Be("0ldm0v");
+        mov.LastSeenOnNas.Should().Be(FirstSeen);
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
     // ==========================================================================
     // Known content
     // ==========================================================================

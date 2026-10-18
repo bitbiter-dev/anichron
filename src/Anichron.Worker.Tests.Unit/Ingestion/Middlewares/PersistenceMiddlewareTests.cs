@@ -38,6 +38,7 @@ public sealed class PersistenceMiddlewareTests
     {
         Item = new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image),
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AttemptId = Guid.NewGuid(),
         AssetId = AssetId,
         Classification = new(new FileClassification(outcome, null), null, PairingAction.None),
     };

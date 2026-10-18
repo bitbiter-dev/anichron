@@ -52,6 +52,7 @@ public sealed class PairedMovProxyWriterTests
     {
         Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
         Config = new UserStorageConfig { Id = ConfigId, RootPath = "/nas" },
+        AttemptId = Guid.NewGuid(),
         AssetId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
         ContentHash = "deadbeef",
         SecondaryHash = "cafebabe",
