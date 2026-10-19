@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Data.Repository;
 
+public sealed record ContentLocation(Guid UserId, string ContentHash, Guid StorageConfigId, string FilePath);
+
 public interface IMediaAssetRepository
 {
     Task<MediaAsset?> FindByHashAsync(string contentHash, Guid storageConfigId, CancellationToken ct);
@@ -17,6 +19,11 @@ public interface IMediaAssetRepository
         IReadOnlyCollection<string> contentHashes,
         IReadOnlyCollection<string> filePaths,
         CancellationToken ct);
+
+    /// <summary>Active rows whose content is also stored in another of the same user's configs.</summary>
+    /// <param name="storageConfigIds">Only rows in these configs are compared.</param>
+    /// <param name="ct">Cancels the query.</param>
+    Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct);
 
     Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct);
 
@@ -42,6 +49,23 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .Where(a => a.StorageConfigId == storageConfigId
                 && ((!a.IsSoftDeleted && contentHashes.Contains(a.ContentHash)) || filePaths.Contains(a.FilePath)))
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(
+        IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct)
+        => await SharedContentQuery(db, storageConfigIds).ToListAsync(ct);
+
+    internal static IQueryable<ContentLocation> SharedContentQuery(
+        AnichronDbContext db, IReadOnlyCollection<Guid> storageConfigIds)
+    {
+        var inScope = db.MediaAssets.Where(a => storageConfigIds.Contains(a.StorageConfigId));
+        var shared = inScope
+            .GroupBy(a => new { a.StorageConfig.UserId, a.ContentHash })
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key);
+        return inScope
+            .Where(a => shared.Any(k => k.UserId == a.StorageConfig.UserId && k.ContentHash == a.ContentHash))
+            .Select(a => new ContentLocation(a.StorageConfig.UserId, a.ContentHash, a.StorageConfigId, a.FilePath));
+    }
 
     public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
         => db.Entry(asset).Reference(a => a.Metadata).LoadAsync(ct);

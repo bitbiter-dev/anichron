@@ -177,4 +177,96 @@ public sealed class MediaAssetRepositoryTests
         tracked.Metadata.Should().NotBeNull();
         tracked.Metadata.Width.Should().Be(640);
     }
+
+    // ==========================================================================
+    // FindSharedContentAsync
+    // ==========================================================================
+
+    private static readonly Guid Mira = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+    private static readonly Guid Alice = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
+
+    private static UserStorageConfig ConfigOf(Guid userId)
+        => new() { Id = Guid.NewGuid(), UserId = userId, RootPath = $"/data/originals/{Guid.NewGuid():N}", IsActive = true };
+
+    private static async Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(
+        UserStorageConfig[] configs, MediaAsset[] assets, IReadOnlyCollection<Guid> crawled)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var seed = CreateDb(out var name);
+        seed.StorageConfigs.AddRange(configs);
+        seed.MediaAssets.AddRange(assets);
+        await seed.SaveChangesAsync(ct);
+        await using var db = AnichronDbContexts.InMemory(name);
+
+        return await new EfMediaAssetRepository(db).FindSharedContentAsync(crawled, ct);
+    }
+
+    [Fact]
+    public async Task FindSharedContentAsync_SameHashInTwoConfigsOfOneUser_ReturnsBothLocations()
+    {
+        var (home, phone) = (ConfigOf(Mira), ConfigOf(Mira));
+
+        var result = await FindSharedContentAsync(
+            [home, phone],
+            [AssetAt(home.Id, "cafe", "2023/a.jpg"), AssetAt(phone.Id, "cafe", "dcim/a.jpg"), AssetAt(home.Id, "beef", "b.jpg")],
+            [home.Id, phone.Id]);
+
+        result.Should().BeEquivalentTo(
+        [
+            new ContentLocation(Mira, "cafe", home.Id, "2023/a.jpg"),
+            new ContentLocation(Mira, "cafe", phone.Id, "dcim/a.jpg"),
+        ]);
+    }
+
+    [Fact]
+    public async Task FindSharedContentAsync_SameHashUnderTwoUsers_IsLeftOut()
+    {
+        var (mine, theirs) = (ConfigOf(Mira), ConfigOf(Alice));
+
+        var result = await FindSharedContentAsync(
+            [mine, theirs],
+            [AssetAt(mine.Id, "cafe", "a.jpg"), AssetAt(theirs.Id, "cafe", "a.jpg")],
+            [mine.Id, theirs.Id]);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task FindSharedContentAsync_ConfigNotCrawled_IsLeftOut()
+    {
+        var (home, phone) = (ConfigOf(Mira), ConfigOf(Mira));
+
+        var result = await FindSharedContentAsync(
+            [home, phone],
+            [AssetAt(home.Id, "cafe", "a.jpg"), AssetAt(phone.Id, "cafe", "a.jpg")],
+            [home.Id]);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task FindSharedContentAsync_SoftDeletedCopy_IsLeftOut()
+    {
+        var (home, phone) = (ConfigOf(Mira), ConfigOf(Mira));
+
+        var result = await FindSharedContentAsync(
+            [home, phone],
+            [AssetAt(home.Id, "cafe", "a.jpg"), AssetAt(phone.Id, "cafe", "a.jpg", softDeleted: true)],
+            [home.Id, phone.Id]);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void FindSharedContent_TranslatesToOneStatementScopedToTheCrawledConfigs()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfMediaAssetRepository.SharedContentQuery(db, [Guid.NewGuid()]).ToQueryString();
+
+        sql.Should().Contain("GROUP BY")
+            .And.Contain("HAVING count(*)::int > 1")
+            .And.Contain("\"StorageConfigId\" = ANY (@")
+            .And.Contain("\"IsSoftDeleted\"");
+    }
 }
