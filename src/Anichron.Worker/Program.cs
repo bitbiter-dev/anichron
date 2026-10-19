@@ -7,6 +7,7 @@ builder.Services
     .AddWorkerCoreServices()
     .AddWorkerDataServices(builder.Configuration)
     .AddIngestionServices()
+    .AddWorkQueueServices()
     .AddWorkerHostedServices();
 
 await builder.Build().RunAsync();

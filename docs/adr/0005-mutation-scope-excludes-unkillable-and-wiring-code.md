@@ -86,11 +86,15 @@ The directive is left bare — the reason lives here, not in the code.
 | --- | --- |
 | `AnichronDbContext.ExecuteInTransactionAsync` (both overloads) | Commit versus no commit is only observable on a provider with real transactions. |
 | `EfRefreshTokenRepository.RevokeAllActiveByUserIdAsync` and `DeleteExpiredAsync` | `ExecuteUpdate`/`ExecuteDelete` are not supported by the EF InMemory provider. |
+| `EfWorkQueue.TryInsertAsync` | Absorbing a lost race needs the partial unique index on `DedupKey`, which the InMemory provider does not enforce. The rest of `EnqueueAsync` is in scope. |
+| `EfWorkItemStore` members except `IsDueAsync`, and its `Running`/`Expired` filters | The claim is raw SQL with `FOR UPDATE SKIP LOCKED`; every transition is an `ExecuteUpdate`/`ExecuteDelete` fenced by `(Id, Attempt)`. `IsDueAsync` is plain LINQ and in scope. |
 
 These are **not** tested against a second SQL engine such as SQLite. A substitute engine
 diverges from PostgreSQL in exactly the places this model relies on (partial-index filters,
 `xmin`, NodaTime types, collation), so a green test there would claim coverage it does not
-have. They stay excluded until tests run against real PostgreSQL.
+have. Where they are tested, it is against real PostgreSQL in `Anichron.Tests.Integration`
+(`DeleteExpiredAsync` and `MigrateWithAdvisoryLockAsync` so far). That project is outside the
+Stryker run, so the members stay excluded from mutation.
 
 `WorkerSettings.FfmpegPath` is **not** in that list. It is a real default and is tested. `RootPath`
 lost its default in #221: it names one user's folder inside `/data/originals`, so no value is right
@@ -107,7 +111,7 @@ for every deployment. The proxy root is no longer a setting at all since #43: it
   `ServiceCollection` and resolve the configured options.
 
 - **`Log.*` hides four mutants that existing tests do kill**: the two log calls in
-  `LoggingMiddleware`, `TokenCleanupService`'s deleted-count log, and `PwnedPasswordClient`'s
+  `LoggingMiddleware`, `TokenCleanupService`'s deleted-count log (now `TokenCleanupHandler`'s), and `PwnedPasswordClient`'s
   "check unavailable" warning. Accepted — the tests stay and still guard those lines; they just no
   longer count toward the score. `LoggingMiddleware` is left with almost no mutants of its own as a
   result, which is expected for a class whose only behaviour is logging.
