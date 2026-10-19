@@ -17,10 +17,15 @@ public sealed class WorkHandlerRegistryTests
         public static WorkKind Kind => WorkKind.WorkItemRetention;
     }
 
-    private static readonly Type[] RealPayloads = [typeof(TokenCleanupPayload), typeof(WorkItemRetentionPayload)];
+    private static readonly Type[] RealPayloads =
+        [typeof(TokenCleanupPayload), typeof(WorkItemRetentionPayload), typeof(CrawlPayload)];
 
     private static WorkHandlerRegistration[] RealHandlers
-        => [WorkHandlerRegistration.For<TokenCleanupPayload>(), WorkHandlerRegistration.For<WorkItemRetentionPayload>()];
+        => [
+            WorkHandlerRegistration.For<TokenCleanupPayload>(),
+            WorkHandlerRegistration.For<WorkItemRetentionPayload>(),
+            WorkHandlerRegistration.For<CrawlPayload>(),
+        ];
 
     private static Action Building(IEnumerable<WorkHandlerRegistration> registrations, params Type[] payloads)
         => () => _ = new WorkHandlerRegistry(registrations, payloads);
@@ -40,12 +45,14 @@ public sealed class WorkHandlerRegistryTests
         var act = () => new WorkHandlerRegistry([WorkHandlerRegistration.For<TokenCleanupPayload>()]);
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("WorkKind.WorkItemRetention needs exactly one handler, found none.");
+            .Which.Message.Should().Be(string.Join(Environment.NewLine,
+                "WorkKind.WorkItemRetention needs exactly one handler, found none.",
+                "WorkKind.Crawl needs exactly one handler, found none."));
     }
 
     [Fact]
     public void Constructor_KindWithoutPayload_FailsNamingIt()
-        => Building(RealHandlers, typeof(TokenCleanupPayload)).Should().Throw<InvalidOperationException>()
+        => Building(RealHandlers, typeof(TokenCleanupPayload), typeof(CrawlPayload)).Should().Throw<InvalidOperationException>()
             .WithMessage("WorkKind.WorkItemRetention needs exactly one payload type, found none.");
 
     [Fact]
@@ -61,7 +68,7 @@ public sealed class WorkHandlerRegistryTests
 
     [Fact]
     public void Constructor_HandlerForAnotherPayloadOfTheKind_FailsNamingBoth()
-        => Building([WorkHandlerRegistration.For<OtherCleanupPayload>(), RealHandlers[1]], RealPayloads)
+        => Building([WorkHandlerRegistration.For<OtherCleanupPayload>(), RealHandlers[1], RealHandlers[2]], RealPayloads)
             .Should().Throw<InvalidOperationException>()
             .WithMessage("WorkKind.TokenCleanup's handler takes OtherCleanupPayload, not its payload TokenCleanupPayload.");
 
@@ -70,7 +77,8 @@ public sealed class WorkHandlerRegistryTests
         => Building([], RealPayloads).Should().Throw<InvalidOperationException>()
             .Which.Message.Should().Be(string.Join(Environment.NewLine,
                 "WorkKind.TokenCleanup needs exactly one handler, found none.",
-                "WorkKind.WorkItemRetention needs exactly one handler, found none."));
+                "WorkKind.WorkItemRetention needs exactly one handler, found none.",
+                "WorkKind.Crawl needs exactly one handler, found none."));
 
     [Fact]
     public async Task RunAsync_DispatchesTheDeserialisedPayloadToTheKindsHandlerAsync()
@@ -81,8 +89,8 @@ public sealed class WorkHandlerRegistryTests
         handler.RunAsync(new NumberedRetentionPayload(7), progress, cts.Token).Returns("summary");
         await using var services = new ServiceCollection().AddSingleton(handler).BuildServiceProvider();
         var registry = new WorkHandlerRegistry(
-            [RealHandlers[0], WorkHandlerRegistration.For<NumberedRetentionPayload>()],
-            [typeof(TokenCleanupPayload), typeof(NumberedRetentionPayload)]);
+            [RealHandlers[0], WorkHandlerRegistration.For<NumberedRetentionPayload>(), RealHandlers[2]],
+            [typeof(TokenCleanupPayload), typeof(NumberedRetentionPayload), typeof(CrawlPayload)]);
         var work = new ClaimedWork(new WorkAttempt(Guid.NewGuid(), 1), WorkKind.WorkItemRetention, /*lang=json,strict*/ """{"number":7}""");
 
         var result = await registry.RunAsync(work, services, progress, cts.Token);

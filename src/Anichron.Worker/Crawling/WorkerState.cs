@@ -2,7 +2,7 @@ namespace Anichron.Worker.Crawling;
 
 public sealed class WorkerState
 {
-    // Written once by WorkerInitializer during startup; safe to read in Worker.ExecuteAsync
-    // because IHostedService.StartAsync is called sequentially in registration order.
+    // Written once by WorkerInitializer during startup. Read it at claim and schedule time, never
+    // in a constructor: hosted services are built before any of them starts.
     public Guid? ResolvedUserId { get; set; }
 }

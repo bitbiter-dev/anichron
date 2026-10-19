@@ -132,7 +132,7 @@ do not always match entity names (`AssetInteraction` → `Interactions`, `UserSt
 - `User` — owns storage configs and interactions
 - `RefreshToken` — issued and revoked by the API, expired rows deleted by the Worker's `TokenCleanup` work item; `TokenHash` unique
 - `Invite` — admin-issued registration tokens; `TokenHash` unique, and the only entity carrying an optimistic-concurrency token (`xmin`)
-- `WorkItem` — one durable unit of Worker work (`Kind`, jsonb `Payload`, optional `DedupKey`, status, lease, attempt, progress snapshot, result or error); see "Work queue"
+- `WorkItem` — one durable unit of Worker work (`Kind`, jsonb `Payload`, optional `DedupKey`, optional `StorageConfigId` scope that cascades on config delete, status, lease, attempt, progress snapshot, result or error); see "Work queue"
 
 ### Key EF Core / Database Decisions
 
@@ -159,8 +159,8 @@ The API reads files only through two narrow stores in `Anichron.Infrastructure/S
 
 ### Worker Media Processing
 
-- Crawls NAS on a configurable interval (`Worker:CrawlIntervalHours`, default 4 h; immediate crawl on startup)
-- The crawl walks folder by folder and never enters `CrawlExclusions`: any dot-folder or dot-file (macOS/Linux/QNAP/ZFS/sync-tool metadata), NAS and OS system folders (`@eaDir`, `#recycle`, `@Recycle`, `$RECYCLE.BIN`, `lost+found`, Nextcloud `files_trashbin`/`files_versions`, …) and app library packages (`*.photoslibrary`, `*.lrdata`, …, which hold thumbnails and renders). `Worker:ExcludedDirectories` adds comma-separated folder names (not paths; rejected at startup) on top. An unreadable subfolder is logged and skipped; an unreadable or missing root fails that storage config's crawl, which is logged as an error, and the Worker moves on to the next config (#282)
+- Crawls each storage config as its own `Crawl` work item (#281), due every `Worker:CrawlIntervalHours` (default 4 h) after the last one finished; the first crawl after a start comes from due-ness, so a restart that outlasted the interval crawls straight away. Progress is items found, processed and failed (a Live Photo pair is one item), with no total until the walk ends
+- The crawl walks folder by folder and never enters `CrawlExclusions`: any dot-folder or dot-file (macOS/Linux/QNAP/ZFS/sync-tool metadata), NAS and OS system folders (`@eaDir`, `#recycle`, `@Recycle`, `$RECYCLE.BIN`, `lost+found`, Nextcloud `files_trashbin`/`files_versions`, …) and app library packages (`*.photoslibrary`, `*.lrdata`, …, which hold thumbnails and renders). `Worker:ExcludedDirectories` adds comma-separated folder names (not paths; rejected at startup) on top. An unreadable subfolder is logged and skipped; an unreadable or missing root fails that storage config's `Crawl` item with the error, and the other configs' items still run (#282)
 - Computes XXHash64 `ContentHash` → extracts EXIF via MetadataExtractor → writes `MediaAsset` + `Metadata`
 - Generates proxy types: `Thumbnail`, `FullPreview`, `WebVideo` (the `ProxyType` enum, persisted as text), and a BlurHash string for images, stored in `Metadata.Blurhash`
 - Image proxies are auto-oriented once after decoding: upright pixels, orientation tag 1. `Metadata.Orientation` applies only when serving originals — never rotate a proxy by it
@@ -193,12 +193,13 @@ Each user has a private set of `UserStorageConfig` entries pointing to NAS roots
 
 ### Work queue
 
-Durable work for the Worker lives in `WorkItems` (#276, ADR 0008). Today its kinds are periodic maintenance (`TokenCleanup`, `WorkItemRetention`); the crawl (#281) and admin requests (#174) follow.
+Durable work for the Worker lives in `WorkItems` (#276, ADR 0008). Its kinds are the crawl (`Crawl`, one per storage config) and periodic maintenance (`TokenCleanup`, `WorkItemRetention`); admin requests (#174) follow.
 
 - **Producing:** `IWorkQueue.EnqueueAsync` (`EfWorkQueue`, Core) is the only insert. A payload with a `DedupKey` coalesces: while an item with that key is `Queued`, enqueueing returns it (a partial unique index absorbs racing inserts).
-- **Scheduling:** every Worker runs `WorkScheduler`. Each poll (`Worker:WorkPollIntervalSeconds`, 5 s) it recovers expired leases, then asks each `IWorkSchedule` whether its kind is due: nothing queued or running with its key and nothing finished within its interval. No timer state is kept, so overdue work runs right after downtime.
+- **Scope:** a scoped item carries the `StorageConfigId` it belongs to (`IWorkPayload.StorageConfigId`). A per-user Worker (`WORKER__USER`) claims unscoped items and items of its user's configs; an all-user Worker claims everything. The served user is `WorkerState.ResolvedUserId`, read at each claim and tick, never cached at construction.
+- **Scheduling:** every Worker runs `WorkScheduler`. Each poll (`Worker:WorkPollIntervalSeconds`, 5 s) it recovers expired leases, then asks each `IWorkScheduleSource` for its schedules (a fixed `WorkSchedule<TPayload>` is its own source; `CrawlSchedules` returns one per active config the Worker serves) and whether each is due: nothing queued or running with its key and nothing finished within its interval. No timer state is kept, so overdue work runs right after downtime.
 - **Executing:** `WorkExecutor` claims the oldest queued item (`FOR UPDATE SKIP LOCKED`), one at a time, under a lease (`WorkLeaseSeconds`, 60 s) that a heartbeat (`WorkHeartbeatSeconds`, 2 s) extends while writing the progress snapshot. Every write about a running item is fenced by `(Id, Attempt)`. A fenced heartbeat cancels the handler and writes nothing more; a shutdown releases the item without a stall; a handler exception fails it with no retry. An expired lease requeues the item and counts a stall; the `WorkMaxStalls`th (3) fails it as stalled. An item handed back (release or recovery) while another with its key is already queued ends `Cancelled` as superseded, since the queued one does the same work. A Worker claims only the kinds it knows, so a newer kind waits for a newer Worker. `WorkItemRetention` deletes items finished more than `WorkItemRetentionDays` (30) ago.
-- **Adding a kind:** a `WorkKind` value, a payload record in Core implementing `IWorkPayload` (static `Kind`, optional `DedupKey`), an `IWorkHandler<TPayload>` in the Worker registered with `AddWorkHandler`, and for a periodic kind a `WorkSchedule<TPayload>` subclass. `WorkHandlerRegistry` fails startup unless every kind has exactly one payload and one handler; nothing switches on the kind.
+- **Adding a kind:** a `WorkKind` value, a payload record in Core implementing `IWorkPayload` (static `Kind`, optional `DedupKey`), an `IWorkHandler<TPayload>` in the Worker registered with `AddWorkHandler`, and for a periodic kind a `WorkSchedule<TPayload>` subclass registered as an `IWorkScheduleSource` (or a source that builds several). `WorkHandlerRegistry` fails startup unless every kind has exactly one payload and one handler; nothing switches on the kind.
 - **Handler contract:** delivery is at least once. Each run starts from scratch and converges, side effects are safe to repeat, and the returned summary becomes `Result`.
 
 ### Worker Processing Model

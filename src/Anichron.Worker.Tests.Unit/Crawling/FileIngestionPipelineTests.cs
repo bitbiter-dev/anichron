@@ -1,5 +1,6 @@
 using Anichron.Core;
 using Anichron.Core.Domain;
+using Anichron.Core.Work;
 using Anichron.Testing.DependencyInjection;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
@@ -16,6 +17,8 @@ namespace Anichron.Worker.Tests.Unit.Crawling;
 
 public sealed class FileIngestionPipelineTests
 {
+    private static IWorkProgress NoProgress => Substitute.For<IWorkProgress>();
+
     private static UserStorageConfig MakeConfig(string rootPath = "/nas") => new()
     {
         Id = Guid.NewGuid(),
@@ -120,7 +123,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/.hidden/x.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/._IMG_0001.jpg", new MockFileData([]));
 
-        await fixture.Build().RunAsync(MakeConfig(), CancellationToken.None);
+        await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         ProcessedRelativePaths(fixture).Should().Equal("2024/IMG_0002.jpg", "IMG_0001.jpg");
     }
@@ -132,7 +135,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/IMG_0001.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/Lightroom Previews/preview.jpg", new MockFileData([]));
 
-        await fixture.Build().RunAsync(MakeConfig(), CancellationToken.None);
+        await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         ProcessedRelativePaths(fixture).Should().Equal("IMG_0001.jpg");
     }
@@ -146,7 +149,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/zz-after/IMG_0003.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/aa-before/IMG_0004.jpg", new MockFileData([]));
 
-        await fixture.Build().RunAsync(MakeConfig(), CancellationToken.None);
+        await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         ProcessedRelativePaths(fixture).Should().Equal("IMG_0001.jpg", "aa-before/IMG_0004.jpg", "zz-after/IMG_0003.jpg");
     }
@@ -157,7 +160,7 @@ public sealed class FileIngestionPipelineTests
         var fixture = new TestFixture();
         fixture.FileSystem.AddFile("/nas/Photos Library.photoslibrary/IMG_0001.jpg", new MockFileData([]));
 
-        await fixture.Build().RunAsync(MakeConfig("/nas/Photos Library.photoslibrary"), CancellationToken.None);
+        await fixture.Build().RunAsync(MakeConfig("/nas/Photos Library.photoslibrary"), NoProgress, CancellationToken.None);
 
         ProcessedRelativePaths(fixture).Should().Equal("IMG_0001.jpg");
     }
@@ -170,7 +173,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/2024/06/IMG_0001.MOV", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/2024/06/@eaDir/IMG_0001.HEIC/SYNOPHOTO_THUMB_XL.jpg", new MockFileData([]));
 
-        await fixture.Build().RunAsync(MakeConfig(), CancellationToken.None);
+        await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().ContainSingle()
             .Which.Item.Should().BeOfType<LivePhotoPairItem>();
@@ -188,7 +191,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/IMG_0001.MOV", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().ContainSingle()
             .Which.Item.Should().BeOfType<LivePhotoPairItem>();
@@ -202,7 +205,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/IMG_0001.MOV", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         var pair = fixture.ProcessedContexts.Single().Item.Should()
             .BeOfType<LivePhotoPairItem>().Subject;
@@ -217,7 +220,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/photo.HEIC", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().ContainSingle()
             .Which.Item.Should().BeOfType<SingleFileItem>();
@@ -231,7 +234,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/IMG_0001.MOV", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().ContainSingle();
     }
@@ -243,7 +246,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/video.MOV", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().ContainSingle()
             .Which.Item.Should().BeOfType<SingleFileItem>()
@@ -261,7 +264,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/document.pdf", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().BeEmpty();
     }
@@ -274,7 +277,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/document.pdf", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().ContainSingle()
             .Which.Item.Should().BeOfType<SingleFileItem>()
@@ -292,7 +295,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/2024/summer/beach.jpg", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         var item = fixture.ProcessedContexts.Single().Item.Should()
             .BeOfType<SingleFileItem>().Subject;
@@ -311,7 +314,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/b/IMG_0001.MOV", new MockFileData([]));
 
         var pipeline = fixture.Build();
-        await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Should().HaveCount(2);
         fixture.ProcessedContexts.Should().AllSatisfy(context =>
@@ -329,7 +332,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData("a"));
         fixture.FileSystem.AddFile("/nas/sub/b.jpg", new MockFileData("b"));
 
-        await fixture.Build(maxConcurrentFiles: 1).RunAsync(MakeConfig(), CancellationToken.None);
+        await fixture.Build(maxConcurrentFiles: 1).RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         fixture.ProcessedContexts.Select(c => c.Item.RelativePath)
             .Should().BeEquivalentTo("a.jpg", Path.Combine("sub", "b.jpg"));
@@ -342,7 +345,7 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddDirectory("/nas");
 
         var pipeline = fixture.Build();
-        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         fixture.ProcessedContexts.Should().BeEmpty();
@@ -363,7 +366,7 @@ public sealed class FileIngestionPipelineTests
         var seen = new List<IngestionContext>();
 
         var pipeline = fixture.BuildWithMiddlewares([new CancellingMiddleware(cts, seen)], maxConcurrentFiles: 1);
-        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), cts.Token);
+        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         seen.Should().HaveCount(1);
@@ -379,10 +382,74 @@ public sealed class FileIngestionPipelineTests
 
         var pipeline = fixture.BuildWithMiddlewares(
             [new FailingOnFirstItemMiddleware(seen)], maxConcurrentFiles: 1);
-        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), CancellationToken.None);
+        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         seen.Should().HaveCount(2);
+    }
+
+    // ==========================================================================
+    // Counts and progress
+    // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_CountsItemsFoundProcessedAndFailed_ALivePhotoPairAsOneAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/IMG_0001.HEIC", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/IMG_0001.MOV", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/notes.txt", new MockFileData([]));
+
+        var progress = new RecordingProgress();
+
+        var result = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig(), progress, CancellationToken.None);
+
+        result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
+        progress.Reports[^1].Should().Be(new WorkProgress(3, 3, "3 found, 2 processed, 1 failed"));
+    }
+
+    [Fact]
+    public async Task RunAsync_ReportsProgressWithoutATotalUntilTheWalkEndsAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/sub/b.jpg", new MockFileData([]));
+        var progress = new RecordingProgress();
+
+        await fixture.Build(maxConcurrentFiles: 1).RunAsync(MakeConfig(), progress, CancellationToken.None);
+
+        progress.Reports[0].Should().Be(new WorkProgress(0, null, "1 found, 0 processed, 0 failed"));
+        progress.Reports[^1].Should().Be(new WorkProgress(2, 2, "2 found, 2 processed, 0 failed"));
+        progress.Reports.Should().OnlyContain(report => report.Done <= 2);
+    }
+
+    [Fact]
+    public async Task RunAsync_SecondRunOverTheSameFolder_ConvergesOnTheSameCountsAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/sub/b.jpg", new MockFileData([]));
+        var pipeline = fixture.Build();
+        var config = MakeConfig();
+
+        var first = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
+        var second = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
+
+        (first, second).Should().Be((new CrawlResult(2, 2, 0), new CrawlResult(2, 2, 0)));
+    }
+
+    private sealed class RecordingProgress : IWorkProgress
+    {
+        public List<WorkProgress> Reports { get; } = [];
+
+        public void Report(long done, long? total = null, string? note = null)
+        {
+            lock (Reports)
+                Reports.Add(new WorkProgress(done, total, note));
+        }
     }
 
     // ==========================================================================
@@ -395,7 +462,7 @@ public sealed class FileIngestionPipelineTests
         var fixture = new TestFixture();
 
         var pipeline = fixture.Build();
-        var act = async () => await pipeline.RunAsync(MakeConfig("/nonexistent"), CancellationToken.None);
+        var act = async () => await pipeline.RunAsync(MakeConfig("/nonexistent"), NoProgress, CancellationToken.None);
 
         await act.Should().ThrowAsync<DirectoryNotFoundException>();
     }
