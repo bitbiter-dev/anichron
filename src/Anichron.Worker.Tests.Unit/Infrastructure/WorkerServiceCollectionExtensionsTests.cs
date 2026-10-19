@@ -231,7 +231,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
     [Fact]
     public void AddWorkQueueServices_RegistersEachPeriodicKindsSchedule()
         => new ServiceCollection().AddWorkQueueServices()
-            .Where(d => d.ServiceType == typeof(IWorkSchedule))
+            .Where(d => d.ServiceType == typeof(IWorkScheduleSource))
             .Select(d => (d.ImplementationType, d.Lifetime)).Should().BeEquivalentTo([
                 (typeof(TokenCleanupSchedule), ServiceLifetime.Singleton),
                 (typeof(WorkItemRetentionSchedule), ServiceLifetime.Singleton),

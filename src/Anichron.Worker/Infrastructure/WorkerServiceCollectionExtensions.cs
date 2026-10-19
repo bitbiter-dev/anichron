@@ -58,8 +58,8 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<WorkHandlerRegistry>();
             services.AddWorkHandler<TokenCleanupPayload, TokenCleanupHandler>();
             services.AddWorkHandler<WorkItemRetentionPayload, WorkItemRetentionHandler>();
-            services.AddSingleton<IWorkSchedule, TokenCleanupSchedule>();
-            services.AddSingleton<IWorkSchedule, WorkItemRetentionSchedule>();
+            services.AddSingleton<IWorkScheduleSource, TokenCleanupSchedule>();
+            services.AddSingleton<IWorkScheduleSource, WorkItemRetentionSchedule>();
             return services;
         }
 

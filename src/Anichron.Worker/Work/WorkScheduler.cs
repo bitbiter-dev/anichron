@@ -8,7 +8,7 @@ namespace Anichron.Worker.Work;
 
 public sealed partial class WorkScheduler(
     IWorkItemStore store,
-    IEnumerable<IWorkSchedule> schedules,
+    IEnumerable<IWorkScheduleSource> sources,
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
     IOptions<WorkerSettings> options,
@@ -36,13 +36,15 @@ public sealed partial class WorkScheduler(
     {
         var now = Instant.FromDateTimeOffset(timeProvider.GetUtcNow());
         await store.RecoverExpiredLeasesAsync(now, settings.WorkMaxStalls, ct);
-        foreach (var schedule in schedules)
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var queue = scope.ServiceProvider.GetRequiredService<IWorkQueue>();
+        foreach (var source in sources)
         {
-            if (!await store.IsDueAsync(schedule.DedupKey, now - schedule.Interval, ct))
-                continue;
-
-            await using var scope = scopeFactory.CreateAsyncScope();
-            await schedule.EnqueueAsync(scope.ServiceProvider.GetRequiredService<IWorkQueue>(), ct);
+            foreach (var schedule in await source.SchedulesAsync(scope.ServiceProvider, ct))
+            {
+                if (await store.IsDueAsync(schedule.DedupKey, now - schedule.Interval, ct))
+                    await schedule.EnqueueAsync(queue, ct);
+            }
         }
     }
 
