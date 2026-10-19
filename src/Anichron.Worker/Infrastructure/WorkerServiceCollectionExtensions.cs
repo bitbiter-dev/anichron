@@ -1,6 +1,7 @@
 using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Work;
 using Anichron.Infrastructure.Configuration;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
@@ -11,6 +12,7 @@ using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
+using Anichron.Worker.Work;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using System.IO.Abstractions;
@@ -38,7 +40,7 @@ internal static class WorkerServiceCollectionExtensions
         internal IServiceCollection AddWorkerDataServices(IConfiguration configuration)
         {
             var connectionString = DatabaseConfiguration.GetConnectionString(configuration, new FileSystem());
-            services.AddDbContext<AnichronDbContext>(options =>
+            services.AddDbContextFactory<AnichronDbContext>(options =>
                 options.UseNpgsql(connectionString, o => o.UseNodaTime()));
             services.AddScoped<IUserRepository, EfUserRepository>();
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
@@ -46,7 +48,27 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IMediaAssetRepository, EfMediaAssetRepository>();
             services.AddScoped<IDatabaseMigrator, EfDatabaseMigrator>();
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
+            services.AddScoped<IWorkQueue, EfWorkQueue>();
+            services.AddSingleton<IWorkItemStore, EfWorkItemStore>();
             return services;
+        }
+
+        internal IServiceCollection AddWorkQueueServices()
+        {
+            services.AddSingleton<WorkHandlerRegistry>();
+            services.AddWorkHandler<TokenCleanupPayload, TokenCleanupHandler>();
+            services.AddWorkHandler<WorkItemRetentionPayload, WorkItemRetentionHandler>();
+            services.AddSingleton<IWorkSchedule, TokenCleanupSchedule>();
+            services.AddSingleton<IWorkSchedule, WorkItemRetentionSchedule>();
+            return services;
+        }
+
+        private void AddWorkHandler<TPayload, THandler>()
+            where TPayload : IWorkPayload
+            where THandler : class, IWorkHandler<TPayload>
+        {
+            services.AddScoped<IWorkHandler<TPayload>, THandler>();
+            services.AddSingleton(WorkHandlerRegistration.For<TPayload>());
         }
 
         internal IServiceCollection AddIngestionServices()
@@ -99,7 +121,8 @@ internal static class WorkerServiceCollectionExtensions
         {
             services.AddHostedService<DatabaseMigratorService>();
             services.AddHostedService<WorkerInitializer>();
-            services.AddHostedService<TokenCleanupService>();
+            services.AddHostedService<WorkScheduler>();
+            services.AddHostedService<WorkExecutor>();
             services.AddHostedService<CrawlingWorker>();
             return services;
         }

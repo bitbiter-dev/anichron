@@ -1,14 +1,18 @@
 using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Domain;
+using Anichron.Core.Work;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Infrastructure;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
+using Anichron.Worker.Maintenance;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
+using Anichron.Worker.Work;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -195,13 +199,67 @@ public sealed class WorkerServiceCollectionExtensionsTests
     // ==========================================================================
 
     [Fact]
-    public void AddWorkerHostedServices_RegistersFourHostedServices()
+    public void AddWorkerHostedServices_MigratesFirstThenRunsTheWorkQueueAndTheCrawl()
     {
         var services = new ServiceCollection();
 
         services.AddWorkerHostedServices();
 
-        services.Count(d => d.ServiceType == typeof(IHostedService)).Should().Be(4);
+        services.Where(d => d.ServiceType == typeof(IHostedService)).Select(d => d.ImplementationType).Should().Equal(
+            typeof(DatabaseMigratorService), typeof(WorkerInitializer), typeof(WorkScheduler), typeof(WorkExecutor),
+            typeof(Worker.Crawling.Worker));
+    }
+
+    // ==========================================================================
+    // AddWorkQueueServices
+    // ==========================================================================
+
+    [Fact]
+    public void AddWorkQueueServices_RegistersEachKindsHandlerAsScoped()
+    {
+        var services = new ServiceCollection();
+
+        services.AddWorkQueueServices();
+
+        services.Where(d => d.Lifetime == ServiceLifetime.Scoped)
+            .Select(d => (d.ServiceType, d.ImplementationType)).Should().BeEquivalentTo([
+                (typeof(IWorkHandler<TokenCleanupPayload>), typeof(TokenCleanupHandler)),
+                (typeof(IWorkHandler<WorkItemRetentionPayload>), typeof(WorkItemRetentionHandler)),
+            ]);
+    }
+
+    [Fact]
+    public void AddWorkQueueServices_RegistersEachPeriodicKindsSchedule()
+        => new ServiceCollection().AddWorkQueueServices()
+            .Where(d => d.ServiceType == typeof(IWorkSchedule))
+            .Select(d => (d.ImplementationType, d.Lifetime)).Should().BeEquivalentTo([
+                (typeof(TokenCleanupSchedule), ServiceLifetime.Singleton),
+                (typeof(WorkItemRetentionSchedule), ServiceLifetime.Singleton),
+            ]);
+
+    [Fact]
+    public void AddWorkQueueServices_RegistersTheRegistryAsASingleton()
+        => new ServiceCollection().AddWorkQueueServices()
+            .Should().ContainSingle(d => d.ServiceType == typeof(WorkHandlerRegistry))
+            .Which.Lifetime.Should().Be(ServiceLifetime.Singleton);
+
+    [Fact]
+    public void TheWholeWorker_ResolvesEveryHostedServiceWithACompleteKindRegistry()
+    {
+        var services = DataServices();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddLogging();
+        services.AddWorkerCoreServices().AddIngestionServices().AddWorkQueueServices().AddWorkerHostedServices();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+
+        var hosted = provider.GetServices<IHostedService>();
+
+        hosted.Should().HaveCount(5);
+        provider.GetRequiredService<WorkHandlerRegistry>().Should().NotBeNull();
+        using var scope = provider.CreateScope();
+        provider.GetServices<WorkHandlerRegistration>().Select(r => r.Kind).Should().BeEquivalentTo(Enum.GetValues<WorkKind>());
+        foreach (var registration in provider.GetServices<WorkHandlerRegistration>())
+            scope.ServiceProvider.GetRequiredService(typeof(IWorkHandler<>).MakeGenericType(registration.PayloadType));
     }
 
     // ==========================================================================
@@ -282,7 +340,24 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IRefreshTokenRepository), typeof(EfRefreshTokenRepository) },
         { typeof(IMediaAssetRepository), typeof(EfMediaAssetRepository) },
         { typeof(IDatabaseMigrator), typeof(EfDatabaseMigrator) },
+        { typeof(IWorkQueue), typeof(EfWorkQueue) },
     };
+
+    [Fact]
+    public void AddWorkerDataServices_RegistersTheWorkItemStoreAsASingleton()
+        => DataServices().Should().ContainSingle(d => d.ServiceType == typeof(IWorkItemStore))
+            .Which.Should().Match<ServiceDescriptor>(d =>
+                d.ImplementationType == typeof(EfWorkItemStore) && d.Lifetime == ServiceLifetime.Singleton);
+
+    [Fact]
+    public void AddWorkerDataServices_ContextFactoryCreatesNpgsqlContexts()
+    {
+        using var provider = DataServices().BuildServiceProvider();
+
+        using var context = provider.GetRequiredService<IDbContextFactory<AnichronDbContext>>().CreateDbContext();
+
+        context.Database.GetConnectionString().Should().Contain("Host=db.internal");
+    }
 
     private static ServiceCollection DataServices()
     {

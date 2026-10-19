@@ -168,6 +168,63 @@ public sealed class WorkerSettingsTests
     }
 
     // ==========================================================================
+    // Work queue
+    // ==========================================================================
+
+    [Fact]
+    public void Defaults_WorkQueueTimingsAreTheDocumentedOnes()
+        => new WorkerSettings().Should().BeEquivalentTo(new
+        {
+            WorkPollIntervalSeconds = 5.0,
+            WorkHeartbeatSeconds = 2.0,
+            WorkLeaseSeconds = 60.0,
+            WorkMaxStalls = 3,
+            WorkItemRetentionDays = 30.0,
+            WorkItemRetentionIntervalHours = 24.0,
+        });
+
+    private static WorkerSettings WithZero(string setting) => setting switch
+    {
+        nameof(WorkerSettings.WorkPollIntervalSeconds) => ValidSettings with { WorkPollIntervalSeconds = 0 },
+        nameof(WorkerSettings.WorkHeartbeatSeconds) => ValidSettings with { WorkHeartbeatSeconds = 0 },
+        nameof(WorkerSettings.WorkLeaseSeconds) => ValidSettings with { WorkLeaseSeconds = 0 },
+        nameof(WorkerSettings.WorkMaxStalls) => ValidSettings with { WorkMaxStalls = 0 },
+        nameof(WorkerSettings.WorkItemRetentionDays) => ValidSettings with { WorkItemRetentionDays = 0 },
+        _ => ValidSettings with { WorkItemRetentionIntervalHours = 0 },
+    };
+
+    [Theory]
+    [InlineData(nameof(WorkerSettings.WorkPollIntervalSeconds))]
+    [InlineData(nameof(WorkerSettings.WorkHeartbeatSeconds))]
+    [InlineData(nameof(WorkerSettings.WorkLeaseSeconds))]
+    [InlineData(nameof(WorkerSettings.WorkMaxStalls))]
+    [InlineData(nameof(WorkerSettings.WorkItemRetentionDays))]
+    [InlineData(nameof(WorkerSettings.WorkItemRetentionIntervalHours))]
+    public void Validate_NonPositiveWorkQueueSetting_ReportsIt(string setting)
+        => GetFailures(WithZero(setting)).Should().Contain(failure => failure.MemberNames.Contains(setting));
+
+    [Theory]
+    [InlineData(2, 2)]
+    [InlineData(10, 2)]
+    public void Validate_LeaseNotLongerThanTheHeartbeat_ReportsTheLease(double heartbeat, double lease)
+        => GetFailures(ValidSettings with { WorkHeartbeatSeconds = heartbeat, WorkLeaseSeconds = lease })
+            .Should().ContainSingle().Which.Should().BeEquivalentTo(new
+            {
+                MemberNames = new[] { nameof(WorkerSettings.WorkLeaseSeconds) },
+                ErrorMessage = "Worker:WorkLeaseSeconds must be longer than Worker:WorkHeartbeatSeconds, or every lease expires between heartbeats.",
+            });
+
+    [Fact]
+    public void Validate_LeaseJustLongerThanTheHeartbeat_ReturnsSuccess()
+        => IsValid(ValidSettings with { WorkHeartbeatSeconds = 2, WorkLeaseSeconds = 2.5 }).Should().BeTrue();
+
+    [Fact]
+    public void Validate_LeaseAndAPathEntryBothWrong_ReportsThePathFirst()
+        => GetFailures(ValidSettings with { WorkLeaseSeconds = 1, ExcludedDirectories = "a/b" })
+            .Select(failure => failure.MemberNames.Single())
+            .Should().Equal(nameof(WorkerSettings.ExcludedDirectories), nameof(WorkerSettings.WorkLeaseSeconds));
+
+    // ==========================================================================
     // FfmpegPath
     // ==========================================================================
 
