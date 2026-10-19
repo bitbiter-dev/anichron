@@ -24,7 +24,7 @@ public sealed class AlwaysOnMiddlewareTests
             "Classification" => new ClassificationMiddleware(
                 new IngestionClassifier(repository, fileSystem),
                 new LivePhotoPairer(null!, null!, saver, new FakeLogger<LivePhotoPairer>()),
-                new KnownFileReconciler(Substitute.For<IClock>(), new FakeLogger<KnownFileReconciler>()),
+                new KnownFileReconciler(Substitute.For<IClock>(), new DuplicateCopyTally(), new FakeLogger<KnownFileReconciler>()),
                 saver),
             "ContentHashing" => new ContentHashingMiddleware(fileSystem),
             "Logging" => new LoggingMiddleware(new FakeLogger<LoggingMiddleware>()),

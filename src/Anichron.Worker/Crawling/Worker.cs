@@ -39,7 +39,7 @@ internal sealed partial class Worker(
         foreach (var config in configs)
             await CrawlAsync(config, ct);
 
-        await ReportSharedContentAsync(scope.ServiceProvider, [.. configs.Select(config => config.Id)], ct);
+        await ReportSharedContentAsync(scope.ServiceProvider, configs, ct);
     }
 
     private async Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
@@ -56,11 +56,11 @@ internal sealed partial class Worker(
     }
 
     private async Task ReportSharedContentAsync(
-        IServiceProvider services, IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct)
+        IServiceProvider services, IReadOnlyCollection<UserStorageConfig> configs, CancellationToken ct)
     {
         try
         {
-            await services.GetRequiredService<ISharedContentReporter>().ReportAsync(storageConfigIds, ct);
+            await services.GetRequiredService<ISharedContentReporter>().ReportAsync(configs, ct);
         }
         catch (Exception ex) when (!IngestionShutdown.IsInProgress(ex, ct))
         {

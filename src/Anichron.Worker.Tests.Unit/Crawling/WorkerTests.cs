@@ -200,7 +200,7 @@ public sealed class WorkerTests
 
         await fixture.Pipeline.Received(1).RunAsync(next, Arg.Any<CancellationToken>());
         await fixture.Reporter.Received(1).ReportAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { missing.Id, next.Id })),
+            Arg.Is<IReadOnlyCollection<UserStorageConfig>>(crawled => crawled.SequenceEqual(new[] { missing, next })),
             Arg.Any<CancellationToken>());
         fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error)
             .Which.Should().Match<FakeLogRecord>(r =>
@@ -224,7 +224,7 @@ public sealed class WorkerTests
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         await fixture.Pipeline.DidNotReceive().RunAsync(second, Arg.Any<CancellationToken>());
-        await fixture.Reporter.DidNotReceive().ReportAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+        await fixture.Reporter.DidNotReceive().ReportAsync(Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<CancellationToken>());
         fixture.Logger.Collector.GetSnapshot().Should().NotContain(r => r.Level == LogLevel.Error);
     }
 
@@ -265,7 +265,7 @@ public sealed class WorkerTests
             _ = fixture.Pipeline.RunAsync(home, Arg.Any<CancellationToken>());
             _ = fixture.Pipeline.RunAsync(phone, Arg.Any<CancellationToken>());
             _ = fixture.Reporter.ReportAsync(
-                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { home.Id, phone.Id })),
+                Arg.Is<IReadOnlyCollection<UserStorageConfig>>(crawled => crawled.SequenceEqual(new[] { home, phone })),
                 Arg.Any<CancellationToken>());
         });
     }
@@ -274,7 +274,7 @@ public sealed class WorkerTests
     public async Task CrawlAllAsync_ReportFails_LogsItWithoutThrowingAsync()
     {
         var fixture = new TestFixture();
-        fixture.Reporter.ReportAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+        fixture.Reporter.ReportAsync(Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("db down")));
 
         await fixture.Build().CrawlAllAsync(Ct);
@@ -290,7 +290,7 @@ public sealed class WorkerTests
         var fixture = new TestFixture();
         using var shutdown = new CancellationTokenSource();
         await shutdown.CancelAsync();
-        fixture.Reporter.ReportAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+        fixture.Reporter.ReportAsync(Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromCanceled(shutdown.Token));
 
         var act = () => fixture.Build().CrawlAllAsync(shutdown.Token);
