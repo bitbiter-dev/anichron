@@ -107,10 +107,12 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
         => Routes.Where(r => r.Pattern.StartsWith("/api/v1/users", StringComparison.Ordinal))
             .Should().OnlyContain(r => r.Tags.SequenceEqual(new[] { "Users" }));
 
-    [Fact]
-    public void ProxyRoute_RequiresAnAuthenticatedUserButNotAdmin()
+    [Theory]
+    [InlineData("GET", "/api/v1/assets/{assetId:guid}/proxies/{type}")]
+    [InlineData("PATCH", "/api/v1/assets/{assetId:guid}/interaction")]
+    public void AssetRoutes_RequireAnAuthenticatedUserButNotAdmin(string method, string pattern)
     {
-        var route = Find("GET", "/api/v1/assets/{assetId:guid}/proxies/{type}");
+        var route = Find(method, pattern);
 
         route.Anonymous.Should().BeFalse();
         route.Authenticated.Should().BeTrue();
@@ -143,5 +145,5 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(21);
+        => Routes.Should().HaveCount(22);
 }

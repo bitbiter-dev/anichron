@@ -133,6 +133,14 @@ public sealed class AssetDtoMapperTests
     }
 
     [Theory]
+    [InlineData(true, false, false, 1.0)]
+    [InlineData(false, true, false, 2.0)]
+    [InlineData(false, false, true, 1.0)]
+    public void InteractionState_MapsEachFlagAndWeighsALikeDouble(bool starred, bool liked, bool hidden, double weight)
+        => AssetDtoMapper.ToDto(new InteractionState(starred, liked, hidden))
+            .Should().Be(new AssetInteractionDto(starred, liked, hidden, weight));
+
+    [Theory]
     [InlineData(MediaType.Image, "Image")]
     [InlineData(MediaType.Video, "Video")]
     [InlineData(MediaType.LivePhoto, "LivePhoto")]

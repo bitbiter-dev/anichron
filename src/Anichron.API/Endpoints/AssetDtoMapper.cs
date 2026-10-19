@@ -30,6 +30,9 @@ internal static class AssetDtoMapper
             new AssetInteractionDto(view.IsStarred, view.IsLiked, Hidden: false, FlashbackWeight.For(view.IsLiked)));
     }
 
+    internal static AssetInteractionDto ToDto(InteractionState state)
+        => new(state.Starred, state.Liked, state.Hidden, FlashbackWeight.For(state.Liked));
+
     private static string PublishedMediaType(MediaType type)
         => type switch
         {

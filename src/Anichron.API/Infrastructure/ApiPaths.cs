@@ -45,6 +45,7 @@ internal static class ApiPaths
     {
         internal const string Group = "assets";
         internal const string Proxy = "{assetId:guid}/proxies/{type}";
+        internal const string Interaction = "{assetId:guid}/interaction";
 
         internal static string ProxyUrl(Guid assetId, string type)
             => $"{Group}/{assetId}/proxies/{type}";

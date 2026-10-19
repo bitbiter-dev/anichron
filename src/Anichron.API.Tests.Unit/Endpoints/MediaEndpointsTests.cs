@@ -6,6 +6,7 @@ using Anichron.Infrastructure.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
@@ -29,6 +30,7 @@ public sealed class MediaEndpointsTests
     {
         public FakeProxyStore Proxies { get; } = new();
         public IMediaAssetReadRepository Assets { get; } = Substitute.For<IMediaAssetReadRepository>();
+        public IAssetInteractionWriter Interactions { get; } = Substitute.For<IAssetInteractionWriter>();
 
         public void HasProxy(ProxyType type, string proxyPath, byte[]? bytes)
         {
@@ -42,6 +44,7 @@ public sealed class MediaEndpointsTests
             => AuthenticatedTestApp.StartAsync(api => api.MapMediaEndpoints(), services =>
             {
                 services.AddSingleton(Assets);
+                services.AddSingleton(Interactions);
                 services.AddSingleton<IProxyStore>(Proxies);
             });
     }
@@ -190,5 +193,117 @@ public sealed class MediaEndpointsTests
             $"/api/v1/assets/{AssetId}/proxies/thumbnail", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // ==========================================================================
+    // PATCH interaction (#46)
+    // ==========================================================================
+
+    private static HttpRequestMessage Patch(object body, Guid? userId = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/assets/{AssetId}/interaction")
+        {
+            Content = JsonContent.Create(body),
+        };
+        if (userId is { } caller)
+            request.Headers.Add(AuthenticatedTestApp.UserHeader, caller.ToString());
+        return request;
+    }
+
+    [Fact]
+    public async Task PatchInteraction_OwnAsset_PassesThePresentFlagsAndReturnsTheResultingStateAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.Interactions.ApplyAsync(UserId, AssetId, new InteractionChange(null, true, null), Arg.Any<CancellationToken>())
+            .Returns(new InteractionState(Starred: true, Liked: true, Hidden: false));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(Patch(new { liked = true }, UserId), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<AssetInteractionDto>(TestContext.Current.CancellationToken))
+            .Should().Be(new AssetInteractionDto(Starred: true, Liked: true, Hidden: false, DisplayWeight: 2.0));
+    }
+
+    [Fact]
+    public async Task PatchInteraction_EveryFlag_IsPassedAsSentAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.Interactions.ApplyAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<InteractionChange>(), Arg.Any<CancellationToken>())
+            .Returns(new InteractionState(false, false, false));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(
+            Patch(new { starred = true, liked = false, hidden = true }, UserId), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await fixture.Interactions.Received(1).ApplyAsync(
+            UserId, AssetId, new InteractionChange(true, false, true), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PatchInteraction_EmptyBody_PassesNoChangeAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.Interactions.ApplyAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<InteractionChange>(), Arg.Any<CancellationToken>())
+            .Returns(new InteractionState(false, false, false));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(Patch(new { }, UserId), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<AssetInteractionDto>(TestContext.Current.CancellationToken))
+            .Should().Be(new AssetInteractionDto(false, false, false, 1.0));
+        await fixture.Interactions.Received(1).ApplyAsync(
+            UserId, AssetId, new InteractionChange(null, null, null), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PatchInteraction_BodyNamingAnotherUser_WritesForTheCallerAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.Interactions.ApplyAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<InteractionChange>(), Arg.Any<CancellationToken>())
+            .Returns(new InteractionState(true, false, false));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+        var other = Guid.Parse("cccccccc-0000-0000-0000-000000000003");
+
+        using var response = await client.SendAsync(
+            Patch(new { userId = other, starred = true }, UserId), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await fixture.Interactions.Received(1).ApplyAsync(
+            UserId, AssetId, new InteractionChange(true, null, null), Arg.Any<CancellationToken>());
+        await fixture.Interactions.DidNotReceive().ApplyAsync(
+            other, Arg.Any<Guid>(), Arg.Any<InteractionChange>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PatchInteraction_NotVisibleToTheCaller_ReturnsNotFoundAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(Patch(new { starred = true }, UserId), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task PatchInteraction_Anonymous_ReturnsUnauthorizedWithoutAWriteAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(Patch(new { starred = true }), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        await fixture.Interactions.DidNotReceive().ApplyAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<InteractionChange>(), Arg.Any<CancellationToken>());
     }
 }
