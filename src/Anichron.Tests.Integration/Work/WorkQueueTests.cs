@@ -25,7 +25,7 @@ public sealed class WorkQueueTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         var running = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
-        await work.Store.ClaimAsync("worker", work.Clock.Now, Lease, Ct);
+        await work.Store.ClaimAsync("worker", null, work.Clock.Now, Lease, Ct);
 
         var queued = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
 

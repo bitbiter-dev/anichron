@@ -44,6 +44,7 @@ public sealed class EfWorkQueue(AnichronDbContext db, IClock clock, IGuidFactory
                 Kind = TPayload.Kind,
                 Payload = WorkJson.Serialize(payload),
                 DedupKey = dedupKey,
+                StorageConfigId = payload.StorageConfigId,
                 RequestedBy = requestedBy,
                 RequestedAt = now,
                 Status = WorkItemStatus.Queued,

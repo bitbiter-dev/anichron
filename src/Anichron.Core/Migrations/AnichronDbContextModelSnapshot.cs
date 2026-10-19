@@ -492,6 +492,10 @@ namespace Anichron.Core.Migrations
                         .HasColumnType("text")
                         .HasComment("Queued, Running, Succeeded, Failed or Cancelled, persisted as text.");
 
+                    b.Property<Guid?>("StorageConfigId")
+                        .HasColumnType("uuid")
+                        .HasComment("The storage config the work belongs to, or null for unscoped work. A per-user Worker claims only its user's configs and unscoped work; deleting the config deletes its items.");
+
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasComment("Moves on every insert, claim, heartbeat and transition, so a reader can ask what changed since a point in time.");
@@ -512,6 +516,8 @@ namespace Anichron.Core.Migrations
                         .HasFilter("\"Status\" = 'Queued'");
 
                     b.HasIndex("RequestedBy");
+
+                    b.HasIndex("StorageConfigId");
 
                     b.HasIndex("UpdatedAt");
 
@@ -643,6 +649,11 @@ namespace Anichron.Core.Migrations
                         .WithMany()
                         .HasForeignKey("RequestedBy")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Anichron.Core.Domain.UserStorageConfig", null)
+                        .WithMany()
+                        .HasForeignKey("StorageConfigId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.Burst", b =>

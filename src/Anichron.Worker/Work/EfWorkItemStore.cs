@@ -15,7 +15,8 @@ public sealed class EfWorkItemStore(IDbContextFactory<AnichronDbContext> context
     private sealed record ClaimRow(Guid Id, string Kind, string Payload, int Attempt);
 
     // Stryker disable all
-    public async Task<ClaimedWork?> ClaimAsync(string claimedBy, Instant now, Duration lease, CancellationToken ct)
+    public async Task<ClaimedWork?> ClaimAsync(
+        string claimedBy, Guid? servedUserId, Instant now, Duration lease, CancellationToken ct)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var leaseUntil = now + lease;
@@ -28,6 +29,10 @@ public sealed class EfWorkItemStore(IDbContextFactory<AnichronDbContext> context
             WHERE "Id" = (
                 SELECT "Id" FROM "WorkItems"
                 WHERE "Status" = 'Queued' AND "Kind" = ANY({kinds})
+                  AND ("StorageConfigId" IS NULL
+                    OR CAST({servedUserId} AS uuid) IS NULL
+                    OR "StorageConfigId" IN (
+                        SELECT "Id" FROM "StorageConfigs" WHERE "UserId" = CAST({servedUserId} AS uuid)))
                 ORDER BY "RequestedAt", "Id"
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED)

@@ -1,4 +1,5 @@
 using Anichron.Core.Work;
+using Anichron.Worker.Crawling;
 using Anichron.Worker.Scheduling;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,7 @@ namespace Anichron.Worker.Work;
 public sealed partial class WorkExecutor(
     IWorkItemStore store,
     WorkHandlerRegistry registry,
+    WorkerState workerState,
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
     IOptions<WorkerSettings> options,
@@ -32,7 +34,7 @@ public sealed partial class WorkExecutor(
     {
         try
         {
-            while (await store.ClaimAsync(claimant, Now, Lease, stopping) is { } work)
+            while (await store.ClaimAsync(claimant, workerState.ResolvedUserId, Now, Lease, stopping) is { } work)
                 await RunAsync(work, stopping);
         }
         catch (Exception ex) when (!stopping.IsCancellationRequested)

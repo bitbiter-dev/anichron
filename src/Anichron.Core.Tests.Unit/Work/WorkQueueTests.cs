@@ -22,6 +22,13 @@ public sealed class WorkQueueTests
         string IWorkPayload.DedupKey => Key;
     }
 
+    private sealed record Scoped(Guid ConfigId) : IWorkPayload
+    {
+        public static WorkKind Kind => WorkKind.TokenCleanup;
+
+        Guid? IWorkPayload.StorageConfigId => ConfigId;
+    }
+
     private static readonly Instant Now = Instant.FromUtc(2026, 10, 18, 9, 0);
     private static readonly Guid AdminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -90,7 +97,18 @@ public sealed class WorkQueueTests
         await EnqueueAsync(new Unkeyed(1));
 
         var item = (await ItemsAsync()).Should().ContainSingle().Which;
-        (item.Kind, item.DedupKey, item.RequestedBy).Should().Be((WorkKind.WorkItemRetention, null, null));
+        (item.Kind, item.DedupKey, item.RequestedBy, item.StorageConfigId)
+            .Should().Be((WorkKind.WorkItemRetention, null, null, null));
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_ScopedPayload_StoresItsStorageConfigAsync()
+    {
+        var configId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+
+        await EnqueueAsync(new Scoped(configId));
+
+        (await ItemsAsync()).Should().ContainSingle().Which.StorageConfigId.Should().Be(configId);
     }
 
     [Fact]

@@ -6,6 +6,7 @@ public class WorkItem
     public WorkKind Kind { get; set; }
     public required string Payload { get; set; }
     public string? DedupKey { get; set; }
+    public Guid? StorageConfigId { get; set; }
     public Guid? RequestedBy { get; set; }
     public Instant RequestedAt { get; set; }
 

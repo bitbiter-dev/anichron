@@ -2,6 +2,7 @@ using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Testing.DependencyInjection;
 using Anichron.Testing.Time;
+using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Work;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     private readonly IWorkHandler<Cleanup> handler = Substitute.For<IWorkHandler<Cleanup>>();
     private readonly FakeLogger<WorkExecutor> logger = new();
     private readonly Queue<ClaimedWork> queued = new();
+    private readonly WorkerState workerState = new();
     private readonly List<TaskCompletionSource<object?>> runs = [];
     private CancellationToken handlerToken;
     private IWorkProgress? handlerProgress;
@@ -40,7 +42,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
 
     public WorkExecutorTests()
     {
-        store.ClaimAsync(Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+        store.ClaimAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 timeline.Record("claim");
@@ -91,7 +93,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             [WorkHandlerRegistration.For<Cleanup>(), WorkHandlerRegistration.For<Retention>()],
             [typeof(Cleanup), typeof(Retention)]);
         executor = new WorkExecutor(
-            store, registry, ScopeFactories.Providing(services => services.AddSingleton(handler)),
+            store, registry, workerState, ScopeFactories.Providing(services => services.AddSingleton(handler)),
             timeline.Clock, Options.Create(new WorkerSettings()), logger);
         await executor.StartAsync(Ct);
         timeline.Watch(executor.ExecuteTask!, () => executor.StopAsync(CancellationToken.None));
@@ -124,7 +126,24 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         await StartAsync();
         await timeline.ExpectAsync(new Called("claim"), new TimerArmed(Poll));
 
-        await store.Received(1).ClaimAsync($"all@{Environment.MachineName}", Now, Lease, Arg.Any<CancellationToken>());
+        await store.Received(1).ClaimAsync($"all@{Environment.MachineName}", null, Now, Lease, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ClaimsForTheUserResolvedAtThatMomentAsync()
+    {
+        var mira = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        await StartAsync();
+        await timeline.ExpectAsync(new Called("claim"), new TimerArmed(Poll));
+
+        workerState.ResolvedUserId = mira;
+        timeline.Clock.Advance(Poll);
+
+        await timeline.ExpectAsync(new TimerFired(Poll), new Called("claim"), new TimerArmed(Poll));
+        store.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IWorkItemStore.ClaimAsync))
+            .Select(call => (Guid?)call.GetArguments()[1])
+            .Should().Equal(null, mira);
     }
 
     [Theory]
@@ -137,7 +156,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     public async Task ExecuteAsync_ClaimFails_LogsAndClaimsAgainAtTheNextPollAsync()
     {
         var calls = 0;
-        store.ClaimAsync(Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+        store.ClaimAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
             .Returns<ClaimedWork?>(_ =>
             {
                 timeline.Record("claim");
