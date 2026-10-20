@@ -18,9 +18,7 @@ public sealed record WorkItemView(
     Instant? StartedAt,
     Instant? FinishedAt,
     Instant UpdatedAt,
-    long ProgressDone,
-    long? ProgressTotal,
-    string? ProgressNote,
+    WorkProgress Progress,
     string? Result,
     string? Error);
 
@@ -89,6 +87,6 @@ public sealed class EfWorkItemReader(AnichronDbContext db) : IWorkItemReader
     private static Expression<Func<WorkItem, WorkItemView>> ToView
         => w => new WorkItemView(
             w.Id, w.Kind, w.StorageConfigId, w.RequestedBy, w.RequestedAt, w.Status, w.Attempt, w.Stalls,
-            w.ClaimedBy, w.StartedAt, w.FinishedAt, w.UpdatedAt, w.ProgressDone, w.ProgressTotal,
-            w.ProgressNote, w.Result, w.Error);
+            w.ClaimedBy, w.StartedAt, w.FinishedAt, w.UpdatedAt,
+            new WorkProgress(w.ProgressDone, w.ProgressTotal, w.ProgressNote), w.Result, w.Error);
 }

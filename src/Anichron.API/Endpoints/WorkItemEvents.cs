@@ -34,7 +34,7 @@ public sealed class WorkItemEvents(IWorkItemReader reader, TimeProvider time, IO
                 cursor = Instant.Max(cursor, item.UpdatedAt);
                 yield return new SseItem<WorkItemDto>(WorkItemDtoMapper.ToDto(item), EventType)
                 {
-                    EventId = Format(cursor),
+                    EventId = WorkItemDtoMapper.Format(cursor),
                 };
             }
 
@@ -42,8 +42,6 @@ public sealed class WorkItemEvents(IWorkItemReader reader, TimeProvider time, IO
             await Task.Delay(interval, time, ct);
         }
     }
-
-    internal static string Format(Instant cursor) => InstantPattern.ExtendedIso.Format(cursor);
 
     private static Instant? Parse(string? lastEventId)
         => lastEventId is not null && InstantPattern.ExtendedIso.Parse(lastEventId) is { Success: true } parsed

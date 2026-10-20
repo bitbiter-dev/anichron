@@ -25,7 +25,7 @@ public sealed class WorkItemEndpointsTests
         string? result = /*lang=json,strict*/ """{"found": 8}""",
         string? error = "IOException: the root is gone")
         => new(ItemId, WorkKind.Crawl, ConfigId, AdminId, At(1), status, 2, 1, "all@host",
-            At(2), At(9), At(9), 7, 8, "7 found", result, error);
+            At(2), At(9), At(9), new WorkProgress(7, 8, "7 found"), result, error);
 
     private void Pages(int total = 1, Instant? latest = null)
     {
@@ -106,18 +106,20 @@ public sealed class WorkItemEndpointsTests
     }
 
     [Theory]
-    [InlineData(0, 50, "page")]
-    [InlineData(-1, 50, "page")]
-    [InlineData(10_737_419, 200, "page")]
-    [InlineData(1, 0, "pageSize")]
-    [InlineData(1, 201, "pageSize")]
-    public async Task ListAsync_PagingOutOfRange_IsAValidationProblemAsync(int page, int pageSize, string field)
+    [InlineData(0, 50, "page", "page is out of range.")]
+    [InlineData(-1, 50, "page", "page is out of range.")]
+    [InlineData(10_737_419, 200, "page", "page is out of range.")]
+    [InlineData(1, 0, "pageSize", "pageSize must be from 1 to 200.")]
+    [InlineData(1, 201, "pageSize", "pageSize must be from 1 to 200.")]
+    public async Task ListAsync_PagingOutOfRange_IsAValidationProblemAsync(int page, int pageSize, string field, string message)
     {
         Pages();
 
         var result = await WorkItemEndpoints.ListAsync(null, null, page, pageSize, reader, Ct);
 
-        result.Result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails.Errors.Keys.Should().Equal(field);
+        var errors = result.Result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails.Errors;
+        errors.Keys.Should().Equal(field);
+        errors[field].Should().Equal(message);
         await reader.DidNotReceive().ListAsync(Arg.Any<WorkItemQuery>(), Arg.Any<CancellationToken>());
     }
 

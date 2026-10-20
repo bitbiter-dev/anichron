@@ -21,7 +21,7 @@ internal static class WorkItemDtoMapper
             view.StartedAt is { } started ? Format(started) : null,
             view.FinishedAt is { } finished ? Format(finished) : null,
             Format(view.UpdatedAt),
-            new WorkProgressDto(view.ProgressDone, view.ProgressTotal, view.ProgressNote),
+            new WorkProgressDto(view.Progress.Done, view.Progress.Total, view.Progress.Note),
             view is { Status: WorkItemStatus.Succeeded, Result: { } result }
                 ? JsonSerializer.Deserialize<JsonElement>(result)
                 : null,

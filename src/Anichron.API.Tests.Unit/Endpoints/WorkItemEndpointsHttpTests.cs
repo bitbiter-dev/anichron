@@ -3,8 +3,10 @@ using Anichron.API.Settings;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
+using Anichron.Testing.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using System.Net;
 using System.Text.Json;
 
@@ -22,23 +24,17 @@ public sealed class WorkItemEndpointsHttpTests
 
     private static WorkItemView Succeeded
         => new(ItemId, WorkKind.Crawl, null, null, Start, WorkItemStatus.Succeeded, 1, 0, "all@host",
-            Start, Start + Duration.FromSeconds(9), Start + Duration.FromSeconds(9), 8, 8, "8 found",
+            Start, Start + Duration.FromSeconds(9), Start + Duration.FromSeconds(9), new WorkProgress(8, 8, "8 found"),
             /*lang=json,strict*/ """{"found": 8}""", null);
 
     private Task<AuthenticatedTestApp> StartAsync()
         => AuthenticatedTestApp.StartAsync(api => api.MapWorkItemEndpoints(), services =>
         {
             services.AddSingleton(reader);
-            services.AddSingleton<TimeProvider>(new ImmediateTimers());
+            services.AddSingleton<TimeProvider>(new FakeTimeProvider());
             services.AddSingleton(Options.Create(new WorkItemEventsSettings()));
             services.AddScoped<WorkItemEvents>();
         });
-
-    private sealed class ImmediateTimers : TimeProvider
-    {
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-            => base.CreateTimer(callback, state, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
-    }
 
     [Fact]
     public async Task List_BindsTheFiltersAndPagingFromTheQueryAsync()
@@ -90,24 +86,29 @@ public sealed class WorkItemEndpointsHttpTests
     public async Task Events_ResumeFromLastEventIdAndFrameEachItemAsync()
     {
         var polls = 0;
-        reader.UpdatedSinceAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>()).Returns(_ => ++polls == 1
-            ? Task.FromResult<IReadOnlyList<WorkItemView>>([Succeeded])
-            : throw new InvalidOperationException("The stream is read once."));
+        reader.UpdatedSinceAsync(Arg.Any<Instant>(), Arg.Any<CancellationToken>())
+              .Returns(_ => ++polls == 1 ? [Succeeded] : Array.Empty<WorkItemView>());
+        await using var timeline = new Timeline();
         await using var app = await StartAsync();
         using var client = app.Client;
         using var request = AuthenticatedTestApp.GetAsAdmin("/api/v1/admin/work-items/events", AdminId);
         request.Headers.Add("Last-Event-ID", "2026-10-18T09:00:05Z");
-
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Ct);
 
+        timeline.Watch(Task.Run(async () => timeline.Record(Describe(await FirstFrameAsync(response))), CancellationToken.None));
+
+        await timeline.ExpectAsync(new Called(
+            "event: work-item | id: 2026-10-18T09:00:09Z | aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa 8 found"));
         response.Content.Headers.ContentType!.MediaType.Should().Be("text/event-stream");
         await reader.Received(1).UpdatedSinceAsync(Start - Duration.FromSeconds(5), Arg.Any<CancellationToken>());
-        var frame = await FirstFrameAsync(response);
-        frame.Should().HaveCount(3).And.Contain("event: work-item").And.Contain("id: 2026-10-18T09:00:09Z");
-        var json = frame.Should().ContainSingle(line => line.StartsWith("data: ", StringComparison.Ordinal)).Which;
-        using var data = JsonDocument.Parse(json["data: ".Length..]);
-        data.RootElement.GetProperty("id").GetGuid().Should().Be(ItemId);
-        data.RootElement.GetProperty("progress").GetProperty("note").GetString().Should().Be("8 found");
+    }
+
+    private static string Describe(List<string> frame)
+    {
+        var data = frame.Single(line => line.StartsWith("data: ", StringComparison.Ordinal));
+        using var json = JsonDocument.Parse(data["data: ".Length..]);
+        var item = $"{json.RootElement.GetProperty("id").GetGuid()} {json.RootElement.GetProperty("progress").GetProperty("note").GetString()}";
+        return string.Join(" | ", frame.Where(line => line != data).Order(StringComparer.Ordinal).Append(item));
     }
 
     private static async Task<List<string>> FirstFrameAsync(HttpResponseMessage response)

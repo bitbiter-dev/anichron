@@ -39,7 +39,7 @@ public static class WorkItemEndpoints
         var cursor = await reader.LatestUpdateAsync(ct) ?? NodaConstants.UnixEpoch;
         var found = await reader.ListAsync(new WorkItemQuery(status, kind, (number - 1) * size, size), ct);
         return TypedResults.Ok(new WorkItemPageDto(
-            [.. found.Items.Select(WorkItemDtoMapper.ToDto)], number, size, found.Total, WorkItemEvents.Format(cursor)));
+            [.. found.Items.Select(WorkItemDtoMapper.ToDto)], number, size, found.Total, WorkItemDtoMapper.Format(cursor)));
     }
 
     internal static async Task<Results<Ok<WorkItemDto>, NotFound>> GetAsync(
