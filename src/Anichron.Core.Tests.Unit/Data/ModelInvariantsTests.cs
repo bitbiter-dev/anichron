@@ -25,6 +25,17 @@ public sealed class ModelInvariantsTests
     }
 
     [Fact]
+    public void Interactions_AreUniquePerUserAndAssetUnderTheNameTheWriterRetriesOn()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var interaction = context.Model.FindEntityType(typeof(AssetInteraction))!;
+
+        var index = interaction.GetIndexes().Where(index => index.IsUnique).Should().ContainSingle().Which;
+        index.Properties.Select(p => p.Name).Should().Equal(nameof(AssetInteraction.UserId), nameof(AssetInteraction.AssetId));
+        index.GetDatabaseName().Should().Be(InteractionIndexNames.OnePerUserAndAsset);
+    }
+
+    [Fact]
     public void QueryFilters_AreSoftDeleteOnly()
     {
         using var context = AnichronDbContexts.NpgsqlModel();

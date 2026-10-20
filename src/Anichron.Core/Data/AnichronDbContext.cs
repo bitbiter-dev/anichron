@@ -50,7 +50,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                     + "the same file each get their own row. Drives flashback weighting — hidden "
                     + "excludes, starred always includes and sorts first, liked raises DisplayWeight."
                 ));
-            entity.HasIndex(i => new { i.UserId, i.AssetId }).IsUnique();
+            entity.HasIndex(i => new { i.UserId, i.AssetId }).IsUnique().HasDatabaseName(InteractionIndexNames.OnePerUserAndAsset);
             entity.HasQueryFilter(i => !i.Asset.IsSoftDeleted);
         });
 

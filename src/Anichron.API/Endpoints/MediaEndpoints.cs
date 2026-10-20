@@ -7,6 +7,8 @@ using System.Security.Claims;
 
 namespace Anichron.API.Endpoints;
 
+public sealed record PatchInteractionRequest(bool? Starred, bool? Liked, bool? Hidden);
+
 public static class MediaEndpoints
 {
     internal const string ProxyCacheControl = "private, max-age=31536000, immutable";
@@ -15,6 +17,8 @@ public static class MediaEndpoints
     {
         var group = app.MapGroup(ApiPaths.Assets.Group).WithTags("Media");
         group.MapGet(ApiPaths.Assets.Proxy, GetProxyAsync)
+             .RequireAuthorization();
+        group.MapPatch(ApiPaths.Assets.Interaction, PatchInteractionAsync)
              .RequireAuthorization();
         return app;
     }
@@ -47,5 +51,21 @@ public static class MediaEndpoints
             kind.ContentType,
             entityTag: new EntityTagHeaderValue($"\"{proxy.ContentHash}-{kind.Type}\""),
             enableRangeProcessing: true);
+    }
+
+    internal static async Task<IResult> PatchInteractionAsync(
+        Guid assetId,
+        PatchInteractionRequest? request,
+        ClaimsPrincipal user,
+        [FromServices] IAssetInteractionWriter interactions,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Results.Unauthorized();
+
+        var change = new InteractionChange(request?.Starred, request?.Liked, request?.Hidden);
+        return await interactions.ApplyAsync(userId, assetId, change, ct) is { } state
+            ? Results.Ok(AssetDtoMapper.ToDto(state))
+            : Results.NotFound();
     }
 }

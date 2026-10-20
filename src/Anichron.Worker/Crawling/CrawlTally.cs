@@ -6,7 +6,11 @@ namespace Anichron.Worker.Crawling;
 /// <param name="Found">Items the walk queued for ingestion.</param>
 /// <param name="Processed">Items ingested without an error.</param>
 /// <param name="Failed">Items whose ingestion failed.</param>
-public sealed record CrawlResult(long Found, long Processed, long Failed);
+public sealed record CrawlResult(long Found, long Processed, long Failed)
+{
+    /// <summary>The duplicate report for the crawled config, or null when the report failed.</summary>
+    public DuplicateCounts? Duplicates { get; init; }
+}
 
 internal sealed class CrawlTally(IWorkProgress progress)
 {

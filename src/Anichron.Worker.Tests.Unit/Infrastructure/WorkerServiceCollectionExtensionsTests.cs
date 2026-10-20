@@ -271,6 +271,8 @@ public sealed class WorkerServiceCollectionExtensionsTests
     {
         { typeof(ILivePhotoLinker), typeof(LivePhotoLinker), ServiceLifetime.Singleton },
         { typeof(IFileIngestionPipeline), typeof(FileIngestionPipeline), ServiceLifetime.Singleton },
+        { typeof(ISharedContentReporter), typeof(SharedContentReporter), ServiceLifetime.Scoped },
+        { typeof(DuplicateCopyTally), typeof(DuplicateCopyTally), ServiceLifetime.Singleton },
         { typeof(PairedMovResolver), typeof(PairedMovResolver), ServiceLifetime.Scoped },
         { typeof(PairedMovProxyWriter), typeof(PairedMovProxyWriter), ServiceLifetime.Scoped },
         { typeof(IngestionSaver), typeof(IngestionSaver), ServiceLifetime.Scoped },
