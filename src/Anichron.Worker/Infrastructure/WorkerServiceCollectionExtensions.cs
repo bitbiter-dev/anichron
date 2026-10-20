@@ -16,7 +16,6 @@ using Anichron.Worker.Work;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using System.IO.Abstractions;
-using CrawlingWorker = Anichron.Worker.Crawling.Worker;
 
 namespace Anichron.Worker.Infrastructure;
 
@@ -58,8 +57,10 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<WorkHandlerRegistry>();
             services.AddWorkHandler<TokenCleanupPayload, TokenCleanupHandler>();
             services.AddWorkHandler<WorkItemRetentionPayload, WorkItemRetentionHandler>();
-            services.AddSingleton<IWorkSchedule, TokenCleanupSchedule>();
-            services.AddSingleton<IWorkSchedule, WorkItemRetentionSchedule>();
+            services.AddWorkHandler<CrawlPayload, CrawlHandler>();
+            services.AddSingleton<IWorkScheduleSource, TokenCleanupSchedule>();
+            services.AddSingleton<IWorkScheduleSource, WorkItemRetentionSchedule>();
+            services.AddSingleton<IWorkScheduleSource, CrawlSchedules>();
             return services;
         }
 
@@ -123,7 +124,6 @@ internal static class WorkerServiceCollectionExtensions
             services.AddHostedService<WorkerInitializer>();
             services.AddHostedService<WorkScheduler>();
             services.AddHostedService<WorkExecutor>();
-            services.AddHostedService<CrawlingWorker>();
             return services;
         }
     }

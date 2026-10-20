@@ -24,6 +24,12 @@ public sealed class WorkSchedulerTests : IAsyncDisposable
     private sealed class KeyedSchedule(string key, Duration interval)
         : WorkSchedule<Keyed>(new Keyed(key), interval);
 
+    private sealed class ChangingSource(Func<IReadOnlyList<IWorkSchedule>> current) : IWorkScheduleSource
+    {
+        public Task<IReadOnlyList<IWorkSchedule>> SchedulesAsync(IServiceProvider services, CancellationToken ct)
+            => Task.FromResult(current());
+    }
+
     private static readonly TimeSpan Poll = TimeSpan.FromSeconds(5);
     private static readonly Duration Hourly = Duration.FromHours(1);
     private static readonly Duration Daily = Duration.FromDays(1);
@@ -59,10 +65,10 @@ public sealed class WorkSchedulerTests : IAsyncDisposable
 
     private Instant Now => Instant.FromDateTimeOffset(timeline.Clock.GetUtcNow());
 
-    private async Task StartAsync(params IWorkSchedule[] schedules)
+    private async Task StartAsync(params IWorkScheduleSource[] sources)
     {
         scheduler = new WorkScheduler(
-            store, schedules, ScopeFactories.Providing(services => services.AddSingleton(queue)),
+            store, sources, ScopeFactories.Providing(services => services.AddSingleton(queue)),
             timeline.Clock, Options.Create(new WorkerSettings()), logger);
         await scheduler.StartAsync(Ct);
         timeline.Watch(scheduler.ExecuteTask!, () => scheduler.StopAsync(CancellationToken.None));
@@ -102,6 +108,30 @@ public sealed class WorkSchedulerTests : IAsyncDisposable
         await timeline.ExpectAsync(
             new TimerFired(Poll), new Called("recover"), new Called("enqueue sweep"), new TimerArmed(Poll));
         await store.Received(1).IsDueAsync("sweep", Now - Hourly, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AsksEachSourceForItsSchedulesAtEveryTickAsync()
+    {
+        IReadOnlyList<IWorkSchedule> current = [new KeyedSchedule("crawl:a", Hourly)];
+        due.UnionWith(["crawl:a", "crawl:b"]);
+        await StartAsync(new ChangingSource(() => current));
+        await timeline.ExpectAsync(new Called("recover"), new Called("enqueue crawl:a"), new TimerArmed(Poll));
+        current = [new KeyedSchedule("crawl:a", Hourly), new KeyedSchedule("crawl:b", Hourly)];
+
+        timeline.Clock.Advance(Poll);
+
+        await timeline.ExpectAsync(
+            new TimerFired(Poll), new Called("recover"), new Called("enqueue crawl:a"), new Called("enqueue crawl:b"),
+            new TimerArmed(Poll));
+    }
+
+    [Fact]
+    public async Task WorkSchedule_IsItsOwnOnlySourceAsync()
+    {
+        var schedule = new KeyedSchedule("sweep", Hourly);
+
+        (await schedule.SchedulesAsync(Substitute.For<IServiceProvider>(), Ct)).Should().Equal(schedule);
     }
 
     [Fact]

@@ -12,7 +12,13 @@ public interface IWorkSchedule
     Task EnqueueAsync(IWorkQueue queue, CancellationToken ct);
 }
 
-public abstract class WorkSchedule<TPayload>(TPayload payload, Duration interval) : IWorkSchedule
+/// <summary>The periodic schedules a Worker serves, asked again at every scheduler tick.</summary>
+public interface IWorkScheduleSource
+{
+    Task<IReadOnlyList<IWorkSchedule>> SchedulesAsync(IServiceProvider services, CancellationToken ct);
+}
+
+public abstract class WorkSchedule<TPayload>(TPayload payload, Duration interval) : IWorkSchedule, IWorkScheduleSource
     where TPayload : IWorkPayload
 {
     public string DedupKey { get; } = payload.DedupKey
@@ -21,4 +27,7 @@ public abstract class WorkSchedule<TPayload>(TPayload payload, Duration interval
     public Duration Interval => interval;
 
     public Task EnqueueAsync(IWorkQueue queue, CancellationToken ct) => queue.EnqueueAsync(payload, null, ct);
+
+    public Task<IReadOnlyList<IWorkSchedule>> SchedulesAsync(IServiceProvider services, CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<IWorkSchedule>>([this]);
 }

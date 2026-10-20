@@ -64,6 +64,7 @@ CREATE TABLE "WorkItems" (
     "Kind" text NOT NULL,
     "Payload" jsonb NOT NULL,
     "DedupKey" text,
+    "StorageConfigId" uuid,
     "RequestedBy" uuid,
     "RequestedAt" timestamp with time zone NOT NULL,
     "Status" text NOT NULL,
@@ -80,12 +81,14 @@ CREATE TABLE "WorkItems" (
     "Result" jsonb,
     "Error" text,
     CONSTRAINT "PK_WorkItems" PRIMARY KEY ("Id"),
+    CONSTRAINT "FK_WorkItems_StorageConfigs_StorageConfigId" FOREIGN KEY ("StorageConfigId") REFERENCES "StorageConfigs" ("Id") ON DELETE CASCADE,
     CONSTRAINT "FK_WorkItems_Users_RequestedBy" FOREIGN KEY ("RequestedBy") REFERENCES "Users" ("Id") ON DELETE SET NULL
 );
 COMMENT ON TABLE "WorkItems" IS 'Durable work for the Worker: periodic maintenance today, admin requests later. Only IWorkQueue inserts rows; every later state change belongs to the Worker''s executor. Delivery is at least once, so handlers start from scratch and converge.';
 COMMENT ON COLUMN "WorkItems"."Kind" IS 'WorkKind, persisted as text. Picks the payload type and the handler through the registry, never through a switch.';
 COMMENT ON COLUMN "WorkItems"."Payload" IS 'The kind''s IWorkPayload, serialised with System.Text.Json and NodaTime settings.';
 COMMENT ON COLUMN "WorkItems"."DedupKey" IS 'Opt-in coalescing. While an item with this key is Queued, enqueueing the same key returns that item instead of adding a second; the partial unique index enforces it.';
+COMMENT ON COLUMN "WorkItems"."StorageConfigId" IS 'The storage config the work belongs to, or null for unscoped work. A per-user Worker claims only its user''s configs and unscoped work; deleting the config deletes its items.';
 COMMENT ON COLUMN "WorkItems"."RequestedBy" IS 'The admin who asked for the work; null when a Worker''s scheduler enqueued it.';
 COMMENT ON COLUMN "WorkItems"."Status" IS 'Queued, Running, Succeeded, Failed or Cancelled, persisted as text.';
 COMMENT ON COLUMN "WorkItems"."Attempt" IS 'Incremented by every claim. Every write a Worker makes while running an item is fenced by (Id, Attempt), so an attempt that lost its lease changes nothing.';
@@ -254,6 +257,9 @@ CREATE INDEX ix_workitems_lease ON "WorkItems" ("LeaseUntil") WHERE "Status" = '
 
 
 CREATE INDEX "IX_WorkItems_RequestedBy" ON "WorkItems" ("RequestedBy");
+
+
+CREATE INDEX "IX_WorkItems_StorageConfigId" ON "WorkItems" ("StorageConfigId");
 
 
 CREATE INDEX "IX_WorkItems_UpdatedAt" ON "WorkItems" ("UpdatedAt");

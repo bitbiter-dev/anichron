@@ -25,7 +25,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
 
         await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(async () =>
         {
-            while (await work.Store.ClaimAsync("worker", At(1), Lease, Ct) is { } item)
+            while (await work.Store.ClaimAsync("worker", null, At(1), Lease, Ct) is { } item)
                 claimed.Add(item.Attempt.Id);
         }, Ct)));
 
@@ -43,7 +43,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
         await using var transaction = await other.Database.BeginTransactionAsync(Ct);
         await other.Database.ExecuteSqlAsync($"""SELECT 1 FROM "WorkItems" WHERE "Id" = {locked} FOR UPDATE""", Ct);
 
-        var claimed = await work.Store.ClaimAsync("worker", At(10), Lease, Ct);
+        var claimed = await work.Store.ClaimAsync("worker", null, At(10), Lease, Ct);
 
         claimed!.Attempt.Id.Should().Be(next);
     }
@@ -56,7 +56,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
         work.Clock.Now = At(1);
         await work.EnqueueAsync(new UnkeyedPayload(2), Ct);
 
-        var claimed = await work.Store.ClaimAsync("all@host", At(10), Lease, Ct);
+        var claimed = await work.Store.ClaimAsync("all@host", null, At(10), Lease, Ct);
 
         claimed.Should().Be(new ClaimedWork(new WorkAttempt(oldest, 1), WorkKind.TokenCleanup, /*lang=json,strict*/ """{"number": 1}"""));
         var item = await work.ItemAsync(oldest, Ct);
@@ -72,7 +72,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
 
-        (await work.Store.ClaimAsync("worker", At(0), Lease, Ct)).Should().BeNull();
+        (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct)).Should().BeNull();
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        var claimed = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
 
         var held = await work.Store.HeartbeatAsync(claimed.Attempt, Halfway, At(30), Lease, Ct);
 
@@ -96,9 +96,9 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        var zombie = (await work.Store.ClaimAsync("paused", At(0), Lease, Ct))!;
+        var zombie = (await work.Store.ClaimAsync("paused", null, At(0), Lease, Ct))!;
         await work.Store.RecoverExpiredLeasesAsync(At(61), 3, Ct);
-        var current = (await work.Store.ClaimAsync("alive", At(62), Lease, Ct))!;
+        var current = (await work.Store.ClaimAsync("alive", null, At(62), Lease, Ct))!;
 
         var held = await work.Store.HeartbeatAsync(zombie.Attempt, Halfway, At(63), Lease, Ct);
         await work.Store.SucceedAsync(zombie.Attempt, Halfway, /*lang=json,strict*/ """{"done": true}""", At(64), Ct);
@@ -124,7 +124,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
         for (var round = 0; round < 3; round++)
         {
             var claimedAt = At(round * 100);
-            await work.Store.ClaimAsync("worker", claimedAt, Lease, Ct);
+            await work.Store.ClaimAsync("worker", null, claimedAt, Lease, Ct);
             await work.Store.RecoverExpiredLeasesAsync(claimedAt + Duration.FromSeconds(61), 3, Ct);
             var item = await work.ItemAsync(id, Ct);
             stalls.Add((item.Status, item.Stalls));
@@ -141,7 +141,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         var id = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        await work.Store.ClaimAsync("worker", At(0), Lease, Ct);
+        await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct);
 
         await work.Store.RecoverExpiredLeasesAsync(At(60), 3, Ct);
 
@@ -154,7 +154,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         var id = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        await work.Store.ClaimAsync("worker", At(0), Lease, Ct);
+        await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct);
 
         await work.Store.RecoverExpiredLeasesAsync(At(61), 3, Ct);
 
@@ -168,14 +168,14 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        var claimed = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
 
         await work.Store.ReleaseAsync(claimed.Attempt, At(5), Ct);
 
         var item = await work.ItemAsync(claimed.Attempt.Id, Ct);
         (item.Status, item.Stalls, item.Attempt).Should().Be((WorkItemStatus.Queued, 0, 1));
         (item.ClaimedBy, item.LeaseUntil).Should().Be((null, null));
-        (await work.Store.ClaimAsync("worker", At(6), Lease, Ct))!.Attempt.Should().Be(claimed.Attempt with { Attempt = 2 });
+        (await work.Store.ClaimAsync("worker", null, At(6), Lease, Ct))!.Attempt.Should().Be(claimed.Attempt with { Attempt = 2 });
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
-        var running = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var running = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
         var waiting = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
 
         await work.Store.ReleaseAsync(running.Attempt, At(5), Ct);
@@ -200,10 +200,10 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
-        var keyed = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var keyed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
         work.Clock.Now = At(1);
         var other = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        await work.Store.ClaimAsync("worker", At(1), Lease, Ct);
+        await work.Store.ClaimAsync("worker", null, At(1), Lease, Ct);
         var waiting = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
 
         await work.Store.RecoverExpiredLeasesAsync(At(62), 3, Ct);
@@ -220,10 +220,10 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
-        await work.Store.ClaimAsync("worker", At(0), Lease, Ct);
+        await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct);
         work.Clock.Now = At(1);
         await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
-        await work.Store.ClaimAsync("worker", At(1), Lease, Ct);
+        await work.Store.ClaimAsync("worker", null, At(1), Lease, Ct);
 
         await work.Store.RecoverExpiredLeasesAsync(At(62), 3, Ct);
 
@@ -248,8 +248,8 @@ public sealed class WorkItemStoreTests(PostgresServer server)
 
         var known = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
 
-        (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!.Attempt.Id.Should().Be(known);
-        (await work.Store.ClaimAsync("worker", At(0), Lease, Ct)).Should().BeNull();
+        (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!.Attempt.Id.Should().Be(known);
+        (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct)).Should().BeNull();
         await using var check = work.CreateDbContext();
         (await check.Database
             .SqlQuery<string>($"""SELECT "Status" AS "Value" FROM "WorkItems" WHERE "Id" = {unknown}""")
@@ -261,7 +261,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        var claimed = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
 
         await work.Store.SucceedAsync(claimed.Attempt, Halfway, /*lang=json,strict*/ """{"deleted": 3}""", At(9), Ct);
 
@@ -277,7 +277,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);
         await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        var claimed = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
 
         await work.Store.FailAsync(claimed.Attempt, Halfway, "InvalidOperationException: boom", At(9), Ct);
 
@@ -312,7 +312,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
         var id = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
         (await work.Store.IsDueAsync("sweep", At(0), Ct)).Should().BeFalse();
 
-        var claimed = (await work.Store.ClaimAsync("worker", At(0), Lease, Ct))!;
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
         (await work.Store.IsDueAsync("sweep", At(0), Ct)).Should().BeFalse();
 
         await work.Store.SucceedAsync(claimed.Attempt, WorkProgress.None, null, At(50), Ct);
@@ -324,7 +324,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     private static async Task<Guid> FinishedAsync(WorkDatabase work, Instant finishedAt)
     {
         await work.EnqueueAsync(new UnkeyedPayload(0), Ct);
-        var claimed = (await work.Store.ClaimAsync("worker", finishedAt, Lease, Ct))!;
+        var claimed = (await work.Store.ClaimAsync("worker", null, finishedAt, Lease, Ct))!;
         await work.Store.SucceedAsync(claimed.Attempt, WorkProgress.None, null, finishedAt, Ct);
         return claimed.Attempt.Id;
     }

@@ -1,4 +1,5 @@
 using Anichron.Core.Work;
+using Anichron.Worker.Crawling;
 using Anichron.Worker.Scheduling;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,7 @@ namespace Anichron.Worker.Work;
 public sealed partial class WorkExecutor(
     IWorkItemStore store,
     WorkHandlerRegistry registry,
+    WorkerState workerState,
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
     IOptions<WorkerSettings> options,
@@ -32,7 +34,7 @@ public sealed partial class WorkExecutor(
     {
         try
         {
-            while (await store.ClaimAsync(claimant, Now, Lease, stopping) is { } work)
+            while (await store.ClaimAsync(claimant, workerState.ResolvedUserId, Now, Lease, stopping) is { } work)
                 await RunAsync(work, stopping);
         }
         catch (Exception ex) when (!stopping.IsCancellationRequested)
@@ -125,7 +127,7 @@ public sealed partial class WorkExecutor(
         [LoggerMessage(Level = LogLevel.Information, Message = "Work item {Id} was handed back to the queue at shutdown.")]
         public static partial void Released(ILogger logger, Guid id);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Work item {Id} was recovered by another worker; this attempt stopped and wrote nothing more.")]
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Work item {Id} is no longer held by this attempt (its lease was recovered, or the item was deleted with its storage config); this attempt stopped and wrote nothing more.")]
         public static partial void Fenced(ILogger logger, Guid id);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Heartbeat for work item {Id} failed; will retry.")]

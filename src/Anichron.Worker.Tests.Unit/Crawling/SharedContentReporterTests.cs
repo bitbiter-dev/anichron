@@ -10,143 +10,162 @@ namespace Anichron.Worker.Tests.Unit.Crawling;
 public sealed class SharedContentReporterTests
 {
     private static readonly Guid Mira = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
-    private static readonly Guid Alice = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
     private static readonly Guid Home = Guid.Parse("11111111-0000-0000-0000-000000000000");
     private static readonly Guid Phone = Guid.Parse("22222222-0000-0000-0000-000000000000");
     private static readonly Guid Backup = Guid.Parse("33333333-0000-0000-0000-000000000000");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static UserStorageConfig Config(Guid id, Guid userId) => new() { Id = id, UserId = userId, RootPath = "/unused" };
-
     private sealed class TestFixture
     {
         public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
         public DuplicateCopyTally Tally { get; } = new();
         public FakeLogger<SharedContentReporter> Logger { get; } = new();
+        public IReadOnlyCollection<Guid>? QueriedConfigs { get; private set; }
 
-        public async Task<IReadOnlyList<FakeLogRecord>> ReportAsync(
-            UserStorageConfig[] crawled, params ContentLocation[] locations)
+        private static UserStorageConfig Config(Guid id) => new() { Id = id, UserId = Mira, RootPath = "/unused" };
+
+        public Task<DuplicateCounts> ReportAsync(
+            Guid crawled, Guid[] usersConfigs, params ContentLocation[] locations)
         {
-            Repository.FindSharedContentAsync(
-                    Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(crawled.Select(c => c.Id))),
-                    Arg.Any<CancellationToken>())
-                .Returns(locations);
+            Repository.FindSharedContentAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    QueriedConfigs = call.Arg<IReadOnlyCollection<Guid>>();
+                    return locations;
+                });
 
-            await new SharedContentReporter(Repository, Tally, Logger).ReportAsync(crawled, Ct);
-
-            return Logger.Collector.GetSnapshot();
+            return new SharedContentReporter(Repository, Tally, Logger)
+                .ReportAsync(Config(crawled), [.. usersConfigs.Select(Config)], Ct);
         }
+
+        public IEnumerable<FakeLogRecord> Pairs => Logger.Collector.GetSnapshot().Where(r => r.Level == LogLevel.Debug);
+
+        public IEnumerable<string> Summaries
+            => Logger.Collector.GetSnapshot().Where(r => r.Level == LogLevel.Information).Select(r => r.Message);
     }
 
-    private static IEnumerable<FakeLogRecord> Pairs(IEnumerable<FakeLogRecord> records)
-        => records.Where(r => r.Level == LogLevel.Debug);
+    [Fact]
+    public async Task ReportAsync_LooksAcrossTheCrawledConfigAndTheUsersOtherConfigsAsync()
+    {
+        var fx = new TestFixture();
 
-    private static IEnumerable<string> Summaries(IEnumerable<FakeLogRecord> records)
-        => records.Where(r => r.Level == LogLevel.Information).Select(r => r.Message);
+        await fx.ReportAsync(Phone, [Home, Backup]);
 
-    // ==========================================================================
-    // Pairs across configs
-    // ==========================================================================
+        fx.QueriedConfigs.Should().Equal(Home, Backup, Phone);
+    }
+
+    [Fact]
+    public async Task ReportAsync_CrawledConfigAlreadyAmongTheUsersConfigs_QueriesItOnceAsync()
+    {
+        var fx = new TestFixture();
+
+        await fx.ReportAsync(Home, [Home, Phone]);
+
+        fx.QueriedConfigs.Should().Equal(Home, Phone);
+    }
 
     [Fact]
     public async Task ReportAsync_ContentInTwoConfigs_LogsThePairOnceAtDebugAsync()
     {
-        var records = await new TestFixture().ReportAsync(
-            [Config(Home, Mira), Config(Phone, Mira)],
+        var fx = new TestFixture();
+
+        var counts = await fx.ReportAsync(
+            Home, [Home, Phone],
             new ContentLocation(Mira, "cafe", Phone, "dcim/a.jpg"),
             new ContentLocation(Mira, "cafe", Home, "2023/a.jpg"));
 
-        Pairs(records).Should().ContainSingle().Which.Message.Should().Be(
+        counts.Should().Be(new DuplicateCounts(0, 1));
+        fx.Summaries.Should().ContainSingle().Which.Should().EndWith(
+            "copies within it: 0, pairs with the user's other storage configs: 1.");
+        fx.Pairs.Should().ContainSingle().Which.Message.Should().Be(
             "Duplicate content cafe for user aaaaaaaa-0000-0000-0000-000000000001: "
             + "2023/a.jpg in storage config 11111111-0000-0000-0000-000000000000 and "
             + "dcim/a.jpg in storage config 22222222-0000-0000-0000-000000000000.");
     }
 
     [Fact]
-    public async Task ReportAsync_ContentInThreeConfigs_LogsEachPairOnceAsync()
+    public async Task ReportAsync_ContentInThreeConfigs_LogsOnlyThePairsInvolvingTheCrawledConfigAsync()
     {
-        var records = await new TestFixture().ReportAsync(
-            [Config(Home, Mira), Config(Phone, Mira), Config(Backup, Mira)],
+        var fx = new TestFixture();
+
+        var counts = await fx.ReportAsync(
+            Phone, [Home, Phone, Backup],
             new ContentLocation(Mira, "cafe", Backup, "c.jpg"),
             new ContentLocation(Mira, "cafe", Home, "a.jpg"),
             new ContentLocation(Mira, "cafe", Phone, "b.jpg"));
 
-        Pairs(records).Select(r => (r.GetStructuredStateValue("FilePath"), r.GetStructuredStateValue("OtherFilePath")))
-            .Should().Equal(("a.jpg", "b.jpg"), ("a.jpg", "c.jpg"), ("b.jpg", "c.jpg"));
+        counts.PairsAcross.Should().Be(2);
+        fx.Pairs.Select(r => (r.GetStructuredStateValue("FilePath"), r.GetStructuredStateValue("OtherFilePath")))
+            .Should().Equal(("a.jpg", "b.jpg"), ("b.jpg", "c.jpg"));
     }
 
     [Fact]
-    public async Task ReportAsync_TwoHashesAndTwoUsers_PairsOnlyWithinEachUsersHashAsync()
+    public async Task ReportAsync_TwoHashes_PairsOnlyEqualContentAsync()
     {
-        var records = await new TestFixture().ReportAsync(
-            [Config(Home, Mira), Config(Phone, Mira), Config(Backup, Alice)],
+        var fx = new TestFixture();
+
+        await fx.ReportAsync(
+            Home, [Home, Phone],
             new ContentLocation(Mira, "cafe", Home, "a.jpg"),
             new ContentLocation(Mira, "beef", Home, "x.jpg"),
-            new ContentLocation(Alice, "cafe", Backup, "theirs.jpg"),
             new ContentLocation(Mira, "cafe", Phone, "b.jpg"),
-            new ContentLocation(Alice, "cafe", Phone, "theirs-too.jpg"),
             new ContentLocation(Mira, "beef", Phone, "y.jpg"));
 
-        Pairs(records).Select(r => (r.GetStructuredStateValue("UserId"), r.GetStructuredStateValue("ContentHash"),
-                r.GetStructuredStateValue("FilePath"), r.GetStructuredStateValue("OtherFilePath")))
-            .Should().BeEquivalentTo(
-            [
-                (Mira.ToString(), "cafe", "a.jpg", "b.jpg"),
-                (Mira.ToString(), "beef", "x.jpg", "y.jpg"),
-                (Alice.ToString(), "cafe", "theirs-too.jpg", "theirs.jpg"),
-            ]);
+        fx.Pairs.Select(r => (r.GetStructuredStateValue("ContentHash"), r.GetStructuredStateValue("FilePath")))
+            .Should().BeEquivalentTo([("cafe", "a.jpg"), ("beef", "x.jpg")]);
     }
 
-    // ==========================================================================
-    // Summary per user
-    // ==========================================================================
-
     [Fact]
-    public async Task ReportAsync_CopiesWithinAndAcrossConfigs_SummarisesEachUserOnceAtInformationAsync()
+    public async Task ReportAsync_CopiesWithinAndPairsAcross_SummarisesTheCrawlOnceAtInformationAsync()
     {
         var fx = new TestFixture();
         fx.Tally.Count(Home);
         fx.Tally.Count(Home);
         fx.Tally.Count(Phone);
-        fx.Tally.Count(Backup);
 
-        var records = await fx.ReportAsync(
-            [Config(Home, Mira), Config(Phone, Mira), Config(Backup, Alice)],
+        var counts = await fx.ReportAsync(
+            Home, [Home, Phone],
             new ContentLocation(Mira, "cafe", Home, "a.jpg"),
             new ContentLocation(Mira, "cafe", Phone, "b.jpg"));
 
-        Summaries(records).Should().Equal(
-            "Duplicate content for user aaaaaaaa-0000-0000-0000-000000000001: "
-                + "copies within one storage config: 3, pairs across storage configs: 1.",
-            "Duplicate content for user aaaaaaaa-0000-0000-0000-000000000002: "
-                + "copies within one storage config: 1, pairs across storage configs: 0.");
+        counts.Should().Be(new DuplicateCounts(2, 1));
+        fx.Summaries.Should().Equal(
+            "Duplicate content in storage config 11111111-0000-0000-0000-000000000000 of user "
+            + "aaaaaaaa-0000-0000-0000-000000000001: copies within it: 2, pairs with the user's other storage configs: 1.");
     }
 
     [Fact]
-    public async Task ReportAsync_OnlyAPairAcrossConfigs_StillSummarisesTheUserAsync()
-    {
-        var records = await new TestFixture().ReportAsync(
-            [Config(Home, Mira), Config(Phone, Mira)],
-            new ContentLocation(Mira, "cafe", Home, "a.jpg"),
-            new ContentLocation(Mira, "cafe", Phone, "b.jpg"));
-
-        Summaries(records).Should().ContainSingle().Which.Should().EndWith(
-            "copies within one storage config: 0, pairs across storage configs: 1.");
-    }
-
-    [Fact]
-    public async Task ReportAsync_Reported_StartsTheNextCycleFromZeroAsync()
+    public async Task ReportAsync_OnlyCopiesWithin_StillSummarisesAsync()
     {
         var fx = new TestFixture();
         fx.Tally.Count(Home);
 
-        await fx.ReportAsync([Config(Home, Mira)]);
+        (await fx.ReportAsync(Home, [Home])).Should().Be(new DuplicateCounts(1, 0));
 
-        fx.Tally.Take(Home).Should().Be(0);
+        fx.Summaries.Should().ContainSingle().Which.Should().EndWith(
+            "copies within it: 1, pairs with the user's other storage configs: 0.");
+    }
+
+    [Fact]
+    public async Task ReportAsync_TakesOnlyTheCrawledConfigsCopiesAsync()
+    {
+        var fx = new TestFixture();
+        fx.Tally.Count(Home);
+        fx.Tally.Count(Phone);
+
+        await fx.ReportAsync(Home, [Home, Phone]);
+
+        (fx.Tally.Take(Home), fx.Tally.Take(Phone)).Should().Be((0, 1));
     }
 
     [Fact]
     public async Task ReportAsync_NothingDuplicated_LogsNothingAsync()
-        => (await new TestFixture().ReportAsync([Config(Home, Mira), Config(Backup, Alice)])).Should().BeEmpty();
+    {
+        var fx = new TestFixture();
+
+        (await fx.ReportAsync(Home, [Home, Phone])).Should().Be(new DuplicateCounts(0, 0));
+
+        fx.Logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
 }

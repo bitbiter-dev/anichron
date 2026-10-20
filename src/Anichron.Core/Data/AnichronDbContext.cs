@@ -327,6 +327,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.Property(w => w.DedupKey).HasComment(
                 "Opt-in coalescing. While an item with this key is Queued, enqueueing the same key "
                 + "returns that item instead of adding a second; the partial unique index enforces it.");
+            entity.Property(w => w.StorageConfigId).HasComment(
+                "The storage config the work belongs to, or null for unscoped work. A per-user Worker "
+                + "claims only its user's configs and unscoped work; deleting the config deletes its items.");
             entity.Property(w => w.RequestedBy).HasComment(
                 "The admin who asked for the work; null when a Worker's scheduler enqueued it.");
             entity.Property(w => w.Status).HasConversion<string>().HasComment(
@@ -362,6 +365,11 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .HasFilter(@"""Status"" = 'Running'")
                   .HasDatabaseName("ix_workitems_lease");
             entity.HasIndex(w => w.UpdatedAt);
+
+            entity.HasOne<UserStorageConfig>()
+                  .WithMany()
+                  .HasForeignKey(w => w.StorageConfigId)
+                  .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne<User>()
                   .WithMany()

@@ -1,5 +1,6 @@
 using Anichron.Core;
 using Anichron.Core.Domain;
+using Anichron.Core.Work;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Settings;
@@ -11,7 +12,7 @@ namespace Anichron.Worker.Crawling;
 
 internal interface IFileIngestionPipeline
 {
-    Task RunAsync(UserStorageConfig config, CancellationToken ct);
+    Task<CrawlResult> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct);
 }
 
 internal sealed partial class FileIngestionPipeline(
@@ -25,8 +26,9 @@ internal sealed partial class FileIngestionPipeline(
 {
     private readonly WorkerSettings settings = workerOptions.Value;
 
-    public Task RunAsync(UserStorageConfig config, CancellationToken ct)
+    public async Task<CrawlResult> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct)
     {
+        var tally = new CrawlTally(progress);
         var channel = Channel.CreateBounded<IngestionItem>(
             // Stryker disable once Arithmetic,Initializer
             new BoundedChannelOptions(settings.MaxConcurrentFiles * 2)
@@ -36,18 +38,20 @@ internal sealed partial class FileIngestionPipeline(
                 FullMode = BoundedChannelFullMode.Wait,
             });
 
-        var producer = ProduceAsync(config, channel.Writer, ct);
+        var producer = ProduceAsync(config, channel.Writer, tally, ct);
         var consumers = Enumerable
             .Range(0, settings.MaxConcurrentFiles)
-            .Select(workerIndex => ConsumeAsync(config, channel.Reader, workerIndex, ct))
+            .Select(workerIndex => ConsumeAsync(config, channel.Reader, workerIndex, tally, ct))
             .ToArray();
 
-        return Task.WhenAll([producer, .. consumers]);
+        await Task.WhenAll([producer, .. consumers]);
+        return tally.Result;
     }
 
     private async Task ProduceAsync(
         UserStorageConfig config,
         ChannelWriter<IngestionItem> writer,
+        CrawlTally tally,
         CancellationToken ct)
     {
         try
@@ -56,10 +60,12 @@ internal sealed partial class FileIngestionPipeline(
             while (pending.TryPop(out var directory))
             {
                 var (files, subdirectories) = ListDirectory(directory, config.RootPath);
-                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, ct);
+                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, tally, ct);
                 foreach (var subdirectory in subdirectories)
                     pending.Push(subdirectory);
             }
+
+            tally.Walked();
         }
         finally
         {
@@ -88,12 +94,16 @@ internal sealed partial class FileIngestionPipeline(
         IList<string> filesInDirectory,
         string rootPath,
         ChannelWriter<IngestionItem> writer,
+        CrawlTally tally,
         CancellationToken ct)
     {
         var linkResult = livePhotoLinker.Link(filesInDirectory, rootPath);
 
         foreach (var item in linkResult.Items)
+        {
+            tally.Found();
             await writer.WriteAsync(item, ct);
+        }
 
         foreach (var filePath in filesInDirectory)
         {
@@ -108,6 +118,7 @@ internal sealed partial class FileIngestionPipeline(
             }
 
             var relativePath = fileSystem.Path.GetRelativePath(rootPath, filePath);
+            tally.Found();
             await writer.WriteAsync(new SingleFileItem(filePath, relativePath, mediaType.Value), ct);
         }
     }
@@ -116,6 +127,7 @@ internal sealed partial class FileIngestionPipeline(
         UserStorageConfig config,
         ChannelReader<IngestionItem> reader,
         int workerIndex,
+        CrawlTally tally,
         CancellationToken ct)
     {
         await foreach (var item in reader.ReadAllAsync(ct))
@@ -130,6 +142,7 @@ internal sealed partial class FileIngestionPipeline(
             {
                 var context = new IngestionContext { Item = item, Config = config, AttemptId = guidFactory.NewGuid() };
                 await runner.RunAsync(context, ct);
+                tally.Processed();
             }
             catch (Exception ex) when (IngestionShutdown.IsInProgress(ex, ct))
             {
@@ -139,6 +152,7 @@ internal sealed partial class FileIngestionPipeline(
             catch (Exception ex)
             {
                 Log.ItemFailed(logger, item.AbsolutePath, ex);
+                tally.Failed();
             }
         }
     }

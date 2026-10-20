@@ -44,7 +44,7 @@ public sealed class MaintenanceHandlerTests(PostgresServer server)
         var work = await WorkDatabase.CreateAsync(server, Ct);
         var old = WorkDatabase.Start - Duration.FromDays(31);
         await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
-        var claimed = (await work.Store.ClaimAsync("worker", old, Lease, Ct))!;
+        var claimed = (await work.Store.ClaimAsync("worker", null, old, Lease, Ct))!;
         await work.Store.SucceedAsync(claimed.Attempt, WorkProgress.None, null, old, Ct);
         var pending = await work.EnqueueAsync(new UnkeyedPayload(2), Ct);
 

@@ -199,15 +199,14 @@ public sealed class WorkerServiceCollectionExtensionsTests
     // ==========================================================================
 
     [Fact]
-    public void AddWorkerHostedServices_MigratesFirstThenRunsTheWorkQueueAndTheCrawl()
+    public void AddWorkerHostedServices_MigratesFirstThenRunsTheWorkQueue()
     {
         var services = new ServiceCollection();
 
         services.AddWorkerHostedServices();
 
         services.Where(d => d.ServiceType == typeof(IHostedService)).Select(d => d.ImplementationType).Should().Equal(
-            typeof(DatabaseMigratorService), typeof(WorkerInitializer), typeof(WorkScheduler), typeof(WorkExecutor),
-            typeof(Worker.Crawling.Worker));
+            typeof(DatabaseMigratorService), typeof(WorkerInitializer), typeof(WorkScheduler), typeof(WorkExecutor));
     }
 
     // ==========================================================================
@@ -225,16 +224,18 @@ public sealed class WorkerServiceCollectionExtensionsTests
             .Select(d => (d.ServiceType, d.ImplementationType)).Should().BeEquivalentTo([
                 (typeof(IWorkHandler<TokenCleanupPayload>), typeof(TokenCleanupHandler)),
                 (typeof(IWorkHandler<WorkItemRetentionPayload>), typeof(WorkItemRetentionHandler)),
+                (typeof(IWorkHandler<CrawlPayload>), typeof(CrawlHandler)),
             ]);
     }
 
     [Fact]
     public void AddWorkQueueServices_RegistersEachPeriodicKindsSchedule()
         => new ServiceCollection().AddWorkQueueServices()
-            .Where(d => d.ServiceType == typeof(IWorkSchedule))
+            .Where(d => d.ServiceType == typeof(IWorkScheduleSource))
             .Select(d => (d.ImplementationType, d.Lifetime)).Should().BeEquivalentTo([
                 (typeof(TokenCleanupSchedule), ServiceLifetime.Singleton),
                 (typeof(WorkItemRetentionSchedule), ServiceLifetime.Singleton),
+                (typeof(CrawlSchedules), ServiceLifetime.Singleton),
             ]);
 
     [Fact]
@@ -254,7 +255,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
 
         var hosted = provider.GetServices<IHostedService>();
 
-        hosted.Should().HaveCount(5);
+        hosted.Should().HaveCount(4);
         provider.GetRequiredService<WorkHandlerRegistry>().Should().NotBeNull();
         using var scope = provider.CreateScope();
         provider.GetServices<WorkHandlerRegistration>().Select(r => r.Kind).Should().BeEquivalentTo(Enum.GetValues<WorkKind>());

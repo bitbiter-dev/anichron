@@ -15,13 +15,17 @@ public sealed record ClaimedWork(WorkAttempt Attempt, WorkKind Kind, string Payl
 /// </summary>
 public interface IWorkItemStore
 {
-    /// <summary>The oldest queued item, now running under a lease, or null when none is queued.</summary>
+    /// <summary>
+    /// The oldest queued item this Worker may run, now running under a lease, or null when there is
+    /// none. Unscoped items go to any Worker; scoped ones only to a Worker serving their config.
+    /// </summary>
     /// <param name="claimedBy">The claiming Worker's display name.</param>
+    /// <param name="servedUserId">A per-user Worker's user, or null for an all-user Worker.</param>
     /// <param name="now">The claim time.</param>
     /// <param name="lease">How long the claim holds without a heartbeat.</param>
     /// <param name="ct">Cancels the claim.</param>
     /// <returns>The claimed item, or null.</returns>
-    Task<ClaimedWork?> ClaimAsync(string claimedBy, Instant now, Duration lease, CancellationToken ct);
+    Task<ClaimedWork?> ClaimAsync(string claimedBy, Guid? servedUserId, Instant now, Duration lease, CancellationToken ct);
 
     /// <summary>Extends the lease and stores the progress snapshot.</summary>
     /// <param name="attempt">The running attempt.</param>
