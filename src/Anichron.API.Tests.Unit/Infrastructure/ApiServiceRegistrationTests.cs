@@ -5,6 +5,7 @@ using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Work;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -103,6 +104,57 @@ public sealed class ApiServiceRegistrationTests
     public void AddAuthServices_UnitOfWorkIsTheScopedDbContext()
         => AuthServices().Should().ContainSingle(d => d.ServiceType == typeof(IUnitOfWork))
             .Which.Lifetime.Should().Be(ServiceLifetime.Scoped);
+
+    // ==========================================================================
+    // Work items
+    // ==========================================================================
+
+    private static ServiceCollection WorkItemServices(Dictionary<string, string?>? values = null)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(values ?? []).Build());
+        services.AddWorkItemServices();
+        return services;
+    }
+
+    [Theory]
+    [InlineData(typeof(IWorkItemReader), typeof(EfWorkItemReader))]
+    [InlineData(typeof(WorkItemEvents), typeof(WorkItemEvents))]
+    public void AddWorkItemServices_RegistersTheScopedImplementation(Type service, Type implementation)
+        => WorkItemServices().Should().ContainSingle(d => d.ServiceType == service)
+            .Which.Should().Match<ServiceDescriptor>(d => d.ImplementationType == implementation && d.Lifetime == ServiceLifetime.Scoped);
+
+    [Fact]
+    public void AddWorkItemServices_EventIntervalDefaultsToTwoSeconds()
+    {
+        using var provider = WorkItemServices().BuildServiceProvider();
+
+        provider.GetRequiredService<IOptions<WorkItemEventsSettings>>().Value.IntervalSeconds.Should().Be(2);
+    }
+
+    [Fact]
+    public void AddWorkItemServices_BindsTheEventIntervalFromConfiguration()
+    {
+        using var provider = WorkItemServices(new() { ["WorkItemEvents:IntervalSeconds"] = "0.5" }).BuildServiceProvider();
+
+        provider.GetRequiredService<IOptions<WorkItemEventsSettings>>().Value.IntervalSeconds.Should().Be(0.5);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    public void AddWorkItemServices_RejectsAnEventIntervalThatIsNotPositive(string seconds)
+    {
+        using var provider = WorkItemServices(new() { ["WorkItemEvents:IntervalSeconds"] = seconds }).BuildServiceProvider();
+
+        var read = () => provider.GetRequiredService<IOptions<WorkItemEventsSettings>>().Value;
+
+        read.Should().Throw<OptionsValidationException>();
+    }
+
+    [Fact]
+    public void AddWorkItemServices_ValidatesTheEventIntervalAtStartup()
+        => WorkItemServices().Should().Contain(d => d.ServiceType == typeof(IStartupValidator));
 
     // ==========================================================================
     // Options binding

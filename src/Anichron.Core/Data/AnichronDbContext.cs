@@ -346,8 +346,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 "Extended by every heartbeat. A Running item past it belongs to a dead or paused "
                 + "Worker and goes back to the queue.");
             entity.Property(w => w.UpdatedAt).HasComment(
-                "Moves on every insert, claim, heartbeat and transition, so a reader can ask what "
-                + "changed since a point in time.");
+                "Moves on every insert, claim and transition, and on a heartbeat only when the progress "
+                + "snapshot changed, so a reader can ask what changed since a point in time.");
             entity.Property(w => w.ProgressNote).HasComment(
                 "The latest progress snapshot (done, optional total, note), overwritten by each "
                 + "heartbeat; no history is kept.");

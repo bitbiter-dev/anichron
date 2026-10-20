@@ -16,7 +16,8 @@ public sealed class ApiIniDefaultsTests
             ("Jwt", "Audience", "anichron-client"),
             ("Cors", "AllowedOrigins", ""),
             ("ForwardedHeaders", "KnownProxies", ""),
-            ("ForwardedHeaders", "KnownNetworks", ""));
+            ("ForwardedHeaders", "KnownNetworks", ""),
+            ("WorkItemEvents", "IntervalSeconds", "2"));
     }
 
     [Fact]

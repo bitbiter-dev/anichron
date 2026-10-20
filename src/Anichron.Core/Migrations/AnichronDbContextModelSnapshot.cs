@@ -55,7 +55,8 @@ namespace Anichron.Core.Migrations
                     b.HasIndex("AssetId");
 
                     b.HasIndex("UserId", "AssetId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Interactions_UserId_AssetId");
 
                     b.ToTable("Interactions", t =>
                         {
@@ -498,7 +499,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasComment("Moves on every insert, claim, heartbeat and transition, so a reader can ask what changed since a point in time.");
+                        .HasComment("Moves on every insert, claim and transition, and on a heartbeat only when the progress snapshot changed, so a reader can ask what changed since a point in time.");
 
                     b.HasKey("Id");
 
