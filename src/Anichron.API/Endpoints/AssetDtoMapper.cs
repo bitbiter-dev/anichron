@@ -27,8 +27,11 @@ internal static class AssetDtoMapper
             view is { PairedMovHasVideo: true, PairedMovId: { } movId }
                 ? ProxyKinds.UrlOf(movId, ProxyType.WebVideo)
                 : null,
-            new AssetInteractionDto(view.IsStarred, view.IsLiked, Hidden: false, FlashbackWeight.For(view.IsLiked)));
+            ToDto(new InteractionState(view.IsStarred, view.IsLiked, Hidden: false)));
     }
+
+    internal static AssetInteractionDto ToDto(InteractionState state)
+        => new(state.Starred, state.Liked, state.Hidden, FlashbackWeight.For(state.Liked));
 
     private static string PublishedMediaType(MediaType type)
         => type switch

@@ -104,6 +104,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             services.AddScoped<IMediaAssetReadRepository, EfMediaAssetReadRepository>();
             services.AddScoped<IAssetViewReader, EfAssetViewReader>();
+            services.AddScoped<IAssetInteractionWriter, EfAssetInteractionWriter>();
             services.AddSingleton<IProxyStore, ProxyStore>();
             services.AddSingleton<IOriginalStore, OriginalStore>();
             // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork
