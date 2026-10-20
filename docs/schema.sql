@@ -95,7 +95,7 @@ COMMENT ON COLUMN "WorkItems"."Attempt" IS 'Incremented by every claim. Every wr
 COMMENT ON COLUMN "WorkItems"."Stalls" IS 'Lease expiries, counted by lease recovery. A graceful shutdown hands the item back without counting one; the item fails as stalled once the limit is reached.';
 COMMENT ON COLUMN "WorkItems"."ClaimedBy" IS 'The claiming Worker for display: its WORKER__USER or ''all'', then its host name.';
 COMMENT ON COLUMN "WorkItems"."LeaseUntil" IS 'Extended by every heartbeat. A Running item past it belongs to a dead or paused Worker and goes back to the queue.';
-COMMENT ON COLUMN "WorkItems"."UpdatedAt" IS 'Moves on every insert, claim, heartbeat and transition, so a reader can ask what changed since a point in time.';
+COMMENT ON COLUMN "WorkItems"."UpdatedAt" IS 'Moves on every insert, claim and transition, and on a heartbeat only when the progress snapshot changed, so a reader can ask what changed since a point in time.';
 COMMENT ON COLUMN "WorkItems"."ProgressNote" IS 'The latest progress snapshot (done, optional total, note), overwritten by each heartbeat; no history is kept.';
 COMMENT ON COLUMN "WorkItems"."Result" IS 'The handler''s results summary, written when the item succeeds.';
 

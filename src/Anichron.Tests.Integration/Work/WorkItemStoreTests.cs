@@ -92,6 +92,56 @@ public sealed class WorkItemStoreTests(PostgresServer server)
     }
 
     [Fact]
+    public async Task HeartbeatAsync_SameProgress_ExtendsTheLeaseWithoutMovingUpdatedAtAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+        await work.Store.HeartbeatAsync(claimed.Attempt, Halfway, At(30), Lease, Ct);
+
+        var held = await work.Store.HeartbeatAsync(claimed.Attempt, new WorkProgress(5, 10, "halfway"), At(32), Lease, Ct);
+
+        held.Should().BeTrue();
+        var item = await work.ItemAsync(claimed.Attempt.Id, Ct);
+        item.LeaseUntil.Should().Be(At(92));
+        item.UpdatedAt.Should().Be(At(30));
+    }
+
+    [Fact]
+    public async Task HeartbeatAsync_NoProgressSinceTheClaim_LeavesUpdatedAtAtTheClaimAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+
+        await work.Store.HeartbeatAsync(claimed.Attempt, WorkProgress.None, At(2), Lease, Ct);
+
+        var item = await work.ItemAsync(claimed.Attempt.Id, Ct);
+        item.LeaseUntil.Should().Be(At(62));
+        item.UpdatedAt.Should().Be(At(0));
+    }
+
+    [Theory]
+    [InlineData(6L, 10L, "halfway")]
+    [InlineData(5L, null, "halfway")]
+    [InlineData(5L, 11L, "halfway")]
+    [InlineData(5L, 10L, null)]
+    [InlineData(5L, 10L, "later")]
+    public async Task HeartbeatAsync_AnyPartOfTheProgressChanged_MovesUpdatedAtAsync(long done, long? total, string? note)
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+        await work.Store.HeartbeatAsync(claimed.Attempt, Halfway, At(30), Lease, Ct);
+
+        await work.Store.HeartbeatAsync(claimed.Attempt, new WorkProgress(done, total, note), At(32), Lease, Ct);
+
+        var item = await work.ItemAsync(claimed.Attempt.Id, Ct);
+        (item.ProgressDone, item.ProgressTotal, item.ProgressNote).Should().Be((done, total, note));
+        item.UpdatedAt.Should().Be(At(32));
+    }
+
+    [Fact]
     public async Task AfterAReclaim_TheOldAttemptsHeartbeatAndCompletionChangeNothingAsync()
     {
         var work = await WorkDatabase.CreateAsync(server, Ct);

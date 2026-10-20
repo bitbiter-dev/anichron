@@ -53,7 +53,11 @@ public sealed class EfWorkItemStore(IDbContextFactory<AnichronDbContext> context
             .SetProperty(w => w.ProgressDone, progress.Done)
             .SetProperty(w => w.ProgressTotal, progress.Total)
             .SetProperty(w => w.ProgressNote, progress.Note)
-            .SetProperty(w => w.UpdatedAt, now), ct);
+            .SetProperty(
+                w => w.UpdatedAt,
+                w => w.ProgressDone == progress.Done && w.ProgressTotal == progress.Total && w.ProgressNote == progress.Note
+                    ? w.UpdatedAt
+                    : now), ct);
         return rows == 1;
     }
 
