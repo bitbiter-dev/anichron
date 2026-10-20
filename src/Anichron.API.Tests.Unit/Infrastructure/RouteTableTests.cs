@@ -139,11 +139,29 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
         => Routes.Where(r => r.Pattern.StartsWith("/api/v1/flashbacks", StringComparison.Ordinal))
             .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Flashbacks" }));
 
+    [Theory]
+    [InlineData("/api/v1/admin/work-items")]
+    [InlineData("/api/v1/admin/work-items/{workItemId:guid}")]
+    [InlineData("/api/v1/admin/work-items/events")]
+    public void WorkItemRoutes_RequireTheAdminPolicyWithoutRateLimit(string pattern)
+    {
+        var route = Find("GET", pattern);
+
+        route.Anonymous.Should().BeFalse();
+        route.Policies.Should().Contain(AuthPolicies.Admin);
+        route.RateLimit.Should().BeNull();
+    }
+
+    [Fact]
+    public void WorkItemRoutes_AreTaggedWorkItems()
+        => Routes.Where(r => r.Pattern.StartsWith("/api/v1/admin/work-items", StringComparison.Ordinal))
+            .Should().HaveCount(3).And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Work items" }));
+
     [Fact]
     public void Healthz_IsAnonymous()
         => Find("GET", "/api/v1/healthz").Anonymous.Should().BeTrue();
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(22);
+        => Routes.Should().HaveCount(25);
 }

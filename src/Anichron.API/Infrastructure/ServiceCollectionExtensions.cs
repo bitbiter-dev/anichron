@@ -4,6 +4,7 @@ using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Work;
 using Anichron.Infrastructure.Configuration;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -75,6 +76,17 @@ public static class ServiceCollectionExtensions
                             QueueLimit = 0,
                         }));
             });
+        }
+
+        public IServiceCollection AddWorkItemServices()
+        {
+            services.AddOptions<WorkItemEventsSettings>()
+                .BindConfiguration("WorkItemEvents")
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+            services.AddScoped<IWorkItemReader, EfWorkItemReader>();
+            services.AddScoped<WorkItemEvents>();
+            return services;
         }
 
         public IServiceCollection AddCorsPolicy(IConfiguration configuration)

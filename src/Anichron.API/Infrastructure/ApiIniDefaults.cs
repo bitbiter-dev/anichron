@@ -12,5 +12,6 @@ internal static class ApiIniDefaults
         new IniEntry("Cors", "AllowedOrigins", () => string.Empty),
         new IniEntry("ForwardedHeaders", "KnownProxies", () => string.Empty),
         new IniEntry("ForwardedHeaders", "KnownNetworks", () => string.Empty),
+        new IniEntry("WorkItemEvents", "IntervalSeconds", () => "2"),
     ];
 }

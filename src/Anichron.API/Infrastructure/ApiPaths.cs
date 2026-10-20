@@ -51,6 +51,13 @@ internal static class ApiPaths
             => $"{Group}/{assetId}/proxies/{type}";
     }
 
+    internal static class WorkItems
+    {
+        internal const string Group = "admin/work-items";
+        internal const string ById = "{workItemId:guid}";
+        internal const string Events = "events";
+    }
+
     internal static class Flashbacks
     {
         internal const string Group = "flashbacks";
