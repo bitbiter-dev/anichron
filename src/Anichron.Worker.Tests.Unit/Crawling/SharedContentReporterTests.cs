@@ -52,7 +52,7 @@ public sealed class SharedContentReporterTests
 
         await fx.ReportAsync(Phone, [Home, Backup]);
 
-        fx.QueriedConfigs.Should().BeEquivalentTo([Home, Backup, Phone]);
+        fx.QueriedConfigs.Should().Equal(Home, Backup, Phone);
     }
 
     [Fact]
@@ -76,6 +76,8 @@ public sealed class SharedContentReporterTests
             new ContentLocation(Mira, "cafe", Home, "2023/a.jpg"));
 
         counts.Should().Be(new DuplicateCounts(0, 1));
+        fx.Summaries.Should().ContainSingle().Which.Should().EndWith(
+            "copies within it: 0, pairs with the user's other storage configs: 1.");
         fx.Pairs.Should().ContainSingle().Which.Message.Should().Be(
             "Duplicate content cafe for user aaaaaaaa-0000-0000-0000-000000000001: "
             + "2023/a.jpg in storage config 11111111-0000-0000-0000-000000000000 and "

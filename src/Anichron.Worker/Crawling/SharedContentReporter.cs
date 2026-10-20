@@ -24,7 +24,7 @@ internal sealed partial class SharedContentReporter(
         UserStorageConfig crawled, IReadOnlyCollection<UserStorageConfig> usersConfigs, CancellationToken ct)
     {
         var copies = tally.Take(crawled.Id);
-        var configIds = usersConfigs.Select(config => config.Id).Append(crawled.Id).Distinct().ToList();
+        var configIds = usersConfigs.Select(config => config.Id).Union([crawled.Id]).ToList();
         var locations = await repository.FindSharedContentAsync(configIds, ct);
 
         var pairs = 0;
