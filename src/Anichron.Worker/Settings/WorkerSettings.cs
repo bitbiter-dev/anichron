@@ -22,6 +22,24 @@ public sealed record WorkerSettings : IValidatableObject
     [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
     public double TokenCleanupIntervalHours { get; init; } = 24;
 
+    [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
+    public double WorkPollIntervalSeconds { get; init; } = 5;
+
+    [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
+    public double WorkHeartbeatSeconds { get; init; } = 2;
+
+    [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
+    public double WorkLeaseSeconds { get; init; } = 60;
+
+    [Range(1, int.MaxValue)]
+    public int WorkMaxStalls { get; init; } = 3;
+
+    [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
+    public double WorkItemRetentionDays { get; init; } = 30;
+
+    [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
+    public double WorkItemRetentionIntervalHours { get; init; } = 24;
+
     [Range(1, int.MaxValue)]
     public int ThumbnailShortEdge { get; init; } = 300;
 
@@ -50,9 +68,16 @@ public sealed record WorkerSettings : IValidatableObject
         => ConfigurationList.Parse(ExcludedDirectories, static name => name);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-        => ExcludedDirectoryNames()
+    {
+        var paths = ExcludedDirectoryNames()
             .Where(name => name.IndexOfAny(['/', '\\']) >= 0)
             .Select(name => new ValidationResult(
                 $"Worker:ExcludedDirectories takes folder names, not paths: '{name}'.",
                 [nameof(ExcludedDirectories)]));
+        return WorkLeaseSeconds > WorkHeartbeatSeconds
+            ? paths
+            : paths.Append(new ValidationResult(
+                "Worker:WorkLeaseSeconds must be longer than Worker:WorkHeartbeatSeconds, or every lease expires between heartbeats.",
+                [nameof(WorkLeaseSeconds)]));
+    }
 }

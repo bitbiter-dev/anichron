@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup Label="Test suites" Condition="'$(IsTestCodeProject)' == 'True'">
+    <InTestSuite>false</InTestSuite>
+    <InTestSuite Condition="'$(IsUnitTestProject)' == 'True' and ('$(TestSuite)' == 'Unit' or '$(TestSuite)' == 'All')">true</InTestSuite>
+    <InTestSuite Condition="'$(IsIntegrationTestProject)' == 'True' and ('$(TestSuite)' == 'Integration' or '$(TestSuite)' == 'All')">true</InTestSuite>
+    <IsTestProject>$(InTestSuite)</IsTestProject>
+    <IsTestingPlatformApplication Condition="'$(InTestSuite)' != 'true'">false</IsTestingPlatformApplication>
+  </PropertyGroup>
+</Project>

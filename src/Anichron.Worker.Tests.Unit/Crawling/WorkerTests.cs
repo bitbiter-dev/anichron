@@ -23,13 +23,16 @@ public sealed class WorkerTests
     {
         public IUserStorageConfigRepository ConfigRepository { get; } = Substitute.For<IUserStorageConfigRepository>();
         public IFileIngestionPipeline Pipeline { get; } = Substitute.For<IFileIngestionPipeline>();
+        public ISharedContentReporter Reporter { get; } = Substitute.For<ISharedContentReporter>();
         public WorkerState WorkerState { get; } = new();
 
         private readonly IServiceScopeFactory scopeFactory;
 
         public TestFixture()
         {
-            scopeFactory = ScopeFactories.Providing(services => services.AddSingleton(ConfigRepository));
+            scopeFactory = ScopeFactories.Providing(services => services
+                .AddSingleton(ConfigRepository)
+                .AddSingleton(Reporter));
 
             ConfigRepository.GetAllActiveAsync(Arg.Any<CancellationToken>())
                 .Returns([]);
@@ -196,6 +199,9 @@ public sealed class WorkerTests
         await crawlingWorker.CrawlAllAsync(Ct);
 
         await fixture.Pipeline.Received(1).RunAsync(next, Arg.Any<CancellationToken>());
+        await fixture.Reporter.Received(1).ReportAsync(
+            Arg.Is<IReadOnlyCollection<UserStorageConfig>>(crawled => crawled.SequenceEqual(new[] { missing, next })),
+            Arg.Any<CancellationToken>());
         fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error)
             .Which.Should().Match<FakeLogRecord>(r =>
                 r.Message == $"Crawl of /data/originals/mira (userId={userId}) failed."
@@ -218,6 +224,7 @@ public sealed class WorkerTests
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         await fixture.Pipeline.DidNotReceive().RunAsync(second, Arg.Any<CancellationToken>());
+        await fixture.Reporter.DidNotReceive().ReportAsync(Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<CancellationToken>());
         fixture.Logger.Collector.GetSnapshot().Should().NotContain(r => r.Level == LogLevel.Error);
     }
 
@@ -235,6 +242,61 @@ public sealed class WorkerTests
 
         fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error)
             .Which.Exception.Should().BeOfType<OperationCanceledException>();
+    }
+
+    // ==========================================================================
+    // Duplicate content report
+    // ==========================================================================
+
+    [Fact]
+    public async Task CrawlAllAsync_AfterEveryConfigIsCrawled_ReportsSharedContentAcrossThemAsync()
+    {
+        var fixture = new TestFixture();
+        var userId = Guid.NewGuid();
+        var home = new UserStorageConfig { Id = Guid.NewGuid(), UserId = userId, RootPath = "/data/originals/mira" };
+        var phone = new UserStorageConfig { Id = Guid.NewGuid(), UserId = userId, RootPath = "/data/originals/mira-phone" };
+        fixture.WorkerState.ResolvedUserId = userId;
+        fixture.ConfigRepository.GetActiveByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns([home, phone]);
+
+        await fixture.Build().CrawlAllAsync(Ct);
+
+        Received.InOrder(() =>
+        {
+            _ = fixture.Pipeline.RunAsync(home, Arg.Any<CancellationToken>());
+            _ = fixture.Pipeline.RunAsync(phone, Arg.Any<CancellationToken>());
+            _ = fixture.Reporter.ReportAsync(
+                Arg.Is<IReadOnlyCollection<UserStorageConfig>>(crawled => crawled.SequenceEqual(new[] { home, phone })),
+                Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task CrawlAllAsync_ReportFails_LogsItWithoutThrowingAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.Reporter.ReportAsync(Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("db down")));
+
+        await fixture.Build().CrawlAllAsync(Ct);
+
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Error)
+            .Which.Should().Match<FakeLogRecord>(r =>
+                r.Message == "Reporting duplicate content failed." && r.Exception is InvalidOperationException);
+    }
+
+    [Fact]
+    public async Task CrawlAllAsync_ShutdownDuringTheReport_StopsWithoutLoggingAFailureAsync()
+    {
+        var fixture = new TestFixture();
+        using var shutdown = new CancellationTokenSource();
+        await shutdown.CancelAsync();
+        fixture.Reporter.ReportAsync(Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromCanceled(shutdown.Token));
+
+        var act = () => fixture.Build().CrawlAllAsync(shutdown.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        fixture.Logger.Collector.GetSnapshot().Should().NotContain(r => r.Level == LogLevel.Error);
     }
 
     [Fact]

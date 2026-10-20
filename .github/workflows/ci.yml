@@ -34,7 +34,7 @@ jobs:
         run: dotnet build src/
 
       - name: Test
-        run: dotnet test src/ --no-build --collect:"XPlat Code Coverage" --results-directory coverage --settings src/coverlet.runsettings
+        run: dotnet test src/ --no-build -p:TestSuite=Unit --collect:"XPlat Code Coverage" --results-directory coverage --settings src/coverlet.runsettings
 
       - name: Generate coverage report
         uses: danielpalme/ReportGenerator-GitHub-Action@v5
@@ -90,6 +90,21 @@ jobs:
       # See docs/adr/0004-schema-documentation.md.
       - name: Schema documentation is current
         run: scripts/derive-db-docs.sh --check
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Integration tests
+        run: dotnet test src/ -p:TestSuite=Integration
 
   mutation:
     name: Mutation
@@ -204,7 +219,7 @@ jobs:
   gate:
     name: CI gate
     runs-on: ubuntu-latest
-    needs: [checks, mutation, docker]
+    needs: [checks, integration, mutation, docker]
     if: always()
     permissions:
       contents: read

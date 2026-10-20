@@ -43,7 +43,7 @@ CREATE TABLE "RefreshTokens" (
     CONSTRAINT "PK_RefreshTokens" PRIMARY KEY ("Id"),
     CONSTRAINT "FK_RefreshTokens_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
 );
-COMMENT ON TABLE "RefreshTokens" IS 'Issued and revoked by the API; expired rows are swept by the Worker''s TokenCleanupService. One of the few tables both services touch.';
+COMMENT ON TABLE "RefreshTokens" IS 'Issued and revoked by the API; expired rows are swept by the Worker''s TokenCleanup work item. One of the few tables both services touch.';
 COMMENT ON COLUMN "RefreshTokens"."TokenHash" IS 'Hash, never the token itself — a database disclosure must not hand out usable sessions.';
 
 
@@ -57,6 +57,44 @@ CREATE TABLE "StorageConfigs" (
 );
 COMMENT ON TABLE "StorageConfigs" IS 'A NAS root assigned to one user. This is the boundary that scopes assets to a user and lets several Workers each monitor a separate config.';
 COMMENT ON COLUMN "StorageConfigs"."RootPath" IS 'GLOBALLY unique, not per user: a path cannot be assigned to two configs across all users. Two users indexing the same directory would duplicate every asset and let one user''s config removal cascade away the other''s rows.';
+
+
+CREATE TABLE "WorkItems" (
+    "Id" uuid NOT NULL,
+    "Kind" text NOT NULL,
+    "Payload" jsonb NOT NULL,
+    "DedupKey" text,
+    "RequestedBy" uuid,
+    "RequestedAt" timestamp with time zone NOT NULL,
+    "Status" text NOT NULL,
+    "Attempt" integer NOT NULL,
+    "Stalls" integer NOT NULL,
+    "ClaimedBy" text,
+    "StartedAt" timestamp with time zone,
+    "LeaseUntil" timestamp with time zone,
+    "FinishedAt" timestamp with time zone,
+    "UpdatedAt" timestamp with time zone NOT NULL,
+    "ProgressDone" bigint NOT NULL,
+    "ProgressTotal" bigint,
+    "ProgressNote" text,
+    "Result" jsonb,
+    "Error" text,
+    CONSTRAINT "PK_WorkItems" PRIMARY KEY ("Id"),
+    CONSTRAINT "FK_WorkItems_Users_RequestedBy" FOREIGN KEY ("RequestedBy") REFERENCES "Users" ("Id") ON DELETE SET NULL
+);
+COMMENT ON TABLE "WorkItems" IS 'Durable work for the Worker: periodic maintenance today, admin requests later. Only IWorkQueue inserts rows; every later state change belongs to the Worker''s executor. Delivery is at least once, so handlers start from scratch and converge.';
+COMMENT ON COLUMN "WorkItems"."Kind" IS 'WorkKind, persisted as text. Picks the payload type and the handler through the registry, never through a switch.';
+COMMENT ON COLUMN "WorkItems"."Payload" IS 'The kind''s IWorkPayload, serialised with System.Text.Json and NodaTime settings.';
+COMMENT ON COLUMN "WorkItems"."DedupKey" IS 'Opt-in coalescing. While an item with this key is Queued, enqueueing the same key returns that item instead of adding a second; the partial unique index enforces it.';
+COMMENT ON COLUMN "WorkItems"."RequestedBy" IS 'The admin who asked for the work; null when a Worker''s scheduler enqueued it.';
+COMMENT ON COLUMN "WorkItems"."Status" IS 'Queued, Running, Succeeded, Failed or Cancelled, persisted as text.';
+COMMENT ON COLUMN "WorkItems"."Attempt" IS 'Incremented by every claim. Every write a Worker makes while running an item is fenced by (Id, Attempt), so an attempt that lost its lease changes nothing.';
+COMMENT ON COLUMN "WorkItems"."Stalls" IS 'Lease expiries, counted by lease recovery. A graceful shutdown hands the item back without counting one; the item fails as stalled once the limit is reached.';
+COMMENT ON COLUMN "WorkItems"."ClaimedBy" IS 'The claiming Worker for display: its WORKER__USER or ''all'', then its host name.';
+COMMENT ON COLUMN "WorkItems"."LeaseUntil" IS 'Extended by every heartbeat. A Running item past it belongs to a dead or paused Worker and goes back to the queue.';
+COMMENT ON COLUMN "WorkItems"."UpdatedAt" IS 'Moves on every insert, claim, heartbeat and transition, so a reader can ask what changed since a point in time.';
+COMMENT ON COLUMN "WorkItems"."ProgressNote" IS 'The latest progress snapshot (done, optional total, note), overwritten by each heartbeat; no history is kept.';
+COMMENT ON COLUMN "WorkItems"."Result" IS 'The handler''s results summary, written when the item succeeds.';
 
 
 CREATE TABLE "Bursts" (
@@ -204,6 +242,21 @@ CREATE UNIQUE INDEX ix_users_email ON "Users" ("Email");
 
 
 CREATE UNIQUE INDEX ix_users_username ON "Users" ("Username");
+
+
+CREATE INDEX ix_workitems_claim ON "WorkItems" ("RequestedAt") WHERE "Status" = 'Queued';
+
+
+CREATE UNIQUE INDEX ix_workitems_dedupkey_queued ON "WorkItems" ("DedupKey") WHERE "Status" = 'Queued' AND "DedupKey" IS NOT NULL;
+
+
+CREATE INDEX ix_workitems_lease ON "WorkItems" ("LeaseUntil") WHERE "Status" = 'Running';
+
+
+CREATE INDEX "IX_WorkItems_RequestedBy" ON "WorkItems" ("RequestedBy");
+
+
+CREATE INDEX "IX_WorkItems_UpdatedAt" ON "WorkItems" ("UpdatedAt");
 
 
 ALTER TABLE "Bursts" ADD CONSTRAINT "FK_Bursts_MediaAssets_PrimaryAssetId" FOREIGN KEY ("PrimaryAssetId") REFERENCES "MediaAssets" ("Id") ON DELETE RESTRICT;

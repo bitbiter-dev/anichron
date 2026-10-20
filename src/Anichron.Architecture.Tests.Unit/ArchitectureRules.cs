@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Core.Work;
 using ArchUnitNET.Fluent;
 using Microsoft.Extensions.Logging;
 using System.IO.Abstractions;
@@ -25,10 +26,13 @@ internal static class ArchitectureRules
     public const string NoNotImplementedException = "no-not-implemented-exception";
     public const string DomainHasNoDataAnnotations = "domain-has-no-data-annotations";
     public const string DomainUsesNodaTime = "domain-uses-nodatime";
+    public const string OnlyWorkQueueInsertsWorkItems = "only-work-queue-inserts-work-items";
+    public const string WorkHandlersLiveInWorker = "work-handlers-live-in-worker";
 
     private const string Domain = "Anichron.Core.Domain";
     private const string ApiWiring = "Anichron.API.Infrastructure";
     private const string StagingWriter = "Anichron.Worker.Ingestion.Proxy.ProxyStagingWriter";
+    private const string WorkQueue = "Anichron.Core.Work.EfWorkQueue";
 
     public static IReadOnlyList<ArchitectureRule> All { get; } =
     [
@@ -70,6 +74,13 @@ internal static class ArchitectureRules
         new(DomainUsesNodaTime,
             Types().That().ResideInNamespace(Domain)
                 .Should().NotDependOnAny(typeof(DateTime), typeof(DateTimeOffset))),
+        new(OnlyWorkQueueInsertsWorkItems,
+            Types().That().ResideInAssembly(ApiAssembly, CoreAssembly, InfrastructureAssembly, WorkerAssembly)
+                .And().DoNotHaveFullName(WorkQueue)
+                .Should().NotCallAny(MethodMembers().That().AreConstructors().And().AreDeclaredIn(typeof(WorkItem)))),
+        new(WorkHandlersLiveInWorker,
+            Types().That().ImplementInterface(typeof(IWorkHandler<>))
+                .Should().ResideInAssembly(WorkerAssembly)),
     ];
 
     public static ArchitectureRule Named(string name) => All.Single(rule => rule.Name == name);

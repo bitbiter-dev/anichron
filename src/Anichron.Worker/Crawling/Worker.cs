@@ -38,6 +38,8 @@ internal sealed partial class Worker(
 
         foreach (var config in configs)
             await CrawlAsync(config, ct);
+
+        await ReportSharedContentAsync(scope.ServiceProvider, configs, ct);
     }
 
     private async Task CrawlAsync(UserStorageConfig config, CancellationToken ct)
@@ -53,6 +55,19 @@ internal sealed partial class Worker(
         }
     }
 
+    private async Task ReportSharedContentAsync(
+        IServiceProvider services, IReadOnlyCollection<UserStorageConfig> configs, CancellationToken ct)
+    {
+        try
+        {
+            await services.GetRequiredService<ISharedContentReporter>().ReportAsync(configs, ct);
+        }
+        catch (Exception ex) when (!IngestionShutdown.IsInProgress(ex, ct))
+        {
+            Log.SharedContentReportFailed(logger, ex);
+        }
+    }
+
     private static partial class Log
     {
         [LoggerMessage(Level = LogLevel.Information, Message = "Worker starting in {Mode} mode.")]
@@ -63,5 +78,8 @@ internal sealed partial class Worker(
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Crawl of {RootPath} (userId={UserId}) failed.")]
         public static partial void CrawlFailed(ILogger logger, string rootPath, Guid userId, Exception ex);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Reporting duplicate content failed.")]
+        public static partial void SharedContentReportFailed(ILogger logger, Exception ex);
     }
 }

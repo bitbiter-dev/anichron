@@ -3,7 +3,10 @@ using NodaTime;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
-internal sealed partial class KnownFileReconciler(IClock clock, ILogger<KnownFileReconciler> logger)
+internal sealed partial class KnownFileReconciler(
+    IClock clock,
+    DuplicateCopyTally tally,
+    ILogger<KnownFileReconciler> logger)
 {
     public bool Reconcile(FileClassification file, string relativePath) => file.Outcome switch
     {
@@ -32,7 +35,8 @@ internal sealed partial class KnownFileReconciler(IClock clock, ILogger<KnownFil
 
     private bool SkipDuplicate(MediaAsset stored, string relativePath)
     {
-        Log.DuplicateCopy(logger, relativePath, stored.FilePath);
+        Log.DuplicateCopy(logger, stored.ContentHash, stored.StorageConfigId, relativePath, stored.FilePath);
+        tally.Count(stored.StorageConfigId);
         return false;
     }
 
@@ -47,8 +51,11 @@ internal sealed partial class KnownFileReconciler(IClock clock, ILogger<KnownFil
         [LoggerMessage(Level = LogLevel.Debug, Message = "Already ingested {RelativePath}, refreshed last seen.")]
         public static partial void AlreadyIngested(ILogger logger, string relativePath);
 
-        [LoggerMessage(Level = LogLevel.Debug, Message = "{RelativePath} is a copy of already-ingested {StoredPath}, skipping.")]
-        public static partial void DuplicateCopy(ILogger logger, string relativePath, string storedPath);
+        [LoggerMessage(
+            Level = LogLevel.Debug,
+            Message = "Duplicate content {ContentHash} in storage config {StorageConfigId}: {RelativePath} is a copy of {StoredPath}.")]
+        public static partial void DuplicateCopy(
+            ILogger logger, string contentHash, Guid storageConfigId, string relativePath, string storedPath);
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Asset {AssetId} moved from {OldPath} to {NewPath}")]
         public static partial void Moved(ILogger logger, Guid assetId, string oldPath, string newPath);

@@ -333,7 +333,7 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("RefreshTokens", t =>
                         {
-                            t.HasComment("Issued and revoked by the API; expired rows are swept by the Worker's TokenCleanupService. One of the few tables both services touch.");
+                            t.HasComment("Issued and revoked by the API; expired rows are swept by the Worker's TokenCleanup work item. One of the few tables both services touch.");
                         });
                 });
 
@@ -418,6 +418,106 @@ namespace Anichron.Core.Migrations
                     b.ToTable("StorageConfigs", t =>
                         {
                             t.HasComment("A NAS root assigned to one user. This is the boundary that scopes assets to a user and lets several Workers each monitor a separate config.");
+                        });
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.WorkItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempt")
+                        .HasColumnType("integer")
+                        .HasComment("Incremented by every claim. Every write a Worker makes while running an item is fenced by (Id, Attempt), so an attempt that lost its lease changes nothing.");
+
+                    b.Property<string>("ClaimedBy")
+                        .HasColumnType("text")
+                        .HasComment("The claiming Worker for display: its WORKER__USER or 'all', then its host name.");
+
+                    b.Property<string>("DedupKey")
+                        .HasColumnType("text")
+                        .HasComment("Opt-in coalescing. While an item with this key is Queued, enqueueing the same key returns that item instead of adding a second; the partial unique index enforces it.");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text");
+
+                    b.Property<Instant?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("WorkKind, persisted as text. Picks the payload type and the handler through the registry, never through a switch.");
+
+                    b.Property<Instant?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasComment("Extended by every heartbeat. A Running item past it belongs to a dead or paused Worker and goes back to the queue.");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasComment("The kind's IWorkPayload, serialised with System.Text.Json and NodaTime settings.");
+
+                    b.Property<long>("ProgressDone")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ProgressNote")
+                        .HasColumnType("text")
+                        .HasComment("The latest progress snapshot (done, optional total, note), overwritten by each heartbeat; no history is kept.");
+
+                    b.Property<long?>("ProgressTotal")
+                        .HasColumnType("bigint");
+
+                    b.Property<Instant>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasComment("The admin who asked for the work; null when a Worker's scheduler enqueued it.");
+
+                    b.Property<string>("Result")
+                        .HasColumnType("jsonb")
+                        .HasComment("The handler's results summary, written when the item succeeds.");
+
+                    b.Property<int>("Stalls")
+                        .HasColumnType("integer")
+                        .HasComment("Lease expiries, counted by lease recovery. A graceful shutdown hands the item back without counting one; the item fails as stalled once the limit is reached.");
+
+                    b.Property<Instant?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("Queued, Running, Succeeded, Failed or Cancelled, persisted as text.");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasComment("Moves on every insert, claim, heartbeat and transition, so a reader can ask what changed since a point in time.");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DedupKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_workitems_dedupkey_queued")
+                        .HasFilter("\"Status\" = 'Queued' AND \"DedupKey\" IS NOT NULL");
+
+                    b.HasIndex("LeaseUntil")
+                        .HasDatabaseName("ix_workitems_lease")
+                        .HasFilter("\"Status\" = 'Running'");
+
+                    b.HasIndex("RequestedAt")
+                        .HasDatabaseName("ix_workitems_claim")
+                        .HasFilter("\"Status\" = 'Queued'");
+
+                    b.HasIndex("RequestedBy");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.ToTable("WorkItems", t =>
+                        {
+                            t.HasComment("Durable work for the Worker: periodic maintenance today, admin requests later. Only IWorkQueue inserts rows; every later state change belongs to the Worker's executor. Delivery is at least once, so handlers start from scratch and converge.");
                         });
                 });
 
@@ -535,6 +635,14 @@ namespace Anichron.Core.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.WorkItem", b =>
+                {
+                    b.HasOne("Anichron.Core.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.Burst", b =>
