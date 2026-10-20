@@ -262,6 +262,26 @@ public sealed class MediaEndpointsTests
     }
 
     [Fact]
+    public async Task PatchInteraction_NoBodyAtAll_PassesNoChangeAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.Interactions.ApplyAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<InteractionChange>(), Arg.Any<CancellationToken>())
+            .Returns(new InteractionState(false, true, false));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/assets/{AssetId}/interaction");
+        request.Headers.Add(AuthenticatedTestApp.UserHeader, UserId.ToString());
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<AssetInteractionDto>(TestContext.Current.CancellationToken))
+            .Should().Be(new AssetInteractionDto(false, true, false, 2.0));
+        await fixture.Interactions.Received(1).ApplyAsync(
+            UserId, AssetId, new InteractionChange(null, null, null), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task PatchInteraction_BodyNamingAnotherUser_WritesForTheCallerAsync()
     {
         var fixture = new TestFixture();

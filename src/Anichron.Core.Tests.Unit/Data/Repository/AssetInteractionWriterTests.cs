@@ -43,14 +43,15 @@ public sealed class AssetInteractionWriterTests
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        public async Task<InteractionState?> ApplyAsync(User caller, InteractionChange change, IInterceptor? interceptor = null)
+        public async Task<InteractionState?> ApplyAsync(
+            User caller, InteractionChange change, IInterceptor? interceptor = null, Guid? assetId = null)
         {
             var options = interceptor is null
                 ? Options
                 : new DbContextOptionsBuilder<AnichronDbContext>(Options).AddInterceptors(interceptor).Options;
             await using var db = new AnichronDbContext(options);
             return await new EfAssetInteractionWriter(db)
-                .ApplyAsync(caller.Id, Photo.Id, change, TestContext.Current.CancellationToken);
+                .ApplyAsync(caller.Id, assetId ?? Photo.Id, change, TestContext.Current.CancellationToken);
         }
 
         public async Task<IReadOnlyList<AssetView>> OnThisDayAsync(User caller)
@@ -195,14 +196,28 @@ public sealed class AssetInteractionWriterTests
     {
         var library = new Library();
         await library.SeedAsync();
-        await using var db = new AnichronDbContext(library.Options);
 
-        var state = await new EfAssetInteractionWriter(db).ApplyAsync(
-            library.Mira.Id, Guid.NewGuid(), new InteractionChange(Starred: true, Liked: null, Hidden: null),
-            TestContext.Current.CancellationToken);
+        var state = await library.ApplyAsync(
+            library.Mira, new InteractionChange(Starred: true, Liked: null, Hidden: null), assetId: Guid.NewGuid());
 
         state.Should().BeNull();
         (await library.StoredAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Query_FiltersVisibilityAndTheInteractionOnTheCaller()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetInteractionWriter.Query(db, Guid.NewGuid(), Guid.NewGuid()).ToQueryString();
+
+        sql.Should().Contain("JOIN \"StorageConfigs\"")
+            .And.Contain("\"IsActive\"")
+            .And.Contain("\"IsSoftDeleted\"")
+            .And.Contain("FROM \"Interactions\"")
+            .And.NotContain("EXISTS", "a hidden asset must stay writable, so it can be unhidden");
+        sql.Split("\"UserId\" = @").Should().HaveCount(3,
+            "the owned-config check and the interaction lookup each filter on the caller");
     }
 
     [Fact]
@@ -273,7 +288,7 @@ public sealed class AssetInteractionWriterTests
     }
 
     // ==========================================================================
-    // First caller: what the caller's On This Day read sees after a write
+    // Read back On This Day
     // ==========================================================================
 
     [Fact]

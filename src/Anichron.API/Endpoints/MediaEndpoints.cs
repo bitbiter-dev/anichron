@@ -55,7 +55,7 @@ public static class MediaEndpoints
 
     internal static async Task<IResult> PatchInteractionAsync(
         Guid assetId,
-        PatchInteractionRequest request,
+        PatchInteractionRequest? request,
         ClaimsPrincipal user,
         [FromServices] IAssetInteractionWriter interactions,
         CancellationToken ct)
@@ -63,7 +63,7 @@ public static class MediaEndpoints
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Results.Unauthorized();
 
-        var change = new InteractionChange(request.Starred, request.Liked, request.Hidden);
+        var change = new InteractionChange(request?.Starred, request?.Liked, request?.Hidden);
         return await interactions.ApplyAsync(userId, assetId, change, ct) is { } state
             ? Results.Ok(AssetDtoMapper.ToDto(state))
             : Results.NotFound();

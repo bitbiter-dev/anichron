@@ -19,7 +19,7 @@ public interface IAssetInteractionWriter
 
 public sealed class EfAssetInteractionWriter(AnichronDbContext db) : IAssetInteractionWriter
 {
-    private sealed record Target(AssetInteraction? Interaction);
+    internal sealed record VisibleAsset(AssetInteraction? Interaction);
 
     public async Task<InteractionState?> ApplyAsync(Guid userId, Guid assetId, InteractionChange change, CancellationToken ct)
     {
@@ -36,14 +36,11 @@ public sealed class EfAssetInteractionWriter(AnichronDbContext db) : IAssetInter
 
     private async Task<InteractionState?> TryApplyAsync(Guid userId, Guid assetId, InteractionChange change, CancellationToken ct)
     {
-        var target = await db.MediaAssets.VisibleTo(userId)
-            .Where(a => a.Id == assetId)
-            .Select(a => new Target(a.Interactions.FirstOrDefault(i => i.UserId == userId)))
-            .FirstOrDefaultAsync(ct);
-        if (target is null)
+        var asset = await Query(db, userId, assetId).FirstOrDefaultAsync(ct);
+        if (asset is null)
             return null;
 
-        var interaction = target.Interaction;
+        var interaction = asset.Interaction;
         if (interaction is null)
         {
             if (change is { Starred: null, Liked: null, Hidden: null })
@@ -59,4 +56,9 @@ public sealed class EfAssetInteractionWriter(AnichronDbContext db) : IAssetInter
         await db.SaveChangesAsync(ct);
         return new InteractionState(interaction.IsStarred, interaction.IsLiked, interaction.IsHidden);
     }
+
+    internal static IQueryable<VisibleAsset> Query(AnichronDbContext db, Guid userId, Guid assetId)
+        => db.MediaAssets.VisibleTo(userId)
+            .Where(a => a.Id == assetId)
+            .Select(a => new VisibleAsset(a.Interactions.FirstOrDefault(i => i.UserId == userId)));
 }
