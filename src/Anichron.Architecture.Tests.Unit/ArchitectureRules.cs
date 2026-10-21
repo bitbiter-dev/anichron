@@ -28,7 +28,7 @@ internal static class ArchitectureRules
     public const string DomainUsesNodaTime = "domain-uses-nodatime";
     public const string OnlyWorkQueueInsertsWorkItems = "only-work-queue-inserts-work-items";
     public const string WorkHandlersLiveInWorker = "work-handlers-live-in-worker";
-    public const string ApiWritesWorkItemsOnlyByCancel = "api-writes-work-items-only-by-cancel";
+    public const string WorkItemsChangeOnlyThroughQueueOrCancel = "work-items-change-only-through-queue-or-cancel";
 
     private const string Domain = "Anichron.Core.Domain";
     private const string ApiWiring = "Anichron.API.Infrastructure";
@@ -84,13 +84,14 @@ internal static class ArchitectureRules
         new(WorkHandlersLiveInWorker,
             Types().That().ImplementInterface(typeof(IWorkHandler<>))
                 .Should().ResideInAssembly(WorkerAssembly)),
-        new(ApiWritesWorkItemsOnlyByCancel,
+        new(WorkItemsChangeOnlyThroughQueueOrCancel,
             Types().That().ResideInAssembly(ApiAssembly, CoreAssembly, InfrastructureAssembly)
+                .And().DoNotResideInNamespace(Domain)
+                .And().DoNotHaveFullName(typeof(AnichronDbContext).FullName)
                 .And().DoNotHaveFullName(WorkQueue)
                 .And().DoNotHaveFullName(WorkItemReader)
                 .And().DoNotHaveFullName(WorkItemCanceller)
-                .Should().NotCallAny(MethodMembers().That().AreDeclaredIn(typeof(AnichronDbContext))
-                    .And().HaveNameMatching(@"^get_WorkItems\("))),
+                .Should().NotDependOnAny(typeof(WorkItem))),
     ];
 
     public static ArchitectureRule Named(string name) => All.Single(rule => rule.Name == name);

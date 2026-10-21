@@ -97,7 +97,7 @@ COMMENT ON COLUMN "WorkItems"."Stalls" IS 'Lease expiries, counted by lease reco
 COMMENT ON COLUMN "WorkItems"."ClaimedBy" IS 'The claiming Worker for display: its WORKER__USER or ''all'', then its host name.';
 COMMENT ON COLUMN "WorkItems"."LeaseUntil" IS 'Extended by every heartbeat. A Running item past it belongs to a dead or paused Worker and goes back to the queue.';
 COMMENT ON COLUMN "WorkItems"."UpdatedAt" IS 'Moves on every insert, claim and transition, and on a heartbeat only when the progress snapshot changed, so a reader can ask what changed since a point in time.';
-COMMENT ON COLUMN "WorkItems"."CancelRequestedAt" IS 'When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker''s next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled.';
+COMMENT ON COLUMN "WorkItems"."CancelRequestedAt" IS 'When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker''s next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled. A cancelled periodic item counts as that run, so the next one follows a full interval later.';
 COMMENT ON COLUMN "WorkItems"."ProgressNote" IS 'The latest progress snapshot (done, optional total, note), overwritten by each heartbeat; no history is kept.';
 COMMENT ON COLUMN "WorkItems"."Result" IS 'The handler''s results summary, written when the item succeeds, or when it is cancelled after its handler returned one; a Cancelled item''s results are partial.';
 

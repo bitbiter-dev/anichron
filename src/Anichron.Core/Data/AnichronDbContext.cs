@@ -352,7 +352,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.Property(w => w.CancelRequestedAt).HasComment(
                 "When an admin asked to cancel the item. A Queued item is cancelled at once; a Running "
                 + "one keeps running until the Worker's next heartbeat reads this and cancels its handler. "
-                + "A requested item is never queued again: release and lease recovery end it Cancelled.");
+                + "A requested item is never queued again: release and lease recovery end it Cancelled. "
+                + "A cancelled periodic item counts as that run, so the next one follows a full interval later.");
             entity.Property(w => w.ProgressNote).HasComment(
                 "The latest progress snapshot (done, optional total, note), overwritten by each "
                 + "heartbeat; no history is kept.");

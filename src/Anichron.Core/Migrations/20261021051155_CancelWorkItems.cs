@@ -32,7 +32,7 @@ namespace Anichron.Core.Migrations
                 table: "WorkItems",
                 type: "timestamp with time zone",
                 nullable: true,
-                comment: "When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker's next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled.");
+                comment: "When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker's next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled. A cancelled periodic item counts as that run, so the next one follows a full interval later.");
         }
 
         /// <inheritdoc />

@@ -434,7 +434,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<Instant?>("CancelRequestedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasComment("When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker's next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled.");
+                        .HasComment("When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker's next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled. A cancelled periodic item counts as that run, so the next one follows a full interval later.");
 
                     b.Property<string>("ClaimedBy")
                         .HasColumnType("text")
