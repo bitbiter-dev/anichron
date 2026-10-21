@@ -119,6 +119,7 @@ public sealed class ApiServiceRegistrationTests
 
     [Theory]
     [InlineData(typeof(IWorkItemReader), typeof(EfWorkItemReader))]
+    [InlineData(typeof(IWorkItemCanceller), typeof(EfWorkItemCanceller))]
     [InlineData(typeof(WorkItemEvents), typeof(WorkItemEvents))]
     public void AddWorkItemServices_RegistersTheScopedImplementation(Type service, Type implementation)
         => WorkItemServices().Should().ContainSingle(d => d.ServiceType == service)

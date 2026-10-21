@@ -8,6 +8,17 @@ public sealed record WorkAttempt(Guid Id, int Attempt);
 
 public sealed record ClaimedWork(WorkAttempt Attempt, WorkKind Kind, string Payload);
 
+public enum HeartbeatOutcome
+{
+    Held = 1,
+
+    /// <summary>The attempt still holds the item, and an admin asked to cancel it.</summary>
+    CancelRequested = 2,
+
+    /// <summary>The attempt no longer holds the item.</summary>
+    Lost = 3,
+}
+
 /// <summary>
 /// Every state change a Worker makes to a work item after it was enqueued. Writes about a running
 /// item are fenced by its <see cref="WorkAttempt"/>: once the item was recovered and claimed again,
@@ -33,14 +44,26 @@ public interface IWorkItemStore
     /// <param name="now">The heartbeat time.</param>
     /// <param name="lease">How long the lease holds from now.</param>
     /// <param name="ct">Cancels the heartbeat.</param>
-    /// <returns>False when the attempt no longer holds the item.</returns>
-    Task<bool> HeartbeatAsync(WorkAttempt attempt, WorkProgress progress, Instant now, Duration lease, CancellationToken ct);
+    /// <returns>Whether the attempt still holds the item, and whether a cancel was requested.</returns>
+    Task<HeartbeatOutcome> HeartbeatAsync(WorkAttempt attempt, WorkProgress progress, Instant now, Duration lease, CancellationToken ct);
 
     Task SucceedAsync(WorkAttempt attempt, WorkProgress progress, string? result, Instant now, CancellationToken ct);
 
     Task FailAsync(WorkAttempt attempt, WorkProgress progress, string error, Instant now, CancellationToken ct);
 
-    /// <summary>Hands the item back to the queue without counting a stall.</summary>
+    /// <summary>Ends a running item whose cancel was requested, keeping what the attempt produced.</summary>
+    /// <param name="attempt">The running attempt.</param>
+    /// <param name="progress">The last snapshot.</param>
+    /// <param name="result">The handler's summary, if it returned one; partial either way.</param>
+    /// <param name="now">The cancel time.</param>
+    /// <param name="ct">Cancels the write.</param>
+    /// <returns>A task that completes once the item is cancelled.</returns>
+    Task CancelAsync(WorkAttempt attempt, WorkProgress progress, string? result, Instant now, CancellationToken ct);
+
+    /// <summary>
+    /// Hands the item back to the queue without counting a stall, or cancels it when a cancel was
+    /// requested.
+    /// </summary>
     /// <param name="attempt">The running attempt.</param>
     /// <param name="now">The release time.</param>
     /// <param name="ct">Cancels the release.</param>
@@ -49,7 +72,8 @@ public interface IWorkItemStore
 
     /// <summary>
     /// Puts running items whose lease expired back in the queue, counting a stall, and fails those
-    /// reaching <paramref name="maxStalls"/> as stalled.
+    /// reaching <paramref name="maxStalls"/> as stalled. An item whose cancel was requested is
+    /// cancelled instead.
     /// </summary>
     /// <param name="now">Leases ending before this have expired.</param>
     /// <param name="maxStalls">The stall that fails an item.</param>

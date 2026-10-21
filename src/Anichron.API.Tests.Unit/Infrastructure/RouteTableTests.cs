@@ -144,8 +144,14 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
     [InlineData("/api/v1/admin/work-items/{workItemId:guid}")]
     [InlineData("/api/v1/admin/work-items/events")]
     public void WorkItemRoutes_RequireTheAdminPolicyWithoutRateLimit(string pattern)
+        => AssertAdminWithoutRateLimit(Find("GET", pattern));
+
+    [Fact]
+    public void CancelWorkItemRoute_RequiresTheAdminPolicyWithoutRateLimit()
+        => AssertAdminWithoutRateLimit(Find("POST", "/api/v1/admin/work-items/{workItemId:guid}/cancel"));
+
+    private static void AssertAdminWithoutRateLimit(Route route)
     {
-        var route = Find("GET", pattern);
 
         route.Anonymous.Should().BeFalse();
         route.Policies.Should().Contain(AuthPolicies.Admin);
@@ -155,7 +161,7 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
     [Fact]
     public void WorkItemRoutes_AreTaggedWorkItems()
         => Routes.Where(r => r.Pattern.StartsWith("/api/v1/admin/work-items", StringComparison.Ordinal))
-            .Should().HaveCount(3).And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Work items" }));
+            .Should().HaveCount(4).And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Work items" }));
 
     [Fact]
     public void Healthz_IsAnonymous()
@@ -163,5 +169,5 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(25);
+        => Routes.Should().HaveCount(26);
 }

@@ -58,7 +58,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             .Returns(_ =>
             {
                 timeline.Record("heartbeat");
-                return true;
+                return HeartbeatOutcome.Held;
             });
         store.When(s => s.SucceedAsync(
                 Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<string?>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
@@ -66,6 +66,9 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         store.When(s => s.FailAsync(
                 Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
             .Do(_ => timeline.Record("fail"));
+        store.When(s => s.CancelAsync(
+                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<string?>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
+            .Do(_ => timeline.Record("cancel"));
         store.When(s => s.ReleaseAsync(Arg.Any<WorkAttempt>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
             .Do(_ => timeline.Record("release"));
         handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
@@ -229,7 +232,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             .Returns(_ =>
             {
                 timeline.Record("heartbeat");
-                return ++beats == 1 ? throw new InvalidOperationException("db down") : true;
+                return ++beats == 1 ? throw new InvalidOperationException("db down") : HeartbeatOutcome.Held;
             });
         await StartRunningAsync();
 
@@ -250,7 +253,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             .Returns(_ =>
             {
                 timeline.Record("heartbeat");
-                return false;
+                return HeartbeatOutcome.Lost;
             });
         await StartRunningAsync();
 
@@ -271,7 +274,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             {
                 timeline.Record("heartbeat");
                 fenced = runs[0].TrySetResult("done anyway");
-                return false;
+                return HeartbeatOutcome.Lost;
             });
         await StartRunningAsync();
 
@@ -280,6 +283,125 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         await timeline.ExpectAsync(
             new TimerFired(Heartbeat), new Called("heartbeat"), new Called("claim"), new TimerArmed(Poll));
         fenced.Should().BeTrue();
+    }
+
+    // ==========================================================================
+    // Cancel requests
+    // ==========================================================================
+
+    private void HeartbeatsReportACancelRequest()
+        => store.HeartbeatAsync(
+                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                timeline.Record("heartbeat");
+                return HeartbeatOutcome.CancelRequested;
+            });
+
+    private void HandlerWindsDownOnlyWhenTold()
+        => handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                handlerProgress = call.Arg<IWorkProgress>();
+                handlerToken = call.Arg<CancellationToken>();
+                var run = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                runs.Add(run);
+                timeline.Record("run");
+                return run.Task;
+            });
+
+    private async Task CancelRequestedWhileRunningAsync()
+    {
+        HeartbeatsReportACancelRequest();
+        HandlerWindsDownOnlyWhenTold();
+        await StartRunningAsync();
+        timeline.Clock.Advance(Heartbeat);
+        await timeline.ExpectAsync(new TimerFired(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelRequested_CancelsTheHandlerAndKeepsHoldingTheLeaseAsync()
+    {
+        await CancelRequestedWhileRunningAsync();
+
+        handlerToken.IsCancellationRequested.Should().BeTrue();
+        timeline.Clock.Advance(Heartbeat);
+        await timeline.ExpectAsync(new TimerFired(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        runs[0].SetCanceled(handlerToken);
+        await timeline.ExpectAsync(new Called("cancel"), new Called("claim"), new TimerArmed(Poll));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelRequestedAndHandlerStops_CancelsTheItemWithItsLastProgressAsync()
+    {
+        await CancelRequestedWhileRunningAsync();
+        handlerProgress!.Report(4, null, "walking");
+
+        runs[0].SetCanceled(handlerToken);
+
+        await timeline.ExpectAsync(new Called("cancel"), new Called("claim"), new TimerArmed(Poll));
+        await store.Received(1).CancelAsync(
+            Work().Attempt, new WorkProgress(4, null, "walking"), null, Now, CancellationToken.None);
+        logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Information)
+            .Which.Message.Should().Be($"Work item {Work().Attempt.Id} was cancelled at an admin's request.");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelRequestedButHandlerReturnsASummary_KeepsItAsThePartialResultAsync()
+    {
+        await CancelRequestedWhileRunningAsync();
+
+        runs[0].SetResult(new { Deleted = 2 });
+
+        await timeline.ExpectAsync(new Called("cancel"), new Called("claim"), new TimerArmed(Poll));
+        await store.Received(1).CancelAsync(
+            Work().Attempt, WorkProgress.None, /*lang=json,strict*/ """{"deleted":2}""", Now, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelRequestedButHandlerFails_FailsTheItemAsync()
+    {
+        await CancelRequestedWhileRunningAsync();
+
+        runs[0].SetException(new InvalidOperationException("boom"));
+
+        await timeline.ExpectAsync(new Called("fail"), new Called("claim"), new TimerArmed(Poll));
+    }
+
+    [Fact]
+    public async Task StopAsync_AfterACancelRequest_CancelsTheItemInsteadOfReleasingItAsync()
+    {
+        await CancelRequestedWhileRunningAsync();
+
+        var stopping = executor!.StopAsync(Ct);
+        runs[0].SetCanceled(handlerToken);
+        await stopping;
+
+        await timeline.ExpectAsync(new Called("cancel"), new Called("claim"), new Finished(TaskStatus.Canceled));
+        await store.DidNotReceive().ReleaseAsync(Arg.Any<WorkAttempt>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelRequestedThenFenced_WritesNothingAsync()
+    {
+        var beats = 0;
+        store.HeartbeatAsync(
+                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                timeline.Record("heartbeat");
+                return ++beats == 1 ? HeartbeatOutcome.CancelRequested : HeartbeatOutcome.Lost;
+            });
+        HandlerWindsDownOnlyWhenTold();
+        await StartRunningAsync();
+        timeline.Clock.Advance(Heartbeat);
+        await timeline.ExpectAsync(new TimerFired(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+
+        timeline.Clock.Advance(Heartbeat);
+        await timeline.ExpectAsync(new TimerFired(Heartbeat), new Called("heartbeat"));
+        runs[0].SetCanceled(handlerToken);
+
+        await timeline.ExpectAsync(new Called("claim"), new TimerArmed(Poll));
     }
 
     // ==========================================================================

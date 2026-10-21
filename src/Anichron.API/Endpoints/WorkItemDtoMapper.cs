@@ -21,10 +21,12 @@ internal static class WorkItemDtoMapper
             view.StartedAt is { } started ? Format(started) : null,
             view.FinishedAt is { } finished ? Format(finished) : null,
             Format(view.UpdatedAt),
+            view.CancelRequestedAt is { } requested ? Format(requested) : null,
             new WorkProgressDto(view.Progress.Done, view.Progress.Total, view.Progress.Note),
-            view is { Status: WorkItemStatus.Succeeded, Result: { } result }
+            view is { Status: WorkItemStatus.Succeeded or WorkItemStatus.Cancelled, Result: { } result }
                 ? JsonSerializer.Deserialize<JsonElement>(result)
                 : null,
+            view.Status is WorkItemStatus.Cancelled,
             view.Status is WorkItemStatus.Failed or WorkItemStatus.Cancelled ? view.Error : null);
 
     internal static string Format(Instant instant) => InstantPattern.ExtendedIso.Format(instant);

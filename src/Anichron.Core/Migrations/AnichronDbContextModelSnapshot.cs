@@ -432,6 +432,10 @@ namespace Anichron.Core.Migrations
                         .HasColumnType("integer")
                         .HasComment("Incremented by every claim. Every write a Worker makes while running an item is fenced by (Id, Attempt), so an attempt that lost its lease changes nothing.");
 
+                    b.Property<Instant?>("CancelRequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasComment("When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker's next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled.");
+
                     b.Property<string>("ClaimedBy")
                         .HasColumnType("text")
                         .HasComment("The claiming Worker for display: its WORKER__USER or 'all', then its host name.");
@@ -479,7 +483,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<string>("Result")
                         .HasColumnType("jsonb")
-                        .HasComment("The handler's results summary, written when the item succeeds.");
+                        .HasComment("The handler's results summary, written when the item succeeds, or when it is cancelled after its handler returned one; a Cancelled item's results are partial.");
 
                     b.Property<int>("Stalls")
                         .HasColumnType("integer")
@@ -524,7 +528,7 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("WorkItems", t =>
                         {
-                            t.HasComment("Durable work for the Worker: periodic maintenance today, admin requests later. Only IWorkQueue inserts rows; every later state change belongs to the Worker's executor. Delivery is at least once, so handlers start from scratch and converge.");
+                            t.HasComment("Durable work for the Worker: periodic maintenance today, admin requests later. Only IWorkQueue inserts rows; the API's only other write is an admin's cancel, and every other state change belongs to the Worker's executor. Delivery is at least once, so handlers start from scratch and converge.");
                         });
                 });
 

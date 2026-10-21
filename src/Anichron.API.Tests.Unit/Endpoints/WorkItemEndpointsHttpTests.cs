@@ -19,6 +19,7 @@ public sealed class WorkItemEndpointsHttpTests
     private static readonly Guid ItemId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     private readonly IWorkItemReader reader = Substitute.For<IWorkItemReader>();
+    private readonly IWorkItemCanceller canceller = Substitute.For<IWorkItemCanceller>();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -31,6 +32,7 @@ public sealed class WorkItemEndpointsHttpTests
         => AuthenticatedTestApp.StartAsync(api => api.MapWorkItemEndpoints(), services =>
         {
             services.AddSingleton(reader);
+            services.AddSingleton(canceller);
             services.AddSingleton<TimeProvider>(new FakeTimeProvider());
             services.AddSingleton(Options.Create(new WorkItemEventsSettings()));
             services.AddScoped<WorkItemEvents>();
@@ -69,17 +71,38 @@ public sealed class WorkItemEndpointsHttpTests
     }
 
     [Theory]
-    [InlineData("/api/v1/admin/work-items")]
-    [InlineData("/api/v1/admin/work-items/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")]
-    [InlineData("/api/v1/admin/work-items/events")]
-    public async Task EveryRoute_ForANonAdmin_IsForbiddenAsync(string path)
+    [InlineData("GET", "/api/v1/admin/work-items")]
+    [InlineData("GET", "/api/v1/admin/work-items/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")]
+    [InlineData("GET", "/api/v1/admin/work-items/events")]
+    [InlineData("POST", "/api/v1/admin/work-items/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/cancel")]
+    public async Task EveryRoute_ForANonAdmin_IsForbiddenAsync(string method, string path)
     {
         await using var app = await StartAsync();
         using var client = app.Client;
+        using var request = AuthenticatedTestApp.Get(path, AdminId);
+        request.Method = new HttpMethod(method);
 
-        using var response = await client.SendAsync(AuthenticatedTestApp.Get(path, AdminId), Ct);
+        using var response = await client.SendAsync(request, Ct);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        await canceller.DidNotReceive().CancelAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Cancel_PostedByAnAdmin_CancelsTheItemInThePathAsync()
+    {
+        canceller.CancelAsync(ItemId, Arg.Any<CancellationToken>()).Returns(CancelOutcome.Finished);
+        reader.FindAsync(ItemId, Arg.Any<CancellationToken>()).Returns(Succeeded);
+        await using var app = await StartAsync();
+        using var client = app.Client;
+        using var request = AuthenticatedTestApp.GetAsAdmin($"/api/v1/admin/work-items/{ItemId}/cancel", AdminId);
+        request.Method = HttpMethod.Post;
+
+        using var response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        body.RootElement.GetProperty("status").GetString().Should().Be("Succeeded");
     }
 
     [Fact]

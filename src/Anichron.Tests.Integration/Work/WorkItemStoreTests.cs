@@ -84,7 +84,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
 
         var held = await work.Store.HeartbeatAsync(claimed.Attempt, Halfway, At(30), Lease, Ct);
 
-        held.Should().BeTrue();
+        held.Should().Be(HeartbeatOutcome.Held);
         var item = await work.ItemAsync(claimed.Attempt.Id, Ct);
         item.LeaseUntil.Should().Be(At(90));
         (item.ProgressDone, item.ProgressTotal, item.ProgressNote).Should().Be((5L, 10L, "halfway"));
@@ -101,7 +101,7 @@ public sealed class WorkItemStoreTests(PostgresServer server)
 
         var held = await work.Store.HeartbeatAsync(claimed.Attempt, new WorkProgress(5, 10, "halfway"), At(32), Lease, Ct);
 
-        held.Should().BeTrue();
+        held.Should().Be(HeartbeatOutcome.Held);
         var item = await work.ItemAsync(claimed.Attempt.Id, Ct);
         item.LeaseUntil.Should().Be(At(92));
         item.UpdatedAt.Should().Be(At(30));
@@ -154,8 +154,9 @@ public sealed class WorkItemStoreTests(PostgresServer server)
         await work.Store.SucceedAsync(zombie.Attempt, Halfway, /*lang=json,strict*/ """{"done": true}""", At(64), Ct);
         await work.Store.FailAsync(zombie.Attempt, Halfway, "boom", At(64), Ct);
         await work.Store.ReleaseAsync(zombie.Attempt, At(64), Ct);
+        await work.Store.CancelAsync(zombie.Attempt, Halfway, /*lang=json,strict*/ """{"done": false}""", At(64), Ct);
 
-        held.Should().BeFalse();
+        held.Should().Be(HeartbeatOutcome.Lost);
         current.Attempt.Should().Be(new WorkAttempt(zombie.Attempt.Id, 2));
         var item = await work.ItemAsync(current.Attempt.Id, Ct);
         item.Status.Should().Be(WorkItemStatus.Running);
@@ -337,6 +338,90 @@ public sealed class WorkItemStoreTests(PostgresServer server)
         item.Result.Should().BeNull();
         (item.ProgressDone, item.ProgressTotal, item.ProgressNote).Should().Be((5L, 10L, "halfway"));
         (item.FinishedAt, item.UpdatedAt).Should().Be((At(9), At(9)));
+    }
+
+    [Fact]
+    public async Task HeartbeatAsync_CancelRequested_ReportsItAndStillExtendsTheLeaseAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        var id = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+        work.Clock.Now = At(10);
+        await work.CancelAsync(id, Ct);
+
+        var heartbeat = await work.Store.HeartbeatAsync(claimed.Attempt, Halfway, At(30), Lease, Ct);
+
+        heartbeat.Should().Be(HeartbeatOutcome.CancelRequested);
+        var item = await work.ItemAsync(id, Ct);
+        (item.Status, item.LeaseUntil).Should().Be((WorkItemStatus.Running, At(90)));
+        item.ProgressNote.Should().Be("halfway");
+    }
+
+    [Fact]
+    public async Task CancelAsync_StoresTheLastProgressAndTheResultAsPartialAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        var id = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+        work.Clock.Now = At(5);
+        await work.CancelAsync(id, Ct);
+
+        await work.Store.CancelAsync(claimed.Attempt, Halfway, /*lang=json,strict*/ """{"deleted": 2}""", At(9), Ct);
+
+        var item = await work.ItemAsync(id, Ct);
+        (item.Status, item.Error).Should().Be((WorkItemStatus.Cancelled, null));
+        item.Result.Should().Be(/*lang=json,strict*/ """{"deleted": 2}""");
+        (item.ProgressDone, item.ProgressTotal, item.ProgressNote).Should().Be((5L, 10L, "halfway"));
+        (item.FinishedAt, item.UpdatedAt).Should().Be((At(9), At(9)));
+    }
+
+    [Fact]
+    public async Task ReleaseAsync_CancelRequested_CancelsTheItemInsteadOfQueuingItAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        var id = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+        work.Clock.Now = At(3);
+        await work.CancelAsync(id, Ct);
+
+        await work.Store.ReleaseAsync(claimed.Attempt, At(5), Ct);
+
+        var item = await work.ItemAsync(id, Ct);
+        (item.Status, item.Error, item.Stalls).Should().Be((WorkItemStatus.Cancelled, null, 0));
+        (item.FinishedAt, item.UpdatedAt).Should().Be((At(5), At(5)));
+        (await work.Store.ClaimAsync("worker", null, At(6), Lease, Ct)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReleaseAsync_CancelRequestedAndSameKeyQueued_CancelsWithoutCallingItSupersededAsync()
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        var id = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+        await work.CancelAsync(id, Ct);
+        var waiting = await work.EnqueueAsync(new KeyedPayload("sweep"), Ct);
+
+        await work.Store.ReleaseAsync(claimed.Attempt, At(5), Ct);
+
+        (await work.ItemAsync(id, Ct)).Should().BeEquivalentTo(new { Status = WorkItemStatus.Cancelled, Error = (string?)null });
+        (await work.ItemAsync(waiting, Ct)).Status.Should().Be(WorkItemStatus.Queued);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(1)]
+    public async Task RecoverExpiredLeasesAsync_CancelRequested_CancelsTheItemEvenAtTheStallLimitAsync(int maxStalls)
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        var id = await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct);
+        await work.CancelAsync(id, Ct);
+
+        await work.Store.RecoverExpiredLeasesAsync(At(61), maxStalls, Ct);
+
+        var item = await work.ItemAsync(id, Ct);
+        (item.Status, item.Error, item.Stalls).Should().Be((WorkItemStatus.Cancelled, null, 1));
+        item.FinishedAt.Should().Be(At(61));
     }
 
     [Fact]

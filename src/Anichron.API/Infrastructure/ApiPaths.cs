@@ -56,6 +56,10 @@ internal static class ApiPaths
         internal const string Group = "admin/work-items";
         internal const string ById = "{workItemId:guid}";
         internal const string Events = "events";
+        internal const string Cancel = $"{ById}/cancel";
+
+        internal static string ItemLocation(Guid workItemId)
+            => $"{Base}/{Group}/{workItemId}";
     }
 
     internal static class Flashbacks

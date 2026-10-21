@@ -18,6 +18,7 @@ public class WorkItem
     public Instant? LeaseUntil { get; set; }
     public Instant? FinishedAt { get; set; }
     public Instant UpdatedAt { get; set; }
+    public Instant? CancelRequestedAt { get; set; }
 
     public long ProgressDone { get; set; }
     public long? ProgressTotal { get; set; }
