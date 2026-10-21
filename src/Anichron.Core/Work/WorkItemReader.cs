@@ -21,7 +21,7 @@ public sealed record WorkItemView(
     WorkProgress Progress,
     string? Result,
     string? Error,
-    Instant? CancelRequestedAt = null);
+    Instant? CancelRequestedAt);
 
 public sealed record WorkItemQuery(WorkItemStatus? Status, WorkKind? Kind, int Skip, int Take);
 

@@ -26,7 +26,7 @@ public sealed class WorkItemEndpointsHttpTests
     private static WorkItemView Succeeded
         => new(ItemId, WorkKind.Crawl, null, null, Start, WorkItemStatus.Succeeded, 1, 0, "all@host",
             Start, Start + Duration.FromSeconds(9), Start + Duration.FromSeconds(9), new WorkProgress(8, 8, "8 found"),
-            /*lang=json,strict*/ """{"found": 8}""", null);
+            /*lang=json,strict*/ """{"found": 8}""", null, null);
 
     private Task<AuthenticatedTestApp> StartAsync()
         => AuthenticatedTestApp.StartAsync(api => api.MapWorkItemEndpoints(), services =>

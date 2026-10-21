@@ -41,7 +41,7 @@ public sealed class WorkItemEventsTests : IAsyncDisposable
 
     private static WorkItemView Changed(Guid id, int updatedAt)
         => new(id, WorkKind.Crawl, null, null, Start, WorkItemStatus.Running, 1, 0, "all@host",
-            Start, null, At(updatedAt), new WorkProgress(3, null, "3 found"), null, null);
+            Start, null, At(updatedAt), new WorkProgress(3, null, "3 found"), null, null, null);
 
     private void Stream(string? lastEventId = null, double intervalSeconds = 2)
     {

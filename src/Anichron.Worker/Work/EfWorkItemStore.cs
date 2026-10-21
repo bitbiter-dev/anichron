@@ -48,21 +48,25 @@ public sealed class EfWorkItemStore(IDbContextFactory<AnichronDbContext> context
         WorkAttempt attempt, WorkProgress progress, Instant now, Duration lease, CancellationToken ct)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var rows = await Running(db, attempt).ExecuteUpdateAsync(s => s
-            .SetProperty(w => w.LeaseUntil, now + lease)
-            .SetProperty(w => w.ProgressDone, progress.Done)
-            .SetProperty(w => w.ProgressTotal, progress.Total)
-            .SetProperty(w => w.ProgressNote, progress.Note)
-            .SetProperty(
-                w => w.UpdatedAt,
-                w => w.ProgressDone == progress.Done && w.ProgressTotal == progress.Total && w.ProgressNote == progress.Note
-                    ? w.UpdatedAt
-                    : now), ct);
-        if (rows == 0)
-            return HeartbeatOutcome.Lost;
-        return await Running(db, attempt).AnyAsync(w => w.CancelRequestedAt != null, ct)
-            ? HeartbeatOutcome.CancelRequested
-            : HeartbeatOutcome.Held;
+        var leaseUntil = now + lease;
+        var cancelRequested = await db.Database.SqlQuery<bool>($"""
+            UPDATE "WorkItems"
+            SET "LeaseUntil" = {leaseUntil}, "ProgressDone" = {progress.Done},
+                "ProgressTotal" = CAST({progress.Total} AS bigint), "ProgressNote" = CAST({progress.Note} AS text),
+                "UpdatedAt" = CASE
+                    WHEN "ProgressDone" = {progress.Done}
+                      AND "ProgressTotal" IS NOT DISTINCT FROM CAST({progress.Total} AS bigint)
+                      AND "ProgressNote" IS NOT DISTINCT FROM CAST({progress.Note} AS text)
+                    THEN "UpdatedAt" ELSE {now} END
+            WHERE "Id" = {attempt.Id} AND "Attempt" = {attempt.Attempt} AND "Status" = 'Running'
+            RETURNING "CancelRequestedAt" IS NOT NULL AS "Value"
+            """).ToListAsync(ct);
+        return cancelRequested switch
+        {
+            [] => HeartbeatOutcome.Lost,
+            [true] => HeartbeatOutcome.CancelRequested,
+            _ => HeartbeatOutcome.Held,
+        };
     }
 
     // Stryker disable all

@@ -26,7 +26,7 @@ public sealed class WorkItemEndpointsTests
         string? result = /*lang=json,strict*/ """{"found": 8}""",
         string? error = "IOException: the root is gone")
         => new(ItemId, WorkKind.Crawl, ConfigId, AdminId, At(1), status, 2, 1, "all@host",
-            At(2), At(9), At(9), new WorkProgress(7, 8, "7 found"), result, error);
+            At(2), At(9), At(9), new WorkProgress(7, 8, "7 found"), result, error, null);
 
     private void Pages(int total = 1, Instant? latest = null)
     {

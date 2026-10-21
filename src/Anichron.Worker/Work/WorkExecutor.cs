@@ -98,7 +98,7 @@ public sealed partial class WorkExecutor(
         WorkAttempt attempt, WorkProgressSink progress, CancellationTokenSource running, CancellationToken done)
     {
         var interval = TimeSpan.FromSeconds(settings.WorkHeartbeatSeconds);
-        var held = HeartbeatOutcome.Held;
+        var outcome = HeartbeatOutcome.Held;
         try
         {
             while (true)
@@ -111,7 +111,7 @@ public sealed partial class WorkExecutor(
                         await running.CancelAsync();
                     if (beat == HeartbeatOutcome.Lost)
                         return beat;
-                    held = beat;
+                    outcome = beat;
                 }
                 catch (Exception ex)
                 {
@@ -121,7 +121,7 @@ public sealed partial class WorkExecutor(
         }
         catch (OperationCanceledException) when (done.IsCancellationRequested)
         {
-            return held;
+            return outcome;
         }
     }
 
