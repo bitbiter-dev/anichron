@@ -15,6 +15,7 @@ public sealed class WorkItemEndpointsTests
     private static readonly Guid AdminId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
     private readonly IWorkItemReader reader = Substitute.For<IWorkItemReader>();
+    private readonly IWorkItemCanceller canceller = Substitute.For<IWorkItemCanceller>();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -25,7 +26,7 @@ public sealed class WorkItemEndpointsTests
         string? result = /*lang=json,strict*/ """{"found": 8}""",
         string? error = "IOException: the root is gone")
         => new(ItemId, WorkKind.Crawl, ConfigId, AdminId, At(1), status, 2, 1, "all@host",
-            At(2), At(9), At(9), new WorkProgress(7, 8, "7 found"), result, error);
+            At(2), At(9), At(9), new WorkProgress(7, 8, "7 found"), result, error, null);
 
     private void Pages(int total = 1, Instant? latest = null)
     {
@@ -151,6 +152,73 @@ public sealed class WorkItemEndpointsTests
     // StreamEvents
     // ==========================================================================
 
+    // ==========================================================================
+    // CancelAsync
+    // ==========================================================================
+
+    private void Cancels(CancelOutcome outcome, WorkItemStatus statusAfter)
+    {
+        canceller.CancelAsync(ItemId, Arg.Any<CancellationToken>()).Returns(outcome);
+        reader.FindAsync(ItemId, Arg.Any<CancellationToken>()).Returns(View(statusAfter));
+    }
+
+    [Fact]
+    public async Task CancelAsync_QueuedItem_ReturnsTheCancelledItemAsync()
+    {
+        Cancels(CancelOutcome.Cancelled, WorkItemStatus.Cancelled);
+
+        var result = await WorkItemEndpoints.CancelAsync(ItemId, canceller, reader, Ct);
+
+        result.Result.Should().BeOfType<Ok<WorkItemDto>>().Which.Value!.Status.Should().Be("Cancelled");
+    }
+
+    [Fact]
+    public async Task CancelAsync_RunningItem_IsAcceptedWithTheItemAndItsLocationAsync()
+    {
+        Cancels(CancelOutcome.Requested, WorkItemStatus.Running);
+
+        var result = await WorkItemEndpoints.CancelAsync(ItemId, canceller, reader, Ct);
+
+        var accepted = result.Result.Should().BeOfType<Accepted<WorkItemDto>>().Which;
+        accepted.Location.Should().Be("/api/v1/admin/work-items/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        accepted.Value!.Status.Should().Be("Running");
+    }
+
+    [Fact]
+    public async Task CancelAsync_FinishedItem_IsAConflictShowingTheItemAsync()
+    {
+        Cancels(CancelOutcome.Finished, WorkItemStatus.Succeeded);
+
+        var result = await WorkItemEndpoints.CancelAsync(ItemId, canceller, reader, Ct);
+
+        result.Result.Should().BeOfType<Conflict<WorkItemDto>>().Which.Value!.Status.Should().Be("Succeeded");
+    }
+
+    [Fact]
+    public async Task CancelAsync_UnknownId_IsNotFoundWithoutReadingAsync()
+    {
+        canceller.CancelAsync(ItemId, Arg.Any<CancellationToken>()).Returns(CancelOutcome.NotFound);
+
+        var result = await WorkItemEndpoints.CancelAsync(ItemId, canceller, reader, Ct);
+
+        result.Result.Should().BeOfType<NotFound>();
+        await reader.DidNotReceive().FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(CancelOutcome.Cancelled)]
+    [InlineData(CancelOutcome.Requested)]
+    [InlineData(CancelOutcome.Finished)]
+    public async Task CancelAsync_ItemDeletedBeforeItIsRead_IsNotFoundAsync(CancelOutcome outcome)
+    {
+        canceller.CancelAsync(ItemId, Arg.Any<CancellationToken>()).Returns(outcome);
+        reader.FindAsync(ItemId, Arg.Any<CancellationToken>()).Returns((WorkItemView?)null);
+
+        var result = await WorkItemEndpoints.CancelAsync(ItemId, canceller, reader, Ct);
+
+        result.Result.Should().BeOfType<NotFound>();
+    }
+
     [Fact]
     public void StreamEvents_AnswersWithAServerSentEventStream()
     {
@@ -208,17 +276,46 @@ public sealed class WorkItemEndpointsTests
     public void ToDto_SucceededWithoutAResult_ShowsNoResult()
         => WorkItemDtoMapper.ToDto(View(WorkItemStatus.Succeeded, result: null)).Result.Should().BeNull();
 
-    [Theory]
-    [InlineData(WorkItemStatus.Failed)]
-    [InlineData(WorkItemStatus.Cancelled)]
-    public void ToDto_FailedOrCancelled_ShowsTheErrorAndProgressButNoResult(WorkItemStatus status)
+    [Fact]
+    public void ToDto_Succeeded_ResultIsNotPartial()
+        => WorkItemDtoMapper.ToDto(View(WorkItemStatus.Succeeded)).ResultIsPartial.Should().BeFalse();
+
+    [Fact]
+    public void ToDto_Failed_ShowsTheErrorAndProgressButNoResult()
     {
-        var dto = WorkItemDtoMapper.ToDto(View(status));
+        var dto = WorkItemDtoMapper.ToDto(View(WorkItemStatus.Failed));
 
         dto.Error.Should().Be("IOException: the root is gone");
         dto.Progress.Should().Be(new WorkProgressDto(7, 8, "7 found"));
         dto.Result.Should().BeNull();
+        dto.ResultIsPartial.Should().BeFalse();
     }
+
+    [Fact]
+    public void ToDto_Cancelled_ShowsTheResultAndProgressMarkedPartial()
+    {
+        var dto = WorkItemDtoMapper.ToDto(View(WorkItemStatus.Cancelled, error: null));
+
+        dto.Result.Should().NotBeNull();
+        dto.Result.Value.GetProperty("found").GetInt32().Should().Be(8);
+        dto.Progress.Should().Be(new WorkProgressDto(7, 8, "7 found"));
+        dto.ResultIsPartial.Should().BeTrue();
+        dto.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public void ToDto_CancelledAsSuperseded_ShowsTheError()
+        => WorkItemDtoMapper.ToDto(View(WorkItemStatus.Cancelled, result: null)).Error
+            .Should().Be("IOException: the root is gone");
+
+    [Fact]
+    public void ToDto_CancelRequested_ShowsWhen()
+        => WorkItemDtoMapper.ToDto(View(WorkItemStatus.Running) with { CancelRequestedAt = At(4) }).CancelRequestedAt
+            .Should().Be("2026-10-18T09:00:04Z");
+
+    [Fact]
+    public void ToDto_NoCancelRequested_ShowsNone()
+        => WorkItemDtoMapper.ToDto(View(WorkItemStatus.Running)).CancelRequestedAt.Should().BeNull();
 
     [Theory]
     [InlineData(WorkItemStatus.Queued)]
@@ -229,5 +326,6 @@ public sealed class WorkItemEndpointsTests
 
         dto.Result.Should().BeNull();
         dto.Error.Should().BeNull();
+        dto.ResultIsPartial.Should().BeFalse();
     }
 }

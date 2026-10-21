@@ -64,9 +64,16 @@ public sealed partial class WorkExecutor(
         }
 
         await done.CancelAsync();
-        if (await heartbeat)
+        var lastHeartbeat = await heartbeat;
+        if (lastHeartbeat == HeartbeatOutcome.Lost)
         {
             Log.Fenced(logger, work.Attempt.Id);
+        }
+        else if (lastHeartbeat == HeartbeatOutcome.CancelRequested && failure is null or OperationCanceledException)
+        {
+            await store.CancelAsync(
+                work.Attempt, progress.Snapshot, WorkJson.SerializeResult(result), Now, CancellationToken.None);
+            Log.Cancelled(logger, work.Attempt.Id);
         }
         else if (failure is null)
         {
@@ -87,10 +94,11 @@ public sealed partial class WorkExecutor(
         }
     }
 
-    private async Task<bool> HeartbeatAsync(
+    private async Task<HeartbeatOutcome> HeartbeatAsync(
         WorkAttempt attempt, WorkProgressSink progress, CancellationTokenSource running, CancellationToken done)
     {
         var interval = TimeSpan.FromSeconds(settings.WorkHeartbeatSeconds);
+        var outcome = HeartbeatOutcome.Held;
         try
         {
             while (true)
@@ -98,11 +106,12 @@ public sealed partial class WorkExecutor(
                 await Task.Delay(interval, timeProvider, done);
                 try
                 {
-                    if (!await store.HeartbeatAsync(attempt, progress.Snapshot, Now, Lease, CancellationToken.None))
-                    {
+                    var beat = await store.HeartbeatAsync(attempt, progress.Snapshot, Now, Lease, CancellationToken.None);
+                    if (beat != HeartbeatOutcome.Held)
                         await running.CancelAsync();
-                        return true;
-                    }
+                    if (beat == HeartbeatOutcome.Lost)
+                        return beat;
+                    outcome = beat;
                 }
                 catch (Exception ex)
                 {
@@ -112,7 +121,7 @@ public sealed partial class WorkExecutor(
         }
         catch (OperationCanceledException) when (done.IsCancellationRequested)
         {
-            return false;
+            return outcome;
         }
     }
 
@@ -126,6 +135,9 @@ public sealed partial class WorkExecutor(
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Work item {Id} was handed back to the queue at shutdown.")]
         public static partial void Released(ILogger logger, Guid id);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Work item {Id} was cancelled at an admin's request.")]
+        public static partial void Cancelled(ILogger logger, Guid id);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Work item {Id} is no longer held by this attempt (its lease was recovered, or the item was deleted with its storage config); this attempt stopped and wrote nothing more.")]
         public static partial void Fenced(ILogger logger, Guid id);

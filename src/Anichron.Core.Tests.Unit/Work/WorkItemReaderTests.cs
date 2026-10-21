@@ -168,13 +168,15 @@ public sealed class WorkItemReaderTests
             ProgressNote = "7 of 8",
             Result = /*lang=json,strict*/ """{"found": 8}""",
             Error = "an earlier error",
+            CancelRequestedAt = At(5),
         });
 
         var view = await Reader().FindAsync(First, Ct);
 
         view.Should().Be(new WorkItemView(
             First, WorkKind.Crawl, configId, adminId, At(1), WorkItemStatus.Succeeded, 2, 1, "all@host",
-            At(2), At(9), At(9), new WorkProgress(7, 8, "7 of 8"), /*lang=json,strict*/ """{"found": 8}""", "an earlier error"));
+            At(2), At(9), At(9), new WorkProgress(7, 8, "7 of 8"), /*lang=json,strict*/ """{"found": 8}""", "an earlier error",
+            At(5)));
     }
 
     [Fact]

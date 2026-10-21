@@ -316,8 +316,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         {
             entity.ToTable(t => t.HasComment(
                     "Durable work for the Worker: periodic maintenance today, admin requests later. "
-                    + "Only IWorkQueue inserts rows; every later state change belongs to the Worker's "
-                    + "executor. Delivery is at least once, so handlers start from scratch and converge."
+                    + "Only IWorkQueue inserts rows; the API's only other write is an admin's cancel, and "
+                    + "every other state change belongs to the Worker's executor. Delivery is at least "
+                    + "once, so handlers start from scratch and converge."
                 ));
             entity.Property(w => w.Kind).HasConversion<string>().HasComment(
                 "WorkKind, persisted as text. Picks the payload type and the handler through the "
@@ -348,11 +349,17 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.Property(w => w.UpdatedAt).HasComment(
                 "Moves on every insert, claim and transition, and on a heartbeat only when the progress "
                 + "snapshot changed, so a reader can ask what changed since a point in time.");
+            entity.Property(w => w.CancelRequestedAt).HasComment(
+                "When an admin asked to cancel the item. A Queued item is cancelled at once; a Running "
+                + "one keeps running until the Worker's next heartbeat reads this and cancels its handler. "
+                + "A requested item is never queued again: release and lease recovery end it Cancelled. "
+                + "A cancelled periodic item counts as that run, so the next one follows a full interval later.");
             entity.Property(w => w.ProgressNote).HasComment(
                 "The latest progress snapshot (done, optional total, note), overwritten by each "
                 + "heartbeat; no history is kept.");
             entity.Property(w => w.Result).HasColumnType("jsonb").HasComment(
-                "The handler's results summary, written when the item succeeds.");
+                "The handler's results summary, written when the item succeeds, or when it is "
+                + "cancelled after its handler returned one; a Cancelled item's results are partial.");
 
             entity.HasIndex(w => w.RequestedAt)
                   .HasFilter(@"""Status"" = 'Queued'")

@@ -20,7 +20,8 @@ public sealed record WorkItemView(
     Instant UpdatedAt,
     WorkProgress Progress,
     string? Result,
-    string? Error);
+    string? Error,
+    Instant? CancelRequestedAt);
 
 public sealed record WorkItemQuery(WorkItemStatus? Status, WorkKind? Kind, int Skip, int Take);
 
@@ -88,5 +89,6 @@ public sealed class EfWorkItemReader(AnichronDbContext db) : IWorkItemReader
         => w => new WorkItemView(
             w.Id, w.Kind, w.StorageConfigId, w.RequestedBy, w.RequestedAt, w.Status, w.Attempt, w.Stalls,
             w.ClaimedBy, w.StartedAt, w.FinishedAt, w.UpdatedAt,
-            new WorkProgress(w.ProgressDone, w.ProgressTotal, w.ProgressNote), w.Result, w.Error);
+            new WorkProgress(w.ProgressDone, w.ProgressTotal, w.ProgressNote), w.Result, w.Error,
+            w.CancelRequestedAt);
 }

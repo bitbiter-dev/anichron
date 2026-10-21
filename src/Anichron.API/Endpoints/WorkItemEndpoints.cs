@@ -18,6 +18,7 @@ public static class WorkItemEndpoints
         group.MapGet(string.Empty, ListAsync);
         group.MapGet(ApiPaths.WorkItems.Events, StreamEvents);
         group.MapGet(ApiPaths.WorkItems.ById, GetAsync);
+        group.MapPost(ApiPaths.WorkItems.Cancel, CancelAsync);
         return app;
     }
 
@@ -49,6 +50,34 @@ public static class WorkItemEndpoints
         => await reader.FindAsync(workItemId, ct) is { } item
             ? TypedResults.Ok(WorkItemDtoMapper.ToDto(item))
             : TypedResults.NotFound();
+
+    /// <summary>
+    /// Cancels a queued item at once (200), or asks the running item's Worker to cancel it at its
+    /// next heartbeat (202). A finished item is a 409 showing the item as it is.
+    /// </summary>
+    /// <param name="workItemId">The item to cancel.</param>
+    /// <param name="canceller">Makes the status-guarded cancel write.</param>
+    /// <param name="reader">Reads the item after the cancel.</param>
+    /// <param name="ct">Cancels the request.</param>
+    /// <returns>The item after the cancel, or 404 when there is none.</returns>
+    internal static async Task<Results<Ok<WorkItemDto>, Accepted<WorkItemDto>, Conflict<WorkItemDto>, NotFound>> CancelAsync(
+        Guid workItemId,
+        [FromServices] IWorkItemCanceller canceller,
+        [FromServices] IWorkItemReader reader,
+        CancellationToken ct)
+    {
+        var outcome = await canceller.CancelAsync(workItemId, ct);
+        if (outcome == CancelOutcome.NotFound || await reader.FindAsync(workItemId, ct) is not { } item)
+            return TypedResults.NotFound();
+
+        var dto = WorkItemDtoMapper.ToDto(item);
+        return outcome switch
+        {
+            CancelOutcome.Cancelled => TypedResults.Ok(dto),
+            CancelOutcome.Requested => TypedResults.Accepted(ApiPaths.WorkItems.ItemLocation(workItemId), dto),
+            _ => TypedResults.Conflict(dto),
+        };
+    }
 
     internal static ServerSentEventsResult<WorkItemDto> StreamEvents(
         [FromHeader(Name = "Last-Event-ID")] string? lastEventId,

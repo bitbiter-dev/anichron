@@ -46,6 +46,12 @@ internal sealed class WorkDatabase(string connectionString) : IDbContextFactory<
         return await new EfWorkQueue(db, Clock, new TimeOrderedGuidFactory()).EnqueueAsync(payload, null, ct);
     }
 
+    public async Task<CancelOutcome> CancelAsync(Guid id, CancellationToken ct)
+    {
+        await using var db = CreateDbContext();
+        return await new EfWorkItemCanceller(db, Clock).CancelAsync(id, ct);
+    }
+
     public async Task<WorkItem> ItemAsync(Guid id, CancellationToken ct)
     {
         await using var db = CreateDbContext();

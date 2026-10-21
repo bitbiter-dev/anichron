@@ -15,8 +15,10 @@ public sealed record WorkItemDto(
     string? StartedAt,
     string? FinishedAt,
     string UpdatedAt,
+    string? CancelRequestedAt,
     WorkProgressDto Progress,
     JsonElement? Result,
+    bool ResultIsPartial,
     string? Error);
 
 public sealed record WorkProgressDto(long Done, long? Total, string? Note);

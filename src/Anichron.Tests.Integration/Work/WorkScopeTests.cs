@@ -1,5 +1,6 @@
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
+using Anichron.Worker.Work;
 using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Tests.Integration.Work;
@@ -104,6 +105,6 @@ public sealed class WorkScopeTests(PostgresServer server)
             await db.StorageConfigs.Where(c => c.Id == library.MiraConfig).ExecuteDeleteAsync(Ct);
 
         (await library.Work.ItemsAsync(Ct)).Select(w => w.Id).Should().Equal(alices);
-        (await library.Work.Store.HeartbeatAsync(running.Attempt, WorkProgress.None, At(5), Lease, Ct)).Should().BeFalse();
+        (await library.Work.Store.HeartbeatAsync(running.Attempt, WorkProgress.None, At(5), Lease, Ct)).Should().Be(HeartbeatOutcome.Lost);
     }
 }
