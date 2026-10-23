@@ -16,6 +16,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<Metadata> Metadata => Set<Metadata>();
     public DbSet<ProxyFile> ProxyFiles => Set<ProxyFile>();
     public DbSet<Burst> Bursts => Set<Burst>();
+    public DbSet<BurstCheck> BurstChecks => Set<BurstCheck>();
     public DbSet<AssetInteraction> Interactions => Set<AssetInteraction>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Invite> Invites => Set<Invite>();
@@ -57,20 +58,44 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         modelBuilder.Entity<Burst>(entity =>
         {
             entity.ToTable(t => t.HasComment(
-                    "Groups a rapid-fire sequence so a flashback shows one memory rather than nine "
-                    + "near-identical frames. The table and schema exist; burst DETECTION is not yet "
-                    + "implemented in the Worker, so in a running system this table is empty."
+                    "Groups photos of one storage config taken moments apart, so a flashback shows one "
+                    + "memory rather than nine near-identical frames. Written only by the Worker's "
+                    + "BurstDetection work item, which also repairs bursts: one left with fewer than two "
+                    + "active members is deleted, and so is one with no members at all."
                 ));
             entity.Property(b => b.PrimaryAssetId).HasComment(
-                "The frame chosen to represent the burst. Restrict on delete: losing the cover "
-                + "would leave a group that cannot be rendered.");
+                "The stored cover, the earliest member. SetNull on delete, so deleting the cover's row "
+                + "(a storage config removal cascading to its assets) cannot fail on the burst; the "
+                + "next BurstDetection run picks a new cover or deletes the burst.");
 
-            // Primary Asset reference (1:1 style lookup)
             entity.HasOne(b => b.PrimaryAsset)
                 .WithMany()
                 .HasForeignKey(b => b.PrimaryAssetId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasQueryFilter(b => !b.PrimaryAsset.IsSoftDeleted);
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasQueryFilter(b => b.PrimaryAssetId == null || !b.PrimaryAsset!.IsSoftDeleted);
+        });
+
+        modelBuilder.Entity<BurstCheck>(entity =>
+        {
+            entity.ToTable(t => t.HasComment(
+                    "One row per photo burst detection has checked; no row means unchecked. Owned by the "
+                    + "BurstDetection work item, which reads the original once when it checks a photo. "
+                    + "A file edited in place loses its row, so it is checked again."
+                ));
+            entity.Property(c => c.IsCandidate).HasComment(
+                "The photo has an EXIF capture time, a camera make and model, and a thumbnail; only "
+                + "candidates are grouped. False also when the original could not be read.");
+            entity.Property(c => c.CameraBurstId).HasComment(
+                "Apple's BurstUUID from the original's maker note: photos of one storage config "
+                + "sharing it form one burst. Null when the camera wrote none.");
+            entity.HasKey(c => c.AssetId);
+
+            entity.HasOne(c => c.Asset)
+                  .WithOne()
+                  .HasForeignKey<BurstCheck>(c => c.AssetId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(c => c.CameraBurstId);
+            entity.HasQueryFilter(c => !c.Asset.IsSoftDeleted);
         });
 
         modelBuilder.Entity<MediaAsset>(entity =>

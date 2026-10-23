@@ -27,6 +27,8 @@ internal sealed partial class ContentChangedWriter(
         await repository.LoadMetadataAsync(asset, ct);
         DescribeContent(asset, asset.Metadata ??= new Metadata { AssetId = asset.Id }, context);
         ReplaceProxyFiles(asset, context.ProxyFilesOf(asset.Id));
+        asset.BurstId = null;
+        await repository.RemoveBurstCheckAsync(asset.Id, ct);
         return asset;
     }
 

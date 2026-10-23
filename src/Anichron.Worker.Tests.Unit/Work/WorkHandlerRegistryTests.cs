@@ -18,13 +18,14 @@ public sealed class WorkHandlerRegistryTests
     }
 
     private static readonly Type[] RealPayloads =
-        [typeof(TokenCleanupPayload), typeof(WorkItemRetentionPayload), typeof(CrawlPayload)];
+        [typeof(TokenCleanupPayload), typeof(WorkItemRetentionPayload), typeof(CrawlPayload), typeof(BurstDetectionPayload)];
 
     private static WorkHandlerRegistration[] RealHandlers
         => [
             WorkHandlerRegistration.For<TokenCleanupPayload>(),
             WorkHandlerRegistration.For<WorkItemRetentionPayload>(),
             WorkHandlerRegistration.For<CrawlPayload>(),
+            WorkHandlerRegistration.For<BurstDetectionPayload>(),
         ];
 
     private static Action Building(IEnumerable<WorkHandlerRegistration> registrations, params Type[] payloads)
@@ -47,12 +48,13 @@ public sealed class WorkHandlerRegistryTests
         act.Should().Throw<InvalidOperationException>()
             .Which.Message.Should().Be(string.Join(Environment.NewLine,
                 "WorkKind.WorkItemRetention needs exactly one handler, found none.",
-                "WorkKind.Crawl needs exactly one handler, found none."));
+                "WorkKind.Crawl needs exactly one handler, found none.",
+                "WorkKind.BurstDetection needs exactly one handler, found none."));
     }
 
     [Fact]
     public void Constructor_KindWithoutPayload_FailsNamingIt()
-        => Building(RealHandlers, typeof(TokenCleanupPayload), typeof(CrawlPayload)).Should().Throw<InvalidOperationException>()
+        => Building(RealHandlers, typeof(TokenCleanupPayload), typeof(CrawlPayload), typeof(BurstDetectionPayload)).Should().Throw<InvalidOperationException>()
             .WithMessage("WorkKind.WorkItemRetention needs exactly one payload type, found none.");
 
     [Fact]
@@ -68,7 +70,7 @@ public sealed class WorkHandlerRegistryTests
 
     [Fact]
     public void Constructor_HandlerForAnotherPayloadOfTheKind_FailsNamingBoth()
-        => Building([WorkHandlerRegistration.For<OtherCleanupPayload>(), RealHandlers[1], RealHandlers[2]], RealPayloads)
+        => Building([WorkHandlerRegistration.For<OtherCleanupPayload>(), .. RealHandlers[1..]], RealPayloads)
             .Should().Throw<InvalidOperationException>()
             .WithMessage("WorkKind.TokenCleanup's handler takes OtherCleanupPayload, not its payload TokenCleanupPayload.");
 
@@ -78,7 +80,8 @@ public sealed class WorkHandlerRegistryTests
             .Which.Message.Should().Be(string.Join(Environment.NewLine,
                 "WorkKind.TokenCleanup needs exactly one handler, found none.",
                 "WorkKind.WorkItemRetention needs exactly one handler, found none.",
-                "WorkKind.Crawl needs exactly one handler, found none."));
+                "WorkKind.Crawl needs exactly one handler, found none.",
+                "WorkKind.BurstDetection needs exactly one handler, found none."));
 
     [Fact]
     public async Task RunAsync_DispatchesTheDeserialisedPayloadToTheKindsHandlerAsync()
@@ -89,8 +92,8 @@ public sealed class WorkHandlerRegistryTests
         handler.RunAsync(new NumberedRetentionPayload(7), progress, cts.Token).Returns("summary");
         await using var services = new ServiceCollection().AddSingleton(handler).BuildServiceProvider();
         var registry = new WorkHandlerRegistry(
-            [RealHandlers[0], WorkHandlerRegistration.For<NumberedRetentionPayload>(), RealHandlers[2]],
-            [typeof(TokenCleanupPayload), typeof(NumberedRetentionPayload), typeof(CrawlPayload)]);
+            [RealHandlers[0], WorkHandlerRegistration.For<NumberedRetentionPayload>(), .. RealHandlers[2..]],
+            [typeof(TokenCleanupPayload), typeof(NumberedRetentionPayload), typeof(CrawlPayload), typeof(BurstDetectionPayload)]);
         var work = new ClaimedWork(new WorkAttempt(Guid.NewGuid(), 1), WorkKind.WorkItemRetention, /*lang=json,strict*/ """{"number":7}""");
 
         var result = await registry.RunAsync(work, services, progress, cts.Token);

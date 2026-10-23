@@ -11,6 +11,7 @@ public sealed class SoftDeleteQueryFilterTests : IAsyncLifetime
 
     private readonly MediaAsset active = Asset("active.jpg", isSoftDeleted: false);
     private readonly MediaAsset deleted = Asset("deleted.jpg", isSoftDeleted: true);
+    private readonly Guid coverless = Guid.NewGuid();
     private readonly User user = new() { Id = Guid.NewGuid(), Username = "alice", Email = "a@example.com", PasswordHash = "h" };
 
     private static MediaAsset Asset(string name, bool isSoftDeleted)
@@ -36,7 +37,10 @@ public sealed class SoftDeleteQueryFilterTests : IAsyncLifetime
             db.ProxyFiles.Add(new ProxyFile { Id = Guid.NewGuid(), AssetId = asset.Id, ProxyPath = asset.FileName });
             db.Interactions.Add(new AssetInteraction { Id = Guid.NewGuid(), UserId = user.Id, AssetId = asset.Id });
             db.Bursts.Add(new Burst { Id = Guid.NewGuid(), PrimaryAssetId = asset.Id });
+            db.BurstChecks.Add(new BurstCheck { AssetId = asset.Id });
         }
+
+        db.Bursts.Add(new Burst { Id = coverless, PrimaryAssetId = null });
     }
 
     public async ValueTask DisposeAsync() => await db.DisposeAsync();
@@ -62,8 +66,13 @@ public sealed class SoftDeleteQueryFilterTests : IAsyncLifetime
             .Should().Equal(active.Id);
 
     [Fact]
-    public async Task Bursts_WhosePrimaryAssetIsSoftDeletedAreHiddenAsync()
+    public async Task Bursts_WhosePrimaryAssetIsSoftDeletedAreHiddenButCoverlessOnesAreNotAsync()
         => (await db.Bursts.Select(b => b.PrimaryAssetId).ToListAsync(TestContext.Current.CancellationToken))
+            .Should().BeEquivalentTo([active.Id, (Guid?)null]);
+
+    [Fact]
+    public async Task BurstChecks_OfSoftDeletedAssetAreHiddenAsync()
+        => (await db.BurstChecks.Select(c => c.AssetId).ToListAsync(TestContext.Current.CancellationToken))
             .Should().Equal(active.Id);
 
     [Fact]

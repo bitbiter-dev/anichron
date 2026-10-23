@@ -27,6 +27,11 @@ public interface IMediaAssetRepository
 
     Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct);
 
+    /// <summary>Clears the asset's burst-checked mark, if it has one, at the next save.</summary>
+    /// <param name="assetId">The asset whose mark is cleared.</param>
+    /// <param name="ct">Cancels the lookup.</param>
+    Task RemoveBurstCheckAsync(Guid assetId, CancellationToken ct);
+
     void Add(MediaAsset asset);
     void AddProxyFiles(IEnumerable<ProxyFile> proxyFiles);
     void RemoveProxyFile(ProxyFile proxyFile);
@@ -69,6 +74,12 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
 
     public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
         => db.Entry(asset).Reference(a => a.Metadata).LoadAsync(ct);
+
+    public async Task RemoveBurstCheckAsync(Guid assetId, CancellationToken ct)
+    {
+        if (await db.BurstChecks.FindAsync([assetId], ct) is { } check)
+            db.BurstChecks.Remove(check);
+    }
 
     public void Add(MediaAsset asset)
         => db.MediaAssets.Add(asset);

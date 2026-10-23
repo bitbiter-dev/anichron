@@ -157,10 +157,20 @@ public sealed class ContentChangedWriterTests
 
         asset.Should().BeSameAs(fx.Stored);
         asset.Id.Should().Be(StoredId);
-        asset.BurstId.Should().Be(BurstId);
         asset.FilePath.Should().Be("2022/photo.jpg");
         asset.Interactions.Should().Equal(interactions);
         fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
+    }
+
+    [Fact]
+    public async Task TryWriteAsync_ClearsTheBurstMarkSoTheEditedPhotoIsCheckedAgainAsync()
+    {
+        var fx = new TestFixture();
+
+        var asset = await fx.WriteAsync(fx.Context());
+
+        asset!.BurstId.Should().BeNull();
+        await fx.Repository.Received(1).RemoveBurstCheckAsync(StoredId, Arg.Any<CancellationToken>());
     }
 
     [Fact]

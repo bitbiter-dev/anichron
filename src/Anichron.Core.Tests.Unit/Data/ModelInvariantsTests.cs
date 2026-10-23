@@ -46,10 +46,24 @@ public sealed class ModelInvariantsTests
             .ToList();
 
         filters.Select(filter => filter.Entity).Should().BeEquivalentTo(
-            [nameof(MediaAsset), nameof(Metadata), nameof(ProxyFile), nameof(AssetInteraction), nameof(Burst)],
+            [nameof(MediaAsset), nameof(Metadata), nameof(ProxyFile), nameof(AssetInteraction), nameof(Burst), nameof(BurstCheck)],
             "soft-delete is the only global filter: on the asset and on what hangs off it, one filter each");
         filters.Should().AllSatisfy(filter => filter.Expression.Should().Contain(
             nameof(MediaAsset.IsSoftDeleted),
             "per-user rules (hidden, ownership) stay query-level, because the Worker shares the context and has no user"));
+    }
+
+    [Fact]
+    public void BurstCover_IsSetToNullWhenItsAssetIsDeleted()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var burst = context.Model.FindEntityType(typeof(Burst))!;
+
+        var cover = burst.GetForeignKeys().Should().ContainSingle(
+            "a burst points at one asset, its cover; the members point at the burst").Which;
+        cover.Properties.Select(p => p.Name).Should().Equal(nameof(Burst.PrimaryAssetId));
+        cover.IsRequired.Should().BeFalse();
+        cover.DeleteBehavior.Should().Be(DeleteBehavior.SetNull,
+            "a storage config's removal cascades to its assets and must not fail on a burst's cover");
     }
 }

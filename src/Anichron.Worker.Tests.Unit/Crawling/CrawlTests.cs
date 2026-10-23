@@ -2,13 +2,8 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Worker.Crawling;
-using Anichron.Worker.Settings;
-using Anichron.Worker.Work;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
-using Microsoft.Extensions.Options;
-using NodaTime;
 
 namespace Anichron.Worker.Tests.Unit.Crawling;
 
@@ -20,6 +15,7 @@ public sealed class CrawlTests
     private readonly IFileIngestionPipeline pipeline = Substitute.For<IFileIngestionPipeline>();
     private readonly IWorkProgress progress = Substitute.For<IWorkProgress>();
     private readonly ISharedContentReporter reporter = Substitute.For<ISharedContentReporter>();
+    private readonly IWorkQueue queue = Substitute.For<IWorkQueue>();
     private readonly FakeLogger<CrawlHandler> logger = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -33,7 +29,7 @@ public sealed class CrawlTests
     };
 
     private Task<object?> RunAsync(Guid configId)
-        => new CrawlHandler(configs, pipeline, reporter, logger).RunAsync(new CrawlPayload(configId), progress, Ct);
+        => new CrawlHandler(configs, pipeline, reporter, queue, logger).RunAsync(new CrawlPayload(configId), progress, Ct);
 
     // ==========================================================================
     // CrawlHandler
@@ -53,6 +49,7 @@ public sealed class CrawlTests
         var result = await RunAsync(config.Id);
 
         result.Should().Be(new CrawlResult(5, 4, 1) { Duplicates = new DuplicateCounts(2, 1) });
+        await queue.Received(1).EnqueueAsync(new BurstDetectionPayload(config.Id), null, Ct);
         logger.Collector.GetSnapshot().Should().ContainSingle(e =>
             e.Level == LogLevel.Information && e.Message.Contains("/data/originals/mira"));
     }
@@ -69,6 +66,7 @@ public sealed class CrawlTests
         var result = await RunAsync(config.Id);
 
         result.Should().Be(new CrawlResult(1, 1, 0) { Duplicates = null });
+        await queue.Received(1).EnqueueAsync(new BurstDetectionPayload(config.Id), null, Ct);
         logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Error)
             .Which.Should().Match<FakeLogRecord>(e =>
                 e.Message == $"Reporting duplicate content for storage config {config.Id} failed."
@@ -89,11 +87,12 @@ public sealed class CrawlTests
             throw new OperationCanceledException(shutdown.Token);
         });
 
-        var act = () => new CrawlHandler(configs, pipeline, reporter, logger)
+        var act = () => new CrawlHandler(configs, pipeline, reporter, queue, logger)
             .RunAsync(new CrawlPayload(config.Id), progress, shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         logger.Collector.GetSnapshot().Should().NotContain(e => e.Level == LogLevel.Error);
+        await queue.DidNotReceiveWithAnyArgs().EnqueueAsync<BurstDetectionPayload>(default!, default, Ct);
     }
 
     [Fact]
@@ -106,6 +105,7 @@ public sealed class CrawlTests
 
         result.Should().Be(new CrawlSkipped("The storage config is missing or inactive."));
         await pipeline.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, Ct);
+        await queue.DidNotReceiveWithAnyArgs().EnqueueAsync<BurstDetectionPayload>(default!, default, Ct);
         logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Message.Contains(config.Id.ToString()));
     }
 
@@ -130,6 +130,7 @@ public sealed class CrawlTests
 
         await act.Should().ThrowAsync<DirectoryNotFoundException>();
         await reporter.DidNotReceiveWithAnyArgs().ReportAsync(default!, default!, Ct);
+        await queue.DidNotReceiveWithAnyArgs().EnqueueAsync<BurstDetectionPayload>(default!, default, Ct);
     }
 
     [Fact]
@@ -142,56 +143,6 @@ public sealed class CrawlTests
         var act = () => RunAsync(config.Id);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
-    }
-
-    // ==========================================================================
-    // CrawlSchedules
-    // ==========================================================================
-
-    private static async Task<IReadOnlyList<IWorkSchedule>> SchedulesAsync(
-        CrawlSchedules source, IUserStorageConfigRepository repository)
-    {
-        await using var services = new ServiceCollection().AddSingleton(repository).BuildServiceProvider();
-        return await source.SchedulesAsync(services, Ct);
-    }
-
-    [Fact]
-    public async Task SchedulesAsync_AllUserWorker_SchedulesEveryActiveConfigAtTheCrawlIntervalAsync()
-    {
-        var (a, b) = (Config(), Config());
-        configs.GetAllActiveAsync(Ct).Returns([a, b]);
-        var source = new CrawlSchedules(new WorkerState(), Options.Create(new WorkerSettings { CrawlIntervalHours = 6 }));
-
-        var schedules = await SchedulesAsync(source, configs);
-
-        schedules.Select(s => (s.DedupKey, s.Interval)).Should().Equal(
-            ($"crawl:{a.Id}", Duration.FromHours(6)), ($"crawl:{b.Id}", Duration.FromHours(6)));
-    }
-
-    [Fact]
-    public async Task SchedulesAsync_PerUserWorker_SchedulesOnlyItsUsersActiveConfigsAsync()
-    {
-        var mine = Config();
-        configs.GetActiveByUserIdAsync(MiraId, Ct).Returns([mine]);
-        configs.GetAllActiveAsync(Ct).Returns([mine, Config()]);
-        var state = new WorkerState();
-        var source = new CrawlSchedules(state, Options.Create(new WorkerSettings()));
-        state.ResolvedUserId = MiraId;
-
-        var schedules = await SchedulesAsync(source, configs);
-
-        schedules.Should().ContainSingle().Which.Should().BeEquivalentTo(
-            new { DedupKey = $"crawl:{mine.Id}", Interval = Duration.FromHours(4) });
-    }
-
-    [Fact]
-    public async Task CrawlSchedule_EnqueuesACrawlOfItsConfigAsync()
-    {
-        var configId = Guid.NewGuid();
-        var queue = Substitute.For<IWorkQueue>();
-
-        await new CrawlSchedule(configId, Duration.FromHours(4)).EnqueueAsync(queue, Ct);
-
-        await queue.Received(1).EnqueueAsync(new CrawlPayload(configId), null, Ct);
+        await queue.DidNotReceiveWithAnyArgs().EnqueueAsync<BurstDetectionPayload>(default!, default, Ct);
     }
 }

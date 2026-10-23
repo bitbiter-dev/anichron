@@ -3,6 +3,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Work;
 using Anichron.Infrastructure.Configuration;
+using Anichron.Worker.Bursts;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
@@ -58,9 +59,11 @@ internal static class WorkerServiceCollectionExtensions
             services.AddWorkHandler<TokenCleanupPayload, TokenCleanupHandler>();
             services.AddWorkHandler<WorkItemRetentionPayload, WorkItemRetentionHandler>();
             services.AddWorkHandler<CrawlPayload, CrawlHandler>();
+            services.AddWorkHandler<BurstDetectionPayload, BurstDetectionHandler>();
             services.AddSingleton<IWorkScheduleSource, TokenCleanupSchedule>();
             services.AddSingleton<IWorkScheduleSource, WorkItemRetentionSchedule>();
-            services.AddSingleton<IWorkScheduleSource, CrawlSchedules>();
+            services.AddSingleton<IWorkScheduleSource, StorageConfigSchedules<CrawlPayload>>();
+            services.AddSingleton<IWorkScheduleSource, StorageConfigSchedules<BurstDetectionPayload>>();
             return services;
         }
 
@@ -79,6 +82,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<CrawlExclusions>();
             services.AddSingleton<IFileIngestionPipeline, FileIngestionPipeline>();
             services.AddScoped<ISharedContentReporter, SharedContentReporter>();
+            services.AddSingleton<IOriginalPhotoReader, OriginalPhotoReader>();
             services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();
             services.AddSingleton<ProxyStagingWriter>();
             services.AddImageProxyServices();
