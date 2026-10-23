@@ -23,6 +23,29 @@ public sealed class PayloadsTests
     }
 
     [Fact]
+    public void BurstDetection_IsOnePeriodicItemPerConfigScopedToIt()
+    {
+        var configId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+
+        Describe(new BurstDetectionPayload(configId)).Should().Be(
+            (WorkKind.BurstDetection, "burst-detection:77777777-7777-7777-7777-777777777777"));
+        ScopeOf(new BurstDetectionPayload(configId)).Should().Be(configId);
+    }
+
+    [Fact]
+    public void PerConfigPayloads_AreBuiltForTheirConfig()
+    {
+        var configId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+
+        (For<CrawlPayload>(configId), For<BurstDetectionPayload>(configId)).Should().Be(
+            (new CrawlPayload(configId), new BurstDetectionPayload(configId)));
+    }
+
+    private static TPayload For<TPayload>(Guid configId)
+        where TPayload : IStorageConfigPayload<TPayload>
+        => TPayload.For(configId);
+
+    [Fact]
     public void MaintenancePayloads_AreUnscoped()
         => (ScopeOf(new TokenCleanupPayload()), ScopeOf(new WorkItemRetentionPayload())).Should().Be((null, null));
 

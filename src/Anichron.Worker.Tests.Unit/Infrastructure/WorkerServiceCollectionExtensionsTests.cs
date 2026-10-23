@@ -3,6 +3,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
+using Anichron.Worker.Bursts;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Infrastructure;
 using Anichron.Worker.Ingestion;
@@ -225,6 +226,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
                 (typeof(IWorkHandler<TokenCleanupPayload>), typeof(TokenCleanupHandler)),
                 (typeof(IWorkHandler<WorkItemRetentionPayload>), typeof(WorkItemRetentionHandler)),
                 (typeof(IWorkHandler<CrawlPayload>), typeof(CrawlHandler)),
+                (typeof(IWorkHandler<BurstDetectionPayload>), typeof(BurstDetectionHandler)),
             ]);
     }
 
@@ -235,7 +237,8 @@ public sealed class WorkerServiceCollectionExtensionsTests
             .Select(d => (d.ImplementationType, d.Lifetime)).Should().BeEquivalentTo([
                 (typeof(TokenCleanupSchedule), ServiceLifetime.Singleton),
                 (typeof(WorkItemRetentionSchedule), ServiceLifetime.Singleton),
-                (typeof(CrawlSchedules), ServiceLifetime.Singleton),
+                (typeof(StorageConfigSchedules<CrawlPayload>), ServiceLifetime.Singleton),
+                (typeof(StorageConfigSchedules<BurstDetectionPayload>), ServiceLifetime.Singleton),
             ]);
 
     [Fact]
@@ -340,6 +343,8 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IUserStorageConfigRepository), typeof(EfUserStorageConfigRepository) },
         { typeof(IRefreshTokenRepository), typeof(EfRefreshTokenRepository) },
         { typeof(IMediaAssetRepository), typeof(EfMediaAssetRepository) },
+        { typeof(IBurstRepository), typeof(EfBurstRepository) },
+        { typeof(ActiveStorageConfigs), typeof(ActiveStorageConfigs) },
         { typeof(IDatabaseMigrator), typeof(EfDatabaseMigrator) },
         { typeof(IWorkQueue), typeof(EfWorkQueue) },
     };

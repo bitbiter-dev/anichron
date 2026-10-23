@@ -18,3 +18,11 @@ public interface IWorkPayload
     /// </summary>
     Guid? StorageConfigId => null;
 }
+
+/// <summary>Work that runs once per storage config, periodically for every config a Worker serves.</summary>
+/// <typeparam name="TSelf">The payload type itself.</typeparam>
+public interface IStorageConfigPayload<out TSelf> : IWorkPayload
+    where TSelf : IStorageConfigPayload<TSelf>
+{
+    static abstract TSelf For(Guid storageConfigId);
+}

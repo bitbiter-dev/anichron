@@ -102,14 +102,26 @@ COMMENT ON COLUMN "WorkItems"."ProgressNote" IS 'The latest progress snapshot (d
 COMMENT ON COLUMN "WorkItems"."Result" IS 'The handler''s results summary, written when the item succeeds, or when it is cancelled after its handler returned one; a Cancelled item''s results are partial.';
 
 
+CREATE TABLE "BurstChecks" (
+    "AssetId" uuid NOT NULL,
+    "CheckedAt" timestamp with time zone NOT NULL,
+    "IsCandidate" boolean NOT NULL,
+    "CameraBurstId" text,
+    CONSTRAINT "PK_BurstChecks" PRIMARY KEY ("AssetId")
+);
+COMMENT ON TABLE "BurstChecks" IS 'One row per photo burst detection has checked; no row means unchecked. Owned by the BurstDetection work item, which reads the original once when it checks a photo. A file edited in place loses its row, so it is checked again.';
+COMMENT ON COLUMN "BurstChecks"."IsCandidate" IS 'The photo has an EXIF capture time, a camera make and model, and a thumbnail; only candidates are grouped. False also when the original could not be read.';
+COMMENT ON COLUMN "BurstChecks"."CameraBurstId" IS 'Apple''s BurstUUID from the original''s maker note: photos of one storage config sharing it form one burst. Null when the camera wrote none.';
+
+
 CREATE TABLE "Bursts" (
     "Id" uuid NOT NULL,
-    "PrimaryAssetId" uuid NOT NULL,
+    "PrimaryAssetId" uuid,
     "CreatedAt" timestamp with time zone NOT NULL,
     CONSTRAINT "PK_Bursts" PRIMARY KEY ("Id")
 );
-COMMENT ON TABLE "Bursts" IS 'Groups a rapid-fire sequence so a flashback shows one memory rather than nine near-identical frames. The table and schema exist; burst DETECTION is not yet implemented in the Worker, so in a running system this table is empty.';
-COMMENT ON COLUMN "Bursts"."PrimaryAssetId" IS 'The frame chosen to represent the burst. Restrict on delete: losing the cover would leave a group that cannot be rendered.';
+COMMENT ON TABLE "Bursts" IS 'Groups photos of one storage config taken moments apart, so a flashback shows one memory rather than nine near-identical frames. Written only by the Worker''s BurstDetection work item, which also repairs bursts: one left with fewer than two active members is deleted, and so is one with no members at all.';
+COMMENT ON COLUMN "Bursts"."PrimaryAssetId" IS 'The stored cover, the earliest member. SetNull on delete, so deleting the cover''s row (a storage config removal cascading to its assets) cannot fail on the burst; the next BurstDetection run picks a new cover or deletes the burst.';
 
 
 CREATE TABLE "MediaAssets" (
@@ -192,6 +204,9 @@ COMMENT ON COLUMN "ProxyFiles"."ProxyPath" IS 'Path relative to the proxy root, 
 COMMENT ON COLUMN "ProxyFiles"."ProxyType" IS 'Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.';
 
 
+CREATE INDEX "IX_BurstChecks_CameraBurstId" ON "BurstChecks" ("CameraBurstId");
+
+
 CREATE INDEX "IX_Bursts_PrimaryAssetId" ON "Bursts" ("PrimaryAssetId");
 
 
@@ -267,4 +282,7 @@ CREATE INDEX "IX_WorkItems_StorageConfigId" ON "WorkItems" ("StorageConfigId");
 CREATE INDEX "IX_WorkItems_UpdatedAt" ON "WorkItems" ("UpdatedAt");
 
 
-ALTER TABLE "Bursts" ADD CONSTRAINT "FK_Bursts_MediaAssets_PrimaryAssetId" FOREIGN KEY ("PrimaryAssetId") REFERENCES "MediaAssets" ("Id") ON DELETE RESTRICT;
+ALTER TABLE "BurstChecks" ADD CONSTRAINT "FK_BurstChecks_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE;
+
+
+ALTER TABLE "Bursts" ADD CONSTRAINT "FK_Bursts_MediaAssets_PrimaryAssetId" FOREIGN KEY ("PrimaryAssetId") REFERENCES "MediaAssets" ("Id") ON DELETE SET NULL;

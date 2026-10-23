@@ -9,6 +9,7 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 internal sealed partial class ContentChangedWriter(
     IMediaAssetRepository repository,
+    IBurstRepository bursts,
     IngestionSaver saver,
     IFileSystem fileSystem,
     IClock clock,
@@ -27,6 +28,8 @@ internal sealed partial class ContentChangedWriter(
         await repository.LoadMetadataAsync(asset, ct);
         DescribeContent(asset, asset.Metadata ??= new Metadata { AssetId = asset.Id }, context);
         ReplaceProxyFiles(asset, context.ProxyFilesOf(asset.Id));
+        asset.BurstId = null;
+        await bursts.RemoveCheckAsync(asset.Id, ct);
         return asset;
     }
 

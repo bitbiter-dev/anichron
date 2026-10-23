@@ -3,7 +3,6 @@ using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.QuickTime;
 using NodaTime;
-using NodaTime.Text;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
@@ -12,10 +11,6 @@ internal sealed partial class ExifExtractionMiddleware(
     IFileSystem fileSystem,
     ILogger<ExifExtractionMiddleware> logger) : IIngestionMiddleware
 {
-    // EXIF dates use colons as date separators ("2024:07:15 13:22:01"), unlike ISO 8601.
-    private static LocalDateTimePattern ExifDatePattern
-        => LocalDateTimePattern.CreateWithInvariantCulture("yyyy:MM:dd HH:mm:ss");
-
     public int Order => IngestionOrder.ExifExtraction;
     public bool CanInvoke(IngestionContext context) => true;
 
@@ -113,9 +108,8 @@ internal sealed partial class ExifExtractionMiddleware(
         var raw = captureDetails?.GetString(ExifDirectoryBase.TagDateTimeOriginal);
         if (raw is null)
             return null;
-        var result = ExifDatePattern.Parse(raw);
-        if (result.Success)
-            return result.Value;
+        if (ExifDate.Parse(raw) is { } date)
+            return date;
 
         Log.DateParseFailed(logger, raw);
         return null;

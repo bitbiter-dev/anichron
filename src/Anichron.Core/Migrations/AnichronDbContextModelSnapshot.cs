@@ -73,9 +73,9 @@ namespace Anichron.Core.Migrations
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("PrimaryAssetId")
+                    b.Property<Guid?>("PrimaryAssetId")
                         .HasColumnType("uuid")
-                        .HasComment("The frame chosen to represent the burst. Restrict on delete: losing the cover would leave a group that cannot be rendered.");
+                        .HasComment("The stored cover, the earliest member. SetNull on delete, so deleting the cover's row (a storage config removal cascading to its assets) cannot fail on the burst; the next BurstDetection run picks a new cover or deletes the burst.");
 
                     b.HasKey("Id");
 
@@ -83,7 +83,33 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("Bursts", t =>
                         {
-                            t.HasComment("Groups a rapid-fire sequence so a flashback shows one memory rather than nine near-identical frames. The table and schema exist; burst DETECTION is not yet implemented in the Worker, so in a running system this table is empty.");
+                            t.HasComment("Groups photos of one storage config taken moments apart, so a flashback shows one memory rather than nine near-identical frames. Written only by the Worker's BurstDetection work item, which also repairs bursts: one left with fewer than two active members is deleted, and so is one with no members at all.");
+                        });
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.BurstCheck", b =>
+                {
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CameraBurstId")
+                        .HasColumnType("text")
+                        .HasComment("Apple's BurstUUID from the original's maker note: photos of one storage config sharing it form one burst. Null when the camera wrote none.");
+
+                    b.Property<Instant>("CheckedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsCandidate")
+                        .HasColumnType("boolean")
+                        .HasComment("The photo has an EXIF capture time, a camera make and model, and a thumbnail; only candidates are grouped. False also when the original could not be read.");
+
+                    b.HasKey("AssetId");
+
+                    b.HasIndex("CameraBurstId");
+
+                    b.ToTable("BurstChecks", t =>
+                        {
+                            t.HasComment("One row per photo burst detection has checked; no row means unchecked. Owned by the BurstDetection work item, which reads the original once when it checks a photo. A file edited in place loses its row, so it is checked again.");
                         });
                 });
 
@@ -556,10 +582,20 @@ namespace Anichron.Core.Migrations
                     b.HasOne("Anichron.Core.Domain.MediaAsset", "PrimaryAsset")
                         .WithMany()
                         .HasForeignKey("PrimaryAssetId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("PrimaryAsset");
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.BurstCheck", b =>
+                {
+                    b.HasOne("Anichron.Core.Domain.MediaAsset", "Asset")
+                        .WithOne()
+                        .HasForeignKey("Anichron.Core.Domain.BurstCheck", "AssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Asset");
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.Invite", b =>
