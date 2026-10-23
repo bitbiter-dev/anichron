@@ -133,7 +133,6 @@ internal sealed partial class BurstDetectionHandler(
             tally.Created++;
         }
 
-        // Removing a burst sets its tracked members' BurstId to null, so they are moved after.
         foreach (var merged in bursts.Skip(1))
         {
             db.Bursts.Remove(merged);
