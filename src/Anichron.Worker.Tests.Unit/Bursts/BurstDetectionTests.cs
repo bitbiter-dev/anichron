@@ -1,9 +1,11 @@
 using Anichron.Core;
 using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Testing.Data;
 using Anichron.Worker.Bursts;
+using Anichron.Worker.Work;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -32,6 +34,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private readonly IGuidFactory guids = Substitute.For<IGuidFactory>();
     private readonly IWorkProgress progress = Substitute.For<IWorkProgress>();
     private readonly FakeLogger<BurstDetectionHandler> logger = new();
+    private readonly FakeLogger<ActiveStorageConfigs> activeLogger = new();
     private int nextGuid;
 
     public BurstDetectionTests()
@@ -117,7 +120,9 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private Task<object?> RunAsync() => RunForAsync(ConfigId, Ct);
 
     private Task<object?> RunForAsync(Guid configId, CancellationToken ct)
-        => new BurstDetectionHandler(db, reader, fileSystem, clock, guids, logger)
+        => new BurstDetectionHandler(
+                new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
+                new EfBurstRepository(db), db, reader, fileSystem, clock, guids, logger)
             .RunAsync(new BurstDetectionPayload(configId), progress, ct);
 
     private Dictionary<string, Guid?> BurstsOf(params MediaAsset[] photos)
@@ -153,16 +158,16 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunForAsync(inactive, Ct);
 
-        result.Should().Be(new BurstDetectionSkipped("The storage config is missing or inactive."));
+        result.Should().Be(StorageConfigSkipped.MissingOrInactive);
         reader.DidNotReceiveWithAnyArgs().Read(default!);
         StoredChecks().Should().BeEmpty();
-        logger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
-            $"Skipping burst detection for storage config {inactive}: it is missing or inactive.");
+        activeLogger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
+            $"Skipping BurstDetection of storage config {inactive}: it is missing or inactive.");
     }
 
     [Fact]
     public async Task RunAsync_ConfigGone_SkipsAsync()
-        => (await RunForAsync(Guid.NewGuid(), Ct)).Should().BeOfType<BurstDetectionSkipped>();
+        => (await RunForAsync(Guid.NewGuid(), Ct)).Should().BeOfType<StorageConfigSkipped>();
 
     [Fact]
     public async Task RunAsync_RootMissing_FailsWithoutMarkingAnyPhotoAsync()
@@ -189,7 +194,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(Checked: 3, Created: 1, Merged: 0, Dissolved: 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 3, Created = 1 });
         var burst = StoredBursts().Should().ContainSingle().Which;
         burst.Should().BeEquivalentTo(new { PrimaryAssetId = b.Id, CreatedAt = Now });
         BurstsOf(a, b, c).Values.Should().AllBeEquivalentTo(burst.Id);
@@ -218,7 +223,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(5, 2, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 5, Created = 2 });
         var bursts = BurstsOf(a1, a2, b1, b2, plain);
         var (burstA, burstB) = (bursts["a1.heic"], bursts["b1.heic"]);
         new[] { burstA, burstB }.Should().OnlyHaveUniqueItems().And.NotContainNulls();
@@ -240,7 +245,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(1, 0, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 1 });
         StoredBursts().Should().BeEmpty();
         BurstsOf(a)["a.heic"].Should().BeNull();
     }
@@ -270,7 +275,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(2, 1, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 2, Created = 1 });
         BurstsOf(still, live, mov).Should().BeEquivalentTo(new Dictionary<string, Guid?>
         {
             ["a.jpg"] = StoredBursts().Single().Id,
@@ -325,7 +330,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(1, 0, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 1 });
         StoredChecks().Should().ContainSingle().Which.Should().BeEquivalentTo(
             new BurstCheck { AssetId = a.Id, CheckedAt = Now, IsCandidate = false, CameraBurstId = null },
             o => o.Excluding(c => c.Asset));
@@ -346,7 +351,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var second = await RunAsync();
 
-        second.Should().Be(new BurstDetectionResult(0, 0, 0, 0));
+        second.Should().Be(new BurstDetectionResult());
         reader.DidNotReceiveWithAnyArgs().Read(default!);
         StoredChecks().Should().BeEquivalentTo(
             [
@@ -368,7 +373,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(1, 0, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 1 });
         BurstsOf(a, b, earlier).Values.Should().AllBeEquivalentTo(stored);
         StoredBursts().Should().ContainSingle().Which.PrimaryAssetId.Should().Be(earlier.Id);
         reader.DidNotReceive().Read($"{Root}/{a.FilePath}");
@@ -384,7 +389,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(1, 1, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Created = 1 });
         var burst = StoredBursts().Should().ContainSingle().Which;
         burst.PrimaryAssetId.Should().Be(fresh.Id);
         BurstsOf(lone, fresh).Values.Should().AllBeEquivalentTo(burst.Id);
@@ -405,7 +410,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(1, 0, 1, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Merged = 1 });
         StoredBursts().Should().ContainSingle().Which.Should().BeEquivalentTo(new { Id = older, PrimaryAssetId = c.Id });
         BurstsOf(a, b, c, d, fresh).Values.Should().AllBeEquivalentTo(older);
     }
@@ -478,7 +483,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(BurstDetectionHandler.BatchSize + 1, 1, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = BurstDetectionHandler.BatchSize + 1, Created = 1 });
         StoredChecks().Should().HaveCount(BurstDetectionHandler.BatchSize + 1);
         db.ChangeTracker.Entries().Should().BeEmpty();
     }
@@ -526,7 +531,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(1, 0, 0, 1));
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Dissolved = 1 });
         StoredBursts().Should().BeEmpty();
         BurstsOf(a, gone).Values.Should().AllSatisfy(id => id.Should().BeNull());
     }
@@ -538,7 +543,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(0, 0, 0, 1));
+        result.Should().Be(new BurstDetectionResult { Dissolved = 1 });
         StoredBursts().Should().BeEmpty();
     }
 
@@ -550,7 +555,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(2, 0, 0, 0));
+        result.Should().Be(new BurstDetectionResult { Checked = 2 });
         StoredBursts().Should().ContainSingle().Which.Should().BeEquivalentTo(new { Id = id, PrimaryAssetId = c.Id });
     }
 
@@ -573,7 +578,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult(0, 0, 0, 0));
+        result.Should().Be(new BurstDetectionResult());
         StoredBursts().Should().ContainSingle();
     }
 }

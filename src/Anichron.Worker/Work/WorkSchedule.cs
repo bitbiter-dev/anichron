@@ -18,7 +18,7 @@ public interface IWorkScheduleSource
     Task<IReadOnlyList<IWorkSchedule>> SchedulesAsync(IServiceProvider services, CancellationToken ct);
 }
 
-public abstract class WorkSchedule<TPayload>(TPayload payload, Duration interval) : IWorkSchedule, IWorkScheduleSource
+public class WorkSchedule<TPayload>(TPayload payload, Duration interval) : IWorkSchedule, IWorkScheduleSource
     where TPayload : IWorkPayload
 {
     public string DedupKey { get; } = payload.DedupKey

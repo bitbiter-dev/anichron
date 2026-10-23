@@ -343,6 +343,8 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IUserStorageConfigRepository), typeof(EfUserStorageConfigRepository) },
         { typeof(IRefreshTokenRepository), typeof(EfRefreshTokenRepository) },
         { typeof(IMediaAssetRepository), typeof(EfMediaAssetRepository) },
+        { typeof(IBurstRepository), typeof(EfBurstRepository) },
+        { typeof(ActiveStorageConfigs), typeof(ActiveStorageConfigs) },
         { typeof(IDatabaseMigrator), typeof(EfDatabaseMigrator) },
         { typeof(IWorkQueue), typeof(EfWorkQueue) },
     };

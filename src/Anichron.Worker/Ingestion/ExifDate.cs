@@ -12,5 +12,5 @@ internal static class ExifDate
     /// <summary>The date, or null when the raw value is missing or not an EXIF date.</summary>
     /// <param name="raw">An EXIF date-time tag's value.</param>
     internal static LocalDateTime? Parse(string? raw)
-        => Pattern.Parse(raw!) is { Success: true } result ? result.Value : null;
+        => raw is { } text && Pattern.Parse(text) is { Success: true } result ? result.Value : null;
 }

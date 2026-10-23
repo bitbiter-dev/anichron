@@ -38,6 +38,7 @@ public sealed class ContentChangedWriterTests
     private sealed class TestFixture
     {
         public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
+        public IBurstRepository Bursts { get; } = Substitute.For<IBurstRepository>();
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
         public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
@@ -86,7 +87,7 @@ public sealed class ContentChangedWriterTests
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
             var stagingWriter = new ProxyStagingWriter(FileSystem, clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());
-            return new(Repository, new IngestionSaver(UnitOfWork, Repository), FileSystem, clock,
+            return new(Repository, Bursts, new IngestionSaver(UnitOfWork, Repository), FileSystem, clock,
                 new PairedMovResolver(Repository, FileSystem, clock, GuidFactory),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
@@ -170,7 +171,7 @@ public sealed class ContentChangedWriterTests
         var asset = await fx.WriteAsync(fx.Context());
 
         asset!.BurstId.Should().BeNull();
-        await fx.Repository.Received(1).RemoveBurstCheckAsync(StoredId, Arg.Any<CancellationToken>());
+        await fx.Bursts.Received(1).RemoveCheckAsync(StoredId, Arg.Any<CancellationToken>());
     }
 
     [Fact]

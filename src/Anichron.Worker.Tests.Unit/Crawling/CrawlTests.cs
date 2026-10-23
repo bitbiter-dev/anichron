@@ -2,6 +2,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Worker.Crawling;
+using Anichron.Worker.Work;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 
@@ -17,6 +18,7 @@ public sealed class CrawlTests
     private readonly ISharedContentReporter reporter = Substitute.For<ISharedContentReporter>();
     private readonly IWorkQueue queue = Substitute.For<IWorkQueue>();
     private readonly FakeLogger<CrawlHandler> logger = new();
+    private readonly FakeLogger<ActiveStorageConfigs> activeLogger = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -29,7 +31,7 @@ public sealed class CrawlTests
     };
 
     private Task<object?> RunAsync(Guid configId)
-        => new CrawlHandler(configs, pipeline, reporter, queue, logger).RunAsync(new CrawlPayload(configId), progress, Ct);
+        => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, reporter, queue, logger).RunAsync(new CrawlPayload(configId), progress, Ct);
 
     // ==========================================================================
     // CrawlHandler
@@ -87,7 +89,7 @@ public sealed class CrawlTests
             throw new OperationCanceledException(shutdown.Token);
         });
 
-        var act = () => new CrawlHandler(configs, pipeline, reporter, queue, logger)
+        var act = () => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, reporter, queue, logger)
             .RunAsync(new CrawlPayload(config.Id), progress, shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
@@ -103,10 +105,11 @@ public sealed class CrawlTests
 
         var result = await RunAsync(config.Id);
 
-        result.Should().Be(new CrawlSkipped("The storage config is missing or inactive."));
+        result.Should().Be(new StorageConfigSkipped("The storage config is missing or inactive."));
         await pipeline.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, Ct);
         await queue.DidNotReceiveWithAnyArgs().EnqueueAsync<BurstDetectionPayload>(default!, default, Ct);
-        logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Message.Contains(config.Id.ToString()));
+        activeLogger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
+            $"Skipping Crawl of storage config {config.Id}: it is missing or inactive.");
     }
 
     [Fact]
@@ -114,7 +117,7 @@ public sealed class CrawlTests
     {
         var result = await RunAsync(Guid.NewGuid());
 
-        result.Should().BeOfType<CrawlSkipped>();
+        result.Should().BeOfType<StorageConfigSkipped>();
         await pipeline.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, Ct);
     }
 

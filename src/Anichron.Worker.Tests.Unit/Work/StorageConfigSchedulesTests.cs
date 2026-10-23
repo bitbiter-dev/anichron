@@ -77,13 +77,16 @@ public sealed class StorageConfigSchedulesTests
     }
 
     [Fact]
-    public async Task StorageConfigSchedule_EnqueuesItsPayloadAsync()
+    public async Task Schedule_EnqueuesItsConfigsPayloadAsync()
     {
         var configId = Guid.NewGuid();
         var queue = Substitute.For<IWorkQueue>();
 
-        await new StorageConfigSchedule<BurstDetectionPayload>(new BurstDetectionPayload(configId), Duration.FromHours(4))
-            .EnqueueAsync(queue, Ct);
+        configs.GetAllActiveAsync(Ct).Returns([new UserStorageConfig { Id = configId, UserId = MiraId, RootPath = "/r", IsActive = true }]);
+        var schedules = await SchedulesAsync(
+            new StorageConfigSchedules<BurstDetectionPayload>(new WorkerState(), Options.Create(new WorkerSettings())));
+
+        await schedules.Single().EnqueueAsync(queue, Ct);
 
         await queue.Received(1).EnqueueAsync(new BurstDetectionPayload(configId), null, Ct);
     }

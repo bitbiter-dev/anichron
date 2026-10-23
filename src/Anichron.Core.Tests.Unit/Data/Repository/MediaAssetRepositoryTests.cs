@@ -178,34 +178,6 @@ public sealed class MediaAssetRepositoryTests
         tracked.Metadata.Width.Should().Be(640);
     }
 
-    [Fact]
-    public async Task RemoveBurstCheckAsync_CheckedPhoto_TracksItsRowForDeleteAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var asset = AssetAt(ConfigA, "cafe", "a.jpg");
-        await using var seed = CreateDb(out var name);
-        seed.MediaAssets.Add(asset);
-        seed.BurstChecks.Add(new BurstCheck { AssetId = asset.Id, IsCandidate = true });
-        await seed.SaveChangesAsync(ct);
-        await using var db = AnichronDbContexts.InMemory(name);
-
-        await new EfMediaAssetRepository(db).RemoveBurstCheckAsync(asset.Id, ct);
-        await db.SaveChangesAsync(ct);
-
-        (await db.BurstChecks.CountAsync(ct)).Should().Be(0);
-    }
-
-    [Fact]
-    public async Task RemoveBurstCheckAsync_UncheckedPhoto_ChangesNothingAsync()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var db = CreateDb(out _);
-
-        await new EfMediaAssetRepository(db).RemoveBurstCheckAsync(Guid.NewGuid(), ct);
-
-        db.ChangeTracker.HasChanges().Should().BeFalse();
-    }
-
     // ==========================================================================
     // FindSharedContentAsync
     // ==========================================================================

@@ -2,12 +2,12 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Work;
 
 namespace Anichron.Worker.Crawling;
 
-public sealed record CrawlSkipped(string Reason);
-
 internal sealed partial class CrawlHandler(
+    ActiveStorageConfigs activeConfigs,
     IUserStorageConfigRepository configs,
     IFileIngestionPipeline pipeline,
     ISharedContentReporter reporter,
@@ -16,12 +16,8 @@ internal sealed partial class CrawlHandler(
 {
     public async Task<object?> RunAsync(CrawlPayload payload, IWorkProgress progress, CancellationToken ct)
     {
-        var config = await configs.FindByIdAsync(payload.StorageConfigId, ct);
-        if (config is not { IsActive: true })
-        {
-            Log.Skipped(logger, payload.StorageConfigId);
-            return new CrawlSkipped("The storage config is missing or inactive.");
-        }
+        if (await activeConfigs.FindAsync(CrawlPayload.Kind, payload.StorageConfigId, ct) is not { } config)
+            return StorageConfigSkipped.MissingOrInactive;
 
         Log.Crawling(logger, config.RootPath, config.UserId);
         var counts = await pipeline.RunAsync(config, progress, ct);
@@ -51,8 +47,5 @@ internal sealed partial class CrawlHandler(
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Reporting duplicate content for storage config {Id} failed.")]
         public static partial void DuplicateReportFailed(ILogger logger, Guid id, Exception ex);
-
-        [LoggerMessage(Level = LogLevel.Information, Message = "Skipping the crawl of storage config {Id}: it is missing or inactive.")]
-        public static partial void Skipped(ILogger logger, Guid id);
     }
 }

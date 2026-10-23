@@ -7,10 +7,6 @@ using NodaTime;
 
 namespace Anichron.Worker.Work;
 
-public sealed class StorageConfigSchedule<TPayload>(TPayload payload, Duration interval)
-    : WorkSchedule<TPayload>(payload, interval)
-    where TPayload : IWorkPayload;
-
 /// <summary>One schedule per active storage config the Worker serves, at the crawl interval.</summary>
 /// <typeparam name="TPayload">The per-config kind scheduled.</typeparam>
 /// <param name="workerState">Names the user a per-user Worker serves.</param>
@@ -26,6 +22,6 @@ public sealed class StorageConfigSchedules<TPayload>(WorkerState workerState, IO
             ? await repository.GetActiveByUserIdAsync(userId, ct)
             : await repository.GetAllActiveAsync(ct);
         var interval = Duration.FromHours(options.Value.CrawlIntervalHours);
-        return [.. served.Select(config => new StorageConfigSchedule<TPayload>(TPayload.For(config.Id), interval))];
+        return [.. served.Select(config => new WorkSchedule<TPayload>(TPayload.For(config.Id), interval))];
     }
 }

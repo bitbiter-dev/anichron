@@ -46,6 +46,8 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IMediaAssetRepository, EfMediaAssetRepository>();
+            services.AddScoped<IBurstRepository, EfBurstRepository>();
+            services.AddScoped<ActiveStorageConfigs>();
             services.AddScoped<IDatabaseMigrator, EfDatabaseMigrator>();
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IWorkQueue, EfWorkQueue>();
