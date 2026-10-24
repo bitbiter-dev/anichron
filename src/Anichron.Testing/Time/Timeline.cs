@@ -84,7 +84,7 @@ public sealed class Timeline : IAsyncDisposable
         foreach (var (ended, stop) in owned)
         {
             if (stop is not null)
-                await stop();
+                await stop().WaitAsync(silenceLimit, CancellationToken.None);
             ends.Add(ended);
         }
 

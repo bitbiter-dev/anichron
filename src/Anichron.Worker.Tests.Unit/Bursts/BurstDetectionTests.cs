@@ -489,6 +489,25 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task RunAsync_NextBatch_StartsAfterTheLastPhotoOfThePreviousOneAsync()
+    {
+        var photo = Photo("a.heic");
+        IReadOnlyList<MediaAsset> none = [];
+        var bursts = Substitute.For<IBurstRepository>();
+        bursts.GetInConfigWithMembersAsync(ConfigId, Arg.Any<CancellationToken>()).Returns([]);
+        bursts.GetUncheckedPhotosAsync(ConfigId, null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([photo], none);
+        bursts.GetUncheckedPhotosAsync(ConfigId, photo, Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(none);
+
+        await new BurstDetectionHandler(
+                new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
+                bursts, Substitute.For<IUnitOfWork>(), reader, fileSystem, clock, guids, logger)
+            .RunAsync(new BurstDetectionPayload(ConfigId), progress, Ct);
+
+        await bursts.Received(1).GetUncheckedPhotosAsync(ConfigId, photo, Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_Cancelled_StopsBeforeSavingThePhotoBeingCheckedAsync()
     {
         var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));

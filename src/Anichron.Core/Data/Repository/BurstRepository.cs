@@ -23,12 +23,14 @@ public interface IBurstRepository
 
     /// <summary>
     /// The config's oldest active photos without a burst-checked mark, with their metadata and
-    /// proxy rows.
+    /// proxy rows, by capture time and then id.
     /// </summary>
     /// <param name="storageConfigId">The config whose photos are loaded.</param>
+    /// <param name="after">Only photos that come after this one in that order; null starts at the oldest.</param>
     /// <param name="count">At most this many.</param>
     /// <param name="ct">Cancels the query.</param>
-    Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(Guid storageConfigId, int count, CancellationToken ct);
+    Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(
+        Guid storageConfigId, MediaAsset? after, int count, CancellationToken ct);
 
     /// <summary>The config's checked candidates the camera labelled with this burst id.</summary>
     /// <param name="storageConfigId">The config searched.</param>
@@ -65,8 +67,9 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
     public Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct)
         => UncheckedPhotos(storageConfigId).CountAsync(ct);
 
-    public async Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(Guid storageConfigId, int count, CancellationToken ct)
-        => await UncheckedPhotos(storageConfigId)
+    public async Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(
+        Guid storageConfigId, MediaAsset? after, int count, CancellationToken ct)
+        => await UncheckedPhotosAfter(storageConfigId, after)
             .Include(a => a.Metadata)
             .Include(a => a.ProxyFiles)
             .OrderBy(a => a.DateCaptured).ThenBy(a => a.Id)
@@ -100,6 +103,16 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
 
     private IQueryable<Burst> WithMembers()
         => db.Bursts.IgnoreQueryFilters().Include(b => b.Assets);
+
+    internal IQueryable<MediaAsset> UncheckedPhotosAfter(Guid storageConfigId, MediaAsset? after)
+    {
+        if (after is null)
+            return UncheckedPhotos(storageConfigId);
+
+        var (capturedAt, id) = (after.DateCaptured, after.Id);
+        return UncheckedPhotos(storageConfigId)
+            .Where(a => a.DateCaptured > capturedAt || (a.DateCaptured == capturedAt && a.Id.CompareTo(id) > 0));
+    }
 
     private IQueryable<MediaAsset> UncheckedPhotos(Guid storageConfigId)
         => db.MediaAssets.Where(a => a.StorageConfigId == storageConfigId

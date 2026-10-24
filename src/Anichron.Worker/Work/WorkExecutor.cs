@@ -98,30 +98,33 @@ public sealed partial class WorkExecutor(
     {
         var interval = TimeSpan.FromSeconds(settings.WorkHeartbeatSeconds);
         var outcome = HeartbeatOutcome.Held;
-        try
+        while (!done.IsCancellationRequested)
         {
-            while (true)
+            try
             {
                 await Task.Delay(interval, timeProvider, done);
-                try
-                {
-                    var beat = await store.HeartbeatAsync(attempt, progress.Snapshot, Now, Lease, CancellationToken.None);
-                    if (beat != HeartbeatOutcome.Held)
-                        await running.CancelAsync();
-                    if (beat == HeartbeatOutcome.Lost)
-                        return beat;
-                    outcome = beat;
-                }
-                catch (Exception ex)
-                {
-                    Log.HeartbeatFailed(logger, attempt.Id, ex);
-                }
+            }
+            catch (OperationCanceledException) when (done.IsCancellationRequested)
+            {
+                break;
+            }
+
+            try
+            {
+                var beat = await store.HeartbeatAsync(attempt, progress.Snapshot, Now, Lease, CancellationToken.None);
+                if (beat != HeartbeatOutcome.Held)
+                    await running.CancelAsync();
+                if (beat == HeartbeatOutcome.Lost)
+                    return beat;
+                outcome = beat;
+            }
+            catch (Exception ex)
+            {
+                Log.HeartbeatFailed(logger, attempt.Id, ex);
             }
         }
-        catch (OperationCanceledException) when (done.IsCancellationRequested)
-        {
-            return outcome;
-        }
+
+        return outcome;
     }
 
     private static partial class Log

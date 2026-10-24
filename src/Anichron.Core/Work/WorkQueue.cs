@@ -21,11 +21,13 @@ public interface IWorkQueue
 
 public sealed class EfWorkQueue(AnichronDbContext db, IClock clock, IGuidFactory guids) : IWorkQueue
 {
+    internal const int MaxInsertAttempts = 3;
+
     public async Task<Guid> EnqueueAsync<TPayload>(TPayload payload, Guid? requestedBy, CancellationToken ct)
         where TPayload : IWorkPayload
     {
         var dedupKey = payload.DedupKey;
-        while (true)
+        for (var attempt = 1; attempt <= MaxInsertAttempts; attempt++)
         {
             if (dedupKey is not null)
             {
@@ -53,6 +55,9 @@ public sealed class EfWorkQueue(AnichronDbContext db, IClock clock, IGuidFactory
             if (await TryInsertAsync(item, ct))
                 return item.Id;
         }
+
+        throw new InvalidOperationException(
+            $"Enqueueing work with dedup key '{dedupKey}' lost the insert race {MaxInsertAttempts} times.");
     }
 
     // Stryker disable all

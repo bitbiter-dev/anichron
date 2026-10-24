@@ -66,7 +66,8 @@ internal sealed partial class BurstDetectionHandler(
     private async Task CheckAsync(UserStorageConfig config, BurstDetectionResult result, IWorkProgress progress, CancellationToken ct)
     {
         var total = await bursts.CountUncheckedPhotosAsync(config.Id, ct);
-        while (await bursts.GetUncheckedPhotosAsync(config.Id, BatchSize, ct) is { Count: > 0 } batch)
+        MediaAsset? last = null;
+        while (await bursts.GetUncheckedPhotosAsync(config.Id, last, BatchSize, ct) is { Count: > 0 } batch)
         {
             foreach (var photo in batch)
             {
@@ -74,6 +75,7 @@ internal sealed partial class BurstDetectionHandler(
                 progress.Report(++result.Checked, total, "Checking photos for bursts");
             }
 
+            last = batch[^1];
             bursts.ForgetLoaded();
         }
     }
