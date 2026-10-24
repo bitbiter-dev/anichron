@@ -7,6 +7,11 @@
 # Test changes that map to no source file exit 1 unless the source files they
 # cover are passed explicitly, as paths relative to src/.
 #
+# One Stryker run per mutation target project (scripts/mutation-targets.sh),
+# one after another, each with its own TMPDIR. Every run goes ahead; the exit
+# status is the worst of them. Files outside every target project are named
+# and skipped.
+#
 # A local pre-check only; the full sweep in CI is the authority. See
 # docs/mutation-testing.md, "The scoped local run".
 set -euo pipefail
@@ -19,12 +24,13 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) explicit+=("${1#src/}"); shift ;;
   esac
 done
 
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root=$(git rev-parse --show-toplevel)
 src="$root/src"
 cd "$root"
@@ -89,16 +95,46 @@ if [ "${#targets[@]}" -eq 0 ]; then
   exit 0
 fi
 
-args=()
-while IFS= read -r target; do
-  args+=(-m "**/$target")
-done < <(printf '%s\n' "${targets[@]}" | sort -u)
+projects=$("$here/mutation-targets.sh" "$src") || exit 2
+files=$(printf '%s\n' "${targets[@]}" | sort -u)
+
+exclusions=()
 while IFS= read -r glob; do
-  args+=(-m "$glob")
+  exclusions+=(-m "$glob")
 done < <(jq -r '."stryker-config".mutate[]' "$src/stryker-config.json")
 
+outside="$files"
+runs=()
+while IFS= read -r project; do
+  [ -n "$project" ] || continue
+  dir="${project%/*}/"
+  [ -n "$(awk -v dir="$dir" 'index($0, dir) == 1' <<<"$files")" ] || continue
+  outside=$(awk -v dir="$dir" 'index($0, dir) != 1' <<<"$outside")
+  runs+=("$project")
+done <<<"$projects"
+
+if [ -n "$outside" ]; then
+  echo "not mutated (in no mutation target project): $(tr '\n' ' ' <<<"$outside" | sed 's/ $//')"
+fi
+
+if [ "${#runs[@]}" -eq 0 ]; then
+  echo 'no changed file is in a mutation target project; nothing to mutate'
+  exit 0
+fi
+
+args_for() {
+  local project="$1" dir="${1%/*}/" target
+  printf '%s\n' --project "$(basename "$project")"
+  while IFS= read -r target; do
+    printf '%s\n' -m "**/$target"
+  done < <(awk -v dir="$dir" 'index($0, dir) == 1' <<<"$files")
+  printf '%s\n' "${exclusions[@]+"${exclusions[@]}"}"
+}
+
 if $print; then
-  printf '%s\n' "${args[@]}"
+  for project in "${runs[@]}"; do
+    args_for "$project"
+  done
   exit 0
 fi
 
@@ -107,4 +143,18 @@ run_tmp=$(mktemp -d "${TMPDIR:-/tmp}/mutation-changed.XXXXXXXX") \
 trap 'rm -rf "$run_tmp"' EXIT
 
 cd "$src"
-TMPDIR="$run_tmp" dotnet stryker "${args[@]}"
+worst=0
+for project in "${runs[@]}"; do
+  name=$(basename "$project" .csproj)
+  args=()
+  while IFS= read -r arg; do
+    args+=("$arg")
+  done < <(args_for "$project")
+  mkdir "$run_tmp/$name"
+  echo "== $name"
+  status=0
+  TMPDIR="$run_tmp/$name" dotnet stryker "${args[@]}" || status=$?
+  echo "== $name: exit $status"
+  [ "$status" -le "$worst" ] || worst=$status
+done
+exit "$worst"
