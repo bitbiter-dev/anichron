@@ -66,17 +66,17 @@ Shared test infrastructure lives in `Anichron.Testing`, referenced by the test p
 
 ```bash
 dotnet tool restore
-scripts/mutation-changed.sh   # scoped: only C# files changed since origin/master (~2 min)
-cd src && TMPDIR="$(mktemp -d)" dotnet stryker   # full sweep (~8 min); must run from src/, not the repo root
+scripts/mutation-changed.sh   # scoped: only C# files changed since origin/master, one Stryker run per project
+cd src && TMPDIR="$(mktemp -d)" dotnet stryker   # full sweep; must run from src/, not the repo root
 ```
 
 ⚠️ **Never run `dotnet stryker` with the shared `TMPDIR`.** Stryker's MTP runner passes the active mutant through `$TMPDIR/stryker-mutant-<n>.txt`, a path every run on the machine shares, so two agents mutating at the same time corrupt each other's results (survivors that tests do kill, scores down to 0%). `mutation-changed.sh` isolates itself; give a direct run its own `TMPDIR` as above. See `docs/mutation-testing.md`.
 
-`scripts/mutation-guard.sh` (a CI step) enforces the setup rules: every setting lives in `src/stryker-config.json`, so a local run judges exactly as CI does; the `mtp` runner (`vstest` silently reports 0.00% under xUnit v3, ADR 0001); thresholds at 100; no `--since`/`--with-baseline` (in a worktree they test 0 mutants and exit `0`); `--concurrency` only in the divergence job and `--mutate` only in `mutation-changed.sh`; workflows run Stryker only through `scripts/stryker-sweep.sh` (restores first, fails when Stryker could not analyse a project and silently left it unmutated); and an ADR 0005 entry for every Stryker directive and excluded path. When it fails, fix the setup, not the guard.
+`scripts/mutation-guard.sh` (a CI step) enforces the setup rules: every setting lives in `src/stryker-config.json`, so a local run judges exactly as CI does; the `mtp` runner (`vstest` silently reports 0.00% under xUnit v3, ADR 0001); thresholds at 100; no `--since`/`--with-baseline` (in a worktree they test 0 mutants and exit `0`); `--concurrency` only in the divergence job and `--mutate` only in `mutation-changed.sh`; workflows run Stryker only through `scripts/stryker-sweep.sh` (restores first, fails when Stryker could not analyse a project and silently left it unmutated); an ADR 0005 entry for every Stryker directive and excluded path; and a `!**/<Name>/**` exclusion for exactly the projects that set `IsMutationTarget` to `false` (ADR 0010). When it fails, fix the setup, not the guard.
 
 #### Surviving mutants: test first, exclude only when equivalent
 
-The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishing any change to production code, run `scripts/mutation-changed.sh` and work through every undetected mutant in the files you touched. It maps a changed `<Name>Tests.cs` to `<Name>.cs` and exits `1` for a changed test file it cannot map; pass the source files that test covers, relative to `src/`, as arguments. The full sweep in CI is the authority; run `dotnet stryker` locally as well only when the change reaches beyond the files it touches (`stryker-config.json`, a shared base class, test doubles):
+The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishing any change to production code, run `scripts/mutation-changed.sh` and work through every undetected mutant in the files you touched. It maps a changed `<Name>Tests.cs` to `<Name>.cs` and exits `1` for a changed test file it cannot map; pass the source files that test covers, relative to `src/`, as arguments. A changed file in no mutation target project (`scripts/mutation-targets.sh`) is named as `not mutated` and skipped. The full sweep in CI is the authority; run `dotnet stryker` locally as well only when the change reaches beyond the files it touches (`stryker-config.json`, a shared base class, test doubles):
 
 1. **Write a test.** A survivor is a missing test until proven otherwise. The test asserts behaviour that the mutant changes, with an expected value from an independent source (a literal, the spec), never recomputed the way the code does.
 2. **Question an exclusion only for an *equivalent* mutant**: one where no input can make the original and the mutant behave differently. Prove it by naming why every input agrees (a square image, a value exactly at the bound, a branch that only logs), or by measuring it. "Hard to test" is not equivalence.

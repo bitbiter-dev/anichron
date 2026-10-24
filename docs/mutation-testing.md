@@ -46,13 +46,13 @@ directly.
 > threshold ratchet (#183) was removed once the committed gate reached 100%, where it could no
 > longer raise anything.
 
-A full sweep takes about eight minutes on a developer machine, with live progress as it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
+A full sweep shows live progress as it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
 to for the detail — it shows each surviving mutant in its source context, which is how you find the
 line that needs a test. The markdown report beside it has the per-file breakdown.
 
 ### The scoped local run
 
-A full sweep now takes about eight minutes, and the CI `Mutation` job runs one on every pull
+A full sweep mutates the whole solution, and the CI `Mutation` job runs one on every pull
 request anyway. While working on a change, run only the files it touches:
 
 ```bash
@@ -63,13 +63,26 @@ scripts/mutation-changed.sh Anichron.API/Endpoints/AdminUserEndpoints.cs   # add
 ```
 
 It collects every changed `.cs` file under `src/` — committed, staged, unstaged and untracked —
-and passes each one to Stryker as `--mutate`, together with the exclusions from
+groups the files by project, and runs Stryker once per changed project, one after another:
+`--project <Name>.csproj`, each of that project's files as `--mutate`, and the exclusions from
 `stryker-config.json`. Mutants outside those files are reported as `Removed by mutate filter`, so
-the score and the `break` threshold apply to the changed files alone. Stryker still builds the
-solution, creates every mutant and captures per-test coverage for the whole suite, which is the
-fixed cost of roughly a minute and a half. The run then tests only the selected mutants, and each
-of them against every test that covers it, so a file's result matches what the full sweep reports
-for that file.
+the score and the `break` threshold apply to the changed files alone. Each run tests its mutants
+against every test that covers them, so a file's result matches what the full sweep reports for
+that file. Every project's run goes ahead even when an earlier one fails, and the script exits with
+the worst status.
+
+Why one run per project and not one over the solution: in solution mode, Stryker captures per-test
+coverage once for each project it mutates, and each capture runs every test of every test
+assembly. The captures all record the same thing. With `--project`, a run captures coverage once.
+The measurements are in [ADR 0010](adr/0010-scoped-mutation-runs-per-project.md).
+
+The projects Stryker mutates are the **mutation targets**: every project for which MSBuild evaluates
+`IsMutationTarget` to `true`. `Directory.Build.props` sets it for every non-test project, and
+`Anichron.Testing` sets it back to `false`. `scripts/mutation-targets.sh` lists them. A changed
+file in no target project (the `Anichron.Testing` library, the integration tests) is named on one
+line as `not mutated` and does not fail the run. The full sweep still runs in solution mode and does
+not read `IsMutationTarget`, so an opted-out project also needs its `!**/<Name>/**` entry in
+`stryker-config.json`. `mutation-guard.sh` checks that the two agree.
 
 A changed test file `<Name>Tests.cs` selects `<Name>.cs` in the matching production project. About
 a fifth of the test files are not named after one source file (endpoint and registration tests,

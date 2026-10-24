@@ -28,13 +28,30 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/mutation-changed-test.XXXXXXXX") \
   || { echo 'could not create a temp dir' >&2; exit 1; }
 trap 'rm -rf "$work"' EXIT
 
-# A fresh repository per case: src/App with a test project, committed on `base`.
+project() {
+  local repo="$1" name="$2" properties="$3"
+  mkdir -p "$repo/src/$name"
+  printf '<Project>\n  <PropertyGroup>%s</PropertyGroup>\n</Project>\n' "$properties" \
+    > "$repo/src/$name/$name.csproj"
+  printf '  <Project Path="%s/%s.csproj" />\n' "$name" "$name" >> "$repo/src/projects"
+}
+
+# A fresh repository per case, committed on `base`: the mutation targets App
+# and Other, App's test project, and Lib, which opts out.
 fixture() {
   local repo="$work/$1"
-  mkdir -p "$repo/src/App/Sub" "$repo/src/App.Tests.Unit" "$repo/docs"
+  mkdir -p "$repo/src/App/Sub" "$repo/docs"
+  project "$repo" App '<IsMutationTarget>true</IsMutationTarget>'
+  project "$repo" Other '<IsMutationTarget>true</IsMutationTarget>'
+  project "$repo" App.Tests.Unit '<IsTestCodeProject>True</IsTestCodeProject>'
+  project "$repo" Lib '<IsMutationTarget>false</IsMutationTarget>'
+  { echo '<Solution>'; cat "$repo/src/projects"; echo '</Solution>'; } > "$repo/src/Anichron.slnx"
+  rm "$repo/src/projects"
   cat > "$repo/src/stryker-config.json" <<'JSON'
 { "stryker-config": { "mutate": ["!**/Migrations/**", "!**/App/Program.cs"] } }
 JSON
+  echo 'class Gadget {}' > "$repo/src/Other/Gadget.cs"
+  echo 'class Kit {}' > "$repo/src/Lib/Kit.cs"
   echo 'class Foo {}' > "$repo/src/App/Foo.cs"
   echo 'class Bar {}' > "$repo/src/App/Sub/Bar.cs"
   echo 'class FooTests {}' > "$repo/src/App.Tests.Unit/FooTests.cs"
@@ -124,37 +141,90 @@ out=$( (cd "$repo/src" && "$script" --base no-such-ref --print 2>&1) ); status=$
 assert_contains 'an unknown base is refused' 'no-such-ref' "$out"
 assert_eq_status 'an unknown base exits 2' 2 "$status"
 
-echo "isolation"
+echo "projects"
 
-repo=$(fixture isolated)
+repo=$(fixture one-project)
 echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+out=$(run "$repo")
+assert_has_line 'the run is limited to the changed file'"'"'s project' 'App.csproj' "$out"
+assert_no_line 'an unchanged project gets no run' 'Other.csproj' "$out"
+
+repo=$(fixture two-projects)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo 'class Gadget { int g; }' > "$repo/src/Other/Gadget.cs"
+out=$(run "$repo")
+app=$(sed -n '/^App.csproj$/,/^--project$/p' <<<"$out")
+other=$(sed -n '/^Other.csproj$/,$p' <<<"$out")
+assert_has_line "a project's run mutates its own file" '**/App/Foo.cs' "$app"
+assert_no_line "a project's run leaves the other project's file alone" '**/Other/Gadget.cs' "$app"
+assert_has_line 'the second project gets a run of its own' '**/Other/Gadget.cs' "$other"
+assert_has_line 'every run carries the config exclusions' '!**/App/Program.cs' "$other"
+
+repo=$(fixture outside)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo 'class Kit { int k; }' > "$repo/src/Lib/Kit.cs"
+out=$(run "$repo"); status=$?
+assert_contains 'a file in an opted-out project is named' 'not mutated (in no mutation target project): Lib/Kit.cs' "$out"
+assert_no_line 'a file in an opted-out project is not mutated' '**/Lib/Kit.cs' "$out"
+assert_eq_status 'a file outside the targets does not fail the run' 0 "$status"
+
+repo=$(fixture only-outside)
+echo 'class Kit { int k; }' > "$repo/src/Lib/Kit.cs"
+out=$(run "$repo"); status=$?
+assert_contains 'only files outside the targets mean nothing to mutate' 'nothing to mutate' "$out"
+assert_eq_status 'only files outside the targets exit 0' 0 "$status"
+
+echo "runs"
+
+real_dotnet=$(command -v dotnet)
 stub="$work/stub-bin"
 mkdir -p "$stub"
 cat > "$stub/dotnet" <<'STUB'
 #!/usr/bin/env bash
-printf '%s' "$TMPDIR" > "$STUB_RECORD"
-[ -d "$TMPDIR" ] && echo present >> "$STUB_RECORD.dir"
-exit 2
+[ "$1" = msbuild ] && exec "$REAL_DOTNET" "$@"
+project=$(sed -n '/^--project$/{n;p;}' < <(printf '%s\n' "$@"))
+printf '%s %s\n' "$project" "$TMPDIR" >> "$STUB_RECORD"
+[ -d "$TMPDIR" ] && echo "$project" >> "$STUB_RECORD.dir"
+case "$project" in App.csproj) exit "$APP_STATUS" ;; *) exit "$OTHER_STATUS" ;; esac
 STUB
 chmod +x "$stub/dotnet"
-record="$work/stub-record"
 shared="$work/shared-tmp"
 mkdir -p "$shared"
-(cd "$repo/src" && PATH="$stub:$PATH" TMPDIR="$shared" STUB_RECORD="$record" "$script" --base base >/dev/null 2>&1)
-status=$?
-used=$(cat "$record" 2>/dev/null)
-if [ -n "$used" ] && [ "$used" != "$shared" ]; then
-  pass 'stryker runs with a temp dir of its own'
+
+stryker_runs() {
+  local repo="$1" record="$2"
+  (cd "$repo/src" && PATH="$stub:$PATH" REAL_DOTNET="$real_dotnet" TMPDIR="$shared" \
+    STUB_RECORD="$record" APP_STATUS="$3" OTHER_STATUS="$4" "$script" --base base >/dev/null 2>&1)
+}
+
+repo=$(fixture isolated)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo 'class Gadget { int g; }' > "$repo/src/Other/Gadget.cs"
+record="$work/record-isolated"
+stryker_runs "$repo" "$record" 2 0; status=$?
+dirs=$(awk '{print $2}' "$record" 2>/dev/null)
+if [ "$(wc -l <<<"$dirs")" -eq 2 ] && [ "$(sort -u <<<"$dirs" | wc -l)" -eq 2 ] && ! grep -qxF "$shared" <<<"$dirs"; then
+  pass 'each run has a temp dir of its own'
 else
-  fail 'stryker runs with a temp dir of its own' "a TMPDIR other than $shared" "${used:-nothing recorded}"
+  fail 'each run has a temp dir of its own' "two distinct TMPDIRs other than $shared" "${dirs:-nothing recorded}"
 fi
-assert_contains 'the private temp dir exists while stryker runs' 'present' "$(cat "$record.dir" 2>/dev/null)"
-if [ -n "$used" ] && [ ! -e "$used" ]; then
-  pass 'the private temp dir is removed afterwards'
-else
-  fail 'the private temp dir is removed afterwards' 'no directory left behind' "${used:-nothing recorded}"
-fi
-assert_eq_status "stryker's exit status is passed through" 2 "$status"
+assert_eq_status 'both temp dirs exist while their runs go' 2 "$(wc -l < "$record.dir" 2>/dev/null | tr -d ' ')"
+left=$(while IFS= read -r dir; do [ -e "$dir" ] && echo "$dir"; done <<<"$dirs")
+if [ -z "$left" ]; then pass 'the temp dirs are removed afterwards'; else fail 'the temp dirs are removed afterwards' 'none left' "$left"; fi
+assert_has_line 'a failed run does not stop the next project' 'Other.csproj' "$(awk '{print $1}' "$record")"
+assert_eq_status 'the worst exit status is passed through' 2 "$status"
+
+repo=$(fixture worst-last)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo 'class Gadget { int g; }' > "$repo/src/Other/Gadget.cs"
+stryker_runs "$repo" "$work/record-worst" 1 3; status=$?
+assert_eq_status 'a later, worse status wins' 3 "$status"
+
+repo=$(fixture all-pass)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo 'class Gadget { int g; }' > "$repo/src/Other/Gadget.cs"
+stryker_runs "$repo" "$work/record-pass" 0 0; status=$?
+assert_eq_status 'all runs passing exits 0' 0 "$status"
 
 echo
 if [ "$failures" -eq 0 ]; then

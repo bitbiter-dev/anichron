@@ -16,10 +16,14 @@ tree() {
   rm -rf "$work/repo"
   mkdir -p "$work/repo/src/App" "$work/repo/docs/adr" "$work/repo/.github/workflows" "$work/repo/scripts"
   cat >"$work/repo/src/stryker-config.json" <<'EOF'
-{ "stryker-config": { "test-runner": "mtp", "mutate": ["!**/Migrations/**", "!**/App/Wiring.cs"],
+{ "stryker-config": { "test-runner": "mtp", "mutate": ["!**/Migrations/**", "!**/Shared/**", "!**/App/Wiring.cs"],
   "thresholds": { "high": 100, "low": 100, "break": 100 } } }
 EOF
-  printf '| `Migrations/**` | 1 |\n| `App/Wiring.cs` | 2 |\n| `Hasher` | clears a buffer |\n' >"$work/repo/docs/adr/0005-scope.md"
+  mkdir -p "$work/repo/src/Shared"
+  printf '<Project>\n  <PropertyGroup><IsMutationTarget>true</IsMutationTarget></PropertyGroup>\n</Project>\n' >"$work/repo/src/App/App.csproj"
+  printf '<Project>\n  <PropertyGroup><IsMutationTarget>false</IsMutationTarget></PropertyGroup>\n</Project>\n' >"$work/repo/src/Shared/Shared.csproj"
+  printf '<Solution>\n  <Project Path="App/App.csproj" />\n  <Project Path="Shared/Shared.csproj" />\n</Solution>\n' >"$work/repo/src/Anichron.slnx"
+  printf '| `Migrations/**` | 1 |\n| `Shared/**` | 3 |\n| `App/Wiring.cs` | 2 |\n| `Hasher` | clears a buffer |\n' >"$work/repo/docs/adr/0005-scope.md"
   printf 'namespace App;\n\npublic class Hasher\n{\n    // Stryker disable once Statement\n}\n' >"$work/repo/src/App/Hasher.cs"
   printf 'jobs:\n  m:\n    steps:\n      - run: scripts/stryker-sweep.sh --output ../mutation\n' >"$work/repo/.github/workflows/ci.yml"
   printf 'jobs:\n  d:\n    steps:\n      - run: scripts/stryker-sweep.sh --concurrency 1\n' >"$work/repo/.github/workflows/mutation-divergence.yml"
@@ -75,6 +79,21 @@ tree
 printf '      - run: dotnet stryker --output ../other\n' >>"$work/repo/.github/workflows/mutation-divergence.yml"
 check 'a workflow running dotnet stryker directly fails' 1 \
   '.github/workflows/mutation-divergence.yml: runs dotnet stryker directly'
+
+tree
+sed -i.bak 's|"!\*\*/Shared/\*\*", ||' "$work/repo/src/stryker-config.json"
+check 'an opted-out project the full sweep would mutate fails' 1 \
+  'Shared/Shared.csproj opts out of IsMutationTarget, but stryker-config.json'"'"'s mutate has no "!**/Shared/**"'
+
+tree
+sed -i.bak 's|"!\*\*/Shared/\*\*"|"!**/Shared/**", "!**/App/**"|' "$work/repo/src/stryker-config.json"
+printf '| `App/**` | 4 |\n' >>"$work/repo/docs/adr/0005-scope.md"
+check 'excluding a whole target project fails' 1 \
+  'stryker-config.json excludes all of App, a mutation target; set IsMutationTarget to false in App/App.csproj instead'
+
+tree
+rm "$work/repo/src/Anichron.slnx"
+check 'an unreadable solution exits 2' 2 'cannot list the mutation target projects'
 
 tree
 printf 'namespace App;\n\npublic class Unlisted\n{\n    // Stryker disable once String\n}\n' >"$work/repo/src/App/Unlisted.cs"

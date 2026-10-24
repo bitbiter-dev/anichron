@@ -9,19 +9,29 @@
 #     only in mutation-changed.sh;
 #   - workflows run Stryker only through scripts/stryker-sweep.sh;
 #   - every file with a `// Stryker disable` directive, and every path excluded
-#     in stryker-config.json's mutate list, is named in ADR 0005.
+#     in stryker-config.json's mutate list, is named in ADR 0005;
+#   - every project that opts out of IsMutationTarget has a `!**/<Name>/**`
+#     entry in that list, and every such whole-project entry names a project
+#     that opts out (scripts/mutation-targets.sh).
 #
 # Exit 0: all hold. Exit 1: violations, one per line on stdout. Exit 2: the
-# config or the ADR cannot be read.
+# config, the ADR or the solution's projects cannot be read.
 set -euo pipefail
 
-root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="${1:-$(cd "$here/.." && pwd)}"
 config="$root/src/stryker-config.json"
 adr=$(ls "$root"/docs/adr/0005-*.md 2>/dev/null | head -n 1 || true)
 self="scripts/$(basename "${BASH_SOURCE[0]}")"
 
 if [ ! -r "$config" ] || [ -z "$adr" ]; then
   echo "cannot read src/stryker-config.json or docs/adr/0005-*.md under $root" >&2
+  exit 2
+fi
+
+if ! targets=$("$here/mutation-targets.sh" "$root/src") \
+  || ! opted_out=$("$here/mutation-targets.sh" --opted-out "$root/src"); then
+  echo "cannot list the mutation target projects under $root/src" >&2
   exit 2
 fi
 
@@ -79,6 +89,20 @@ while IFS= read -r path; do
   [ -n "$path" ] || continue
   [[ "$adr_text" == *"$path"* ]] || violations+=("stryker-config.json excludes $path, which ADR 0005 does not name")
 done < <(jq -r '."stryker-config".mutate[]? | select(startswith("!")) | sub("^!(\\*\\*/)?"; "")' "$config")
+
+whole_projects=$(jq -r '."stryker-config".mutate[]? | (capture("^!\\*\\*/(?<name>[^/*]+)/\\*\\*$")? | .name)' "$config")
+
+while IFS= read -r project; do
+  [ -n "$project" ] || continue
+  grep -qxF -- "${project%%/*}" <<<"$whole_projects" \
+    || violations+=("$project opts out of IsMutationTarget, but stryker-config.json's mutate has no \"!**/${project%%/*}/**\", so the full sweep mutates it")
+done <<<"$opted_out"
+
+while IFS= read -r project; do
+  [ -n "$project" ] || continue
+  grep -qxF -- "${project%%/*}" <<<"$whole_projects" \
+    && violations+=("stryker-config.json excludes all of ${project%%/*}, a mutation target; set IsMutationTarget to false in $project instead")
+done <<<"$targets"
 
 while IFS= read -r file; do
   [ -n "$file" ] || continue
