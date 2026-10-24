@@ -1,19 +1,12 @@
-using Anichron.Core;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
-using Anichron.Testing.DependencyInjection;
 using Anichron.Worker.Crawling;
-using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
-using Anichron.Worker.Ingestion.Pipeline;
-using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Work;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
-using Microsoft.Extensions.Options;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Crawling;
@@ -173,9 +166,14 @@ public sealed class CrawlTests
         fileSystem.AddEmptyFile("/data/originals/mira/a.jpg");
         fileSystem.AddEmptyFile("/data/originals/mira/b.jpg");
         using var cancel = new CancellationTokenSource();
-        var middleware = new DuplicateThenCancelMiddleware(cancel);
+        var middleware = new ScriptedClassificationMiddleware(
+            new ScriptedItem(FileOutcome.DuplicateCopy),
+            new ScriptedItem(FileOutcome.Unchanged, Cancels: cancel),
+            new ScriptedItem(FileOutcome.DuplicateCopy),
+            new ScriptedItem(FileOutcome.Unchanged));
+        var realPipeline = FileIngestionPipelines.Build([middleware], fileSystem, new WorkerSettings { MaxConcurrentFiles = 1 });
         var handler = new CrawlHandler(
-            new ActiveStorageConfigs(configs, activeLogger), configs, RealPipeline(fileSystem, middleware),
+            new ActiveStorageConfigs(configs, activeLogger), configs, realPipeline,
             new SharedContentReporter(Substitute.For<IMediaAssetRepository>(), new FakeLogger<SharedContentReporter>()),
             queue, logger);
 
@@ -184,43 +182,5 @@ public sealed class CrawlTests
         var next = await handler.RunAsync(new CrawlPayload(config.Id), progress, Ct);
 
         next.Should().BeOfType<CrawlResult>().Which.Duplicates.Should().Be(new DuplicateCounts(1, 0));
-    }
-
-    private static FileIngestionPipeline RealPipeline(MockFileSystem fileSystem, IIngestionMiddleware middleware)
-    {
-        var runner = new IngestionPipelineRunner(
-            [middleware], Substitute.For<IProxyDirectoryStrategy>(), fileSystem, new FakeLogger<IngestionPipelineRunner>());
-        var options = Options.Create(new WorkerSettings { MaxConcurrentFiles = 1 });
-        return new FileIngestionPipeline(
-            ScopeFactories.Providing(services => services.AddSingleton<IIngestionPipelineRunner>(runner)),
-            fileSystem,
-            new LivePhotoLinker(fileSystem),
-            new CrawlExclusions(options),
-            options,
-            Substitute.For<IGuidFactory>(),
-            new FakeLogger<FileIngestionPipeline>());
-    }
-
-    // Crawl 1: a copy, then cancelled. Crawl 2: a copy and an unchanged file.
-    private sealed class DuplicateThenCancelMiddleware(CancellationTokenSource cancel) : IIngestionMiddleware
-    {
-        private int calls;
-
-        public int Order => 10;
-        public bool CanInvoke(IngestionContext context) => true;
-
-        public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
-        {
-            _ = next;
-            if (++calls == 2)
-            {
-                await cancel.CancelAsync();
-                ct.ThrowIfCancellationRequested();
-            }
-
-            var outcome = calls is 1 or 3 ? FileOutcome.DuplicateCopy : FileOutcome.Unchanged;
-            context.Classification = new IngestionClassification(
-                new FileClassification(outcome, null), null, PairingAction.None);
-        }
     }
 }

@@ -1,16 +1,10 @@
-using Anichron.Core;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
-using Anichron.Testing.DependencyInjection;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
-using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -77,32 +71,11 @@ public sealed class FileIngestionPipelineTests
         public FileIngestionPipeline BuildWithMiddlewares(
             IEnumerable<IIngestionMiddleware> middlewares,
             int maxConcurrentFiles = 2)
-        {
-            var directoryStrategy = Substitute.For<IProxyDirectoryStrategy>();
-            directoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
-
-            var runner = new IngestionPipelineRunner(
+            => FileIngestionPipelines.Build(
                 middlewares,
-                directoryStrategy,
                 FileSystem,
-                Substitute.For<ILogger<IngestionPipelineRunner>>());
-
-            var scopeFactory = ScopeFactories.Providing(services => services.AddSingleton<IIngestionPipelineRunner>(runner));
-
-            var options = Options.Create(new WorkerSettings
-            {
-                MaxConcurrentFiles = maxConcurrentFiles,
-                ExcludedDirectories = ExcludedDirectories,
-            });
-            return new FileIngestionPipeline(
-                scopeFactory,
-                CrawlFileSystem(),
-                new LivePhotoLinker(FileSystem),
-                new CrawlExclusions(options),
-                options,
-                Substitute.For<IGuidFactory>(),
-                Substitute.For<ILogger<FileIngestionPipeline>>());
-        }
+                new WorkerSettings { MaxConcurrentFiles = maxConcurrentFiles, ExcludedDirectories = ExcludedDirectories },
+                CrawlFileSystem());
     }
 
     // ==========================================================================
@@ -405,10 +378,10 @@ public sealed class FileIngestionPipelineTests
 
         var progress = new RecordingProgress();
 
-        var result = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
+        var run = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), progress, CancellationToken.None);
 
-        result.Counts.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
+        run.Result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
         progress.Reports[^1].Should().Be(new WorkProgress(3, 3, "3 found, 2 processed, 1 failed"));
     }
 
@@ -420,11 +393,11 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/c.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/d.jpg", new MockFileData([]));
-        var middleware = new ClassifyingMiddleware(
-            (FileOutcome.DuplicateCopy, null, Fails: false),
-            (FileOutcome.DuplicateCopy, FileOutcome.DuplicateCopy, Fails: false),
-            (FileOutcome.DuplicateCopy, null, Fails: true),
-            (FileOutcome.Unchanged, null, Fails: false));
+        var middleware = new ScriptedClassificationMiddleware(
+            new ScriptedItem(FileOutcome.DuplicateCopy),
+            new ScriptedItem(FileOutcome.DuplicateCopy, FileOutcome.DuplicateCopy),
+            new ScriptedItem(FileOutcome.DuplicateCopy, Fails: true),
+            new ScriptedItem(FileOutcome.Unchanged));
 
         var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
@@ -520,26 +493,6 @@ public sealed class FileIngestionPipelineTests
                 throw new InvalidOperationException("boom");
 
             return Task.CompletedTask;
-        }
-    }
-
-    private sealed class ClassifyingMiddleware(
-        params (FileOutcome Primary, FileOutcome? Secondary, bool Fails)[] itemsInOrder) : IIngestionMiddleware
-    {
-        private int calls;
-
-        public int Order => 10;
-        public bool CanInvoke(IngestionContext context) => true;
-
-        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
-        {
-            _ = (next, ct);
-            var (primary, secondary, fails) = itemsInOrder[calls++];
-            context.Classification = new IngestionClassification(
-                new FileClassification(primary, null),
-                secondary is { } outcome ? new FileClassification(outcome, null) : null,
-                PairingAction.None);
-            return fails ? throw new InvalidOperationException("boom") : Task.CompletedTask;
         }
     }
 }

@@ -13,9 +13,9 @@ public sealed record CrawlResult(long Found, long Processed, long Failed)
 }
 
 /// <summary>What one crawl's walk and ingestion counted.</summary>
-/// <param name="Counts">The crawl's results summary, before the duplicate report.</param>
+/// <param name="Result">The crawl's results summary, before the duplicate report.</param>
 /// <param name="DuplicateCopies">Copies within the crawled config, counted by this crawl only.</param>
-internal sealed record CrawlRun(CrawlResult Counts, int DuplicateCopies);
+internal sealed record CrawlRun(CrawlResult Result, int DuplicateCopies);
 
 internal sealed class CrawlTally(IWorkProgress progress)
 {
@@ -26,7 +26,7 @@ internal sealed class CrawlTally(IWorkProgress progress)
     private int duplicateCopies;
     private bool walked;
 
-    public CrawlRun Result
+    public CrawlRun Run
     {
         get
         {

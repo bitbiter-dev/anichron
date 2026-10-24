@@ -5,10 +5,7 @@ namespace Anichron.Worker.Tests.Unit.Ingestion.Classification;
 public sealed class IngestionClassificationTests
 {
     private static int DuplicateCopies(FileOutcome primary, FileOutcome? secondary = null)
-        => new IngestionClassification(
-            new FileClassification(primary, null),
-            secondary is { } outcome ? new FileClassification(outcome, null) : null,
-            PairingAction.None).DuplicateCopies;
+        => Classifications.Of(primary, secondary).DuplicateCopies;
 
     [Fact]
     public void DuplicateCopies_DuplicateSingleFile_IsOne()

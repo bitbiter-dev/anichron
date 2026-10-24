@@ -45,7 +45,7 @@ internal sealed partial class FileIngestionPipeline(
             .ToArray();
 
         await Task.WhenAll([producer, .. consumers]);
-        return tally.Result;
+        return tally.Run;
     }
 
     private async Task ProduceAsync(

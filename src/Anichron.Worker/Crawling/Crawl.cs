@@ -21,7 +21,7 @@ internal sealed partial class CrawlHandler(
 
         Log.Crawling(logger, config.RootPath, config.UserId);
         var run = await pipeline.RunAsync(config, progress, ct);
-        var result = run.Counts with { Duplicates = await ReportDuplicatesAsync(config, run.DuplicateCopies, ct) };
+        var result = run.Result with { Duplicates = await ReportDuplicatesAsync(config, run.DuplicateCopies, ct) };
         await queue.EnqueueAsync(new BurstDetectionPayload(config.Id), null, ct);
         return result;
     }
