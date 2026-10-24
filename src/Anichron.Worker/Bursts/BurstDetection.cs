@@ -61,6 +61,7 @@ internal sealed partial class BurstDetectionHandler(
         }
 
         await unitOfWork.SaveChangesAsync(ct);
+        result.Dissolved += await bursts.DeleteMemberlessAsync(ct);
     }
 
     private async Task CheckAsync(UserStorageConfig config, BurstDetectionResult result, IWorkProgress progress, CancellationToken ct)

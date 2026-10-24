@@ -35,11 +35,13 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private readonly IWorkProgress progress = Substitute.For<IWorkProgress>();
     private readonly FakeLogger<BurstDetectionHandler> logger = new();
     private readonly FakeLogger<ActiveStorageConfigs> activeLogger = new();
+    private readonly ScriptedMemberlessBursts repository;
     private int nextGuid;
 
     public BurstDetectionTests()
     {
         db = AnichronDbContexts.InMemory(databaseName);
+        repository = new ScriptedMemberlessBursts(new EfBurstRepository(db));
         fileSystem.AddDirectory(Root);
         clock.GetCurrentInstant().Returns(Now);
         guids.NewGuid().Returns(_ => Guid.Parse($"bbbbbbbb-0000-0000-0000-{++nextGuid:D12}"));
@@ -122,7 +124,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private Task<object?> RunForAsync(Guid configId, CancellationToken ct)
         => new BurstDetectionHandler(
                 new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
-                new EfBurstRepository(db), db, reader, fileSystem, clock, guids, logger)
+                repository, db, reader, fileSystem, clock, guids, logger)
             .RunAsync(new BurstDetectionPayload(configId), progress, ct);
 
     private Dictionary<string, Guid?> BurstsOf(params MediaAsset[] photos)
@@ -537,14 +539,18 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task RunAsync_BurstWithoutMembers_IsDeletedAsync()
+    public async Task RunAsync_BurstsWithoutMembers_AreDeletedInOneStatementAndCountAsDissolvedAsync()
     {
-        StoredBurst(60);
+        var (a, gone) = (Photo("a.heic"), Photo("b.heic", 1, softDeleted: true));
+        StoredBurst(60, a, gone);
+        var memberless = StoredBurst(30);
+        repository.Memberless = 2;
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult { Dissolved = 1 });
-        StoredBursts().Should().BeEmpty();
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Dissolved = 3 });
+        repository.MemberlessDeletions.Should().Be(1);
+        StoredBursts().Should().ContainSingle().Which.Id.Should().Be(memberless);
     }
 
     [Fact]
@@ -580,5 +586,43 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         result.Should().Be(new BurstDetectionResult());
         StoredBursts().Should().ContainSingle();
+    }
+
+    private sealed class ScriptedMemberlessBursts(EfBurstRepository inner) : IBurstRepository
+    {
+        public int Memberless { get; set; }
+
+        public int MemberlessDeletions { get; private set; }
+
+        public Task<int> DeleteMemberlessAsync(CancellationToken ct)
+        {
+            MemberlessDeletions++;
+            return Task.FromResult(Memberless);
+        }
+
+        public Task<IReadOnlyList<Burst>> GetInConfigWithMembersAsync(Guid storageConfigId, CancellationToken ct)
+            => inner.GetInConfigWithMembersAsync(storageConfigId, ct);
+
+        public Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct)
+            => inner.GetWithMembersAsync(burstIds, ct);
+
+        public Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct)
+            => inner.CountUncheckedPhotosAsync(storageConfigId, ct);
+
+        public Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(Guid storageConfigId, int count, CancellationToken ct)
+            => inner.GetUncheckedPhotosAsync(storageConfigId, count, ct);
+
+        public Task<IReadOnlyList<MediaAsset>> GetCandidatesLabelledAsync(Guid storageConfigId, string cameraBurstId, CancellationToken ct)
+            => inner.GetCandidatesLabelledAsync(storageConfigId, cameraBurstId, ct);
+
+        public void Add(Burst burst) => inner.Add(burst);
+
+        public void Remove(Burst burst) => inner.Remove(burst);
+
+        public void AddCheck(BurstCheck check) => inner.AddCheck(check);
+
+        public Task RemoveCheckAsync(Guid assetId, CancellationToken ct) => inner.RemoveCheckAsync(assetId, ct);
+
+        public void ForgetLoaded() => inner.ForgetLoaded();
     }
 }

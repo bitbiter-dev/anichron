@@ -10,6 +10,25 @@ public sealed class BurstRepositoryTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
+    public async Task GetInConfigWithMembersAsync_LeavesOutBurstsWithoutMembersAsync()
+    {
+        var name = Guid.NewGuid().ToString();
+        var config = Guid.NewGuid();
+        var (withMember, memberless) = (Guid.NewGuid(), Guid.NewGuid());
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            seed.Bursts.AddRange(new Burst { Id = withMember }, new Burst { Id = memberless });
+            seed.MediaAssets.Add(new MediaAsset { Id = Guid.NewGuid(), StorageConfigId = config, BurstId = withMember, FilePath = "a.jpg", FileName = "a.jpg", ContentHash = "cafe" });
+            await seed.SaveChangesAsync(Ct);
+        }
+
+        await using var db = AnichronDbContexts.InMemory(name);
+        var loaded = await new EfBurstRepository(db).GetInConfigWithMembersAsync(config, Ct);
+
+        loaded.Should().ContainSingle().Which.Id.Should().Be(withMember);
+    }
+
+    [Fact]
     public async Task RemoveCheckAsync_CheckedPhoto_DeletesItsRowAtTheNextSaveAsync()
     {
         var name = Guid.NewGuid().ToString();
