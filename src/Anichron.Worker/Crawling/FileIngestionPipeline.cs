@@ -12,7 +12,7 @@ namespace Anichron.Worker.Crawling;
 
 internal interface IFileIngestionPipeline
 {
-    Task<CrawlResult> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct);
+    Task<CrawlRun> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct);
 }
 
 internal sealed partial class FileIngestionPipeline(
@@ -26,7 +26,7 @@ internal sealed partial class FileIngestionPipeline(
 {
     private readonly WorkerSettings settings = workerOptions.Value;
 
-    public async Task<CrawlResult> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct)
+    public async Task<CrawlRun> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct)
     {
         var tally = new CrawlTally(progress);
         var channel = Channel.CreateBounded<IngestionItem>(
@@ -142,11 +142,11 @@ internal sealed partial class FileIngestionPipeline(
             {
                 var context = new IngestionContext { Item = item, Config = config, AttemptId = guidFactory.NewGuid() };
                 await runner.RunAsync(context, ct);
-                tally.Processed();
+                tally.Processed(context.Classification?.DuplicateCopies ?? 0);
             }
-            catch (Exception ex) when (IngestionShutdown.IsInProgress(ex, ct))
+            catch (Exception ex) when (IngestionCancellation.IsRequested(ex, ct))
             {
-                // A shutdown is not an item failure: stop promptly instead of draining the queue.
+                // A shutdown or a cancel is not an item failure: stop promptly instead of draining the queue.
                 throw;
             }
             catch (Exception ex)

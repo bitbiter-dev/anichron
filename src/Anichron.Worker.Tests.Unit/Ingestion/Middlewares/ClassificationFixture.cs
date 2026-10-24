@@ -26,7 +26,6 @@ internal sealed class ClassificationFixture
     public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
     public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
     public FakeLogger<KnownFileReconciler> Logger { get; } = new();
-    public DuplicateCopyTally Tally { get; } = new();
     public List<ProxyFile> AddedProxies { get; } = [];
 
     public ClassificationFixture()
@@ -57,7 +56,7 @@ internal sealed class ClassificationFixture
                 new FakeLogger<PairedMovProxyWriter>()),
             saver,
             new FakeLogger<LivePhotoPairer>());
-        return new(new IngestionClassifier(Repository, FileSystem), pairer, new KnownFileReconciler(Clock, Tally, Logger), saver);
+        return new(new IngestionClassifier(Repository, FileSystem), pairer, new KnownFileReconciler(Clock, Logger), saver);
     }
 
     public Task DidNotTranscodeAsync()

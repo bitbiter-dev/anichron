@@ -177,7 +177,8 @@ public sealed class ClassificationMiddlewareTests
         var stored = Stored("2023/photo.jpg");
         fx.Store(stored);
 
-        await fx.Build().InvokeAsync(Single("copy/photo.jpg"), NoOpNextAsync, CancellationToken.None);
+        var context = Single("copy/photo.jpg");
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         stored.FilePath.Should().Be("2023/photo.jpg");
         stored.FileName.Should().Be("photo.jpg");
@@ -186,7 +187,7 @@ public sealed class ClassificationMiddlewareTests
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle()
             .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug && r.Message
                 == "Duplicate content abc123 in storage config 11111111-1111-1111-1111-111111111111: copy/photo.jpg is a copy of 2023/photo.jpg.");
-        fx.Tally.Take(ConfigId).Should().Be(1);
+        context.Classification!.DuplicateCopies.Should().Be(1);
     }
 
     [Fact]
@@ -358,9 +359,10 @@ public sealed class ClassificationMiddlewareTests
         heic.PairedAssetId = Guid.NewGuid();
         fx.Store(heic, StoredMov("2023/live.mov"));
 
-        await fx.Build().InvokeAsync(Pair("copy/live.heic", "copy/live.mov"), NoOpNextAsync, CancellationToken.None);
+        var context = Pair("copy/live.heic", "copy/live.mov");
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fx.Tally.Take(ConfigId).Should().Be(2);
+        context.Classification!.DuplicateCopies.Should().Be(2);
         fx.Logger.Collector.GetSnapshot().Select(r => r.Message)
             .Should().Equal(
                 "Duplicate content abc123 in storage config 11111111-1111-1111-1111-111111111111: copy/live.heic is a copy of 2023/live.heic.",

@@ -4,6 +4,7 @@ using Anichron.Core.Work;
 using Anichron.Testing.DependencyInjection;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
@@ -407,8 +408,28 @@ public sealed class FileIngestionPipelineTests
         var result = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), progress, CancellationToken.None);
 
-        result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
+        result.Counts.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
         progress.Reports[^1].Should().Be(new WorkProgress(3, 3, "3 found, 2 processed, 1 failed"));
+    }
+
+    [Fact]
+    public async Task RunAsync_CountsTheDuplicateCopiesOfItemsThatSucceededOnlyAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/c.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/d.jpg", new MockFileData([]));
+        var middleware = new ClassifyingMiddleware(
+            (FileOutcome.DuplicateCopy, null, Fails: false),
+            (FileOutcome.DuplicateCopy, FileOutcome.DuplicateCopy, Fails: false),
+            (FileOutcome.DuplicateCopy, null, Fails: true),
+            (FileOutcome.Unchanged, null, Fails: false));
+
+        var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        result.Should().Be(new CrawlRun(new CrawlResult(Found: 4, Processed: 3, Failed: 1), DuplicateCopies: 3));
     }
 
     [Fact]
@@ -438,7 +459,7 @@ public sealed class FileIngestionPipelineTests
         var first = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
         var second = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
 
-        (first, second).Should().Be((new CrawlResult(2, 2, 0), new CrawlResult(2, 2, 0)));
+        (first, second).Should().Be((new CrawlRun(new CrawlResult(2, 2, 0), 0), new CrawlRun(new CrawlResult(2, 2, 0), 0)));
     }
 
     private sealed class RecordingProgress : IWorkProgress
@@ -499,6 +520,26 @@ public sealed class FileIngestionPipelineTests
                 throw new InvalidOperationException("boom");
 
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ClassifyingMiddleware(
+        params (FileOutcome Primary, FileOutcome? Secondary, bool Fails)[] itemsInOrder) : IIngestionMiddleware
+    {
+        private int calls;
+
+        public int Order => 10;
+        public bool CanInvoke(IngestionContext context) => true;
+
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        {
+            _ = (next, ct);
+            var (primary, secondary, fails) = itemsInOrder[calls++];
+            context.Classification = new IngestionClassification(
+                new FileClassification(primary, null),
+                secondary is { } outcome ? new FileClassification(outcome, null) : null,
+                PairingAction.None);
+            return fails ? throw new InvalidOperationException("boom") : Task.CompletedTask;
         }
     }
 }

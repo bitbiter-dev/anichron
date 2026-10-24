@@ -2,8 +2,8 @@ using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
+using Anichron.Worker.Work;
 using Microsoft.Extensions.Options;
 
 namespace Anichron.Worker.Startup;
