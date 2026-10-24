@@ -121,10 +121,10 @@ public sealed class BurstRepositoryTests
         var noon = new LocalDateTime(2024, 6, 1, 12, 0);
         var lowId = Guid.Parse("00000000-0000-0000-0000-000000000001");
         var highId = Guid.Parse("00000000-0000-0000-0000-000000000002");
-        var earlier = Photo(configId, Guid.NewGuid(), noon.PlusMinutes(-1));
-        var atCursor = Photo(configId, lowId, noon);
-        var sameTimeLaterId = Photo(configId, highId, noon);
-        var later = Photo(configId, Guid.NewGuid(), noon.PlusMinutes(1));
+        var earlier = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(-1));
+        var atCursor = UncheckedPhoto(configId, lowId, noon);
+        var sameTimeLaterId = UncheckedPhoto(configId, highId, noon);
+        var later = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(1));
         await using (var seed = AnichronDbContexts.InMemory(name))
         {
             seed.MediaAssets.AddRange(later, sameTimeLaterId, atCursor, earlier);
@@ -143,8 +143,8 @@ public sealed class BurstRepositoryTests
         var name = Guid.NewGuid().ToString();
         var configId = Guid.NewGuid();
         var noon = new LocalDateTime(2024, 6, 1, 12, 0);
-        var older = Photo(configId, Guid.NewGuid(), noon);
-        var newer = Photo(configId, Guid.NewGuid(), noon.PlusMinutes(1));
+        var older = UncheckedPhoto(configId, Guid.NewGuid(), noon);
+        var newer = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(1));
         await using (var seed = AnichronDbContexts.InMemory(name))
         {
             seed.MediaAssets.AddRange(newer, older);
@@ -161,7 +161,7 @@ public sealed class BurstRepositoryTests
     public void GetUncheckedPhotosAsync_OnPostgres_ComparesCaptureTimeThenIdInTheQuery()
     {
         using var db = AnichronDbContexts.NpgsqlModel();
-        var after = Photo(Guid.NewGuid(), Guid.NewGuid(), new LocalDateTime(2024, 6, 1, 12, 0));
+        var after = UncheckedPhoto(Guid.NewGuid(), Guid.NewGuid(), new LocalDateTime(2024, 6, 1, 12, 0));
 
         var sql = new EfBurstRepository(db).UncheckedPhotosAfter(after.StorageConfigId, after).ToQueryString();
 
@@ -169,7 +169,7 @@ public sealed class BurstRepositoryTests
            .And.Contain("""m."DateCaptured" = @capturedAt AND m."Id" > @id""");
     }
 
-    private static MediaAsset Photo(Guid configId, Guid id, LocalDateTime capturedAt) => new()
+    private static MediaAsset UncheckedPhoto(Guid configId, Guid id, LocalDateTime capturedAt) => new()
     {
         Id = id,
         StorageConfigId = configId,

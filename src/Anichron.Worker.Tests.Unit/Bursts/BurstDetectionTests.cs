@@ -882,7 +882,8 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         await new BurstDetectionHandler(
                 new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
-                bursts, Substitute.For<IUnitOfWork>(), reader, fileSystem, clock, guids, logger)
+                bursts, Substitute.For<IUnitOfWork>(), reader, matcher, fileSystem, clock, guids,
+                Options.Create(new WorkerSettings()), logger)
             .RunAsync(new BurstDetectionPayload(ConfigId), progress, Ct);
 
         await bursts.Received(1).GetUncheckedPhotosAsync(ConfigId, photo, Arg.Any<int>(), Arg.Any<CancellationToken>());
@@ -1027,8 +1028,9 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         public Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct)
             => inner.CountUncheckedPhotosAsync(storageConfigId, ct);
 
-        public Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(Guid storageConfigId, int count, CancellationToken ct)
-            => inner.GetUncheckedPhotosAsync(storageConfigId, count, ct);
+        public Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(
+            Guid storageConfigId, MediaAsset? after, int count, CancellationToken ct)
+            => inner.GetUncheckedPhotosAsync(storageConfigId, after, count, ct);
 
         public Task<IReadOnlyList<MediaAsset>> GetCandidatesLabelledAsync(Guid storageConfigId, string cameraBurstId, CancellationToken ct)
             => inner.GetCandidatesLabelledAsync(storageConfigId, cameraBurstId, ct);
