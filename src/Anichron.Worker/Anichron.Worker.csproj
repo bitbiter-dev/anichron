@@ -16,6 +16,10 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Blurhash.ImageSharp" />
     <PackageReference Include="MetadataExtractor" />
+    <PackageReference Include="OpenCvSharp4" />
+    <PackageReference Include="OpenCvSharp4.official.runtime.linux-x64" />
+    <PackageReference Include="OpenCvSharp4.runtime.linux-arm64" />
+    <PackageReference Include="OpenCvSharp4.runtime.osx.arm64" />
     <PackageReference Include="SixLabors.ImageSharp" />
     <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="System.IO.Abstractions" />

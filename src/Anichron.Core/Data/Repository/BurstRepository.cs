@@ -6,10 +6,7 @@ namespace Anichron.Core.Data.Repository;
 /// <summary>Bursts and the burst-checked mark, written only by the Worker's burst detection.</summary>
 public interface IBurstRepository
 {
-    /// <summary>
-    /// The config's bursts, and bursts with no members left, each with every member, soft-deleted
-    /// ones included.
-    /// </summary>
+    /// <summary>The config's bursts, each with every member, soft-deleted ones included.</summary>
     /// <param name="storageConfigId">The config whose bursts are loaded.</param>
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<Burst>> GetInConfigWithMembersAsync(Guid storageConfigId, CancellationToken ct);
@@ -18,6 +15,14 @@ public interface IBurstRepository
     /// <param name="burstIds">The bursts to load.</param>
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes every burst without a member row, in any config (left behind when a storage config
+    /// was deleted), in one statement, so two Workers repairing at once cannot conflict.
+    /// </summary>
+    /// <param name="ct">Cancels the statement.</param>
+    /// <returns>How many bursts were deleted.</returns>
+    Task<int> DeleteMemberlessAsync(CancellationToken ct);
 
     Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct);
 
@@ -38,6 +43,19 @@ public interface IBurstRepository
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<MediaAsset>> GetCandidatesLabelledAsync(Guid storageConfigId, string cameraBurstId, CancellationToken ct);
 
+    /// <summary>
+    /// The config's checked candidates from this camera captured within the window that still have
+    /// a thumbnail, each with its proxy rows, oldest first (then by id).
+    /// </summary>
+    /// <param name="storageConfigId">The config searched.</param>
+    /// <param name="cameraMake">The camera make the candidates share.</param>
+    /// <param name="cameraModel">The camera model the candidates share.</param>
+    /// <param name="from">The earliest capture time, inclusive.</param>
+    /// <param name="to">The latest capture time, inclusive.</param>
+    /// <param name="ct">Cancels the query.</param>
+    Task<IReadOnlyList<MediaAsset>> GetCandidatesNearAsync(
+        Guid storageConfigId, string cameraMake, string cameraModel, LocalDateTime from, LocalDateTime to, CancellationToken ct);
+
     void Add(Burst burst);
     void Remove(Burst burst);
     void AddCheck(BurstCheck check);
@@ -55,7 +73,7 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
 {
     public async Task<IReadOnlyList<Burst>> GetInConfigWithMembersAsync(Guid storageConfigId, CancellationToken ct)
         => await WithMembers()
-            .Where(b => b.Assets.All(a => a.StorageConfigId == storageConfigId))
+            .Where(b => b.Assets.Any(a => a.StorageConfigId == storageConfigId))
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct)
@@ -63,6 +81,12 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
             .Where(b => burstIds.Contains(b.Id))
             .OrderBy(b => b.CreatedAt).ThenBy(b => b.Id)
             .ToListAsync(ct);
+
+    // Stryker disable all
+    public Task<int> DeleteMemberlessAsync(CancellationToken ct)
+        => db.Bursts.IgnoreQueryFilters()
+            .Where(b => !db.MediaAssets.IgnoreQueryFilters().Any(a => a.BurstId == b.Id))
+            .ExecuteDeleteAsync(ct);
 
     public Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct)
         => UncheckedPhotos(storageConfigId).CountAsync(ct);
@@ -81,6 +105,18 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
         => await db.BurstChecks
             .Where(c => c.IsCandidate && c.CameraBurstId == cameraBurstId && c.Asset.StorageConfigId == storageConfigId)
             .Select(c => c.Asset)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<MediaAsset>> GetCandidatesNearAsync(
+        Guid storageConfigId, string cameraMake, string cameraModel, LocalDateTime from, LocalDateTime to, CancellationToken ct)
+        => await db.MediaAssets
+            .Include(a => a.ProxyFiles)
+            .Where(a => a.StorageConfigId == storageConfigId
+                && a.DateCaptured >= from && a.DateCaptured <= to
+                && a.Metadata!.CameraMake == cameraMake && a.Metadata.CameraModel == cameraModel
+                && a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail)
+                && db.BurstChecks.Any(c => c.AssetId == a.Id && c.IsCandidate))
+            .OrderBy(a => a.DateCaptured).ThenBy(a => a.Id)
             .ToListAsync(ct);
 
     public void Add(Burst burst)

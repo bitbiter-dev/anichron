@@ -82,6 +82,31 @@ public sealed class WorkerSettingsTests
     }
 
     // ==========================================================================
+    // Burst detection
+    // ==========================================================================
+
+    [Fact]
+    public void Defaults_BurstGapSpanAndThreshold_AreTwoMinutesFiveMinutesAndAQuarter()
+        => new WorkerSettings().Should().BeEquivalentTo(
+            new { BurstGapSeconds = 120, BurstSpanSeconds = 300, BurstSimilarityThreshold = 0.25 });
+
+    [Fact]
+    public void Validate_BurstGapSecondsZero_ReturnsFailed()
+        => IsValid(ValidSettings with { BurstGapSeconds = 0 }).Should().BeFalse();
+
+    [Fact]
+    public void Validate_BurstSpanSecondsZero_ReturnsFailed()
+        => IsValid(ValidSettings with { BurstSpanSeconds = 0 }).Should().BeFalse();
+
+    [Theory]
+    [InlineData(0.0, false)]
+    [InlineData(0.01, true)]
+    [InlineData(1.0, true)]
+    [InlineData(1.01, false)]
+    public void Validate_BurstSimilarityThreshold_MustBeAboveZeroAndAtMostOne(double threshold, bool valid)
+        => IsValid(ValidSettings with { BurstSimilarityThreshold = threshold }).Should().Be(valid);
+
+    // ==========================================================================
     // MaxConcurrentFiles
     // ==========================================================================
 
@@ -202,6 +227,25 @@ public sealed class WorkerSettingsTests
     [InlineData(nameof(WorkerSettings.WorkItemRetentionIntervalHours))]
     public void Validate_NonPositiveWorkQueueSetting_ReportsIt(string setting)
         => GetFailures(WithZero(setting)).Should().Contain(failure => failure.MemberNames.Contains(setting));
+
+    [Fact]
+    public void Validate_SpanEqualToTheGap_ReturnsSuccess()
+        => IsValid(ValidSettings with { BurstGapSeconds = 120, BurstSpanSeconds = 120 }).Should().BeTrue();
+
+    [Fact]
+    public void Validate_SpanShorterThanTheGap_ReportsTheSpan()
+        => GetFailures(ValidSettings with { BurstGapSeconds = 120, BurstSpanSeconds = 119 })
+            .Should().ContainSingle().Which.Should().BeEquivalentTo(new
+            {
+                MemberNames = new[] { nameof(WorkerSettings.BurstSpanSeconds) },
+                ErrorMessage = "Worker:BurstSpanSeconds must be at least Worker:BurstGapSeconds, or no neighbour further away than the span can ever join.",
+            });
+
+    [Fact]
+    public void Validate_LeaseAndSpanBothInvalid_ReportsBoth()
+        => GetFailures(ValidSettings with { WorkHeartbeatSeconds = 2, WorkLeaseSeconds = 2, BurstSpanSeconds = 1 })
+            .Select(failure => failure.MemberNames.Single())
+            .Should().Equal(nameof(WorkerSettings.WorkLeaseSeconds), nameof(WorkerSettings.BurstSpanSeconds));
 
     [Theory]
     [InlineData(2, 2)]

@@ -138,6 +138,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .IsUnique()
                   .HasDatabaseName(MediaAssetIndexNames.FilePathUnique);
 
+            entity.HasIndex(m => new { m.StorageConfigId, m.DateCaptured });
+
             // Self-Reference (Paired Asset)
             entity.HasOne(m => m.PairedAsset)
                   .WithMany()
