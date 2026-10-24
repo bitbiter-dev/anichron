@@ -64,14 +64,12 @@ jobs:
       - name: Sweep at CI concurrency
         continue-on-error: true
         timeout-minutes: 25
-        working-directory: src
-        run: dotnet stryker --output ../mutation-default
+        run: scripts/stryker-sweep.sh --output ../mutation-default
 
       - name: Sweep single-threaded
         continue-on-error: true
         timeout-minutes: 45
-        working-directory: src
-        run: dotnet stryker --concurrency 1 --output ../mutation-single
+        run: scripts/stryker-sweep.sh --concurrency 1 --output ../mutation-single
 
       - name: Upload both reports
         if: always()

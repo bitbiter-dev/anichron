@@ -7,6 +7,7 @@
 #   - no workflow or script passes --since, --with-baseline or a threshold flag;
 #   - --concurrency appears only in mutation-divergence.yml, and --mutate/-m
 #     only in mutation-changed.sh;
+#   - workflows run Stryker only through scripts/stryker-sweep.sh;
 #   - every file with a `// Stryker disable` directive, and every path excluded
 #     in stryker-config.json's mutate list, is named in ADR 0005.
 #
@@ -67,6 +68,10 @@ while IFS= read -r file; do
   [ -n "$file" ] && [ "$file" != scripts/mutation-changed.sh ] \
     && violations+=("$file: passes --mutate, sanctioned only in mutation-changed.sh")
 done < <(flag_in 'stryker.*(^|[[:space:]])(--mutate|-m)([[:space:]=]|$)')
+
+while IFS= read -r file; do
+  [ -n "$file" ] && violations+=("$file: runs dotnet stryker directly; workflows go through scripts/stryker-sweep.sh")
+done < <(flag_in 'dotnet[[:space:]]+stryker' | grep '^\.github/workflows/' || true)
 
 adr_text=$(cat "$adr")
 
