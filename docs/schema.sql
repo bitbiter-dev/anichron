@@ -240,6 +240,9 @@ CREATE INDEX "IX_MediaAssets_PairedAssetId" ON "MediaAssets" ("PairedAssetId");
 CREATE UNIQUE INDEX ix_mediaassets_storageconfigid_contenthash_active ON "MediaAssets" ("StorageConfigId", "ContentHash") WHERE "IsSoftDeleted" = false;
 
 
+CREATE INDEX "IX_MediaAssets_StorageConfigId_DateCaptured" ON "MediaAssets" ("StorageConfigId", "DateCaptured");
+
+
 CREATE UNIQUE INDEX "IX_MediaAssets_StorageConfigId_FilePath" ON "MediaAssets" ("StorageConfigId", "FilePath");
 
 

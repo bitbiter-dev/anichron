@@ -29,6 +29,7 @@ internal static class ArchitectureRules
     public const string OnlyWorkQueueInsertsWorkItems = "only-work-queue-inserts-work-items";
     public const string WorkHandlersLiveInWorker = "work-handlers-live-in-worker";
     public const string WorkItemsChangeOnlyThroughQueueOrCancel = "work-items-change-only-through-queue-or-cancel";
+    public const string OpenCvStaysInTheMatcher = "opencv-stays-in-the-matcher";
 
     private const string Domain = "Anichron.Core.Domain";
     private const string ApiWiring = "Anichron.API.Infrastructure";
@@ -36,6 +37,7 @@ internal static class ArchitectureRules
     private const string WorkQueue = "Anichron.Core.Work.EfWorkQueue";
     private const string WorkItemReader = "Anichron.Core.Work.EfWorkItemReader";
     private const string WorkItemCanceller = "Anichron.Core.Work.EfWorkItemCanceller";
+    private const string ThumbnailMatcher = @"^Anichron\.Worker\.Bursts\.OrbThumbnailMatcher(\+.*)?$";
 
     public static IReadOnlyList<ArchitectureRule> All { get; } =
     [
@@ -92,6 +94,10 @@ internal static class ArchitectureRules
                 .And().DoNotHaveFullName(WorkItemReader)
                 .And().DoNotHaveFullName(WorkItemCanceller)
                 .Should().NotDependOnAny(typeof(WorkItem))),
+        new(OpenCvStaysInTheMatcher,
+            Types().That().ResideInAssembly(ApiAssembly, CoreAssembly, InfrastructureAssembly, WorkerAssembly)
+                .And().DoNotHaveFullNameMatching(ThumbnailMatcher)
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(@"^OpenCvSharp(\..*)?$")),
     ];
 
     public static ArchitectureRule Named(string name) => All.Single(rule => rule.Name == name);

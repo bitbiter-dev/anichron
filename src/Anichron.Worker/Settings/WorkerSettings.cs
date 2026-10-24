@@ -41,6 +41,15 @@ public sealed record WorkerSettings : IValidatableObject
     public double WorkItemRetentionIntervalHours { get; init; } = 24;
 
     [Range(1, int.MaxValue)]
+    public int BurstGapSeconds { get; init; } = 120;
+
+    [Range(1, int.MaxValue)]
+    public int BurstSpanSeconds { get; init; } = 300;
+
+    [Range(0.0, 1.0, MinimumIsExclusive = true)]
+    public double BurstSimilarityThreshold { get; init; } = 0.25;
+
+    [Range(1, int.MaxValue)]
     public int ThumbnailShortEdge { get; init; } = 300;
 
     [Range(1, 100)]

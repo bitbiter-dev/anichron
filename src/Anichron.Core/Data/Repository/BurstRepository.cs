@@ -41,6 +41,19 @@ public interface IBurstRepository
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<MediaAsset>> GetCandidatesLabelledAsync(Guid storageConfigId, string cameraBurstId, CancellationToken ct);
 
+    /// <summary>
+    /// The config's checked candidates from this camera captured within the window that still have
+    /// a thumbnail, each with its proxy rows, oldest first (then by id).
+    /// </summary>
+    /// <param name="storageConfigId">The config searched.</param>
+    /// <param name="cameraMake">The camera make the candidates share.</param>
+    /// <param name="cameraModel">The camera model the candidates share.</param>
+    /// <param name="from">The earliest capture time, inclusive.</param>
+    /// <param name="to">The latest capture time, inclusive.</param>
+    /// <param name="ct">Cancels the query.</param>
+    Task<IReadOnlyList<MediaAsset>> GetCandidatesNearAsync(
+        Guid storageConfigId, string cameraMake, string cameraModel, LocalDateTime from, LocalDateTime to, CancellationToken ct);
+
     void Add(Burst burst);
     void Remove(Burst burst);
     void AddCheck(BurstCheck check);
@@ -58,7 +71,7 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
 {
     public async Task<IReadOnlyList<Burst>> GetInConfigWithMembersAsync(Guid storageConfigId, CancellationToken ct)
         => await WithMembers()
-            .Where(b => b.Assets.Any() && b.Assets.All(a => a.StorageConfigId == storageConfigId))
+            .Where(b => b.Assets.Any(a => a.StorageConfigId == storageConfigId))
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct)
@@ -89,6 +102,18 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
         => await db.BurstChecks
             .Where(c => c.IsCandidate && c.CameraBurstId == cameraBurstId && c.Asset.StorageConfigId == storageConfigId)
             .Select(c => c.Asset)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<MediaAsset>> GetCandidatesNearAsync(
+        Guid storageConfigId, string cameraMake, string cameraModel, LocalDateTime from, LocalDateTime to, CancellationToken ct)
+        => await db.MediaAssets
+            .Include(a => a.ProxyFiles)
+            .Where(a => a.StorageConfigId == storageConfigId
+                && a.DateCaptured >= from && a.DateCaptured <= to
+                && a.Metadata!.CameraMake == cameraMake && a.Metadata.CameraModel == cameraModel
+                && a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail)
+                && db.BurstChecks.Any(c => c.AssetId == a.Id && c.IsCandidate))
+            .OrderBy(a => a.DateCaptured).ThenBy(a => a.Id)
             .ToListAsync(ct);
 
     public void Add(Burst burst)

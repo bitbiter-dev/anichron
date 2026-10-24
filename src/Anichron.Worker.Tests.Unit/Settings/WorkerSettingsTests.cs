@@ -82,6 +82,31 @@ public sealed class WorkerSettingsTests
     }
 
     // ==========================================================================
+    // Burst detection
+    // ==========================================================================
+
+    [Fact]
+    public void Defaults_BurstGapSpanAndThreshold_AreTwoMinutesFiveMinutesAndAQuarter()
+        => new WorkerSettings().Should().BeEquivalentTo(
+            new { BurstGapSeconds = 120, BurstSpanSeconds = 300, BurstSimilarityThreshold = 0.25 });
+
+    [Fact]
+    public void Validate_BurstGapSecondsZero_ReturnsFailed()
+        => IsValid(ValidSettings with { BurstGapSeconds = 0 }).Should().BeFalse();
+
+    [Fact]
+    public void Validate_BurstSpanSecondsZero_ReturnsFailed()
+        => IsValid(ValidSettings with { BurstSpanSeconds = 0 }).Should().BeFalse();
+
+    [Theory]
+    [InlineData(0.0, false)]
+    [InlineData(0.01, true)]
+    [InlineData(1.0, true)]
+    [InlineData(1.01, false)]
+    public void Validate_BurstSimilarityThreshold_MustBeAboveZeroAndAtMostOne(double threshold, bool valid)
+        => IsValid(ValidSettings with { BurstSimilarityThreshold = threshold }).Should().Be(valid);
+
+    // ==========================================================================
     // MaxConcurrentFiles
     // ==========================================================================
 

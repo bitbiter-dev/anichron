@@ -85,6 +85,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<IFileIngestionPipeline, FileIngestionPipeline>();
             services.AddScoped<ISharedContentReporter, SharedContentReporter>();
             services.AddSingleton<IOriginalPhotoReader, OriginalPhotoReader>();
+            services.AddScoped<IThumbnailMatcher, OrbThumbnailMatcher>();
             services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();
             services.AddSingleton<ProxyStagingWriter>();
             services.AddImageProxyServices();
