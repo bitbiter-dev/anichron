@@ -672,6 +672,10 @@
           "Microsoft.Extensions.Hosting": "[10.0.13, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.13, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "OpenCvSharp4": "[4.13.0.20260627, )",
+          "OpenCvSharp4.official.runtime.linux-x64": "[4.13.0.20260627, )",
+          "OpenCvSharp4.runtime.linux-arm64": "[4.13.0.20260627, )",
+          "OpenCvSharp4.runtime.osx.arm64": "[4.13.0.20260627, )",
           "SixLabors.ImageSharp": "[4.1.3, )",
           "System.IO.Abstractions": "[22.3.0, )",
           "System.IO.Hashing": "[10.0.13, )"
@@ -835,6 +839,30 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.3",
           "Npgsql.NodaTime": "10.0.3"
         }
+      },
+      "OpenCvSharp4": {
+        "type": "CentralTransitive",
+        "requested": "[4.13.0.20260627, )",
+        "resolved": "4.13.0.20260627",
+        "contentHash": "nYk95jkyYY9f0sF5KqZ3OB1SWkmqsfV7eN0ROiQds/rxpSn0v1G0QIedMbwuqbdPhvQnOIG2DDmpkLnHEJMh8Q=="
+      },
+      "OpenCvSharp4.official.runtime.linux-x64": {
+        "type": "CentralTransitive",
+        "requested": "[4.13.0.20260627, )",
+        "resolved": "4.13.0.20260627",
+        "contentHash": "Jy14YMCB9iBhT+vGLPmbFsZfgDi7Imbh8H9egzz8MH+UCbwO+ZQ+HHZFdUgqd18B2c7088QPsG+0aa1W3i554g=="
+      },
+      "OpenCvSharp4.runtime.linux-arm64": {
+        "type": "CentralTransitive",
+        "requested": "[4.13.0.20260627, )",
+        "resolved": "4.13.0.20260627",
+        "contentHash": "4WMhAF6ESune5g5728ZEEijMpLS1Vl7dtDzIjahOHYylT9VI6xl8S5NbeynkRAC/C6Prh2bUfl6mJAGJdDKKTQ=="
+      },
+      "OpenCvSharp4.runtime.osx.arm64": {
+        "type": "CentralTransitive",
+        "requested": "[4.13.0.20260627, )",
+        "resolved": "4.13.0.20260627",
+        "contentHash": "Tw79uV9Wi2xrEc2xj0i0G7B7D9O/1w7vAv6+w4Cml8J93UOy4lVolp6vQhpOvAJe6MkVR0fm7DqWEE0uGHN1JA=="
       },
       "SixLabors.ImageSharp": {
         "type": "CentralTransitive",

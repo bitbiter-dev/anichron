@@ -5,10 +5,12 @@ using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Testing.Data;
 using Anichron.Worker.Bursts;
+using Anichron.Worker.Settings;
 using Anichron.Worker.Work;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -29,21 +31,27 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private readonly string databaseName = Guid.NewGuid().ToString();
     private readonly AnichronDbContext db;
     private readonly IOriginalPhotoReader reader = Substitute.For<IOriginalPhotoReader>();
+    private readonly IThumbnailMatcher matcher = Substitute.For<IThumbnailMatcher>();
+    private readonly Dictionary<(string, string), double> scores = [];
     private readonly MockFileSystem fileSystem = new();
     private readonly IClock clock = Substitute.For<IClock>();
     private readonly IGuidFactory guids = Substitute.For<IGuidFactory>();
     private readonly IWorkProgress progress = Substitute.For<IWorkProgress>();
     private readonly FakeLogger<BurstDetectionHandler> logger = new();
     private readonly FakeLogger<ActiveStorageConfigs> activeLogger = new();
+    private readonly ScriptedBursts repository;
     private int nextGuid;
 
     public BurstDetectionTests()
     {
         db = AnichronDbContexts.InMemory(databaseName);
+        repository = new ScriptedBursts(new EfBurstRepository(db));
         fileSystem.AddDirectory(Root);
         clock.GetCurrentInstant().Returns(Now);
         guids.NewGuid().Returns(_ => Guid.Parse($"bbbbbbbb-0000-0000-0000-{++nextGuid:D12}"));
         reader.Read(Arg.Any<string>()).Returns(new OriginalPhotoFacts(Noon, null));
+        matcher.ScoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => scores.GetValueOrDefault((call.ArgAt<string>(0), call.ArgAt<string>(1))));
         Seed(new User { Id = MiraId, Username = "mira", Email = "mira@example.com", PasswordHash = "h" });
         Seed(new UserStorageConfig { Id = ConfigId, UserId = MiraId, RootPath = Root, IsActive = true });
         Seed(new UserStorageConfig { Id = OtherConfigId, UserId = MiraId, RootPath = "/data/originals/other", IsActive = true });
@@ -64,6 +72,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private MediaAsset Photo(
         string name,
         int minutes = 0,
+        int seconds = 0,
         MediaType type = MediaType.Image,
         Guid? config = null,
         bool thumbnail = true,
@@ -81,7 +90,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
             FileName = name,
             ContentHash = name,
             MediaType = type,
-            DateCaptured = Noon.PlusMinutes(minutes),
+            DateCaptured = Noon.PlusMinutes(minutes).PlusSeconds(seconds),
             IsSoftDeleted = softDeleted,
             BurstId = burstId,
             Metadata = new Metadata { AssetId = id, CameraMake = make, CameraModel = model },
@@ -92,6 +101,16 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         Seed(asset);
         return asset;
     }
+
+    // Thumbnails are named after their photo; a pair scores the same whichever is compared first.
+    private void Similar(MediaAsset a, MediaAsset b, double score = 0.5)
+    {
+        scores[(a.FileName, b.FileName)] = score;
+        scores[(b.FileName, a.FileName)] = score;
+    }
+
+    private int Comparisons()
+        => matcher.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IThumbnailMatcher.ScoreAsync));
 
     private void Labelled(MediaAsset photo, string? label)
         => reader.Read($"{Root}/{photo.FilePath}").Returns(new OriginalPhotoFacts(Noon, label));
@@ -122,7 +141,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private Task<object?> RunForAsync(Guid configId, CancellationToken ct)
         => new BurstDetectionHandler(
                 new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
-                new EfBurstRepository(db), db, reader, fileSystem, clock, guids, logger)
+                repository, db, reader, matcher, fileSystem, clock, guids, Options.Create(new WorkerSettings()), logger)
             .RunAsync(new BurstDetectionPayload(configId), progress, ct);
 
     private Dictionary<string, Guid?> BurstsOf(params MediaAsset[] photos)
@@ -158,7 +177,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunForAsync(inactive, Ct);
 
-        result.Should().Be(StorageConfigSkipped.MissingOrInactive);
+        result.Should().Be(new StorageConfigSkipped("The storage config is missing or inactive."));
         reader.DidNotReceiveWithAnyArgs().Read(default!);
         StoredChecks().Should().BeEmpty();
         activeLogger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
@@ -223,7 +242,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult { Checked = 5, Created = 2 });
+        result.Should().Be(new BurstDetectionResult { Checked = 5, Created = 2, NotMatched = 5 });
         var bursts = BurstsOf(a1, a2, b1, b2, plain);
         var (burstA, burstB) = (bursts["a1.heic"], bursts["b1.heic"]);
         new[] { burstA, burstB }.Should().OnlyHaveUniqueItems().And.NotContainNulls();
@@ -334,6 +353,368 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         StoredChecks().Should().ContainSingle().Which.Should().BeEquivalentTo(
             new BurstCheck { AssetId = a.Id, CheckedAt = Now, IsCandidate = false, CameraBurstId = null },
             o => o.Excluding(c => c.Asset));
+    }
+
+    // ==========================================================================
+    // Similarity grouping
+    // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_SimilarPhotoWithinTheGap_FormsABurstWithTheEarliestAsCoverAsync()
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
+        Similar(a, b);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 2, Created = 1, Matched = 1 });
+        var burst = StoredBursts().Should().ContainSingle().Which;
+        burst.PrimaryAssetId.Should().Be(a.Id);
+        BurstsOf(a, b).Values.Should().AllBeEquivalentTo(burst.Id);
+    }
+
+    [Theory]
+    [InlineData(0.25, 1)]
+    [InlineData(0.2499, 0)]
+    public async Task RunAsync_ScoreAtTheThreshold_MatchesAndBelowItDoesNotAsync(double score, int bursts)
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
+        Similar(a, b, score);
+
+        var result = await RunAsync();
+
+        result.Should().BeEquivalentTo(new { Matched = bursts, NotMatched = 1 - bursts });
+        StoredBursts().Should().HaveCount(bursts);
+    }
+
+    [Fact]
+    public async Task RunAsync_DissimilarPhotosSecondsApart_StayAloneAsync()
+    {
+        Photo("a.heic");
+        Photo("b.heic", seconds: 3);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 2, NotMatched = 1 });
+        StoredBursts().Should().BeEmpty();
+        repository.BurstLoads.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_ComparesTheNewerPhotoWithTheOlderOnceWithTheirThumbnailsAsync()
+    {
+        Photo("a.heic");
+        Photo("b.heic", 1);
+
+        await RunAsync();
+
+        Comparisons().Should().Be(1);
+        await matcher.Received(1).ScoreAsync("b.heic", "a.heic", Ct);
+    }
+
+    [Theory]
+    [InlineData(120, 1)]
+    [InlineData(121, 0)]
+    public async Task RunAsync_NeighbourAtTheGap_IsComparedAndBeyondItIsNotAsync(int seconds, int bursts)
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", seconds: seconds));
+        Similar(a, b);
+
+        await RunAsync();
+
+        StoredBursts().Should().HaveCount(bursts);
+        Comparisons().Should().Be(bursts);
+    }
+
+    [Fact]
+    public async Task RunAsync_NeighbourBeforeThePhotoAtTheGap_IsComparedAsync()
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", seconds: 120));
+        Checked(b, null);
+        Similar(a, b);
+
+        await RunAsync();
+
+        StoredBursts().Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData("Canon", "iPhone 15 Pro")]
+    [InlineData("Apple", "iPhone 14")]
+    public async Task RunAsync_SimilarPhotoFromAnotherCamera_IsNotComparedAsync(string make, string model)
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1, make: make, model: model));
+        Similar(a, b);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 2 });
+        Comparisons().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_SimilarPhotoWithoutExifTime_IsNotComparedAsync()
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
+        reader.Read($"{Root}/{b.FilePath}").Returns(new OriginalPhotoFacts(null, null));
+        Similar(a, b);
+
+        await RunAsync();
+
+        StoredBursts().Should().BeEmpty();
+        Comparisons().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_SimilarToASoftDeletedPhoto_IsNotComparedAsync()
+    {
+        var gone = Photo("a.heic", softDeleted: true);
+        Checked(gone, null);
+        var b = Photo("b.heic", 1);
+        Similar(gone, b);
+
+        await RunAsync();
+
+        Comparisons().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_MatchesChain_AllThreeInOneBurstAsync()
+    {
+        var (a, b, c) = (Photo("a.heic"), Photo("b.heic", 2), Photo("c.heic", 4));
+        Similar(a, b);
+        Similar(b, c);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 3, Created = 1, Matched = 2 });
+        BurstsOf(a, b, c).Values.Should().AllBeEquivalentTo(StoredBursts().Single().Id);
+    }
+
+    [Theory]
+    [InlineData(300, true)]
+    [InlineData(301, false)]
+    public async Task RunAsync_ChainReachingTheSpan_JoinsAtItAndStopsBeyondItAsync(int lastSeconds, bool joins)
+    {
+        var (a, b, c, d) = (Photo("a.heic"), Photo("b.heic", seconds: 100), Photo("c.heic", seconds: 200), Photo("d.heic", seconds: lastSeconds));
+        Similar(a, b);
+        Similar(b, c);
+        Similar(c, d);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 4, Created = 1, Matched = 3 });
+        var burst = StoredBursts().Single().Id;
+        BurstsOf(a, b, c, d).Should().BeEquivalentTo(new Dictionary<string, Guid?>
+        {
+            ["a.heic"] = burst,
+            ["b.heic"] = burst,
+            ["c.heic"] = burst,
+            ["d.heic"] = joins ? burst : null,
+        });
+    }
+
+    [Fact]
+    public async Task RunAsync_SpanCountsOnlyActiveMembersAsync()
+    {
+        var gone = Photo("a.heic", softDeleted: true);
+        var (b, c) = (Photo("b.heic", seconds: 120), Photo("c.heic", seconds: 270));
+        Checked(b, null);
+        Checked(c, null);
+        StoredBurst(60, gone, b, c);
+        var fresh = Photo("d.heic", seconds: 330);
+        Similar(c, fresh);
+
+        await RunAsync();
+
+        BurstsOf(fresh)["d.heic"].Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_SimilarOnlyToABurstItWouldStretchBeyondTheSpan_StaysAloneAsync()
+    {
+        var (x, n) = (Photo("x.heic"), Photo("n.heic", seconds: 300));
+        Checked(x, null);
+        Checked(n, null);
+        StoredBurst(60, x, n);
+        var fresh = Photo("f.heic", seconds: 400);
+        Similar(n, fresh);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Matched = 1 });
+        StoredBursts().Should().ContainSingle();
+        BurstsOf(fresh)["f.heic"].Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_SimilarToTwoNeighbours_JoinsTheOlderFirstAndSkipsWhatThenBreaksTheSpanAsync()
+    {
+        var (x, older) = (Photo("x.heic", 0), Photo("o.heic", 2));
+        Checked(x, null);
+        Checked(older, null);
+        var stored = StoredBurst(60, x, older);
+        var newer = Photo("n.heic", 6);
+        Checked(newer, null);
+        var fresh = Photo("p.heic", 4);
+        Similar(fresh, older);
+        Similar(fresh, newer);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Matched = 2 });
+        BurstsOf(x, older, fresh, newer).Should().BeEquivalentTo(new Dictionary<string, Guid?>
+        {
+            ["x.heic"] = stored,
+            ["o.heic"] = stored,
+            ["p.heic"] = stored,
+            ["n.heic"] = null,
+        });
+    }
+
+    [Fact]
+    public async Task RunAsync_SimilarToAFrameOfABurstThatWouldBreakTheSpan_LeavesThatBurstAloneAsync()
+    {
+        var (x, o, n, y) = (Photo("x.heic"), Photo("o.heic", seconds: 100), Photo("n.heic", seconds: 300), Photo("y.heic", seconds: 500));
+        foreach (var photo in new[] { x, o, n, y })
+            Checked(photo, null);
+        var joined = StoredBurst(60, x, o);
+        var skipped = StoredBurst(30, n, y);
+        var fresh = Photo("f.heic", seconds: 200);
+        Similar(fresh, o);
+        Similar(fresh, n);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Matched = 2 });
+        StoredBursts().Select(b => b.Id).Should().Equal(joined, skipped);
+        BurstsOf(x, o, fresh, n, y).Should().BeEquivalentTo(new Dictionary<string, Guid?>
+        {
+            ["x.heic"] = joined,
+            ["o.heic"] = joined,
+            ["f.heic"] = joined,
+            ["n.heic"] = skipped,
+            ["y.heic"] = skipped,
+        });
+    }
+
+    [Fact]
+    public async Task RunAsync_SimilarToAFrameOfACameraBurst_JoinsThatBurstAsync()
+    {
+        var (a, b, c) = (Photo("a.heic"), Photo("b.heic", 1), Photo("c.heic", 2));
+        Labelled(a, BurstA);
+        Labelled(b, BurstA);
+        Similar(b, c);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 3, Created = 1, Matched = 1, NotMatched = 1 });
+        BurstsOf(a, b, c).Values.Should().AllBeEquivalentTo(StoredBursts().Single().Id);
+    }
+
+    [Fact]
+    public async Task RunAsync_SimilarToFramesOfTwoBursts_MergesThemIntoTheOlderWithTheEarliestCoverAsync()
+    {
+        var (a, b, c, d) = (Photo("a.heic", 0), Photo("b.heic", 1), Photo("c.heic", 3), Photo("d.heic", 4));
+        foreach (var photo in new[] { a, b, c, d })
+            Checked(photo, null);
+        StoredBurst(30, c, d);
+        var older = StoredBurst(60, a, b);
+        var fresh = Photo("e.heic", 2);
+        Similar(fresh, b);
+        Similar(fresh, c);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Merged = 1, Matched = 2, NotMatched = 2 });
+        StoredBursts().Should().ContainSingle().Which.Should().BeEquivalentTo(new { Id = older, PrimaryAssetId = a.Id });
+        BurstsOf(a, b, c, d, fresh).Values.Should().AllBeEquivalentTo(older);
+    }
+
+    [Fact]
+    public async Task RunAsync_NeighbourWithTheSameLabel_IsNotComparedAsync()
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
+        Labelled(a, BurstA);
+        Labelled(b, BurstA);
+        Similar(a, b);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 2, Created = 1 });
+        Comparisons().Should().Be(0);
+        StoredBursts().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task RunAsync_NeighbourInTheBurstOfALabelledFrame_IsNotComparedAsync()
+    {
+        var (a, u) = (Photo("a.heic"), Photo("u.heic", 1));
+        Checked(a, BurstA);
+        Checked(u, null);
+        var stored = StoredBurst(60, a, u);
+        var fresh = Photo("f.heic", 2);
+        Labelled(fresh, BurstA);
+        Similar(fresh, u);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1 });
+        Comparisons().Should().Be(0);
+        BurstsOf(fresh)["f.heic"].Should().Be(stored);
+    }
+
+    [Fact]
+    public async Task RunAsync_UnlabelledNeighbourOutsideAnyBurst_IsComparedBesideALabelledLonePhotoAsync()
+    {
+        var (a, u) = (Photo("a.heic"), Photo("u.heic", 1));
+        Checked(a, BurstA);
+        Checked(u, null);
+        var fresh = Photo("f.heic", 2);
+        Labelled(fresh, BurstA);
+        Similar(fresh, u);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Created = 1, Matched = 1 });
+        Comparisons().Should().Be(1);
+        BurstsOf(a, u, fresh).Values.Should().AllBeEquivalentTo(StoredBursts().Single().Id);
+    }
+
+    [Fact]
+    public async Task RunAsync_CheckedPairs_AreNotComparedAgainAsync()
+    {
+        Photo("a.heic");
+        Photo("b.heic", 1);
+        await RunAsync();
+        matcher.ClearReceivedCalls();
+
+        await RunAsync();
+
+        Comparisons().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_LogsEachComparedPairsScoreAtDebugAsync()
+    {
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
+        Similar(a, b, 0.4321);
+
+        await RunAsync();
+
+        logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Debug).Which.Message.Should().Be(
+            $"Burst detection compared photo {b.Id} with {a.Id}: score 0.432.");
+    }
+
+    [Fact]
+    public async Task RunAsync_ForgetsTheThumbnailsAfterEachBatchAsync()
+    {
+        foreach (var i in Enumerable.Range(0, BurstDetectionHandler.BatchSize + 1))
+            Photo($"{i}.heic", i * 10);
+
+        await RunAsync();
+
+        matcher.Received(2).Forget();
     }
 
     // ==========================================================================
@@ -483,7 +864,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult { Checked = BurstDetectionHandler.BatchSize + 1, Created = 1 });
+        result.Should().Be(new BurstDetectionResult { Checked = BurstDetectionHandler.BatchSize + 1, Created = 1, NotMatched = 199 });
         StoredChecks().Should().HaveCount(BurstDetectionHandler.BatchSize + 1);
         db.ChangeTracker.Entries().Should().BeEmpty();
     }
@@ -509,14 +890,16 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     [Fact]
     public async Task RunAsync_LogsTheSummaryAsync()
     {
-        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
+        var (a, b, c) = (Photo("a.heic"), Photo("b.heic", 1), Photo("c.heic", 2));
+        Photo("d.heic", 3);
         Labelled(a, BurstA);
         Labelled(b, BurstA);
+        Similar(b, c);
 
         await RunAsync();
 
         logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information).Which.Message.Should().Be(
-            $"Burst detection for storage config {ConfigId} checked 2 photo(s): 1 burst(s) created, 0 merged, 0 dissolved.");
+            $"Burst detection for storage config {ConfigId} checked 4 photo(s): 1 burst(s) created, 0 merged, 0 dissolved; 1 compared pair(s) matched, 3 did not.");
     }
 
     // ==========================================================================
@@ -537,14 +920,31 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task RunAsync_BurstWithoutMembers_IsDeletedAsync()
+    public async Task RunAsync_NothingLeftToCheck_StillSavesTheRepairAsync()
     {
-        StoredBurst(60);
+        var (a, gone) = (Photo("a.heic"), Photo("b.heic", 1, softDeleted: true));
+        Checked(a, null);
+        StoredBurst(60, a, gone);
 
         var result = await RunAsync();
 
         result.Should().Be(new BurstDetectionResult { Dissolved = 1 });
         StoredBursts().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_BurstsWithoutMembers_AreDeletedInOneStatementAndCountAsDissolvedAsync()
+    {
+        var (a, gone) = (Photo("a.heic"), Photo("b.heic", 1, softDeleted: true));
+        StoredBurst(60, a, gone);
+        var memberless = StoredBurst(30);
+        repository.Memberless = 2;
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1, Dissolved = 3 });
+        repository.MemberlessDeletions.Should().Be(1);
+        StoredBursts().Should().ContainSingle().Which.Id.Should().Be(memberless);
     }
 
     [Fact]
@@ -555,7 +955,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult { Checked = 2 });
+        result.Should().Be(new BurstDetectionResult { Checked = 2, NotMatched = 1 });
         StoredBursts().Should().ContainSingle().Which.Should().BeEquivalentTo(new { Id = id, PrimaryAssetId = c.Id });
     }
 
@@ -580,5 +980,52 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         result.Should().Be(new BurstDetectionResult());
         StoredBursts().Should().ContainSingle();
+    }
+
+    private sealed class ScriptedBursts(EfBurstRepository inner) : IBurstRepository
+    {
+        public int Memberless { get; set; }
+
+        public int MemberlessDeletions { get; private set; }
+
+        public Task<int> DeleteMemberlessAsync(CancellationToken ct)
+        {
+            MemberlessDeletions++;
+            return Task.FromResult(Memberless);
+        }
+
+        public Task<IReadOnlyList<Burst>> GetInConfigWithMembersAsync(Guid storageConfigId, CancellationToken ct)
+            => inner.GetInConfigWithMembersAsync(storageConfigId, ct);
+
+        public int BurstLoads { get; private set; }
+
+        public Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct)
+        {
+            BurstLoads++;
+            return inner.GetWithMembersAsync(burstIds, ct);
+        }
+
+        public Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct)
+            => inner.CountUncheckedPhotosAsync(storageConfigId, ct);
+
+        public Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(Guid storageConfigId, int count, CancellationToken ct)
+            => inner.GetUncheckedPhotosAsync(storageConfigId, count, ct);
+
+        public Task<IReadOnlyList<MediaAsset>> GetCandidatesLabelledAsync(Guid storageConfigId, string cameraBurstId, CancellationToken ct)
+            => inner.GetCandidatesLabelledAsync(storageConfigId, cameraBurstId, ct);
+
+        public Task<IReadOnlyList<MediaAsset>> GetCandidatesNearAsync(
+            Guid storageConfigId, string cameraMake, string cameraModel, LocalDateTime from, LocalDateTime to, CancellationToken ct)
+            => inner.GetCandidatesNearAsync(storageConfigId, cameraMake, cameraModel, from, to, ct);
+
+        public void Add(Burst burst) => inner.Add(burst);
+
+        public void Remove(Burst burst) => inner.Remove(burst);
+
+        public void AddCheck(BurstCheck check) => inner.AddCheck(check);
+
+        public Task RemoveCheckAsync(Guid assetId, CancellationToken ct) => inner.RemoveCheckAsync(assetId, ct);
+
+        public void ForgetLoaded() => inner.ForgetLoaded();
     }
 }

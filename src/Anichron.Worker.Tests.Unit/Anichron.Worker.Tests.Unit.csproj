@@ -5,4 +5,8 @@
     <ProjectReference Include="..\Anichron.Testing\Anichron.Testing.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Bursts\Fixtures\*.jpg" LogicalName="Fixtures.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

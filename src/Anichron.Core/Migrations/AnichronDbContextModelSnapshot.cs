@@ -234,6 +234,8 @@ namespace Anichron.Core.Migrations
                         .HasDatabaseName("ix_mediaassets_storageconfigid_contenthash_active")
                         .HasFilter("\"IsSoftDeleted\" = false");
 
+                    b.HasIndex("StorageConfigId", "DateCaptured");
+
                     b.HasIndex("StorageConfigId", "FilePath")
                         .IsUnique()
                         .HasDatabaseName("IX_MediaAssets_StorageConfigId_FilePath");
