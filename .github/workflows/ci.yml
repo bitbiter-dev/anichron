@@ -78,6 +78,7 @@ jobs:
           scripts/issue-readiness.test.sh
           scripts/arch-review-due.test.sh
           scripts/mutation-guard.test.sh
+          scripts/stryker-sweep.test.sh
           scripts/graph.test.sh
           scripts/graph-hint.test.sh
 
@@ -127,8 +128,7 @@ jobs:
         id: mutation
         continue-on-error: true
         timeout-minutes: 20
-        working-directory: src
-        run: dotnet stryker --output ../mutation
+        run: scripts/stryker-sweep.sh --output ../mutation
 
       - name: Publish mutation summary
         if: always()

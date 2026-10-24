@@ -21,8 +21,8 @@ tree() {
 EOF
   printf '| `Migrations/**` | 1 |\n| `App/Wiring.cs` | 2 |\n| `Hasher` | clears a buffer |\n' >"$work/repo/docs/adr/0005-scope.md"
   printf 'namespace App;\n\npublic class Hasher\n{\n    // Stryker disable once Statement\n}\n' >"$work/repo/src/App/Hasher.cs"
-  printf 'jobs:\n  m:\n    steps:\n      - run: dotnet stryker --output ../mutation\n' >"$work/repo/.github/workflows/ci.yml"
-  printf 'jobs:\n  d:\n    steps:\n      - run: dotnet stryker --concurrency 1\n' >"$work/repo/.github/workflows/mutation-divergence.yml"
+  printf 'jobs:\n  m:\n    steps:\n      - run: scripts/stryker-sweep.sh --output ../mutation\n' >"$work/repo/.github/workflows/ci.yml"
+  printf 'jobs:\n  d:\n    steps:\n      - run: scripts/stryker-sweep.sh --concurrency 1\n' >"$work/repo/.github/workflows/mutation-divergence.yml"
   printf '#!/usr/bin/env bash\nargs+=(-m "**/x.cs")\ndotnet stryker "${args[@]}" --mutate "**/y.cs"\n' >"$work/repo/scripts/mutation-changed.sh"
 }
 
@@ -52,24 +52,29 @@ sed -i.bak 's/"break": 100/"break": 99/' "$work/repo/src/stryker-config.json"
 check 'a threshold below 100 fails' 1 'thresholds.break is 99'
 
 tree
-printf '      - run: dotnet stryker --since master\n' >>"$work/repo/.github/workflows/ci.yml"
+printf '      - run: scripts/stryker-sweep.sh --since master\n' >>"$work/repo/.github/workflows/ci.yml"
 check '--since fails' 1 'ci.yml: passes --since or --with-baseline'
 
 tree
-printf '      - run: dotnet stryker --with-baseline:master\n' >>"$work/repo/.github/workflows/ci.yml"
+printf '      - run: scripts/stryker-sweep.sh --with-baseline:master\n' >>"$work/repo/.github/workflows/ci.yml"
 check '--with-baseline fails' 1 'passes --since or --with-baseline'
 
 tree
-printf '      - run: dotnet stryker --break-at 90\n' >>"$work/repo/.github/workflows/ci.yml"
+printf '      - run: scripts/stryker-sweep.sh --break-at 90\n' >>"$work/repo/.github/workflows/ci.yml"
 check 'a threshold flag fails' 1 'passes a threshold flag'
 
 tree
-printf '      - run: dotnet stryker --concurrency 2\n' >>"$work/repo/.github/workflows/ci.yml"
+printf '      - run: scripts/stryker-sweep.sh --concurrency 2\n' >>"$work/repo/.github/workflows/ci.yml"
 check '--concurrency outside the divergence job fails' 1 '.github/workflows/ci.yml: passes --concurrency'
 
 tree
-printf '      - run: dotnet stryker -m "**/z.cs"\n' >>"$work/repo/.github/workflows/ci.yml"
+printf '      - run: scripts/stryker-sweep.sh -m "**/z.cs"\n' >>"$work/repo/.github/workflows/ci.yml"
 check '-m outside mutation-changed.sh fails' 1 '.github/workflows/ci.yml: passes --mutate'
+
+tree
+printf '      - run: dotnet stryker --output ../other\n' >>"$work/repo/.github/workflows/mutation-divergence.yml"
+check 'a workflow running dotnet stryker directly fails' 1 \
+  '.github/workflows/mutation-divergence.yml: runs dotnet stryker directly'
 
 tree
 printf 'namespace App;\n\npublic class Unlisted\n{\n    // Stryker disable once String\n}\n' >"$work/repo/src/App/Unlisted.cs"

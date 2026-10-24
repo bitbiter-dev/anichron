@@ -29,6 +29,14 @@ CI passes no flags either: the gate is the `thresholds` in `stryker-config.json`
 [The gate](#the-gate)). Running `dotnet stryker` locally therefore measures and judges exactly as
 CI does.
 
+CI runs Stryker through `scripts/stryker-sweep.sh`, which restores the solution first and fails
+the run when Stryker logs `Analysis of project … failed`. On a runner with nothing restored,
+Stryker's project analysis restores several projects at once, and when one of those restores
+fails, Stryker leaves that project unmutated with only a warning and reports the rest as the
+score. That happened to `Anichron.Worker` on master: the gate passed at 100% with 846 mutants
+instead of about 1,400. `mutation-guard.sh` keeps workflows from calling `dotnet stryker`
+directly.
+
 > **Partly wired into CI.** The gate runs on every pull request and fails below the `break`
 > threshold (#180). The first hosted run has now been observed: it scored **46.58%**, the same
 > score the `42` threshold was calibrated against on a developer machine, so the headroom is
