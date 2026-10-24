@@ -7,7 +7,7 @@ namespace Anichron.Worker.Work;
 /// <param name="Reason">Why nothing was done.</param>
 public sealed record StorageConfigSkipped(string Reason)
 {
-    public static StorageConfigSkipped MissingOrInactive { get; } = new("The storage config is missing or inactive.");
+    public static StorageConfigSkipped MissingOrInactive => new("The storage config is missing or inactive.");
 }
 
 internal sealed partial class ActiveStorageConfigs(

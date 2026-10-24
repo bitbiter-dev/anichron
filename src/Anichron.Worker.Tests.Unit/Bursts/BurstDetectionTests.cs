@@ -177,7 +177,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         var result = await RunForAsync(inactive, Ct);
 
-        result.Should().Be(StorageConfigSkipped.MissingOrInactive);
+        result.Should().Be(new StorageConfigSkipped("The storage config is missing or inactive."));
         reader.DidNotReceiveWithAnyArgs().Read(default!);
         StoredChecks().Should().BeEmpty();
         activeLogger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
