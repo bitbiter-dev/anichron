@@ -112,4 +112,71 @@ public sealed class BurstRepositoryTests
 
         db.ChangeTracker.HasChanges().Should().BeFalse();
     }
+
+    [Fact]
+    public async Task GetUncheckedPhotosAsync_AfterAPhoto_ReturnsOnlyThoseThatComeAfterItAsync()
+    {
+        var name = Guid.NewGuid().ToString();
+        var configId = Guid.NewGuid();
+        var noon = new LocalDateTime(2024, 6, 1, 12, 0);
+        var lowId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var highId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var earlier = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(-1));
+        var atCursor = UncheckedPhoto(configId, lowId, noon);
+        var sameTimeLaterId = UncheckedPhoto(configId, highId, noon);
+        var later = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(1));
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            seed.MediaAssets.AddRange(later, sameTimeLaterId, atCursor, earlier);
+            await seed.SaveChangesAsync(Ct);
+        }
+
+        await using var db = AnichronDbContexts.InMemory(name);
+        var photos = await new EfBurstRepository(db).GetUncheckedPhotosAsync(configId, atCursor, 10, Ct);
+
+        photos.Select(p => p.Id).Should().Equal(highId, later.Id);
+    }
+
+    [Fact]
+    public async Task GetUncheckedPhotosAsync_NoCursor_StartsAtTheOldestAsync()
+    {
+        var name = Guid.NewGuid().ToString();
+        var configId = Guid.NewGuid();
+        var noon = new LocalDateTime(2024, 6, 1, 12, 0);
+        var older = UncheckedPhoto(configId, Guid.NewGuid(), noon);
+        var newer = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(1));
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            seed.MediaAssets.AddRange(newer, older);
+            await seed.SaveChangesAsync(Ct);
+        }
+
+        await using var db = AnichronDbContexts.InMemory(name);
+        var photos = await new EfBurstRepository(db).GetUncheckedPhotosAsync(configId, null, 10, Ct);
+
+        photos.Select(p => p.Id).Should().Equal(older.Id, newer.Id);
+    }
+
+    [Fact]
+    public void GetUncheckedPhotosAsync_OnPostgres_ComparesCaptureTimeThenIdInTheQuery()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+        var after = UncheckedPhoto(Guid.NewGuid(), Guid.NewGuid(), new LocalDateTime(2024, 6, 1, 12, 0));
+
+        var sql = new EfBurstRepository(db).UncheckedPhotosAfter(after.StorageConfigId, after).ToQueryString();
+
+        sql.Should().Contain("""m."DateCaptured" > @capturedAt""")
+           .And.Contain("""m."DateCaptured" = @capturedAt AND m."Id" > @id""");
+    }
+
+    private static MediaAsset UncheckedPhoto(Guid configId, Guid id, LocalDateTime capturedAt) => new()
+    {
+        Id = id,
+        StorageConfigId = configId,
+        FilePath = $"{id}.heic",
+        FileName = $"{id}.heic",
+        ContentHash = id.ToString("N"),
+        MediaType = MediaType.Image,
+        DateCaptured = capturedAt,
+    };
 }

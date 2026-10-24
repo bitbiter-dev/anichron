@@ -57,13 +57,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
                 timeline.Record("claim");
                 return queued.TryDequeue(out var work) ? work : null;
             });
-        store.HeartbeatAsync(
-                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                timeline.Record("heartbeat");
-                return HeartbeatOutcome.Held;
-            });
+        Heartbeats(() => HeartbeatOutcome.Held);
         store.When(s => s.SucceedAsync(
                 Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<string?>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
             .Do(_ => timeline.Record("succeed"));
@@ -90,6 +84,16 @@ public sealed class WorkExecutorTests : IAsyncDisposable
 
     public ValueTask DisposeAsync() => timeline.DisposeAsync();
 
+    private void Heartbeats(Func<HeartbeatOutcome> beat)
+        => store.HeartbeatAsync(
+                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                timeline.Record("heartbeat");
+                await Task.Yield();
+                return beat();
+            });
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private Instant Now => Instant.FromDateTimeOffset(timeline.Clock.GetUtcNow());
@@ -113,6 +117,8 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         await executor.StartAsync(Ct);
         timeline.Watch(executor.ExecuteTask!, () => executor.StopAsync(CancellationToken.None));
     }
+
+    private Task StopAsync() => executor!.StopAsync(Ct).WaitAsync(Timeline.DefaultSilenceLimit, Ct);
 
     private async Task StartRunningAsync()
     {
@@ -234,13 +240,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     public async Task ExecuteAsync_HeartbeatFails_LogsAndKeepsHeartbeatingAsync()
     {
         var beats = 0;
-        store.HeartbeatAsync(
-                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                timeline.Record("heartbeat");
-                return ++beats == 1 ? throw new InvalidOperationException("db down") : HeartbeatOutcome.Held;
-            });
+        Heartbeats(() => ++beats == 1 ? throw new InvalidOperationException("db down") : HeartbeatOutcome.Held);
         await StartRunningAsync();
 
         timeline.Clock.Advance(Heartbeat);
@@ -255,13 +255,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     [Fact]
     public async Task ExecuteAsync_HeartbeatFenced_CancelsTheHandlerAndWritesNothingMoreAsync()
     {
-        store.HeartbeatAsync(
-                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                timeline.Record("heartbeat");
-                return HeartbeatOutcome.Lost;
-            });
+        Heartbeats(() => HeartbeatOutcome.Lost);
         await StartRunningAsync();
 
         timeline.Clock.Advance(Heartbeat);
@@ -275,14 +269,11 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     public async Task ExecuteAsync_FencedHandlerFinishesAnyway_WritesNothingAsync()
     {
         var fenced = false;
-        store.HeartbeatAsync(
-                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                timeline.Record("heartbeat");
-                fenced = runs[0].TrySetResult("done anyway");
-                return HeartbeatOutcome.Lost;
-            });
+        Heartbeats(() =>
+        {
+            fenced = runs[0].TrySetResult("done anyway");
+            return HeartbeatOutcome.Lost;
+        });
         await StartRunningAsync();
 
         timeline.Clock.Advance(Heartbeat);
@@ -297,13 +288,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     // ==========================================================================
 
     private void HeartbeatsReportACancelRequest()
-        => store.HeartbeatAsync(
-                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                timeline.Record("heartbeat");
-                return HeartbeatOutcome.CancelRequested;
-            });
+        => Heartbeats(() => HeartbeatOutcome.CancelRequested);
 
     private void HandlerWindsDownOnlyWhenTold()
         => handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
@@ -380,7 +365,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     {
         await CancelRequestedWhileRunningAsync();
 
-        var stopping = executor!.StopAsync(Ct);
+        var stopping = StopAsync();
         runs[0].SetCanceled(handlerToken);
         await stopping;
 
@@ -392,13 +377,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     public async Task ExecuteAsync_CancelRequestedThenFenced_WritesNothingAsync()
     {
         var beats = 0;
-        store.HeartbeatAsync(
-                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                timeline.Record("heartbeat");
-                return ++beats == 1 ? HeartbeatOutcome.CancelRequested : HeartbeatOutcome.Lost;
-            });
+        Heartbeats(() => ++beats == 1 ? HeartbeatOutcome.CancelRequested : HeartbeatOutcome.Lost);
         HandlerWindsDownOnlyWhenTold();
         await StartRunningAsync();
         timeline.Clock.Advance(Heartbeat);
@@ -486,7 +465,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     {
         await StartRunningAsync();
 
-        await executor!.StopAsync(Ct);
+        await StopAsync();
 
         await timeline.ExpectAsync(new Called("release"), new Finished(TaskStatus.Canceled));
         handlerToken.IsCancellationRequested.Should().BeTrue();
@@ -499,7 +478,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         await StartAsync();
         await timeline.ExpectAsync(new Called("claim"), new TimerArmed(Poll));
 
-        await executor!.StopAsync(Ct);
+        await StopAsync();
 
         await timeline.ExpectAsync(new Finished(TaskStatus.Canceled));
     }
