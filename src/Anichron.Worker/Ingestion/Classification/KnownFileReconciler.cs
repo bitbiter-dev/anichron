@@ -5,7 +5,6 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 internal sealed partial class KnownFileReconciler(
     IClock clock,
-    DuplicateCopyTally tally,
     ILogger<KnownFileReconciler> logger)
 {
     public bool Reconcile(FileClassification file, string relativePath) => file.Outcome switch
@@ -36,7 +35,6 @@ internal sealed partial class KnownFileReconciler(
     private bool SkipDuplicate(MediaAsset stored, string relativePath)
     {
         Log.DuplicateCopy(logger, stored.ContentHash, stored.StorageConfigId, relativePath, stored.FilePath);
-        tally.Count(stored.StorageConfigId);
         return false;
     }
 

@@ -23,7 +23,7 @@ internal sealed partial class IngestionPipelineRunner(
         {
             await pipeline(context, ct);
         }
-        catch (Exception ex) when (!IngestionShutdown.IsInProgress(ex, ct))
+        catch (Exception ex) when (!IngestionCancellation.IsRequested(ex, ct))
         {
             // The pipeline generates proxies before it writes the asset row, so a failure part-way
             // through leaves files on disk that no row will ever reference. This is the one place

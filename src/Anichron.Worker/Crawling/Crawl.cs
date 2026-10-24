@@ -20,20 +20,21 @@ internal sealed partial class CrawlHandler(
             return StorageConfigSkipped.MissingOrInactive;
 
         Log.Crawling(logger, config.RootPath, config.UserId);
-        var counts = await pipeline.RunAsync(config, progress, ct);
-        var result = counts with { Duplicates = await ReportDuplicatesAsync(config, ct) };
+        var run = await pipeline.RunAsync(config, progress, ct);
+        var result = run.Result with { Duplicates = await ReportDuplicatesAsync(config, run.DuplicateCopies, ct) };
         await queue.EnqueueAsync(new BurstDetectionPayload(config.Id), null, ct);
         return result;
     }
 
-    private async Task<DuplicateCounts?> ReportDuplicatesAsync(UserStorageConfig config, CancellationToken ct)
+    private async Task<DuplicateCounts?> ReportDuplicatesAsync(
+        UserStorageConfig config, int copiesWithin, CancellationToken ct)
     {
         try
         {
             var usersConfigs = await configs.GetActiveByUserIdAsync(config.UserId, ct);
-            return await reporter.ReportAsync(config, usersConfigs, ct);
+            return await reporter.ReportAsync(config, usersConfigs, copiesWithin, ct);
         }
-        catch (Exception ex) when (!IngestionShutdown.IsInProgress(ex, ct))
+        catch (Exception ex) when (!IngestionCancellation.IsRequested(ex, ct))
         {
             Log.DuplicateReportFailed(logger, config.Id, ex);
             return null;

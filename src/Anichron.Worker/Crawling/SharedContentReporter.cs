@@ -1,6 +1,5 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Anichron.Worker.Ingestion.Classification;
 
 namespace Anichron.Worker.Crawling;
 
@@ -12,18 +11,16 @@ public sealed record DuplicateCounts(int CopiesWithin, int PairsAcross);
 internal interface ISharedContentReporter
 {
     Task<DuplicateCounts> ReportAsync(
-        UserStorageConfig crawled, IReadOnlyCollection<UserStorageConfig> usersConfigs, CancellationToken ct);
+        UserStorageConfig crawled, IReadOnlyCollection<UserStorageConfig> usersConfigs, int copiesWithin, CancellationToken ct);
 }
 
 internal sealed partial class SharedContentReporter(
     IMediaAssetRepository repository,
-    DuplicateCopyTally tally,
     ILogger<SharedContentReporter> logger) : ISharedContentReporter
 {
     public async Task<DuplicateCounts> ReportAsync(
-        UserStorageConfig crawled, IReadOnlyCollection<UserStorageConfig> usersConfigs, CancellationToken ct)
+        UserStorageConfig crawled, IReadOnlyCollection<UserStorageConfig> usersConfigs, int copiesWithin, CancellationToken ct)
     {
-        var copies = tally.Take(crawled.Id);
         var configIds = usersConfigs.Select(config => config.Id).Union([crawled.Id]).ToList();
         var locations = await repository.FindSharedContentAsync(configIds, ct);
 
@@ -43,9 +40,9 @@ internal sealed partial class SharedContentReporter(
             }
         }
 
-        if (copies + pairs > 0)
-            Log.Summary(logger, crawled.Id, crawled.UserId, copies, pairs);
-        return new DuplicateCounts(copies, pairs);
+        if (copiesWithin + pairs > 0)
+            Log.Summary(logger, crawled.Id, crawled.UserId, copiesWithin, pairs);
+        return new DuplicateCounts(copiesWithin, pairs);
     }
 
     private static partial class Log

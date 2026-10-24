@@ -95,7 +95,6 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IngestionClassifier>();
             services.AddScoped<LivePhotoPairer>();
             services.AddScoped<KnownFileReconciler>();
-            services.AddSingleton<DuplicateCopyTally>();
             services.AddScoped<IOutcomeWriter, NewContentWriter>();
             services.AddScoped<IOutcomeWriter, ContentChangedWriter>();
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();

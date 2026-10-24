@@ -27,4 +27,8 @@ internal sealed record IngestionClassification(
     PairingAction Pairing)
 {
     public bool NeedsProcessing => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged;
+
+    public int DuplicateCopies => NeedsProcessing
+        ? 0
+        : new[] { Primary, Secondary }.Count(file => file?.Outcome == FileOutcome.DuplicateCopy);
 }

@@ -8,6 +8,7 @@ using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
+using Anichron.Worker.Tests.Unit.Ingestion.Classification;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using NodaTime;
@@ -76,7 +77,7 @@ public sealed class ImageIngestionBlurhashTests
             AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
-            Classification = new(new FileClassification(FileOutcome.New, null), null, PairingAction.None),
+            Classification = Classifications.Of(FileOutcome.New),
             Exif = ExifData.Empty,
         };
 
