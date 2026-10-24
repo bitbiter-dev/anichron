@@ -1,15 +1,10 @@
-using Anichron.Core;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
-using Anichron.Testing.DependencyInjection;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
-using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -76,32 +71,11 @@ public sealed class FileIngestionPipelineTests
         public FileIngestionPipeline BuildWithMiddlewares(
             IEnumerable<IIngestionMiddleware> middlewares,
             int maxConcurrentFiles = 2)
-        {
-            var directoryStrategy = Substitute.For<IProxyDirectoryStrategy>();
-            directoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
-
-            var runner = new IngestionPipelineRunner(
+            => FileIngestionPipelines.Build(
                 middlewares,
-                directoryStrategy,
                 FileSystem,
-                Substitute.For<ILogger<IngestionPipelineRunner>>());
-
-            var scopeFactory = ScopeFactories.Providing(services => services.AddSingleton<IIngestionPipelineRunner>(runner));
-
-            var options = Options.Create(new WorkerSettings
-            {
-                MaxConcurrentFiles = maxConcurrentFiles,
-                ExcludedDirectories = ExcludedDirectories,
-            });
-            return new FileIngestionPipeline(
-                scopeFactory,
-                CrawlFileSystem(),
-                new LivePhotoLinker(FileSystem),
-                new CrawlExclusions(options),
-                options,
-                Substitute.For<IGuidFactory>(),
-                Substitute.For<ILogger<FileIngestionPipeline>>());
-        }
+                new WorkerSettings { MaxConcurrentFiles = maxConcurrentFiles, ExcludedDirectories = ExcludedDirectories },
+                CrawlFileSystem());
     }
 
     // ==========================================================================
@@ -404,11 +378,31 @@ public sealed class FileIngestionPipelineTests
 
         var progress = new RecordingProgress();
 
-        var result = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
+        var run = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), progress, CancellationToken.None);
 
-        result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
+        run.Result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
         progress.Reports[^1].Should().Be(new WorkProgress(3, 3, "3 found, 2 processed, 1 failed"));
+    }
+
+    [Fact]
+    public async Task RunAsync_CountsTheDuplicateCopiesOfItemsThatSucceededOnlyAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/c.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/d.jpg", new MockFileData([]));
+        var middleware = new ScriptedClassificationMiddleware(
+            new ScriptedItem(FileOutcome.DuplicateCopy),
+            new ScriptedItem(FileOutcome.DuplicateCopy, FileOutcome.DuplicateCopy),
+            new ScriptedItem(FileOutcome.DuplicateCopy, Fails: true),
+            new ScriptedItem(FileOutcome.Unchanged));
+
+        var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        result.Should().Be(new CrawlRun(new CrawlResult(Found: 4, Processed: 3, Failed: 1), DuplicateCopies: 3));
     }
 
     [Fact]
@@ -438,7 +432,7 @@ public sealed class FileIngestionPipelineTests
         var first = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
         var second = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
 
-        (first, second).Should().Be((new CrawlResult(2, 2, 0), new CrawlResult(2, 2, 0)));
+        (first, second).Should().Be((new CrawlRun(new CrawlResult(2, 2, 0), 0), new CrawlRun(new CrawlResult(2, 2, 0), 0)));
     }
 
     private sealed class RecordingProgress : IWorkProgress

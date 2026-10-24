@@ -1,6 +1,5 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Work;
-using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
 using NodaTime;

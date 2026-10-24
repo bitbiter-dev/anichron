@@ -1,7 +1,6 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Crawling;
-using Anichron.Worker.Ingestion.Classification;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 
@@ -19,7 +18,7 @@ public sealed class SharedContentReporterTests
     private sealed class TestFixture
     {
         public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
-        public DuplicateCopyTally Tally { get; } = new();
+        public int CopiesWithin { get; set; }
         public FakeLogger<SharedContentReporter> Logger { get; } = new();
         public IReadOnlyCollection<Guid>? QueriedConfigs { get; private set; }
 
@@ -35,8 +34,8 @@ public sealed class SharedContentReporterTests
                     return locations;
                 });
 
-            return new SharedContentReporter(Repository, Tally, Logger)
-                .ReportAsync(Config(crawled), [.. usersConfigs.Select(Config)], Ct);
+            return new SharedContentReporter(Repository, Logger)
+                .ReportAsync(Config(crawled), [.. usersConfigs.Select(Config)], CopiesWithin, Ct);
         }
 
         public IEnumerable<FakeLogRecord> Pairs => Logger.Collector.GetSnapshot().Where(r => r.Level == LogLevel.Debug);
@@ -119,10 +118,10 @@ public sealed class SharedContentReporterTests
     [Fact]
     public async Task ReportAsync_CopiesWithinAndPairsAcross_SummarisesTheCrawlOnceAtInformationAsync()
     {
-        var fx = new TestFixture();
-        fx.Tally.Count(Home);
-        fx.Tally.Count(Home);
-        fx.Tally.Count(Phone);
+        var fx = new TestFixture
+        {
+            CopiesWithin = 2
+        };
 
         var counts = await fx.ReportAsync(
             Home, [Home, Phone],
@@ -138,25 +137,15 @@ public sealed class SharedContentReporterTests
     [Fact]
     public async Task ReportAsync_OnlyCopiesWithin_StillSummarisesAsync()
     {
-        var fx = new TestFixture();
-        fx.Tally.Count(Home);
+        var fx = new TestFixture
+        {
+            CopiesWithin = 1
+        };
 
         (await fx.ReportAsync(Home, [Home])).Should().Be(new DuplicateCounts(1, 0));
 
         fx.Summaries.Should().ContainSingle().Which.Should().EndWith(
             "copies within it: 1, pairs with the user's other storage configs: 0.");
-    }
-
-    [Fact]
-    public async Task ReportAsync_TakesOnlyTheCrawledConfigsCopiesAsync()
-    {
-        var fx = new TestFixture();
-        fx.Tally.Count(Home);
-        fx.Tally.Count(Phone);
-
-        await fx.ReportAsync(Home, [Home, Phone]);
-
-        (fx.Tally.Take(Home), fx.Tally.Take(Phone)).Should().Be((0, 1));
     }
 
     [Fact]

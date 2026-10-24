@@ -17,7 +17,7 @@ public sealed class KnownFileReconcilerTests
         var clock = Substitute.For<IClock>();
         clock.GetCurrentInstant().Returns(Now);
 
-        var reconciled = new KnownFileReconciler(clock, new DuplicateCopyTally(), new FakeLogger<KnownFileReconciler>())
+        var reconciled = new KnownFileReconciler(clock, new FakeLogger<KnownFileReconciler>())
             .Reconcile(new FileClassification(FileOutcome.Moved, stored), "2025/a.heic");
 
         reconciled.Should().BeTrue();

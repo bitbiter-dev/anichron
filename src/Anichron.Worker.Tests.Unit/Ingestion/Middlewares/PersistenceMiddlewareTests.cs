@@ -3,6 +3,7 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Tests.Unit.Ingestion.Classification;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 
@@ -40,7 +41,7 @@ public sealed class PersistenceMiddlewareTests
         Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
         AttemptId = Guid.NewGuid(),
         AssetId = AssetId,
-        Classification = new(new FileClassification(outcome, null), null, PairingAction.None),
+        Classification = Classifications.Of(outcome),
     };
 
     [Fact]

@@ -12,20 +12,26 @@ public sealed record CrawlResult(long Found, long Processed, long Failed)
     public DuplicateCounts? Duplicates { get; init; }
 }
 
+/// <summary>What one crawl's walk and ingestion counted.</summary>
+/// <param name="Result">The crawl's results summary, before the duplicate report.</param>
+/// <param name="DuplicateCopies">Copies within the crawled config, counted by this crawl only.</param>
+internal sealed record CrawlRun(CrawlResult Result, int DuplicateCopies);
+
 internal sealed class CrawlTally(IWorkProgress progress)
 {
     private readonly Lock gate = new();
     private long found;
     private long processed;
     private long failed;
+    private int duplicateCopies;
     private bool walked;
 
-    public CrawlResult Result
+    public CrawlRun Run
     {
         get
         {
             lock (gate)
-                return new CrawlResult(found, processed, failed);
+                return new CrawlRun(new CrawlResult(found, processed, failed), duplicateCopies);
         }
     }
 
@@ -33,7 +39,11 @@ internal sealed class CrawlTally(IWorkProgress progress)
 
     public void Walked() => Update(() => walked = true);
 
-    public void Processed() => Update(() => processed++);
+    public void Processed(int duplicateCopiesOfItem) => Update(() =>
+    {
+        processed++;
+        duplicateCopies += duplicateCopiesOfItem;
+    });
 
     public void Failed() => Update(() => failed++);
 

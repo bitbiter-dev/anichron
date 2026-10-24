@@ -2,7 +2,6 @@ using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Testing.DependencyInjection;
 using Anichron.Testing.Time;
-using Anichron.Worker.Crawling;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Work;
 using Microsoft.Extensions.DependencyInjection;
