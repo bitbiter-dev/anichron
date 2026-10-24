@@ -5,7 +5,7 @@ WORKDIR /app
 ARG TARGETARCH
 
 # intel-media-va-driver-non-free does not exist in arm64 apt repos; skip it there.
-# OpenCvSharp's linux-arm64 native library links libtesseract and libwebpdemux (ADR 0009).
+# OpenCvSharp's native library needs libtesseract and libwebpdemux on arm64, libatomic on amd64 (ADR 0009).
 # TARGETARCH is injected automatically by BuildKit.
 RUN apt-get update && apt-get install -y \
         ffmpeg \
@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y \
          apt-get install -y --no-install-recommends libtesseract5 libwebpdemux2; \
        fi \
     && if [ "$TARGETARCH" = "amd64" ]; then \
-         apt-get install -y intel-media-va-driver-non-free vainfo; \
+         apt-get install -y --no-install-recommends libatomic1 \
+         && apt-get install -y intel-media-va-driver-non-free vainfo; \
        fi \
     && rm -rf /var/lib/apt/lists/*
 

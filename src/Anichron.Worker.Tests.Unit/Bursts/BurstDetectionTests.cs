@@ -39,13 +39,13 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private readonly IWorkProgress progress = Substitute.For<IWorkProgress>();
     private readonly FakeLogger<BurstDetectionHandler> logger = new();
     private readonly FakeLogger<ActiveStorageConfigs> activeLogger = new();
-    private readonly ScriptedMemberlessBursts repository;
+    private readonly ScriptedBursts repository;
     private int nextGuid;
 
     public BurstDetectionTests()
     {
         db = AnichronDbContexts.InMemory(databaseName);
-        repository = new ScriptedMemberlessBursts(new EfBurstRepository(db));
+        repository = new ScriptedBursts(new EfBurstRepository(db));
         fileSystem.AddDirectory(Root);
         clock.GetCurrentInstant().Returns(Now);
         guids.NewGuid().Returns(_ => Guid.Parse($"bbbbbbbb-0000-0000-0000-{++nextGuid:D12}"));
@@ -397,6 +397,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
         result.Should().Be(new BurstDetectionResult { Checked = 2, NotMatched = 1 });
         StoredBursts().Should().BeEmpty();
+        repository.BurstLoads.Should().Be(0);
     }
 
     [Fact]
@@ -943,7 +944,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         StoredBursts().Should().ContainSingle();
     }
 
-    private sealed class ScriptedMemberlessBursts(EfBurstRepository inner) : IBurstRepository
+    private sealed class ScriptedBursts(EfBurstRepository inner) : IBurstRepository
     {
         public int Memberless { get; set; }
 
@@ -958,8 +959,13 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         public Task<IReadOnlyList<Burst>> GetInConfigWithMembersAsync(Guid storageConfigId, CancellationToken ct)
             => inner.GetInConfigWithMembersAsync(storageConfigId, ct);
 
+        public int BurstLoads { get; private set; }
+
         public Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct)
-            => inner.GetWithMembersAsync(burstIds, ct);
+        {
+            BurstLoads++;
+            return inner.GetWithMembersAsync(burstIds, ct);
+        }
 
         public Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct)
             => inner.CountUncheckedPhotosAsync(storageConfigId, ct);

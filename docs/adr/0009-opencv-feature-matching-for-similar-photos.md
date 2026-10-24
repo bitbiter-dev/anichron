@@ -33,11 +33,11 @@ points wherever they moved, and the RANSAC step rejects matches no single transf
 ## Consequences
 
 - A native library of about 40 MB per architecture in the Worker image.
-- `libOpenCvSharpExtern.so` for linux-arm64 links against `libtesseract.so.5` and
-  `libwebpdemux.so.2`, which noble ships but the runtime image does not install; the Worker
-  Dockerfile installs `libtesseract5` and `libwebpdemux2`. AMD64_DEPENDENCIES
-  Scored inside the built image on both architectures before this was merged: the sample pair
-  0.492, an unrelated image 0.000, the same as on macOS.
+- `libOpenCvSharpExtern.so` links against libraries that noble ships but the runtime image does
+  not install: `libtesseract.so.5` and `libwebpdemux.so.2` on linux-arm64, `libatomic.so.1` on
+  linux-x64. The Worker Dockerfile installs `libtesseract5` and `libwebpdemux2` on arm64 and
+  `libatomic1` on amd64. Scored on the runtime image with those packages on both architectures
+  before this was merged: the sample pair 0.492, an unrelated image 0.000, the same as on macOS.
 - Only `OrbThumbnailMatcher` touches OpenCV (architecture rule `opencv-stays-in-the-matcher`).
   Callers see `IThumbnailMatcher`: two thumbnails in, a score from 0 to 1 out.
 - The tuning constants are named in that one class and pinned by tests: the committed sample pair
