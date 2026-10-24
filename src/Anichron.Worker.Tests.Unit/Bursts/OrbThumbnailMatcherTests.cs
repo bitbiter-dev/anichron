@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Testing;
 using OpenCvSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
@@ -148,6 +149,19 @@ public sealed class OrbThumbnailMatcherTests
         warning.Level.Should().Be(LogLevel.Warning);
         warning.Message.Should().Be("Could not read thumbnail gone.jpg for burst detection; it matches nothing.");
         warning.Exception.Should().BeOfType<FileNotFoundException>();
+    }
+
+    [Fact]
+    public async Task ScoreAsync_ThumbnailWithoutReadPermission_ScoresZeroAndWarnsAsync()
+    {
+        var denied = Substitute.For<IFileSystem>();
+        denied.Path.Returns(fileSystem.Path);
+        denied.File.ReadAllBytesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns<Task<byte[]>>(_ => throw new UnauthorizedAccessException("denied"));
+
+        var score = await new OrbThumbnailMatcher(denied, logger).ScoreAsync("a.jpg", "b.jpg", Ct);
+
+        score.Should().Be(0);
+        logger.Collector.GetSnapshot().Should().ContainSingle().Which.Exception.Should().BeOfType<UnauthorizedAccessException>();
     }
 
     [Fact]

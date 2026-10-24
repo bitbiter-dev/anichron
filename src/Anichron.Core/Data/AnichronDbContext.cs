@@ -134,11 +134,11 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .HasDatabaseName(MediaAssetIndexNames.ActiveContentHashUnique);
 
             // Unique Constraint: One file path per storage config
-            entity.HasIndex(m => new { m.StorageConfigId, m.DateCaptured });
-
             entity.HasIndex(m => new { m.StorageConfigId, m.FilePath })
                   .IsUnique()
                   .HasDatabaseName(MediaAssetIndexNames.FilePathUnique);
+
+            entity.HasIndex(m => new { m.StorageConfigId, m.DateCaptured });
 
             // Self-Reference (Paired Asset)
             entity.HasOne(m => m.PairedAsset)

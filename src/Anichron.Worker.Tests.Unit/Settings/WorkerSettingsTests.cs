@@ -228,6 +228,25 @@ public sealed class WorkerSettingsTests
     public void Validate_NonPositiveWorkQueueSetting_ReportsIt(string setting)
         => GetFailures(WithZero(setting)).Should().Contain(failure => failure.MemberNames.Contains(setting));
 
+    [Fact]
+    public void Validate_SpanEqualToTheGap_ReturnsSuccess()
+        => IsValid(ValidSettings with { BurstGapSeconds = 120, BurstSpanSeconds = 120 }).Should().BeTrue();
+
+    [Fact]
+    public void Validate_SpanShorterThanTheGap_ReportsTheSpan()
+        => GetFailures(ValidSettings with { BurstGapSeconds = 120, BurstSpanSeconds = 119 })
+            .Should().ContainSingle().Which.Should().BeEquivalentTo(new
+            {
+                MemberNames = new[] { nameof(WorkerSettings.BurstSpanSeconds) },
+                ErrorMessage = "Worker:BurstSpanSeconds must be at least Worker:BurstGapSeconds, or no neighbour further away than the span can ever join.",
+            });
+
+    [Fact]
+    public void Validate_LeaseAndSpanBothInvalid_ReportsBoth()
+        => GetFailures(ValidSettings with { WorkHeartbeatSeconds = 2, WorkLeaseSeconds = 2, BurstSpanSeconds = 1 })
+            .Select(failure => failure.MemberNames.Single())
+            .Should().Equal(nameof(WorkerSettings.WorkLeaseSeconds), nameof(WorkerSettings.BurstSpanSeconds));
+
     [Theory]
     [InlineData(2, 2)]
     [InlineData(10, 2)]

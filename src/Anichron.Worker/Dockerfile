@@ -46,10 +46,18 @@ RUN --mount=type=secret,id=sixlabors_license,env=SixLaborsLicenseKey \
     dotnet build "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # 3. Publish Stage
+# The publish output carries OpenCV's native library for every platform; keep only the target's.
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
+ARG TARGETARCH
 RUN --mount=type=secret,id=sixlabors_license,env=SixLaborsLicenseKey \
-    dotnet publish "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+    dotnet publish "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false \
+    && case "$TARGETARCH" in \
+         amd64) unused=linux-arm64 ;; \
+         arm64) unused=linux-x64 ;; \
+         *) echo "unsupported TARGETARCH '$TARGETARCH'" >&2; exit 1 ;; \
+       esac \
+    && rm -r /app/publish/runtimes/osx-arm64 "/app/publish/runtimes/$unused"
 
 # 4. Final Stage
 FROM base AS final

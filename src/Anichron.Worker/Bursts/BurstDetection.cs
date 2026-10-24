@@ -108,7 +108,7 @@ internal sealed partial class BurstDetectionHandler(
     private async Task GroupAsync(Guid configId, MediaAsset photo, string? label, BurstDetectionResult result, CancellationToken ct)
     {
         var labelled = label is null ? [] : await bursts.GetCandidatesLabelledAsync(configId, label, ct);
-        var similar = await SimilarNeighboursAsync(configId, photo, result, ct);
+        var similar = await SimilarNeighboursAsync(configId, photo, labelled, result, ct);
         if (labelled.Count + similar.Count == 0)
             return;
 
@@ -148,8 +148,9 @@ internal sealed partial class BurstDetectionHandler(
     }
 
     private async Task<IReadOnlyList<MediaAsset>> SimilarNeighboursAsync(
-        Guid configId, MediaAsset photo, BurstDetectionResult result, CancellationToken ct)
+        Guid configId, MediaAsset photo, IReadOnlyCollection<MediaAsset> labelled, BurstDetectionResult result, CancellationToken ct)
     {
+        var labelledBursts = labelled.Select(a => a.BurstId).OfType<Guid>().ToHashSet();
         var gap = options.Value.BurstGapSeconds;
         var neighbours = await bursts.GetCandidatesNearAsync(
             configId,
@@ -160,7 +161,7 @@ internal sealed partial class BurstDetectionHandler(
             ct);
 
         var similar = new List<MediaAsset>();
-        foreach (var neighbour in neighbours)
+        foreach (var neighbour in neighbours.Where(n => !labelled.Contains(n) && !(n.BurstId is { } id && labelledBursts.Contains(id))))
         {
             var score = await matcher.ScoreAsync(Thumbnail(photo), Thumbnail(neighbour), ct);
             Log.Compared(logger, photo.Id, neighbour.Id, score);

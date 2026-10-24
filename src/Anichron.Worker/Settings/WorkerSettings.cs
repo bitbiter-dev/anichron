@@ -78,15 +78,26 @@ public sealed record WorkerSettings : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        var paths = ExcludedDirectoryNames()
+        var failures = ExcludedDirectoryNames()
             .Where(name => name.IndexOfAny(['/', '\\']) >= 0)
             .Select(name => new ValidationResult(
                 $"Worker:ExcludedDirectories takes folder names, not paths: '{name}'.",
-                [nameof(ExcludedDirectories)]));
-        return WorkLeaseSeconds > WorkHeartbeatSeconds
-            ? paths
-            : paths.Append(new ValidationResult(
+                [nameof(ExcludedDirectories)]))
+            .ToList();
+        if (WorkLeaseSeconds <= WorkHeartbeatSeconds)
+        {
+            failures.Add(new ValidationResult(
                 "Worker:WorkLeaseSeconds must be longer than Worker:WorkHeartbeatSeconds, or every lease expires between heartbeats.",
                 [nameof(WorkLeaseSeconds)]));
+        }
+
+        if (BurstSpanSeconds < BurstGapSeconds)
+        {
+            failures.Add(new ValidationResult(
+                "Worker:BurstSpanSeconds must be at least Worker:BurstGapSeconds, or no neighbour further away than the span can ever join.",
+                [nameof(BurstSpanSeconds)]));
+        }
+
+        return failures;
     }
 }

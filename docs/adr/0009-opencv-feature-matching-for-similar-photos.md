@@ -32,7 +32,10 @@ points wherever they moved, and the RANSAC step rejects matches no single transf
 
 ## Consequences
 
-- A native library of about 40 MB per architecture in the Worker image.
+- A native library in the Worker image: 108 MB on amd64, 36 MB on arm64. The publish output holds
+  every platform's copy (it is not published per runtime), so the Dockerfile's publish stage
+  deletes all but the target's. The `osx.arm64` runtime is referenced only so the Worker and its
+  tests run on developers' Macs.
 - `libOpenCvSharpExtern.so` links against libraries that noble ships but the runtime image does
   not install: `libtesseract.so.5` and `libwebpdemux.so.2` on linux-arm64, `libatomic.so.1` on
   linux-x64. The Worker Dockerfile installs `libtesseract5` and `libwebpdemux2` on arm64 and
