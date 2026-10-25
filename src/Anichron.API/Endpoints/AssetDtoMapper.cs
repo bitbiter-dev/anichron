@@ -6,7 +6,7 @@ namespace Anichron.API.Endpoints;
 
 internal static class AssetDtoMapper
 {
-    internal static AssetDto ToDto(AssetView view)
+    internal static AssetDto ToDto(AssetView view, AssetBurstDto? burst)
     {
         var swapsAxes = view.Orientation is { } orientation && ExifOrientation.SwapsAxes(orientation);
 
@@ -27,7 +27,8 @@ internal static class AssetDtoMapper
             view is { PairedMovHasVideo: true, PairedMovId: { } movId }
                 ? ProxyKinds.UrlOf(movId, ProxyType.WebVideo)
                 : null,
-            ToDto(new InteractionState(view.IsStarred, view.IsLiked, Hidden: false)));
+            ToDto(new InteractionState(view.IsStarred, view.IsLiked, Hidden: false)),
+            burst);
     }
 
     internal static AssetInteractionDto ToDto(InteractionState state)
