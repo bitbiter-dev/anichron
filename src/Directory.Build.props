@@ -39,6 +39,7 @@
     <IsUnitTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">True</IsUnitTestProject>
     <IsIntegrationTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Integration'))">True</IsIntegrationTestProject>
     <IsTestCodeProject Condition="'$(IsUnitTestProject)' == 'True' or '$(IsIntegrationTestProject)' == 'True'">True</IsTestCodeProject>
+    <IsMutationTarget Condition="'$(IsTestCodeProject)' != 'True'">true</IsMutationTarget>
   </PropertyGroup>
 
   <PropertyGroup>

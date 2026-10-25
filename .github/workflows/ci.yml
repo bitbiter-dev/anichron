@@ -75,6 +75,7 @@ jobs:
           scripts/derive-db-docs.test.sh
           scripts/ci-gate.test.sh
           scripts/mutation-changed.test.sh
+          scripts/mutation-targets.test.sh
           scripts/issue-readiness.test.sh
           scripts/arch-review-due.test.sh
           scripts/mutation-guard.test.sh
