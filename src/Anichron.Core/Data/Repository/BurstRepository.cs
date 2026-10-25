@@ -130,7 +130,7 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
 
     public async Task RemoveCheckAsync(Guid assetId, CancellationToken ct)
     {
-        if (await db.BurstChecks.FindAsync([assetId], ct) is { } check)
+        if (await db.BurstChecks.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.AssetId == assetId, ct) is { } check)
             db.BurstChecks.Remove(check);
     }
 

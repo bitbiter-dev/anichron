@@ -5,14 +5,16 @@ namespace Anichron.Core.Data.Repository;
 
 public sealed record ContentLocation(Guid UserId, string ContentHash, Guid StorageConfigId, string FilePath);
 
+public sealed record AssetPath(Guid Id, string FilePath);
+
 public interface IMediaAssetRepository
 {
     Task<MediaAsset?> FindByHashAsync(string contentHash, Guid storageConfigId, CancellationToken ct);
 
     /// <summary>The config's rows that match, each with its proxy rows.</summary>
     /// <param name="storageConfigId">The config whose rows are searched.</param>
-    /// <param name="contentHashes">Matches active rows only.</param>
-    /// <param name="filePaths">Matches soft-deleted rows too, as the unique path index does.</param>
+    /// <param name="contentHashes">Matches active and soft-deleted rows.</param>
+    /// <param name="filePaths">Matches active and soft-deleted rows, as the unique path index does.</param>
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<MediaAsset>> FindByHashesOrPathsAsync(
         Guid storageConfigId,
@@ -25,6 +27,17 @@ public interface IMediaAssetRepository
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct);
 
+    Task<IReadOnlyList<AssetPath>> GetActivePathsAsync(Guid storageConfigId, CancellationToken ct);
+
+    /// <summary>Soft-deletes the rows among <paramref name="ids"/> that are still active.</summary>
+    /// <param name="ids">The rows to soft-delete.</param>
+    /// <param name="ct">Cancels the update.</param>
+    /// <returns>The number of rows soft-deleted.</returns>
+    Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
+
+    /// <summary>Loads the asset's metadata row, even when the asset is soft-deleted.</summary>
+    /// <param name="asset">A tracked asset.</param>
+    /// <param name="ct">Cancels the query.</param>
     Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct);
 
     void Add(MediaAsset asset);
@@ -43,12 +56,23 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
         IReadOnlyCollection<string> contentHashes,
         IReadOnlyCollection<string> filePaths,
         CancellationToken ct)
-        => await db.MediaAssets
-            .IgnoreQueryFilters()
+        => await HashesOrPathsQuery(db, storageConfigId, contentHashes, filePaths)
             .Include(a => a.ProxyFiles)
-            .Where(a => a.StorageConfigId == storageConfigId
-                && ((!a.IsSoftDeleted && contentHashes.Contains(a.ContentHash)) || filePaths.Contains(a.FilePath)))
             .ToListAsync(ct);
+
+    // One branch per index, so PostgreSQL can combine their scans: the active content-hash index,
+    // the soft-deleted content-hash index and the path index.
+    internal static IQueryable<MediaAsset> HashesOrPathsQuery(
+        AnichronDbContext db,
+        Guid storageConfigId,
+        IReadOnlyCollection<string> contentHashes,
+        IReadOnlyCollection<string> filePaths)
+        => db.MediaAssets
+            .IgnoreQueryFilters()
+            .Where(a => a.StorageConfigId == storageConfigId
+                && ((!a.IsSoftDeleted && contentHashes.Contains(a.ContentHash))
+                    || (a.IsSoftDeleted && contentHashes.Contains(a.ContentHash))
+                    || filePaths.Contains(a.FilePath)));
 
     public async Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(
         IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct)
@@ -67,8 +91,15 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .Select(a => new ContentLocation(a.StorageConfig.UserId, a.ContentHash, a.StorageConfigId, a.FilePath));
     }
 
+    public async Task<IReadOnlyList<AssetPath>> GetActivePathsAsync(Guid storageConfigId, CancellationToken ct)
+        => await db.MediaAssets
+            .AsNoTracking()
+            .Where(a => a.StorageConfigId == storageConfigId)
+            .Select(a => new AssetPath(a.Id, a.FilePath))
+            .ToListAsync(ct);
+
     public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
-        => db.Entry(asset).Reference(a => a.Metadata).LoadAsync(ct);
+        => db.Entry(asset).Reference(a => a.Metadata).Query().IgnoreQueryFilters().LoadAsync(ct);
 
     public void Add(MediaAsset asset)
         => db.MediaAssets.Add(asset);
@@ -78,4 +109,21 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
 
     public void RemoveProxyFile(ProxyFile proxyFile)
         => db.ProxyFiles.Remove(proxyFile);
+
+    public Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
+        => SoftDeleteAsync(ids, batchSize: 1000, ct);
+
+    // Stryker disable all
+    internal async Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, int batchSize, CancellationToken ct)
+    {
+        var softDeleted = 0;
+        foreach (var batch in ids.Chunk(batchSize))
+        {
+            softDeleted += await db.MediaAssets
+                .Where(a => batch.Contains(a.Id))
+                .ExecuteUpdateAsync(set => set.SetProperty(a => a.IsSoftDeleted, true), ct);
+        }
+
+        return softDeleted;
+    }
 }

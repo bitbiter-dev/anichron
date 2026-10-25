@@ -121,17 +121,20 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 "Live Photo pairing: the HEIC parent points at its MOV child. SetNull on delete "
                 + "so losing one half leaves the other a usable standalone asset.");
             entity.Property(m => m.IsSoftDeleted).HasComment(
-                "Set by reconciliation when a file is gone from the NAS. Soft rather than hard so "
-                + "the user's interactions survive a temporarily unmounted share.");
+                "Set by reconciliation when a complete crawl did not find the file, or when its path "
+                + "now holds content stored at another path. Soft rather than hard so the user's "
+                + "interactions survive, and a crawl that finds the file again clears it (auto-restore).");
 
             // Composite Index for "On This Day" (Optimized for Flashbacks)
             entity.HasIndex(m => new { m.Month, m.Day }).HasDatabaseName("IX_MediaAsset_Flashback");
 
             // One active asset per (config, hash)
-            entity.HasIndex(m => new { m.StorageConfigId, m.ContentHash })
+            entity.HasIndex(m => new { m.StorageConfigId, m.ContentHash }, MediaAssetIndexNames.ActiveContentHashUnique)
                   .IsUnique()
-                  .HasFilter(@"""IsSoftDeleted"" = false")
-                  .HasDatabaseName(MediaAssetIndexNames.ActiveContentHashUnique);
+                  .HasFilter(@"""IsSoftDeleted"" = false");
+
+            entity.HasIndex(m => new { m.StorageConfigId, m.ContentHash }, MediaAssetIndexNames.SoftDeletedContentHash)
+                  .HasFilter(@"""IsSoftDeleted"" = true");
 
             // Unique Constraint: One file path per storage config
             entity.HasIndex(m => new { m.StorageConfigId, m.FilePath })

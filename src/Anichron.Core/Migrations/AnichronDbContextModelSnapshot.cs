@@ -193,7 +193,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<bool>("IsSoftDeleted")
                         .HasColumnType("boolean")
-                        .HasComment("Set by reconciliation when a file is gone from the NAS. Soft rather than hard so the user's interactions survive a temporarily unmounted share.");
+                        .HasComment("Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user's interactions survive, and a crawl that finds the file again clears it (auto-restore).");
 
                     b.Property<Instant>("LastSeenOnNas")
                         .HasColumnType("timestamp with time zone");
@@ -229,16 +229,18 @@ namespace Anichron.Core.Migrations
                     b.HasIndex("Month", "Day")
                         .HasDatabaseName("IX_MediaAsset_Flashback");
 
-                    b.HasIndex("StorageConfigId", "ContentHash")
-                        .IsUnique()
-                        .HasDatabaseName("ix_mediaassets_storageconfigid_contenthash_active")
-                        .HasFilter("\"IsSoftDeleted\" = false");
-
                     b.HasIndex("StorageConfigId", "DateCaptured");
 
                     b.HasIndex("StorageConfigId", "FilePath")
                         .IsUnique()
                         .HasDatabaseName("IX_MediaAssets_StorageConfigId_FilePath");
+
+                    b.HasIndex(new[] { "StorageConfigId", "ContentHash" }, "ix_mediaassets_storageconfigid_contenthash_active")
+                        .IsUnique()
+                        .HasFilter("\"IsSoftDeleted\" = false");
+
+                    b.HasIndex(new[] { "StorageConfigId", "ContentHash" }, "ix_mediaassets_storageconfigid_contenthash_softdeleted")
+                        .HasFilter("\"IsSoftDeleted\" = true");
 
                     b.ToTable("MediaAssets", t =>
                         {

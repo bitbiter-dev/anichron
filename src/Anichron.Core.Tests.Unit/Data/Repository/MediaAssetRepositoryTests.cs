@@ -107,9 +107,26 @@ public sealed class MediaAssetRepositoryTests
     }
 
     [Fact]
-    public async Task FindByHashesOrPathsAsync_SoftDeletedRowMatchedOnlyByHash_IsLeftOut()
-        => (await FindByHashesOrPathsAsync([AssetAt(ConfigA, "cafe", "a.jpg", softDeleted: true)], ["cafe"], ["b.jpg"]))
-            .Should().BeEmpty();
+    public async Task FindByHashesOrPathsAsync_SoftDeletedRowMatchedOnlyByHash_ComesBack()
+    {
+        var trashed = AssetAt(ConfigA, "cafe", "a.jpg", softDeleted: true);
+
+        var result = await FindByHashesOrPathsAsync([trashed], ["cafe"], ["b.jpg"]);
+
+        result.Should().ContainSingle().Which.Id.Should().Be(trashed.Id);
+    }
+
+    [Fact]
+    public void FindByHashesOrPaths_TranslatesToOneBranchPerIndex()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfMediaAssetRepository.HashesOrPathsQuery(db, ConfigA, ["cafe"], ["a.jpg"]).ToQueryString();
+
+        sql.Should().Contain("""
+            WHERE m."StorageConfigId" = @storageConfigId AND ((NOT (m."IsSoftDeleted") AND m."ContentHash" = ANY (@contentHashes)) OR (m."IsSoftDeleted" AND m."ContentHash" = ANY (@contentHashes)) OR m."FilePath" = ANY (@filePaths))
+            """);
+    }
 
     [Fact]
     public async Task FindByHashesOrPathsAsync_RowAtAPath_ComesBackEvenWhenSoftDeleted()
@@ -176,6 +193,45 @@ public sealed class MediaAssetRepositoryTests
 
         tracked.Metadata.Should().NotBeNull();
         tracked.Metadata.Width.Should().Be(640);
+    }
+
+    [Fact]
+    public async Task LoadMetadataAsync_SoftDeletedAsset_StillLoadsItsMetadataRow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var asset = AssetAt(ConfigA, "cafe", "a.jpg", softDeleted: true);
+        asset.Metadata = new Metadata { AssetId = asset.Id, Width = 640 };
+        await using var seed = CreateDb(out var name);
+        seed.MediaAssets.Add(asset);
+        await seed.SaveChangesAsync(ct);
+        await using var db = AnichronDbContexts.InMemory(name);
+        var tracked = await db.MediaAssets.IgnoreQueryFilters().SingleAsync(a => a.Id == asset.Id, ct);
+
+        await new EfMediaAssetRepository(db).LoadMetadataAsync(tracked, ct);
+
+        tracked.Metadata.Should().NotBeNull();
+        tracked.Metadata.Width.Should().Be(640);
+    }
+
+    // ==========================================================================
+    // GetActivePathsAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task GetActivePathsAsync_ReturnsTheIdAndPathOfEachActiveRowOfTheConfig()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (first, second) = (AssetAt(ConfigA, "cafe", "2023/a.jpg"), AssetAt(ConfigA, "beef", "2024/b.jpg"));
+        await using var seed = CreateDb(out var name);
+        seed.MediaAssets.AddRange(
+            first, second, AssetAt(ConfigA, "f00d", "trashed.jpg", softDeleted: true), AssetAt(ConfigB, "d00d", "other.jpg"));
+        await seed.SaveChangesAsync(ct);
+        await using var db = AnichronDbContexts.InMemory(name);
+
+        var result = await new EfMediaAssetRepository(db).GetActivePathsAsync(ConfigA, ct);
+
+        result.Should().BeEquivalentTo([new AssetPath(first.Id, "2023/a.jpg"), new AssetPath(second.Id, "2024/b.jpg")]);
+        db.ChangeTracker.Entries().Should().BeEmpty();
     }
 
     // ==========================================================================
