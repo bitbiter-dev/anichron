@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <IsMutationTarget>false</IsMutationTarget>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Anichron.Core\Anichron.Core.csproj" />
   </ItemGroup>
