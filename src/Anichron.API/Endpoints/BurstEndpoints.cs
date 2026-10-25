@@ -10,12 +10,12 @@ public static class BurstEndpoints
     public static IEndpointRouteBuilder MapBurstEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup(ApiPaths.Bursts.Group).WithTags("Bursts");
-        group.MapGet(ApiPaths.Bursts.Members, GetAssetsAsync)
+        group.MapGet(ApiPaths.Bursts.Members, GetMembersAsync)
              .RequireAuthorization();
         return app;
     }
 
-    internal static async Task<IResult> GetAssetsAsync(
+    internal static async Task<IResult> GetMembersAsync(
         Guid burstId,
         ClaimsPrincipal user,
         [FromServices] IAssetViewReader reader,
@@ -27,6 +27,6 @@ public static class BurstEndpoints
         var members = await reader.ReadAsync(userId, new BurstMembers(burstId), ct);
         return members.Count == 0
             ? Results.NotFound()
-            : Results.Ok(BurstFrames.List(burstId, [.. members]));
+            : Results.Ok(Bursts.Members(burstId, members));
     }
 }

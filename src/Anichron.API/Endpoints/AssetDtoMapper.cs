@@ -6,8 +6,6 @@ namespace Anichron.API.Endpoints;
 
 internal static class AssetDtoMapper
 {
-    internal static AssetDto ToDto(AssetView view) => ToDto(view, null);
-
     internal static AssetDto ToDto(AssetView view, AssetBurstDto? burst)
     {
         var swapsAxes = view.Orientation is { } orientation && ExifOrientation.SwapsAxes(orientation);

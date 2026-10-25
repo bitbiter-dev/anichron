@@ -93,7 +93,7 @@ public sealed class FlashbackEndpointsTests
         var fixture = new TestFixture();
         var burstId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
         var cover = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000001"), new LocalDateTime(2019, 7, 14, 23, 59)) with { BurstId = burstId };
-        var single = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000003"), new LocalDateTime(2019, 7, 15, 9, 0));
+        var single = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000003"), new LocalDateTime(2019, 7, 14, 10, 0));
         AssetView[] views =
         [
             cover,
@@ -108,8 +108,12 @@ public sealed class FlashbackEndpointsTests
         using var nextDay = await client.SendAsync(Get("?date=2026-07-15"), TestContext.Current.CancellationToken);
 
         var json = await onTheDay.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        json.Should().Contain("\"burst\":{\"burstId\":\"bbbbbbbb-0000-0000-0000-000000000001\",\"isCover\":true,\"count\":2}")
-            .And.Contain("\"burst\":null");
+        json.Should().Contain("\"burst\":{\"burstId\":\"bbbbbbbb-0000-0000-0000-000000000001\",\"isCover\":true,\"count\":2}");
+        var day = await onTheDay.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
+        day.Should().NotBeNull();
+        day.Years.Should().ContainSingle().Which.Assets.Select(a => (a.Id, a.Burst)).Should().Equal(
+            (single.Id, null),
+            (cover.Id, new AssetBurstDto(burstId, true, 2)));
         var later = await nextDay.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
         later.Should().NotBeNull();
         later.Years.Should().ContainSingle().Which.Assets.Should().ContainSingle().Which.Id.Should().Be(single.Id);

@@ -17,12 +17,14 @@ public sealed class AssetDtoMapperTests
         DurationInSeconds = 3,
     };
 
+    private static AssetDto ToDto(AssetView view) => AssetDtoMapper.ToDto(view, null);
+
     [Fact]
     public void Photo_MapsItsFieldsAndProxyUrls()
     {
         var view = Photo with { HasThumbnail = true, HasPreview = true, Blurhash = "LEHV6nWB2yk8" };
 
-        AssetDtoMapper.ToDto(view).Should().BeEquivalentTo(new AssetDto(
+        ToDto(view).Should().BeEquivalentTo(new AssetDto(
             AssetId,
             "Image",
             2019,
@@ -52,7 +54,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void Video_ReportsItsDurationAndVideoProxy()
     {
-        var dto = AssetDtoMapper.ToDto(Photo with { MediaType = MediaType.Video, HasThumbnail = true, HasVideo = true });
+        var dto = ToDto(Photo with { MediaType = MediaType.Video, HasThumbnail = true, HasVideo = true });
 
         dto.MediaType.Should().Be("Video");
         dto.DurationSeconds.Should().Be(3);
@@ -65,7 +67,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void LivePhoto_PointsAtThePairedMovsVideoProxy()
     {
-        var dto = AssetDtoMapper.ToDto(Photo with
+        var dto = ToDto(Photo with
         {
             MediaType = MediaType.LivePhoto,
             HasThumbnail = true,
@@ -82,7 +84,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void LivePhoto_WhosePairedMovHasNoVideoProxy_HasNoLivePhotoUrl()
     {
-        var dto = AssetDtoMapper.ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovId = MovId });
+        var dto = ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovId = MovId });
 
         dto.LivePhotoVideoUrl.Should().BeNull();
     }
@@ -90,7 +92,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void MissingOptionalProxiesAndMetadata_MapToNulls()
     {
-        var dto = AssetDtoMapper.ToDto(Photo with
+        var dto = ToDto(Photo with
         {
             MediaType = MediaType.Video,
             Width = null,
@@ -114,7 +116,7 @@ public sealed class AssetDtoMapperTests
     [InlineData(8, 3024, 4032)]
     public void Dimensions_AreReportedUpright(int orientation, int width, int height)
     {
-        var dto = AssetDtoMapper.ToDto(Photo with { Orientation = orientation });
+        var dto = ToDto(Photo with { Orientation = orientation });
 
         dto.Width.Should().Be(width);
         dto.Height.Should().Be(height);
@@ -123,21 +125,21 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void NoInteraction_IsAllFalseWithDefaultWeight()
     {
-        AssetDtoMapper.ToDto(Photo).Interaction
+        ToDto(Photo).Interaction
             .Should().Be(new AssetInteractionDto(false, false, false, 1.0));
     }
 
     [Fact]
     public void StarredAsset_IsReportedStarred()
     {
-        AssetDtoMapper.ToDto(Photo with { IsStarred = true }).Interaction
+        ToDto(Photo with { IsStarred = true }).Interaction
             .Should().Be(new AssetInteractionDto(true, false, false, 1.0));
     }
 
     [Fact]
     public void LikedAsset_WeighsDouble()
     {
-        AssetDtoMapper.ToDto(Photo with { IsLiked = true }).Interaction
+        ToDto(Photo with { IsLiked = true }).Interaction
             .Should().Be(new AssetInteractionDto(false, true, false, 2.0));
     }
 
@@ -154,10 +156,10 @@ public sealed class AssetDtoMapperTests
     [InlineData(MediaType.Video, "Video")]
     [InlineData(MediaType.LivePhoto, "LivePhoto")]
     public void MediaType_IsPublishedAsItsContractValue(MediaType type, string published)
-        => AssetDtoMapper.ToDto(Photo with { MediaType = type }).MediaType.Should().Be(published);
+        => ToDto(Photo with { MediaType = type }).MediaType.Should().Be(published);
 
     [Fact]
     public void EveryMediaType_HasAPublishedValue()
-        => Enum.GetValues<MediaType>().Select(t => AssetDtoMapper.ToDto(Photo with { MediaType = t }).MediaType)
+        => Enum.GetValues<MediaType>().Select(t => ToDto(Photo with { MediaType = t }).MediaType)
             .Should().OnlyHaveUniqueItems().And.HaveCount(Enum.GetValues<MediaType>().Length);
 }

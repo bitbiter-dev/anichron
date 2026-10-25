@@ -5,7 +5,7 @@ namespace Anichron.API.Tests.Unit.Endpoints;
 
 public sealed class FlashbackYearsTests
 {
-    private static readonly LocalDate Day = new(2026, 7, 14);
+    private static readonly OnThisDay Day = new(new LocalDate(2026, 7, 14));
     private static readonly Guid BurstA = Guid.Parse("bbbbbbbb-0000-0000-0000-00000000000a");
     private static readonly Guid BurstB = Guid.Parse("bbbbbbbb-0000-0000-0000-00000000000b");
 
@@ -158,7 +158,7 @@ public sealed class FlashbackYearsTests
     {
         var years = FlashbackYears.Group(
             [View("00000000-0000-0000-0000-000000000002", new LocalDateTime(2019, 7, 15, 0, 1), burst: BurstA)],
-            new LocalDate(2026, 7, 15));
+            new OnThisDay(new LocalDate(2026, 7, 15)));
 
         years.Should().ContainSingle().Which.Assets.Should().ContainSingle().Which.Burst
             .Should().Be(new AssetBurstDto(BurstA, true, 1));

@@ -456,7 +456,19 @@ public sealed class AssetViewReaderTests
         var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
 
         views.Select(v => v.Id).Should().BeEquivalentTo([first.Id, second.Id]);
-        views.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(2019, 7, 14, true)]
+    [InlineData(2019, 7, 13, false)]
+    [InlineData(2019, 6, 14, false)]
+    public void OnThisDay_FallsOnTheDay_ComparesMonthAndDay(int year, int month, int day, bool falls)
+    {
+        var view = new AssetView(
+            Guid.NewGuid(), MediaType.Image, year, month, day, new LocalDateTime(year, month, day, 9, 0),
+            null, null, null, null, null, false, false, false, null, false, false, false, null);
+
+        new OnThisDay(new LocalDate(2026, 7, 14)).FallsOnTheDay(view).Should().Be(falls);
     }
 
     // ==========================================================================
@@ -479,6 +491,15 @@ public sealed class AssetViewReaderTests
         var views = await ReadAsync(library, library.Mira, new BurstMembers(burst.Id));
 
         views.Select(v => v.Id).Should().BeEquivalentTo([first.Id, second.Id]);
+    }
+
+    [Fact]
+    public async Task BurstMembers_UnknownBurst_IsEmpty()
+    {
+        var library = new Library();
+        library.Burst(library.Asset(library.MiraConfig), library.Asset(library.MiraConfig));
+
+        (await ReadAsync(library, library.Mira, new BurstMembers(Guid.NewGuid()))).Should().BeEmpty();
     }
 
     [Fact]
@@ -522,6 +543,19 @@ public sealed class AssetViewReaderTests
             "both arms of the union start from the indexed day columns, the members' arm joining on BurstId");
         sql.Split("\"UserId\" = @").Should().HaveCount(8,
             "the burst lookup applies the owned-config check and the hidden rule to the caller as well");
+    }
+
+    [Fact]
+    public void Query_BurstMembers_FiltersOnTheBurstAfterVisibility()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new BurstMembers(Guid.NewGuid())).ToQueryString();
+
+        sql.Should().Contain("\"BurstId\" = @BurstId")
+            .And.Contain("\"IsActive\"")
+            .And.Contain("\"IsHidden\"")
+            .And.NotContain(";");
     }
 
     [Fact]

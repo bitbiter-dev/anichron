@@ -32,6 +32,9 @@ public interface IAssetSelection
 
 public sealed record OnThisDay(LocalDate Date) : IAssetSelection
 {
+    public bool FallsOnTheDay(AssetView view)
+        => view.Month == Date.Month && view.Day == Date.Day;
+
     public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets)
     {
         var onTheDay = assets.Where(a => a.Month == Date.Month && a.Day == Date.Day && a.Year < Date.Year);
