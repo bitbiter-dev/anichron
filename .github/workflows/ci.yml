@@ -108,11 +108,46 @@ jobs:
       - name: Integration tests
         run: dotnet test src/ -p:TestSuite=Integration
 
-  mutation:
-    name: Mutation
+  # One Stryker run per mutation target project, in parallel (ADR 0010): in
+  # solution mode Stryker captures the same coverage once per project. The list
+  # comes from the IsMutationTarget convention, so a new project is mutated
+  # without editing this file and none drops out silently (#306).
+  mutation-targets:
+    name: Mutation targets
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      projects: ${{ steps.list.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: List mutation target projects
+        id: list
+        run: |
+          set -o pipefail
+          projects=$(scripts/mutation-targets.sh | jq -R -s -c 'split("\n") | map(select(. != "")) | map({name: (split("/")[0]), project: (split("/")[1])})')
+          if [ "$(jq length <<<"$projects")" -eq 0 ]; then
+            echo "::error::scripts/mutation-targets.sh listed no projects; nothing would be mutated"
+            exit 1
+          fi
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
+          jq -r '.[].name' <<<"$projects"
+
+  mutation-project:
+    name: Mutation — ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: mutation-targets
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.mutation-targets.outputs.projects) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -123,25 +158,82 @@ jobs:
       - name: Restore .NET tools
         run: dotnet tool restore
 
-      # Deferred enforcement — see docs/mutation-testing.md. The gate is the
-      # thresholds in stryker-config.json, all 100.
+      # The gate is the thresholds in stryker-config.json, all 100. The job
+      # fails below them; the Mutation job still merges every report it got.
       - name: Mutation test
-        id: mutation
-        continue-on-error: true
         timeout-minutes: 20
-        run: scripts/stryker-sweep.sh --output ../mutation
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: scripts/stryker-sweep.sh --project "$PROJECT" --output ../mutation
 
       - name: Publish mutation summary
         if: always()
+        env:
+          NAME: ${{ matrix.name }}
         run: |
           if [ -f mutation/reports/mutation-report.md ]; then
             cat mutation/reports/mutation-report.md >> $GITHUB_STEP_SUMMARY
           else
-            echo '### Mutation testing produced no report — see the step log' >> $GITHUB_STEP_SUMMARY
+            echo "### Mutation testing of $NAME produced no report — see the step log" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload mutation report
+      - name: Upload project report
         if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-part-${{ matrix.name }}
+          path: mutation/reports/mutation-report.json
+          if-no-files-found: ignore
+          retention-days: 1
+
+  mutation:
+    name: Mutation
+    runs-on: ubuntu-latest
+    needs: [mutation-targets, mutation-project]
+    if: ${{ !cancelled() }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          pattern: mutation-part-*
+          path: parts
+
+      # Refuses unless every target project left a report, and on any
+      # inconsistency between them (scripts/mutation-report.sh, "merge").
+      - name: Merge project reports
+        id: merge
+        continue-on-error: true
+        env:
+          PROJECTS: ${{ needs.mutation-targets.outputs.projects }}
+        run: |
+          if [ -z "$PROJECTS" ]; then
+            echo "::error::No mutation target list to merge against"
+            exit 1
+          fi
+          missing=$(jq -r '.[].name' <<<"$PROJECTS" | while IFS= read -r name; do
+            [ -f "parts/mutation-part-$name/mutation-report.json" ] || echo "$name"
+          done)
+          if [ -n "$missing" ]; then
+            echo "::error::No mutation report from: $(echo $missing)"
+            exit 1
+          fi
+          mkdir -p mutation/reports
+          scripts/mutation-report.sh merge parts/*/mutation-report.json > mutation/reports/mutation-report.json.tmp
+          mv mutation/reports/mutation-report.json.tmp mutation/reports/mutation-report.json
+          cp scripts/mutation-viewer.html mutation/reports/mutation-report.html
+
+      - name: Publish merged score
+        if: steps.merge.outcome == 'success'
+        run: |
+          scripts/mutation-report.sh tally mutation/reports/mutation-report.json \
+            | jq -r '"### Mutation score, all projects: \(.score)% (\(.detected) of \(.total) detected)"' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload mutation report
+        if: steps.merge.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: mutation-report
@@ -154,7 +246,7 @@ jobs:
       # badge step to publish — destroying a working badge. The badge step
       # validates the payload as well; both guards are cheap and it force-pushes.
       - name: Build mutation badge payload
-        if: always()
+        if: steps.merge.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p mutation-state
@@ -172,13 +264,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-      # Any non-zero Stryker exit counts — 2 is a break-threshold violation,
-      # 1 is Stryker itself failing.
       - name: Enforce mutation score
-        if: always() && steps.mutation.outcome == 'failure'
+        if: always()
+        env:
+          TARGETS: ${{ needs.mutation-targets.result }}
+          PROJECTS: ${{ needs.mutation-project.result }}
+          MERGE: ${{ steps.merge.outcome }}
         run: |
-          echo "::error::Mutation testing failed. See the job summary for the score, and the mutation-report artifact for surviving mutants."
-          exit 1
+          if [ "$TARGETS" != success ] || [ "$PROJECTS" != success ] || [ "$MERGE" != success ]; then
+            echo "::error::Mutation testing failed (targets: $TARGETS, projects: $PROJECTS, merge: $MERGE). See each project job's summary for its score, and the mutation-report artifact for surviving mutants."
+            exit 1
+          fi
 
   docker:
     name: Docker — ${{ matrix.name }}
