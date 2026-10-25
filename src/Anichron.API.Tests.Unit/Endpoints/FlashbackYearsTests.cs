@@ -154,6 +154,17 @@ public sealed class FlashbackYearsTests
     }
 
     [Fact]
+    public void Group_BurstWhoseMembersBeforeMidnightAreHidden_IsShownOnTheNextDayWithOnlyTheVisibleMember()
+    {
+        var years = FlashbackYears.Group(
+            [View("00000000-0000-0000-0000-000000000002", new LocalDateTime(2019, 7, 15, 0, 1), burst: BurstA)],
+            new LocalDate(2026, 7, 15));
+
+        years.Should().ContainSingle().Which.Assets.Should().ContainSingle().Which.Burst
+            .Should().Be(new AssetBurstDto(BurstA, true, 1));
+    }
+
+    [Fact]
     public void Group_BurstStartingOnTheSameDayOfAnEarlierMonth_IsNotShown()
     {
         var years = Group(

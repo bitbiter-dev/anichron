@@ -35,8 +35,12 @@ public sealed record OnThisDay(LocalDate Date) : IAssetSelection
     public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets)
     {
         var onTheDay = assets.Where(a => a.Month == Date.Month && a.Day == Date.Day && a.Year < Date.Year);
-        return assets.Where(a => (a.Month == Date.Month && a.Day == Date.Day && a.Year < Date.Year)
-            || (a.BurstId != null && onTheDay.Any(d => d.BurstId == a.BurstId)));
+        return onTheDay.Union(
+            from d in onTheDay
+            where d.BurstId != null
+            from a in assets
+            where a.BurstId == d.BurstId
+            select a);
     }
 }
 

@@ -47,14 +47,13 @@ public sealed class BurstEndpointsTests
         using var response = await client.SendAsync(Get(BurstId), TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<BurstDto>(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadFromJsonAsync<AssetDto[]>(TestContext.Current.CancellationToken);
         body.Should().NotBeNull();
-        body.Id.Should().Be(BurstId);
-        body.Assets.Select(a => (a.Id.ToString()[^1..], a.Burst)).Should().Equal(
+        body.Select(a => (a.Id.ToString()[^1..], a.Burst)).Should().Equal(
             ("a", new AssetBurstDto(BurstId, IsCover: true, Count: 3)),
             ("b", new AssetBurstDto(BurstId, IsCover: false, Count: 3)),
             ("2", new AssetBurstDto(BurstId, IsCover: false, Count: 3)));
-        body.Assets[0].Should().Be(AssetDtoMapper.ToDto(members[2], new AssetBurstDto(BurstId, true, 3)));
+        body[0].Should().Be(AssetDtoMapper.ToDto(members[2], new AssetBurstDto(BurstId, true, 3)));
     }
 
     [Fact]

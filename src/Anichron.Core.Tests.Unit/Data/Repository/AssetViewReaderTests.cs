@@ -431,6 +431,34 @@ public sealed class AssetViewReaderTests
         views.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task OnThisDay_EveryMemberBeforeMidnightHidden_BringsTheBurstOnTheNextDay()
+    {
+        var library = new Library();
+        var hidden = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 23, 59));
+        var afterMidnight = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 15, 0, 1));
+        library.Burst(hidden, afterMidnight);
+        library.Interaction(library.Mira, hidden, hidden: true);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 15)));
+
+        views.Select(v => v.Id).Should().Equal(afterMidnight.Id);
+    }
+
+    [Fact]
+    public async Task OnThisDay_TwoMembersOnTheDay_BringEachMemberOnce()
+    {
+        var library = new Library();
+        var first = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 0));
+        var second = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 1));
+        library.Burst(first, second);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([first.Id, second.Id]);
+        views.Should().HaveCount(2);
+    }
+
     // ==========================================================================
     // BurstMembers (#299)
     // ==========================================================================
@@ -487,9 +515,12 @@ public sealed class AssetViewReaderTests
 
         var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new OnThisDay(new LocalDate(2026, 7, 14))).ToQueryString();
 
-        sql.Should().Contain("\"BurstId\" IS NOT NULL AND EXISTS (")
+        sql.Should().Contain("UNION")
+            .And.Contain("\"BurstId\" IS NOT NULL")
             .And.NotContain(";");
-        sql.Split("\"UserId\" = @").Should().HaveCount(6,
+        sql.Split("\"Month\" = @Date_Month AND").Should().HaveCount(3,
+            "both arms of the union start from the indexed day columns, the members' arm joining on BurstId");
+        sql.Split("\"UserId\" = @").Should().HaveCount(8,
             "the burst lookup applies the owned-config check and the hidden rule to the caller as well");
     }
 

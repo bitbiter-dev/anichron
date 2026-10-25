@@ -5,8 +5,6 @@ using System.Security.Claims;
 
 namespace Anichron.API.Endpoints;
 
-public sealed record BurstDto(Guid Id, IReadOnlyList<AssetDto> Assets);
-
 public static class BurstEndpoints
 {
     public static IEndpointRouteBuilder MapBurstEndpoints(this IEndpointRouteBuilder app)
@@ -29,6 +27,6 @@ public static class BurstEndpoints
         var members = await reader.ReadAsync(userId, new BurstMembers(burstId), ct);
         return members.Count == 0
             ? Results.NotFound()
-            : Results.Ok(new BurstDto(burstId, BurstFrames.List(burstId, [.. members])));
+            : Results.Ok(BurstFrames.List(burstId, [.. members]));
     }
 }
