@@ -52,8 +52,8 @@ line that needs a test. The markdown report beside it has the per-file breakdown
 
 ### The scoped local run
 
-A full sweep mutates the whole solution, and the CI `Mutation` job runs one on every pull
-request anyway. While working on a change, run only the files it touches:
+A full sweep mutates the whole solution, and CI mutates every project on every pull request
+anyway. While working on a change, run only the files it touches:
 
 ```bash
 scripts/mutation-changed.sh                     # changed since the merge-base with origin/master
@@ -139,11 +139,13 @@ In CI the sweep is split by project, as the scoped run is ([ADR 0010](adr/0010-s
   badge payload. Its **last** step fails unless the target list, every project job and the merge
   succeeded.
 
-The merge refuses when a target project left no report, when a source file is in two reports, when
-a test id has two names, and when schema versions or thresholds differ, or the version is not the
+The merge refuses when a target project left no report, when a source file is in two reports, when a
+test id has two names, and when schema versions or thresholds differ, or the version is not the
 schema's version 2. Each refusal means one of the reports is not what the merge assumes, so a merged
 score would be built on it. Mutant ids are per-run counters, so the merge prefixes each with its
-report's position. The weekly divergence check and the local full sweep stay solution-mode runs.
+report's position. Each run's `projectRoot` is its own project folder, so the merged one is the
+deepest folder they share (`src/`). The weekly divergence check and the local full sweep stay
+solution-mode runs.
 
 The jobs take that shape because of three constraints, and changing any part of it tends to break
 one of the others:
@@ -311,9 +313,9 @@ The `mutation/` page is ours, not Stryker's: `scripts/mutation-viewer.html` load
 `mutation-report.json` into `mutation-testing-elements`, pinned by version and SRI hash. Stryker's
 own HTML embeds one run's report, and there is no merged run to render it from.
 
-If a project's run crashes or the merge refuses, there is no merged report. The script publishes coverage alone and the landing
-page says the mutation report is unavailable *for this build*, naming the distinction that matters:
-the sweep **failed** rather than scored badly.
+If a project's run crashes or the merge refuses, there is no merged report. The script publishes
+coverage alone and the landing page says the mutation report is unavailable *for this build*,
+naming the distinction that matters: the sweep **failed** rather than scored badly.
 
 An earlier draft of this script enforced "both reports or neither" and failed when either was
 missing. That was wrong in two ways. It would fail CI a second time for a reason that is only

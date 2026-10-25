@@ -1,7 +1,7 @@
 {
   "schemaVersion": "2",
   "thresholds": { "high": 100, "low": 100 },
-  "projectRoot": "/repo/src",
+  "projectRoot": "/repo/src/Core",
   "files": {
     "/repo/src/Core/Queue.cs": {
       "language": "cs", "source": "class Queue {}",

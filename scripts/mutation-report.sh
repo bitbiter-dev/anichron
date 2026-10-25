@@ -119,7 +119,11 @@ readonly MERGE='
   | {
       schemaVersion: .[0].schemaVersion,
       thresholds: .[0].thresholds,
-      projectRoot: .[0].projectRoot,
+      projectRoot: (
+        [.[].projectRoot | split("/")] as $roots
+        | first(range($roots | map(length) | min; -1; -1) | select(. as $n | $roots | map(.[0:$n]) | unique | length == 1))
+        | $roots[0][0:.] | join("/")
+      ),
       files: ([to_entries[] | (.key + 1) as $n | .value.files | map_values(.mutants |= map(.id = "\($n).\(.id)"))] | add),
       testFiles: (
         [.[].testFiles // {} | to_entries[]] | group_by(.key)

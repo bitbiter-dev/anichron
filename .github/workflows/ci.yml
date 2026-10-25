@@ -129,6 +129,7 @@ jobs:
       - name: List mutation target projects
         id: list
         run: |
+          set -o pipefail
           projects=$(scripts/mutation-targets.sh | jq -R -s -c 'split("\n") | map(select(. != "")) | map({name: (split("/")[0]), project: (split("/")[1])})')
           if [ "$(jq length <<<"$projects")" -eq 0 ]; then
             echo "::error::scripts/mutation-targets.sh listed no projects; nothing would be mutated"
@@ -161,15 +162,19 @@ jobs:
       # fails below them; the Mutation job still merges every report it got.
       - name: Mutation test
         timeout-minutes: 20
-        run: scripts/stryker-sweep.sh --project ${{ matrix.project }} --output ../mutation
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: scripts/stryker-sweep.sh --project "$PROJECT" --output ../mutation
 
       - name: Publish mutation summary
         if: always()
+        env:
+          NAME: ${{ matrix.name }}
         run: |
           if [ -f mutation/reports/mutation-report.md ]; then
             cat mutation/reports/mutation-report.md >> $GITHUB_STEP_SUMMARY
           else
-            echo '### Mutation testing of ${{ matrix.name }} produced no report — see the step log' >> $GITHUB_STEP_SUMMARY
+            echo "### Mutation testing of $NAME produced no report — see the step log" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Upload project report
@@ -185,7 +190,7 @@ jobs:
     name: Mutation
     runs-on: ubuntu-latest
     needs: [mutation-targets, mutation-project]
-    if: always()
+    if: ${{ !cancelled() }}
     permissions:
       contents: read
     steps:
@@ -205,11 +210,15 @@ jobs:
         env:
           PROJECTS: ${{ needs.mutation-targets.outputs.projects }}
         run: |
-          missing=$(jq -r '.[].name' <<<"${PROJECTS:-[]}" | while IFS= read -r name; do
+          if [ -z "$PROJECTS" ]; then
+            echo "::error::No mutation target list to merge against"
+            exit 1
+          fi
+          missing=$(jq -r '.[].name' <<<"$PROJECTS" | while IFS= read -r name; do
             [ -f "parts/mutation-part-$name/mutation-report.json" ] || echo "$name"
           done)
-          if [ -n "$missing" ] || [ -z "${PROJECTS:-}" ]; then
-            echo "::error::No mutation report from: ${missing:-the target list}"
+          if [ -n "$missing" ]; then
+            echo "::error::No mutation report from: $(echo $missing)"
             exit 1
           fi
           mkdir -p mutation/reports

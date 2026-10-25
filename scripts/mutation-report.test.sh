@@ -54,8 +54,14 @@ assert_eq "joins a test file's tests across reports, once per id" \
   't-exec t-shared' "$(echo "$out" | jq -r '.testFiles["/repo/src/Worker.Tests.Unit/SharedTests.cs"].tests | map(.id) | sort | join(" ")')"
 assert_eq "keeps test files only one report has" \
   't-queue' "$(echo "$out" | jq -r '.testFiles["/repo/src/Core.Tests.Unit/QueueTests.cs"].tests | map(.id) | join(" ")')"
-assert_eq "keeps the schema version, thresholds and project root" \
-  '2 100 100 /repo/src' "$(echo "$out" | jq -r '"\(.schemaVersion) \(.thresholds.high) \(.thresholds.low) \(.projectRoot)"')"
+assert_eq "keeps the schema version and thresholds" \
+  '2 100 100' "$(echo "$out" | jq -r '"\(.schemaVersion) \(.thresholds.high) \(.thresholds.low)"')"
+assert_eq "the project root is the deepest folder every report's root is in" \
+  '/repo/src' "$(echo "$out" | jq -r '.projectRoot')"
+assert_eq "a root that only shares a name prefix is not a common folder" \
+  '/repo/src' "$("$script" merge "$(variant app '.projectRoot = "/repo/src/App"')" "$(jq '.projectRoot = "/repo/src/Application"' "$worker" > "$merge_dir/application.json"; printf '%s' "$merge_dir/application.json")" | jq -r '.projectRoot')"
+assert_eq "a single report keeps its own project root" \
+  '/repo/src/Core' "$("$script" merge "$core" | jq -r '.projectRoot')"
 echo "$out" > "$merge_dir/merged.json"
 assert_eq "the merged report tallies as the sum: 2 detected of 3" \
   '2 3' "$("$script" tally "$merge_dir/merged.json" | jq -r '"\(.detected) \(.total)"')"

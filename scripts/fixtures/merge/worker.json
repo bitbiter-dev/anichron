@@ -1,7 +1,7 @@
 {
   "schemaVersion": "2",
   "thresholds": { "high": 100, "low": 100 },
-  "projectRoot": "/repo/src",
+  "projectRoot": "/repo/src/Worker",
   "files": {
     "/repo/src/Worker/Executor.cs": {
       "language": "cs", "source": "class Executor {}",
