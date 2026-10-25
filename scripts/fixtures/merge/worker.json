@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "2",
+  "thresholds": { "high": 100, "low": 100 },
+  "projectRoot": "/repo/src",
+  "files": {
+    "/repo/src/Worker/Executor.cs": {
+      "language": "cs", "source": "class Executor {}",
+      "mutants": [
+        { "id": "7", "mutatorName": "Block removal mutation", "location": { "start": { "line": 1, "column": 1 }, "end": { "line": 1, "column": 2 } }, "status": "Timeout", "coveredBy": ["t-exec"] }
+      ]
+    }
+  },
+  "testFiles": {
+    "/repo/src/Worker.Tests.Unit/SharedTests.cs": {
+      "language": "cs", "source": "class SharedTests {}",
+      "tests": [ { "id": "t-shared", "name": "Worker.Tests.SharedTests.Uses" }, { "id": "t-exec", "name": "Worker.Tests.SharedTests.Executes" } ]
+    }
+  }
+}

@@ -37,6 +37,48 @@ assert_fails() {
   esac
 }
 
+echo "merge"
+
+merge_dir=$(mktemp -d "${TMPDIR:-/tmp}/mutation-report-merge.XXXXXXXX")
+trap 'rm -rf "$merge_dir"' EXIT
+core="$fixtures/merge/core.json"
+worker="$fixtures/merge/worker.json"
+variant() { jq "$2" "$core" > "$merge_dir/$1.json"; printf '%s' "$merge_dir/$1.json"; }
+
+out=$("$script" merge "$core" "$worker")
+assert_eq "keeps every source file of every report" \
+  '/repo/src/Core/Queue.cs /repo/src/Worker/Executor.cs' "$(echo "$out" | jq -r '.files | keys | join(" ")')"
+assert_eq "prefixes mutant ids with the report's position, so per-project ids cannot collide" \
+  '1.7 1.8 2.7' "$(echo "$out" | jq -r '[.files[].mutants[].id] | join(" ")')"
+assert_eq "joins a test file's tests across reports, once per id" \
+  't-exec t-shared' "$(echo "$out" | jq -r '.testFiles["/repo/src/Worker.Tests.Unit/SharedTests.cs"].tests | map(.id) | sort | join(" ")')"
+assert_eq "keeps test files only one report has" \
+  't-queue' "$(echo "$out" | jq -r '.testFiles["/repo/src/Core.Tests.Unit/QueueTests.cs"].tests | map(.id) | join(" ")')"
+assert_eq "keeps the schema version, thresholds and project root" \
+  '2 100 100 /repo/src' "$(echo "$out" | jq -r '"\(.schemaVersion) \(.thresholds.high) \(.thresholds.low) \(.projectRoot)"')"
+echo "$out" > "$merge_dir/merged.json"
+assert_eq "the merged report tallies as the sum: 2 detected of 3" \
+  '2 3' "$("$script" tally "$merge_dir/merged.json" | jq -r '"\(.detected) \(.total)"')"
+assert_eq "a single report merges to itself, ids prefixed" \
+  '1.7 1.8' "$("$script" merge "$core" | jq -r '[.files[].mutants[].id] | join(" ")')"
+
+assert_fails "refuses a source file in two reports" \
+  'Core/Queue.cs is in more than one report' "$script" merge "$core" "$core"
+assert_fails "refuses a test id with two names" \
+  'test id t-shared has more than one name' \
+  "$script" merge "$(variant renamed '.files = {} | .testFiles["/repo/src/Worker.Tests.Unit/SharedTests.cs"].tests[0].name = "Other"')" "$worker"
+assert_fails "refuses differing schema versions" \
+  'schema versions differ' \
+  "$script" merge "$(variant v3 '.files = {} | .schemaVersion = "3"')" "$worker"
+assert_fails "refuses an unknown schema version, even when all agree" \
+  'unknown schema version 3' "$script" merge "$(variant only-v3 '.schemaVersion = "3"')"
+assert_fails "refuses differing thresholds" \
+  'thresholds differ' \
+  "$script" merge "$(variant lower '.files = {} | .thresholds.low = 80')" "$worker"
+assert_fails "refuses a report that does not exist" \
+  'report not found' "$script" merge "$core" "$merge_dir/missing.json"
+assert_fails "needs at least one report" 'usage' "$script" merge
+
 echo "badge"
 
 out=$("$script" badge "$fixtures/passing.json")

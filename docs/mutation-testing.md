@@ -127,16 +127,34 @@ Stryker exits `2` when the score is below the `break` threshold in the config �
 what its documentation says — so CI treats any non-zero value as failure rather than matching on a
 specific code.
 
-In CI the sweep runs in its own `Mutation` job, in parallel with `Checks`, with
-`continue-on-error` on the sweep and the job's **last** step failing on the outcome. Three
-constraints force that shape, and changing any part of it tends to break one of the others:
+In CI the sweep is split by project, as the scoped run is ([ADR 0010](adr/0010-scoped-mutation-runs-per-project.md)):
+
+- `Mutation targets` lists the projects with `scripts/mutation-targets.sh`, so a new project is
+  mutated without a workflow edit, and a list that comes back empty fails.
+- `Mutation — <project>`, one matrix job per target, runs `scripts/stryker-sweep.sh --project
+  <Name>.csproj` at the configured concurrency, posts its own markdown summary and uploads its JSON
+  report. It fails below the thresholds.
+- `Mutation` merges the reports with `scripts/mutation-report.sh merge`, posts the merged score,
+  uploads the `mutation-report` artifact (the merged JSON and our viewer page) and builds the
+  badge payload. Its **last** step fails unless the target list, every project job and the merge
+  succeeded.
+
+The merge refuses when a target project left no report, when a source file is in two reports, when
+a test id has two names, and when schema versions or thresholds differ, or the version is not the
+schema's version 2. Each refusal means one of the reports is not what the merge assumes, so a merged
+score would be built on it. Mutant ids are per-run counters, so the merge prefixes each with its
+report's position. The weekly divergence check and the local full sweep stay solution-mode runs.
+
+The jobs take that shape because of three constraints, and changing any part of it tends to break
+one of the others:
 
 - GitHub applies an implicit `success()` to any `if:` without a status-check function. A step that
   aborted mid-job would therefore silently skip the summary, the report upload and the badge
   payload — so enforcement has to be deferred to the end.
 - The `Mutation` job is not itself a required check. It blocks a merge through `CI gate`, the one
   required check this workflow reports, which fails unless `Checks`, `Mutation` and the pull-request
-  Docker builds all succeeded (`scripts/ci-gate.sh`).
+  Docker builds all succeeded (`scripts/ci-gate.sh`). `Mutation` runs with `always()` and fails on
+  its upstream results itself, so a failed project job still gets its report merged and published.
 - A job-level `if:` does **not** relax a `needs:` success requirement — only `always()` or
   `!cancelled()` does, and the implicit `success()` looks at *every* upstream job, not only the
   direct ones. So `publish` uses `!cancelled()` plus an explicit `needs.checks.result`, and
@@ -289,7 +307,11 @@ URL on every PR; they do not.
 
 ### Why the mutation report is optional, and the earlier rule that got reversed
 
-If Stryker crashes it produces no HTML report. The script publishes coverage alone and the landing
+The `mutation/` page is ours, not Stryker's: `scripts/mutation-viewer.html` loads the merged
+`mutation-report.json` into `mutation-testing-elements`, pinned by version and SRI hash. Stryker's
+own HTML embeds one run's report, and there is no merged run to render it from.
+
+If a project's run crashes or the merge refuses, there is no merged report. The script publishes coverage alone and the landing
 page says the mutation report is unavailable *for this build*, naming the distinction that matters:
 the sweep **failed** rather than scored badly.
 

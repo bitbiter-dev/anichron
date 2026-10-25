@@ -39,7 +39,9 @@ captures. In CI it is about 5:15.
 
 - A change touching three projects runs Stryker three times. Each run builds and captures
   coverage once, so it still costs less than one solution-mode run.
-- Which projects get mutated is an MSBuild property, the same locally and in the CI matrix (#311).
+- Which projects get mutated is an MSBuild property, the same locally and in CI, where one matrix
+  job per target project runs in parallel and `scripts/mutation-report.sh merge` joins their reports
+  (#311).
   The local full sweep stays in solution mode and does not read the property, so an opted-out
   project keeps its `!**/<Name>/**` entry in `stryker-config.json` (ADR 0005).
   `mutation-guard.sh` fails when an opted-out project has no such entry, or when such an entry

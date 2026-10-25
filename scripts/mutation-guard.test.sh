@@ -25,7 +25,7 @@ EOF
   printf '<Solution>\n  <Project Path="App/App.csproj" />\n  <Project Path="Shared/Shared.csproj" />\n</Solution>\n' >"$work/repo/src/Anichron.slnx"
   printf '| `Migrations/**` | 1 |\n| `Shared/**` | 3 |\n| `App/Wiring.cs` | 2 |\n| `Hasher` | clears a buffer |\n' >"$work/repo/docs/adr/0005-scope.md"
   printf 'namespace App;\n\npublic class Hasher\n{\n    // Stryker disable once Statement\n}\n' >"$work/repo/src/App/Hasher.cs"
-  printf 'jobs:\n  m:\n    steps:\n      - run: scripts/stryker-sweep.sh --output ../mutation\n' >"$work/repo/.github/workflows/ci.yml"
+  printf 'jobs:\n  m:\n    steps:\n      - run: scripts/stryker-sweep.sh --project ${{ matrix.project }} --output ../mutation\n' >"$work/repo/.github/workflows/ci.yml"
   printf 'jobs:\n  d:\n    steps:\n      - run: scripts/stryker-sweep.sh --concurrency 1\n' >"$work/repo/.github/workflows/mutation-divergence.yml"
   printf '#!/usr/bin/env bash\nargs+=(-m "**/x.cs")\ndotnet stryker "${args[@]}" --mutate "**/y.cs"\n' >"$work/repo/scripts/mutation-changed.sh"
 }
@@ -45,7 +45,7 @@ check() {
 echo 'mutation-guard.sh'
 
 tree
-check 'a conforming setup passes, including the two sanctioned flags' 0 'matches its rules'
+check 'a conforming setup passes, including the sanctioned flags' 0 'matches its rules'
 
 tree
 sed -i.bak 's/"mtp"/"vstest"/' "$work/repo/src/stryker-config.json"
@@ -74,6 +74,11 @@ check '--concurrency outside the divergence job fails' 1 '.github/workflows/ci.y
 tree
 printf '      - run: scripts/stryker-sweep.sh -m "**/z.cs"\n' >>"$work/repo/.github/workflows/ci.yml"
 check '-m outside mutation-changed.sh fails' 1 '.github/workflows/ci.yml: passes --mutate'
+
+tree
+printf '      - run: scripts/stryker-sweep.sh --project App.csproj\n' >>"$work/repo/.github/workflows/mutation-divergence.yml"
+check '--project outside the matrix job and mutation-changed.sh fails' 1 \
+  '.github/workflows/mutation-divergence.yml: passes --project'
 
 tree
 printf '      - run: dotnet stryker --output ../other\n' >>"$work/repo/.github/workflows/mutation-divergence.yml"
