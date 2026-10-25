@@ -33,7 +33,7 @@ public sealed class WorkQueueTests
     private static readonly Instant Now = Instant.FromUtc(2026, 10, 18, 9, 0);
     private static readonly Guid AdminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
-    private readonly string database = Guid.NewGuid().ToString();
+    private readonly DbContextOptions<AnichronDbContext> options = AnichronDbContexts.InMemoryOptions();
     private readonly IGuidFactory guids = Substitute.For<IGuidFactory>();
     private readonly IClock clock = Substitute.For<IClock>();
 
@@ -47,8 +47,8 @@ public sealed class WorkQueueTests
 
     private AnichronDbContext Context(IInterceptor? interceptor = null)
         => interceptor is null
-            ? AnichronDbContexts.InMemory(database)
-            : new AnichronDbContext(new DbContextOptionsBuilder<AnichronDbContext>(AnichronDbContexts.InMemoryOptions(database))
+            ? new AnichronDbContext(options)
+            : new AnichronDbContext(new DbContextOptionsBuilder<AnichronDbContext>(options)
                 .AddInterceptors(interceptor)
                 .Options);
 

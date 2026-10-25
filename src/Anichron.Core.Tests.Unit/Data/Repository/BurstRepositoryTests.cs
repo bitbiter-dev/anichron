@@ -1,3 +1,4 @@
+using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
@@ -35,10 +36,10 @@ public sealed class BurstRepositoryTests
     [Fact]
     public async Task GetCandidatesNearAsync_ReturnsTheConfigsCheckedCandidatesOfThatCameraInsideTheWindowOldestFirstAsync()
     {
-        var name = Guid.NewGuid().ToString();
+        var options = AnichronDbContexts.InMemoryOptions();
         var (config, other) = (Guid.NewGuid(), Guid.NewGuid());
         var (low, high) = (Guid.Parse("00000000-0000-0000-0000-000000000001"), Guid.Parse("00000000-0000-0000-0000-000000000002"));
-        await using (var seed = AnichronDbContexts.InMemory(name))
+        await using (var seed = new AnichronDbContext(options))
         {
             seed.AddRange((IEnumerable<object>)[
                 .. Photo("at-start.jpg", config, -120),
@@ -57,7 +58,7 @@ public sealed class BurstRepositoryTests
             await seed.SaveChangesAsync(Ct);
         }
 
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
         var near = await new EfBurstRepository(db).GetCandidatesNearAsync(
             config, "Apple", "iPhone 15 Pro", Noon.PlusSeconds(-120), Noon.PlusSeconds(120), Ct);
 
@@ -68,17 +69,17 @@ public sealed class BurstRepositoryTests
     [Fact]
     public async Task GetInConfigWithMembersAsync_LeavesOutBurstsWithoutMembersAsync()
     {
-        var name = Guid.NewGuid().ToString();
+        var options = AnichronDbContexts.InMemoryOptions();
         var config = Guid.NewGuid();
         var (withMember, memberless) = (Guid.NewGuid(), Guid.NewGuid());
-        await using (var seed = AnichronDbContexts.InMemory(name))
+        await using (var seed = new AnichronDbContext(options))
         {
             seed.Bursts.AddRange(new Burst { Id = withMember }, new Burst { Id = memberless });
             seed.MediaAssets.Add(new MediaAsset { Id = Guid.NewGuid(), StorageConfigId = config, BurstId = withMember, FilePath = "a.jpg", FileName = "a.jpg", ContentHash = "cafe" });
             await seed.SaveChangesAsync(Ct);
         }
 
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
         var loaded = await new EfBurstRepository(db).GetInConfigWithMembersAsync(config, Ct);
 
         loaded.Should().ContainSingle().Which.Id.Should().Be(withMember);
@@ -87,16 +88,16 @@ public sealed class BurstRepositoryTests
     [Fact]
     public async Task RemoveCheckAsync_CheckedPhoto_DeletesItsRowAtTheNextSaveAsync()
     {
-        var name = Guid.NewGuid().ToString();
+        var options = AnichronDbContexts.InMemoryOptions();
         var asset = new MediaAsset { Id = Guid.NewGuid(), StorageConfigId = Guid.NewGuid(), FilePath = "a.jpg", FileName = "a.jpg", ContentHash = "cafe" };
-        await using (var seed = AnichronDbContexts.InMemory(name))
+        await using (var seed = new AnichronDbContext(options))
         {
             seed.MediaAssets.Add(asset);
             seed.BurstChecks.Add(new BurstCheck { AssetId = asset.Id, IsCandidate = true });
             await seed.SaveChangesAsync(Ct);
         }
 
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
         await new EfBurstRepository(db).RemoveCheckAsync(asset.Id, Ct);
         await db.SaveChangesAsync(Ct);
 
@@ -116,7 +117,7 @@ public sealed class BurstRepositoryTests
     [Fact]
     public async Task GetUncheckedPhotosAsync_AfterAPhoto_ReturnsOnlyThoseThatComeAfterItAsync()
     {
-        var name = Guid.NewGuid().ToString();
+        var options = AnichronDbContexts.InMemoryOptions();
         var configId = Guid.NewGuid();
         var noon = new LocalDateTime(2024, 6, 1, 12, 0);
         var lowId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -125,13 +126,13 @@ public sealed class BurstRepositoryTests
         var atCursor = UncheckedPhoto(configId, lowId, noon);
         var sameTimeLaterId = UncheckedPhoto(configId, highId, noon);
         var later = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(1));
-        await using (var seed = AnichronDbContexts.InMemory(name))
+        await using (var seed = new AnichronDbContext(options))
         {
             seed.MediaAssets.AddRange(later, sameTimeLaterId, atCursor, earlier);
             await seed.SaveChangesAsync(Ct);
         }
 
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
         var photos = await new EfBurstRepository(db).GetUncheckedPhotosAsync(configId, atCursor, 10, Ct);
 
         photos.Select(p => p.Id).Should().Equal(highId, later.Id);
@@ -140,18 +141,18 @@ public sealed class BurstRepositoryTests
     [Fact]
     public async Task GetUncheckedPhotosAsync_NoCursor_StartsAtTheOldestAsync()
     {
-        var name = Guid.NewGuid().ToString();
+        var options = AnichronDbContexts.InMemoryOptions();
         var configId = Guid.NewGuid();
         var noon = new LocalDateTime(2024, 6, 1, 12, 0);
         var older = UncheckedPhoto(configId, Guid.NewGuid(), noon);
         var newer = UncheckedPhoto(configId, Guid.NewGuid(), noon.PlusMinutes(1));
-        await using (var seed = AnichronDbContexts.InMemory(name))
+        await using (var seed = new AnichronDbContext(options))
         {
             seed.MediaAssets.AddRange(newer, older);
             await seed.SaveChangesAsync(Ct);
         }
 
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
         var photos = await new EfBurstRepository(db).GetUncheckedPhotosAsync(configId, null, 10, Ct);
 
         photos.Select(p => p.Id).Should().Equal(older.Id, newer.Id);

@@ -9,14 +9,14 @@ namespace Anichron.Worker.Tests.Unit.Work;
 
 public sealed class EfWorkItemStoreTests
 {
-    private sealed class InMemoryContexts(string database) : IDbContextFactory<AnichronDbContext>
+    private sealed class InMemoryContexts(DbContextOptions<AnichronDbContext> options) : IDbContextFactory<AnichronDbContext>
     {
-        public AnichronDbContext CreateDbContext() => AnichronDbContexts.InMemory(database);
+        public AnichronDbContext CreateDbContext() => new(options);
     }
 
     private static readonly Instant Cutoff = Instant.FromUtc(2026, 10, 18, 9, 0);
 
-    private readonly InMemoryContexts contexts = new(Guid.NewGuid().ToString());
+    private readonly InMemoryContexts contexts = new(AnichronDbContexts.InMemoryOptions());
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

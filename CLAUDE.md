@@ -57,7 +57,7 @@ Shared test infrastructure lives in `Anichron.Testing`, referenced by the test p
 
 - **Time**: drive time-dependent code through a `Timeline` — its `Clock` is the fake `TimeProvider`, `Record` notes collaborator calls, `Watch` owns the task under test, and `ExpectAsync(...)` states what happens next and fails at the first event that differs. **No real-time waits in tests** (`WaitAsync(timeout)`, `SemaphoreSlim.WaitAsync(timeout)`, `Task.Delay`, an `await` on code that can hang): a broken implementation must fail at once, not when a guess runs out. Work delegates and substitutes used in loops yield and honour cancellation, so a loop that loses its delay cannot spin on the test thread. Recurring background work goes through `RecurringWork` (Worker) and is tested there.
 - **Logging**: `FakeLogger<T>` from `Microsoft.Extensions.Diagnostics.Testing`.
-- **EF**: `AnichronDbContexts.InMemory(...)` for data, `AnichronDbContexts.NpgsqlModel()` for model and SQL assertions; pass `freshModel: true` wherever a test asserts on the model.
+- **EF**: `AnichronDbContexts.InMemory()` for data, `AnichronDbContexts.NpgsqlModel()` for SQL assertions. Each `InMemoryOptions()` value has its own EF internal service provider, so its own store, model and query cache; a test that needs several contexts on one store builds them all from one options value (`new AnichronDbContext(options)`). Never share a store by database name or build in-memory options outside the helper: Stryker reuses one test process across mutants, and anything EF caches for the process carries one mutant into another's tests (`docs/mutation-testing.md`, "Per-process caches leak between mutants").
 - **DI scopes**: `ScopeFactories.Providing(services => ...)`, a real container rather than substitutes.
 
 `Anichron.Architecture.Tests.Unit` holds the architecture rules (ArchUnitNET): decisions about types and dependencies that fail the build instead of living as prose. Adding one: `docs/agents/design-process.md`, "Adding an architecture rule".
@@ -86,7 +86,7 @@ The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishi
 
 Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
 
-Mutants that flip between runs come from `static readonly` initialisers and EF's cached model: build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)` (`AnichronDbContexts.NpgsqlModel()`, or `InMemory(freshModel: true)`). An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
+Mutants that flip between runs come from per-process caches, which outlive the mutant that filled them: `static readonly` initialisers, and EF's model and compiled queries. Build such data in a property or method, and get EF contexts only from `AnichronDbContexts` (a provider per in-memory options value; `NpgsqlModel()` with caching off). An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
 
 ## Architecture
 

@@ -14,13 +14,13 @@ public sealed class WorkItemReaderTests
     private static readonly Guid Second = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid Third = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-    private readonly string database = Guid.NewGuid().ToString();
+    private readonly DbContextOptions<AnichronDbContext> options = AnichronDbContexts.InMemoryOptions();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static Instant At(int seconds) => Start + Duration.FromSeconds(seconds);
 
-    private AnichronDbContext Context() => AnichronDbContexts.InMemory(database);
+    private AnichronDbContext Context() => new(options);
 
     private EfWorkItemReader Reader() => new(Context());
 

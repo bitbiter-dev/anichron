@@ -11,10 +11,10 @@ public sealed class MediaAssetRepositoryTests
     private static readonly Guid ConfigA = Guid.NewGuid();
     private static readonly Guid ConfigB = Guid.NewGuid();
 
-    private static AnichronDbContext CreateDb(out string name)
+    private static AnichronDbContext CreateDb(out DbContextOptions<AnichronDbContext> options)
     {
-        name = Guid.NewGuid().ToString();
-        return AnichronDbContexts.InMemory(name);
+        options = AnichronDbContexts.InMemoryOptions();
+        return new AnichronDbContext(options);
     }
 
     private static MediaAsset MakeAsset(Guid configId, string hash)
@@ -86,10 +86,10 @@ public sealed class MediaAssetRepositoryTests
         MediaAsset[] seeded, string[] hashes, string[] paths)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var seed = CreateDb(out var name);
+        await using var seed = CreateDb(out var options);
         seed.MediaAssets.AddRange(seeded);
         await seed.SaveChangesAsync(ct);
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
 
         return await new EfMediaAssetRepository(db).FindByHashesOrPathsAsync(ConfigA, hashes, paths, ct);
     }
@@ -166,10 +166,10 @@ public sealed class MediaAssetRepositoryTests
         var ct = TestContext.Current.CancellationToken;
         var asset = AssetAt(ConfigA, "cafe", "a.jpg");
         asset.Metadata = new Metadata { AssetId = asset.Id, Width = 640, Height = 480 };
-        await using var seed = CreateDb(out var name);
+        await using var seed = CreateDb(out var options);
         seed.MediaAssets.Add(asset);
         await seed.SaveChangesAsync(ct);
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
         var tracked = await db.MediaAssets.SingleAsync(a => a.Id == asset.Id, ct);
 
         await new EfMediaAssetRepository(db).LoadMetadataAsync(tracked, ct);
@@ -192,11 +192,11 @@ public sealed class MediaAssetRepositoryTests
         UserStorageConfig[] configs, MediaAsset[] assets, IReadOnlyCollection<Guid> crawled)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var seed = CreateDb(out var name);
+        await using var seed = CreateDb(out var options);
         seed.StorageConfigs.AddRange(configs);
         seed.MediaAssets.AddRange(assets);
         await seed.SaveChangesAsync(ct);
-        await using var db = AnichronDbContexts.InMemory(name);
+        await using var db = new AnichronDbContext(options);
 
         return await new EfMediaAssetRepository(db).FindSharedContentAsync(crawled, ct);
     }

@@ -422,7 +422,8 @@ That count grows with the codebase — about 1% of it — so slack cannot be tun
 
 **Slack only buys anything if the measurement is noisy, and it is not.** The variance seen while
 reaching 100% came from `static readonly` initialisers and EF's cached model (up to 16 mutants
-between runs), both removed. The MTP under-reporting defect showed no divergence and is watched by
+between runs), both removed, and later from EF's process-wide query cache (#305, see "Per-process
+caches leak between mutants"). The MTP under-reporting defect showed no divergence and is watched by
 the weekly job, and timeouts count as detected. Every remaining source of noise can only lower the
 score — a spurious failure, never a false pass — and slack does not cure that; it only hides real
 regressions. If flakiness returns, fix its cause rather than lowering the gate.
@@ -494,6 +495,41 @@ investigate the measurement, not to rerun until it goes green.
 **measurement-affecting** flag to Stryker. Everywhere else the rule is that every value affecting
 what gets measured lives in `src/stryker-config.json`, so a local run and the CI run stay
 comparable. Here concurrency is the variable under test, so it has to come from the command line.
+
+## Per-process caches leak between mutants
+
+Stryker's MTP runner keeps one test host running across many mutants. Anything the process caches
+while one mutant is active is still there when the next mutant's tests run, so a test can be judged
+against code that is no longer active.
+
+EF Core caches the model and every compiled query in its internal service provider. Mutants inside a
+`HasQueryFilter` lambda show the effect: EF evaluates Stryker's `IsActive(n)` check once, when it
+compiles the query, and keeps the result. In #305 the filter mutant of
+`AnichronDbContext.cs` compiled `BurstChecks.CountAsync()` with an inverted filter. Later, on the
+same host, the block-removal mutant of `EfBurstRepository.RemoveCheckAsync` ran its killing test
+against that cached query, which counted 0 rows although nothing was removed, and the mutant was
+reported `Survived` (#312). It went both ways: a filter mutant tested after its query was compiled
+could not take effect at all, and a cached broken query can fail another mutant's tests and count a
+kill that mutant did not earn. Which mutant runs after which on a host depends on concurrency and
+on how the run is split, so the result flipped between runs.
+
+The rule, in `Anichron.Testing`:
+
+- **Every in-memory options value gets its own EF internal service provider.**
+  `AnichronDbContexts.InMemoryOptions()` builds one, so a test's store, model and query cache are
+  its own. Contexts that must see one store are built from one options value.
+- **No store is shared by database name**, and no test builds in-memory options itself: either
+  would share EF's process-wide provider again.
+- **`NpgsqlModel()` turns service-provider caching off.** Its contexts never share a store, so a
+  fresh provider per context costs nothing.
+
+The price is that every test builds the model and compiles its queries again: about 25 ms for the
+model and a few milliseconds for each distinct query or save, measured on #305. Tests that run many
+distinct queries, such as the burst detection tests, pay most.
+
+`freshModel` is gone: it turned caching off, which also gave every context its own store, so a
+test that seeded through one context and asserted through another saw an empty store, and an
+assertion that a row is gone passed whatever the mutant did.
 
 ## Known weak spots
 

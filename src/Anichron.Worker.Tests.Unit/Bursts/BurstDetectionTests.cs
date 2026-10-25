@@ -28,7 +28,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     private static readonly Instant Now = Instant.FromUtc(2026, 10, 23, 9, 0);
     private static readonly LocalDateTime Noon = new(2024, 7, 15, 12, 0, 0);
 
-    private readonly string databaseName = Guid.NewGuid().ToString();
+    private readonly DbContextOptions<AnichronDbContext> options = AnichronDbContexts.InMemoryOptions();
     private readonly AnichronDbContext db;
     private readonly IOriginalPhotoReader reader = Substitute.For<IOriginalPhotoReader>();
     private readonly IThumbnailMatcher matcher = Substitute.For<IThumbnailMatcher>();
@@ -44,7 +44,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
     public BurstDetectionTests()
     {
-        db = AnichronDbContexts.InMemory(databaseName);
+        db = new AnichronDbContext(options);
         repository = new ScriptedBursts(new EfBurstRepository(db));
         fileSystem.AddDirectory(Root);
         clock.GetCurrentInstant().Returns(Now);
@@ -63,7 +63,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
     private void Seed(params object[] entities)
     {
-        using var seed = AnichronDbContexts.InMemory(databaseName);
+        using var seed = new AnichronDbContext(options);
         seed.AddRange(entities);
         seed.SaveChanges();
     }
@@ -122,7 +122,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     {
         var id = Guid.NewGuid();
         Seed(new Burst { Id = id, PrimaryAssetId = members.FirstOrDefault()?.Id, CreatedAt = Now.Minus(Duration.FromMinutes(createdMinutesAgo)) });
-        using var seed = AnichronDbContexts.InMemory(databaseName);
+        using var seed = new AnichronDbContext(options);
         foreach (var member in members)
             seed.MediaAssets.IgnoreQueryFilters().Single(a => a.Id == member.Id).BurstId = id;
         seed.SaveChanges();
@@ -131,7 +131,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
     private void ClearCover(Guid burstId)
     {
-        using var seed = AnichronDbContexts.InMemory(databaseName);
+        using var seed = new AnichronDbContext(options);
         seed.Bursts.IgnoreQueryFilters().Single(b => b.Id == burstId).PrimaryAssetId = null;
         seed.SaveChanges();
     }
@@ -146,7 +146,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
     private Dictionary<string, Guid?> BurstsOf(params MediaAsset[] photos)
     {
-        using var read = AnichronDbContexts.InMemory(databaseName);
+        using var read = new AnichronDbContext(options);
         var ids = photos.Select(p => p.Id).ToList();
         var stored = read.MediaAssets.IgnoreQueryFilters().Where(a => ids.Contains(a.Id)).ToDictionary(a => a.Id, a => a.BurstId);
         return photos.ToDictionary(p => p.FileName, p => stored[p.Id]);
@@ -154,13 +154,13 @@ public sealed class BurstDetectionTests : IAsyncDisposable
 
     private List<Burst> StoredBursts()
     {
-        using var read = AnichronDbContexts.InMemory(databaseName);
+        using var read = new AnichronDbContext(options);
         return [.. read.Bursts.IgnoreQueryFilters().OrderBy(b => b.CreatedAt)];
     }
 
     private List<BurstCheck> StoredChecks()
     {
-        using var read = AnichronDbContexts.InMemory(databaseName);
+        using var read = new AnichronDbContext(options);
         return [.. read.BurstChecks.IgnoreQueryFilters()];
     }
 

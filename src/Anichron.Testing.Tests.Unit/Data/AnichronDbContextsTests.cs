@@ -1,3 +1,4 @@
+using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
@@ -28,27 +29,29 @@ public sealed class AnichronDbContextsTests
     }
 
     [Fact]
-    public async Task InMemory_SameName_SharesOneDatabaseAsync()
+    public async Task InMemoryOptions_OneValue_SharesOneDatabaseAcrossContextsAsync()
     {
-        var name = Guid.NewGuid().ToString();
-        await using (var first = AnichronDbContexts.InMemory(name))
+        var options = AnichronDbContexts.InMemoryOptions();
+        await using (var first = new AnichronDbContext(options))
         {
             first.Users.Add(NewUser());
             await first.SaveChangesAsync(Ct);
         }
 
-        await using var second = AnichronDbContexts.InMemory(name);
+        await using var second = new AnichronDbContext(options);
 
         (await second.Users.CountAsync(Ct)).Should().Be(1);
     }
 
     [Fact]
-    public void InMemoryOptions_ByDefault_CachesTheModel()
-        => Caching(AnichronDbContexts.InMemoryOptions()).Should().BeTrue();
+    public void InMemoryOptions_TwoValues_NeverShareAnInternalServiceProvider()
+    {
+        var first = Provider(AnichronDbContexts.InMemoryOptions());
+        var second = Provider(AnichronDbContexts.InMemoryOptions());
 
-    [Fact]
-    public void InMemoryOptions_FreshModel_BuildsTheModelAnew()
-        => Caching(AnichronDbContexts.InMemoryOptions(freshModel: true)).Should().BeFalse();
+        first.Should().NotBeNull();
+        second.Should().NotBeNull().And.NotBeSameAs(first);
+    }
 
     [Fact]
     public void NpgsqlModel_IsNpgsqlWithNodaTimeAndAFreshModel()
@@ -59,6 +62,9 @@ public sealed class AnichronDbContextsTests
         db.GetService<IRelationalTypeMappingSource>().FindMapping(typeof(Instant)).Should().NotBeNull();
         Caching(db.GetService<IDbContextOptions>()).Should().BeFalse();
     }
+
+    private static IServiceProvider? Provider(IDbContextOptions options)
+        => options.FindExtension<CoreOptionsExtension>()!.InternalServiceProvider;
 
     private static bool Caching(IDbContextOptions options)
         => options.FindExtension<CoreOptionsExtension>()!.ServiceProviderCachingEnabled;
