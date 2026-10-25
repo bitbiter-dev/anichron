@@ -37,7 +37,16 @@ public sealed class AssetDtoMapperTests
                 null),
             "LEHV6nWB2yk8",
             null,
-            new AssetInteractionDto(false, false, false, 1.0)));
+            new AssetInteractionDto(false, false, false, 1.0),
+            null));
+    }
+
+    [Fact]
+    public void Burst_IsCarriedOnTheDto()
+    {
+        var burst = new AssetBurstDto(Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-bbbbbbbbbbbb"), IsCover: true, Count: 3);
+
+        AssetDtoMapper.ToDto(Photo, burst).Burst.Should().Be(burst);
     }
 
     [Fact]

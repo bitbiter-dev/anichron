@@ -20,6 +20,7 @@ public static class ApplicationExtensions
             api.MapAdminEndpoints();
             api.MapMediaEndpoints();
             api.MapFlashbackEndpoints();
+            api.MapBurstEndpoints();
             api.MapWorkItemEndpoints();
             return app;
         }

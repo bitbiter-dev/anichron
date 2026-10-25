@@ -40,6 +40,6 @@ public static class FlashbackEndpoints
             return Results.Json(new { error = InvalidDateMessage }, statusCode: StatusCodes.Status400BadRequest);
 
         var views = await reader.ReadAsync(userId, new OnThisDay(day), ct);
-        return Results.Ok(new OnThisDayDto(LocalDatePattern.Iso.Format(day), FlashbackYears.Group(views)));
+        return Results.Ok(new OnThisDayDto(LocalDatePattern.Iso.Format(day), FlashbackYears.Group(views, day)));
     }
 }
