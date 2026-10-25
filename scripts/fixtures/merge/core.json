@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "2",
+  "thresholds": { "high": 100, "low": 100 },
+  "projectRoot": "/repo/src/Core",
+  "files": {
+    "/repo/src/Core/Queue.cs": {
+      "language": "cs", "source": "class Queue {}",
+      "mutants": [
+        { "id": "7", "mutatorName": "Equality mutation", "location": { "start": { "line": 1, "column": 1 }, "end": { "line": 1, "column": 2 } }, "status": "Killed", "coveredBy": ["t-queue"], "killedBy": ["t-queue"] },
+        { "id": "8", "mutatorName": "Statement mutation", "location": { "start": { "line": 1, "column": 1 }, "end": { "line": 1, "column": 2 } }, "status": "Survived", "coveredBy": ["t-queue"] }
+      ]
+    }
+  },
+  "testFiles": {
+    "/repo/src/Core.Tests.Unit/QueueTests.cs": {
+      "language": "cs", "source": "class QueueTests {}",
+      "tests": [ { "id": "t-queue", "name": "Core.Tests.QueueTests.Enqueue" } ]
+    },
+    "/repo/src/Worker.Tests.Unit/SharedTests.cs": {
+      "language": "cs", "source": "class SharedTests {}",
+      "tests": [ { "id": "t-shared", "name": "Worker.Tests.SharedTests.Uses" } ]
+    }
+  }
+}

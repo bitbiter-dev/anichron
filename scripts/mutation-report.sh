@@ -8,6 +8,7 @@ usage() {
 usage:
   mutation-report.sh badge <report.json>            shields.io endpoint payload
   mutation-report.sh compare <a.json> <b.json>      non-zero if detected counts differ
+  mutation-report.sh merge <report.json>...         one report from per-project reports
   mutation-report.sh tally <report.json>            {detected, total, score} as JSON
 EOF
   exit 2
@@ -99,9 +100,52 @@ cmd_compare() {
   return 1
 }
 
+# Per-project reports (one Stryker run per mutation target, ADR 0010) become one
+# report of the same schema. Mutant ids are per-run counters, so each is
+# prefixed with its report's position. Anything that would make the merged
+# report claim more than its parts do is refused instead.
+readonly MERGE='
+  def refuse($message): "merge refused: \($message)\n" | halt_error(1);
+  [.[].schemaVersion] as $versions
+  | if ($versions | unique | length) > 1 then refuse("schema versions differ: \($versions | unique | join(", "))")
+    elif $versions[0] != "2" then refuse("unknown schema version \($versions[0]); merge knows version 2")
+    elif ([.[].thresholds] | unique | length) > 1 then refuse("thresholds differ between the reports")
+    else . end
+  | ([.[].files | keys[]] | group_by(.) | map(select(length > 1)[0])) as $shared
+  | if ($shared | length) > 0 then refuse("\($shared | join(", ")) is in more than one report") else . end
+  | ([.[].testFiles // {} | .[].tests // [] | .[] | {id, name}] | unique | group_by(.id)
+     | map(select(length > 1)[0].id)) as $renamed
+  | if ($renamed | length) > 0 then refuse("test id \($renamed | join(", ")) has more than one name") else . end
+  | {
+      schemaVersion: .[0].schemaVersion,
+      thresholds: .[0].thresholds,
+      projectRoot: (
+        [.[].projectRoot | split("/")] as $roots
+        | first(range($roots | map(length) | min; -1; -1) | select(. as $n | $roots | map(.[0:$n]) | unique | length == 1))
+        | $roots[0][0:.] | join("/")
+      ),
+      files: ([to_entries[] | (.key + 1) as $n | .value.files | map_values(.mutants |= map(.id = "\($n).\(.id)"))] | add),
+      testFiles: (
+        [.[].testFiles // {} | to_entries[]] | group_by(.key)
+        | map({ key: .[0].key, value: (.[0].value + { tests: ([.[].value.tests // [] | .[]] | unique_by(.id)) }) })
+        | from_entries
+      )
+    }
+'
+
+cmd_merge() {
+  [ $# -ge 1 ] || usage
+  local report
+  for report in "$@"; do
+    [ -f "$report" ] || { printf 'report not found: %s\n' "$report" >&2; exit 1; }
+  done
+  jq -e -s "$MERGE" "$@"
+}
+
 case "${1:-}" in
   badge) shift; cmd_badge "$@" ;;
   compare) shift; cmd_compare "$@" ;;
+  merge) shift; cmd_merge "$@" ;;
   tally) shift; cmd_tally "$@" ;;
   *) usage ;;
 esac
