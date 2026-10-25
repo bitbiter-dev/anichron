@@ -95,7 +95,10 @@ public sealed class FfmpegVideoProcessorTests
         var processor = fixture.Build();
 
         await processor.TranscodeAsync("/src/video.mp4", "/out/video.mp4", CancellationToken.None);
-        await processor.TranscodeAsync("/src/video2.mp4", "/out/video2.mp4", CancellationToken.None);
+        var second = processor.TranscodeAsync("/src/video2.mp4", "/out/video2.mp4", CancellationToken.None);
+
+        second.IsCompleted.Should().BeTrue("the first call released the encoder lock");
+        await second;
 
         await fixture.Launcher.Received(1).RunAsync(
             Arg.Any<string>(),

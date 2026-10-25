@@ -192,4 +192,15 @@ public sealed class TimelineTests
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("stop failed");
     }
+
+    [Fact]
+    public async Task DisposeAsync_StopNeverEnds_ThrowsAfterTheSilenceLimitAsync()
+    {
+        var timeline = new Timeline(ShortSilence);
+        timeline.Watch(new TaskCompletionSource().Task, () => Task.Delay(Timeout.InfiniteTimeSpan, CancellationToken.None));
+
+        var act = async () => await timeline.DisposeAsync();
+
+        await act.Should().ThrowAsync<TimeoutException>();
+    }
 }

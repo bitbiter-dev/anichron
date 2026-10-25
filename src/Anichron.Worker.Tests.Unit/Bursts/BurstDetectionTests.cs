@@ -870,6 +870,26 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task RunAsync_NextBatch_StartsAfterTheLastPhotoOfThePreviousOneAsync()
+    {
+        var photo = Photo("a.heic");
+        IReadOnlyList<MediaAsset> none = [];
+        var bursts = Substitute.For<IBurstRepository>();
+        bursts.GetInConfigWithMembersAsync(ConfigId, Arg.Any<CancellationToken>()).Returns([]);
+        bursts.GetUncheckedPhotosAsync(ConfigId, null, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([photo], none);
+        bursts.GetUncheckedPhotosAsync(ConfigId, photo, Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(none);
+
+        await new BurstDetectionHandler(
+                new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
+                bursts, Substitute.For<IUnitOfWork>(), reader, matcher, fileSystem, clock, guids,
+                Options.Create(new WorkerSettings()), logger)
+            .RunAsync(new BurstDetectionPayload(ConfigId), progress, Ct);
+
+        await bursts.Received(1).GetUncheckedPhotosAsync(ConfigId, photo, Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_Cancelled_StopsBeforeSavingThePhotoBeingCheckedAsync()
     {
         var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
@@ -1008,8 +1028,9 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         public Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct)
             => inner.CountUncheckedPhotosAsync(storageConfigId, ct);
 
-        public Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(Guid storageConfigId, int count, CancellationToken ct)
-            => inner.GetUncheckedPhotosAsync(storageConfigId, count, ct);
+        public Task<IReadOnlyList<MediaAsset>> GetUncheckedPhotosAsync(
+            Guid storageConfigId, MediaAsset? after, int count, CancellationToken ct)
+            => inner.GetUncheckedPhotosAsync(storageConfigId, after, count, ct);
 
         public Task<IReadOnlyList<MediaAsset>> GetCandidatesLabelledAsync(Guid storageConfigId, string cameraBurstId, CancellationToken ct)
             => inner.GetCandidatesLabelledAsync(storageConfigId, cameraBurstId, ct);

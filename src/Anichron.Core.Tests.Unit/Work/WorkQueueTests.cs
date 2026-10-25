@@ -3,6 +3,7 @@ using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using NodaTime;
 using NSubstitute;
 
@@ -44,13 +45,29 @@ public sealed class WorkQueueTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private AnichronDbContext Context() => AnichronDbContexts.InMemory(database);
+    private AnichronDbContext Context(IInterceptor? interceptor = null)
+        => interceptor is null
+            ? AnichronDbContexts.InMemory(database)
+            : new AnichronDbContext(new DbContextOptionsBuilder<AnichronDbContext>(AnichronDbContexts.InMemoryOptions(database))
+                .AddInterceptors(interceptor)
+                .Options);
 
-    private async Task<Guid> EnqueueAsync<TPayload>(TPayload payload, Guid? requestedBy = null)
+    private async Task<Guid> EnqueueAsync<TPayload>(TPayload payload, Guid? requestedBy = null, IInterceptor? interceptor = null)
         where TPayload : IWorkPayload
     {
-        await using var db = Context();
+        await using var db = Context(interceptor);
         return await new EfWorkQueue(db, clock, guids).EnqueueAsync(payload, requestedBy, Ct);
+    }
+
+    private sealed class LostInsertRaces(int losses) : SaveChangesInterceptor
+    {
+        private int saves;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+            => ++saves > losses
+                ? ValueTask.FromResult(result)
+                : throw DatabaseErrors.UniqueViolation(WorkItemIndexNames.QueuedDedupKeyUnique);
     }
 
     private async Task<List<WorkItem>> ItemsAsync()
@@ -156,5 +173,23 @@ public sealed class WorkQueueTests
 
         returned.Should().NotBe(other);
         (await ItemsAsync()).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_LosesTheInsertRaceTwice_InsertsOnTheThirdAttemptAsync()
+    {
+        var id = await EnqueueAsync(new Keyed("crawl"), interceptor: new LostInsertRaces(losses: 2));
+
+        (await ItemsAsync()).Should().ContainSingle().Which.Id.Should().Be(id);
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_LosesTheInsertRaceThreeTimes_ThrowsNamingTheKeyAsync()
+    {
+        var act = () => EnqueueAsync(new Keyed("crawl"), interceptor: new LostInsertRaces(losses: 3));
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Enqueueing work with dedup key 'crawl' lost the insert race 3 times.");
+        (await ItemsAsync()).Should().BeEmpty();
     }
 }
