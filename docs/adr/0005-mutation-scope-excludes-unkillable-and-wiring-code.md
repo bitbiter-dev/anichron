@@ -142,7 +142,10 @@ for every deployment. The proxy root is no longer a setting at all since #43: it
 - **EF Core builds the model once per internal service provider and caches it.** A mutant in
   `OnModelCreating` only takes effect if the model is built while it is active, which is the same
   failure as a `static readonly` initialiser. Tests that assert on the model build their context
-  with `EnableServiceProviderCaching(false)` so each one gets a fresh model.
+  with `EnableServiceProviderCaching(false)` so each one gets a fresh model. Since #305 every
+  in-memory options value has its own internal service provider instead, because compiled queries
+  leak between mutants the same way (`docs/mutation-testing.md`, "Per-process caches leak between
+  mutants"); `NpgsqlModel()` still turns caching off.
 - After the wiring extraction in #210 the score is 63.05% (617 killed, 4 timeouts, 234
   survived, 130 uncovered).
 - Every surviving mutant in scope is now a missing test or a missing entry in this ADR. There is
