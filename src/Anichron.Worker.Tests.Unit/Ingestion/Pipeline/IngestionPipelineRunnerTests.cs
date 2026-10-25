@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
@@ -5,6 +6,7 @@ using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Tests.Unit.TestDoubles;
 using Microsoft.Extensions.Logging;
+using NodaTime;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -151,6 +153,22 @@ public sealed class IngestionPipelineRunnerTests
         await act.Should().ThrowAsync<InvalidOperationException>();
         fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeFalse();
         fixture.FileSystem.FileExists("/data/proxies/0l/old/thumbnail.jpg").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_StepThrows_KeepsAProxyWhoseFileExistedBeforeTheAttemptAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/data/proxies/ab/cd/thumbnail.jpg", new MockFileData([0x02]));
+        var runner = fixture.Build(
+            new StagingMiddleware(10, fixture.FileSystem, "ab/cd/thumbnail.jpg", "ab/cd/preview.jpg"),
+            new ThrowingMiddleware(20, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/preview.jpg").Should().BeFalse();
     }
 
     [Fact]
@@ -415,6 +433,28 @@ public sealed class IngestionPipelineRunnerTests
                     ProxyPath = relativePath,
                     ProxyType = ProxyType.Thumbnail,
                 });
+            }
+
+            await next(context, ct);
+        }
+    }
+
+    private sealed class StagingMiddleware(int order, IFileSystem fileSystem, params string[] relativePaths)
+        : IIngestionMiddleware
+    {
+        public int Order => order;
+        public bool CanInvoke(IngestionContext context) => true;
+
+        public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        {
+            var writer = new ProxyStagingWriter(
+                fileSystem, Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
+                Substitute.For<ILogger<ProxyStagingWriter>>());
+            foreach (var relativePath in relativePaths)
+            {
+                await writer.WriteAsync(
+                    context, context.AssetId, relativePath, ProxyType.Thumbnail,
+                    (temporaryPath, token) => fileSystem.File.WriteAllBytesAsync(temporaryPath, [0x01], token), ct);
             }
 
             await next(context, ct);
