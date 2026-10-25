@@ -100,7 +100,7 @@ public sealed class BurstRepositoryTests
         await new EfBurstRepository(db).RemoveCheckAsync(asset.Id, Ct);
         await db.SaveChangesAsync(Ct);
 
-        (await db.BurstChecks.CountAsync(Ct)).Should().Be(0);
+        (await db.BurstChecks.IgnoreQueryFilters().CountAsync(Ct)).Should().Be(0);
     }
 
     [Fact]

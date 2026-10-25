@@ -86,7 +86,7 @@ The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishi
 
 Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
 
-Mutants that flip between runs come from `static readonly` initialisers and EF's cached model: build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)` (`AnichronDbContexts.NpgsqlModel()`, or `InMemory(freshModel: true)`). An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
+Mutants that flip between runs come from `static readonly` initialisers, EF's cached model, and EF's compiled-query cache (a killing assertion that does not depend on the soft-delete filter reads through `IgnoreQueryFilters()`, #312): build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)` (`AnichronDbContexts.NpgsqlModel()`, or `InMemory(freshModel: true)`). An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
 
 ## Architecture
 

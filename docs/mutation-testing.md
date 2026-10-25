@@ -495,6 +495,22 @@ investigate the measurement, not to rerun until it goes green.
 what gets measured lives in `src/stryker-config.json`, so a local run and the CI run stay
 comparable. Here concurrency is the variable under test, so it has to come from the command line.
 
+### A survivor that only appears after a query-filter mutant
+
+Stryker's MTP runner keeps one test host running across many mutants, and EF Core caches compiled
+queries for the whole process. A mutant inside a `HasQueryFilter` lambda is evaluated once, when a
+query is compiled, so a filtered query compiled while it was active keeps the mutated filter for
+every later mutant tested on that host. In #312, `BurstChecks.CountAsync()` was compiled with an
+inverted soft-delete filter, and `RemoveCheckAsync`'s block-removal mutant then passed its killing
+test, because the cached query counted 0 rows that were still there. Which mutant runs after which
+depends on concurrency and on how the run is split, so the mutant survived in some runs and not in
+others.
+
+The fix is in the test: a killing assertion that does not depend on the filter reads through
+`IgnoreQueryFilters()`, a query shape the filter mutant never compiles. Giving every test its own
+EF service provider also removes the leak, but it was measured on #305 and rejected: it made the unit
+suite 2.4× slower and took `Mutation — Anichron.Core` past its 20-minute limit.
+
 ## Known weak spots
 
 The worst-scoring files are real test debt, not noise:
