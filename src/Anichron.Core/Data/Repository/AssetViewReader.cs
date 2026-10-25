@@ -21,7 +21,8 @@ public sealed record AssetView(
     Guid? PairedMovId,
     bool PairedMovHasVideo,
     bool IsStarred,
-    bool IsLiked);
+    bool IsLiked,
+    Guid? BurstId);
 
 /// <summary>Narrows the assets an <see cref="IAssetViewReader"/> returns, filtering on entity columns only.</summary>
 public interface IAssetSelection
@@ -31,8 +32,25 @@ public interface IAssetSelection
 
 public sealed record OnThisDay(LocalDate Date) : IAssetSelection
 {
+    public bool FallsOnTheDay(AssetView view)
+        => view.Month == Date.Month && view.Day == Date.Day;
+
     public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets)
-        => assets.Where(a => a.Month == Date.Month && a.Day == Date.Day && a.Year < Date.Year);
+    {
+        var onTheDay = assets.Where(a => a.Month == Date.Month && a.Day == Date.Day && a.Year < Date.Year);
+        return onTheDay.Union(
+            from d in onTheDay
+            where d.BurstId != null
+            from a in assets
+            where a.BurstId == d.BurstId
+            select a);
+    }
+}
+
+public sealed record BurstMembers(Guid BurstId) : IAssetSelection
+{
+    public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets)
+        => assets.Where(a => a.BurstId == BurstId);
 }
 
 /// <summary>
@@ -71,5 +89,6 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
                a.PairedAsset!.Id,
                a.PairedAsset.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
                i != null && i.IsStarred,
-               i != null && i.IsLiked);
+               i != null && i.IsLiked,
+               a.BurstId);
 }

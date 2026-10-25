@@ -62,6 +62,12 @@ internal static class ApiPaths
             => $"{Base}/{Group}/{workItemId}";
     }
 
+    internal static class Bursts
+    {
+        internal const string Group = "bursts";
+        internal const string Members = "{burstId:guid}/assets";
+    }
+
     internal static class Flashbacks
     {
         internal const string Group = "flashbacks";

@@ -25,6 +25,7 @@ public sealed class AssetViewReaderTests
         private readonly List<MediaAsset> assets = [];
         private readonly List<ProxyFile> proxies = [];
         private readonly List<AssetInteraction> interactions = [];
+        private readonly List<Burst> bursts = [];
 
         public Library()
         {
@@ -82,6 +83,15 @@ public sealed class AssetViewReaderTests
                 IsHidden = hidden,
             });
 
+        public Burst Burst(params MediaAsset[] members)
+        {
+            var burst = new Burst { Id = Guid.NewGuid(), PrimaryAssetId = members[0].Id };
+            bursts.Add(burst);
+            foreach (var member in members)
+                member.BurstId = burst.Id;
+            return burst;
+        }
+
         public async Task<DbContextOptions<AnichronDbContext>> SeedAsync()
         {
             var options = AnichronDbContexts.InMemoryOptions();
@@ -91,6 +101,7 @@ public sealed class AssetViewReaderTests
             db.MediaAssets.AddRange(assets);
             db.ProxyFiles.AddRange(proxies);
             db.Interactions.AddRange(interactions);
+            db.Bursts.AddRange(bursts);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             return options;
         }
@@ -234,7 +245,7 @@ public sealed class AssetViewReaderTests
             4032, 3024, 6, 12, "LEHV6nWB2yk8",
             HasThumbnail: true, HasPreview: false, HasVideo: true,
             PairedMovId: null, PairedMovHasVideo: false,
-            IsStarred: false, IsLiked: false));
+            IsStarred: false, IsLiked: false, BurstId: null));
     }
 
     [Fact]
@@ -272,6 +283,29 @@ public sealed class AssetViewReaderTests
         view.Orientation.Should().BeNull();
         view.DurationInSeconds.Should().BeNull();
         view.Blurhash.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadAsync_BurstMember_ReportsItsBurst()
+    {
+        var library = new Library();
+        var member = library.Asset(library.MiraConfig);
+        var burst = library.Burst(member, library.Asset(library.MiraConfig));
+
+        var views = await ReadAsync(library, library.Mira, new OnlyAsset(member.Id));
+
+        views.Should().ContainSingle().Which.BurstId.Should().Be(burst.Id);
+    }
+
+    [Fact]
+    public async Task ReadAsync_OutsideABurst_ReportsNoBurst()
+    {
+        var library = new Library();
+        library.Asset(library.MiraConfig);
+
+        var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
+
+        view.BurstId.Should().BeNull();
     }
 
     // ==========================================================================
@@ -350,6 +384,133 @@ public sealed class AssetViewReaderTests
         views.Should().HaveCount(matched ? 1 : 0);
     }
 
+    [Fact]
+    public async Task OnThisDay_BurstWithAMemberOnTheDay_BringsEveryMemberButNoOtherAssets()
+    {
+        var library = new Library();
+        var beforeMidnight = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 23, 59));
+        var afterMidnight = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 15, 0, 1));
+        library.Burst(beforeMidnight, afterMidnight);
+        var single = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 0));
+        library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 15, 9, 0));
+        var otherBurst = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 15, 10, 0));
+        library.Burst(otherBurst, library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 15, 10, 1)));
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([beforeMidnight.Id, afterMidnight.Id, single.Id]);
+    }
+
+    [Theory]
+    [InlineData(2026, 7, 14)]
+    [InlineData(2027, 7, 14)]
+    [InlineData(2019, 8, 14)]
+    [InlineData(2019, 7, 15)]
+    public async Task OnThisDay_BurstWithoutAMemberOnTheDayInAnEarlierYear_IsNotBroughtIn(int year, int month, int day)
+    {
+        var library = new Library();
+        library.Burst(
+            library.Asset(library.MiraConfig, new LocalDateTime(year, month, day, 12, 0)),
+            library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 16, 12, 0)));
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OnThisDay_OnlyMemberOnTheDayIsHidden_DoesNotBringItsBurst()
+    {
+        var library = new Library();
+        var hidden = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 23, 59));
+        library.Burst(hidden, library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 15, 0, 1)));
+        library.Interaction(library.Mira, hidden, hidden: true);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OnThisDay_EveryMemberBeforeMidnightHidden_BringsTheBurstOnTheNextDay()
+    {
+        var library = new Library();
+        var hidden = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 23, 59));
+        var afterMidnight = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 15, 0, 1));
+        library.Burst(hidden, afterMidnight);
+        library.Interaction(library.Mira, hidden, hidden: true);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 15)));
+
+        views.Select(v => v.Id).Should().Equal(afterMidnight.Id);
+    }
+
+    [Fact]
+    public async Task OnThisDay_TwoMembersOnTheDay_BringEachMemberOnce()
+    {
+        var library = new Library();
+        var first = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 0));
+        var second = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 1));
+        library.Burst(first, second);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([first.Id, second.Id]);
+    }
+
+    [Theory]
+    [InlineData(2019, 7, 14, true)]
+    [InlineData(2019, 7, 13, false)]
+    [InlineData(2019, 6, 14, false)]
+    public void OnThisDay_FallsOnTheDay_ComparesMonthAndDay(int year, int month, int day, bool falls)
+    {
+        var view = new AssetView(
+            Guid.NewGuid(), MediaType.Image, year, month, day, new LocalDateTime(year, month, day, 9, 0),
+            null, null, null, null, null, false, false, false, null, false, false, false, null);
+
+        new OnThisDay(new LocalDate(2026, 7, 14)).FallsOnTheDay(view).Should().Be(falls);
+    }
+
+    // ==========================================================================
+    // BurstMembers (#299)
+    // ==========================================================================
+
+    [Fact]
+    public async Task BurstMembers_ReturnsTheBurstsVisibleMembersOnly()
+    {
+        var library = new Library();
+        var first = library.Asset(library.MiraConfig);
+        var second = library.Asset(library.MiraConfig);
+        var hidden = library.Asset(library.MiraConfig);
+        var deleted = library.Asset(library.MiraConfig, softDeleted: true);
+        var burst = library.Burst(first, second, hidden, deleted);
+        library.Interaction(library.Mira, hidden, hidden: true);
+        library.Burst(library.Asset(library.MiraConfig), library.Asset(library.MiraConfig));
+        library.Asset(library.MiraConfig);
+
+        var views = await ReadAsync(library, library.Mira, new BurstMembers(burst.Id));
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([first.Id, second.Id]);
+    }
+
+    [Fact]
+    public async Task BurstMembers_UnknownBurst_IsEmpty()
+    {
+        var library = new Library();
+        library.Burst(library.Asset(library.MiraConfig), library.Asset(library.MiraConfig));
+
+        (await ReadAsync(library, library.Mira, new BurstMembers(Guid.NewGuid()))).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task BurstMembers_AnotherUsersBurst_IsEmpty()
+    {
+        var library = new Library();
+        var burst = library.Burst(library.Asset(library.AliceConfig), library.Asset(library.AliceConfig));
+
+        (await ReadAsync(library, library.Mira, new BurstMembers(burst.Id))).Should().BeEmpty();
+    }
+
     // ==========================================================================
     // Generated SQL
     // ==========================================================================
@@ -365,6 +526,35 @@ public sealed class AssetViewReaderTests
             .And.Contain("\"Day\" = @Date_Day").And.Contain("@Date_Day='14'")
             .And.Contain("\"Year\" < @Date_Year").And.Contain("@Date_Year='2026'")
             .And.NotContain("EXTRACT")
+            .And.NotContain(";");
+    }
+
+    [Fact]
+    public void Query_OnThisDay_BringsBurstMembersThroughTheCallersVisibleAssetsOnTheDay()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new OnThisDay(new LocalDate(2026, 7, 14))).ToQueryString();
+
+        sql.Should().Contain("UNION")
+            .And.Contain("\"BurstId\" IS NOT NULL")
+            .And.NotContain(";");
+        sql.Split("\"Month\" = @Date_Month AND").Should().HaveCount(3,
+            "both arms of the union start from the indexed day columns, the members' arm joining on BurstId");
+        sql.Split("\"UserId\" = @").Should().HaveCount(8,
+            "the burst lookup applies the owned-config check and the hidden rule to the caller as well");
+    }
+
+    [Fact]
+    public void Query_BurstMembers_FiltersOnTheBurstAfterVisibility()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new BurstMembers(Guid.NewGuid())).ToQueryString();
+
+        sql.Should().Contain("\"BurstId\" = @BurstId")
+            .And.Contain("\"IsActive\"")
+            .And.Contain("\"IsHidden\"")
             .And.NotContain(";");
     }
 

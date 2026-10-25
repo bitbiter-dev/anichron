@@ -139,6 +139,17 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
         => Routes.Where(r => r.Pattern.StartsWith("/api/v1/flashbacks", StringComparison.Ordinal))
             .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Flashbacks" }));
 
+    [Fact]
+    public void BurstMembersRoute_RequiresAnAuthenticatedUserButNotAdminAndIsTaggedBursts()
+    {
+        var route = Find("GET", "/api/v1/bursts/{burstId:guid}/assets");
+
+        route.Anonymous.Should().BeFalse();
+        route.Authenticated.Should().BeTrue();
+        route.Policies.Should().NotContain(AuthPolicies.Admin);
+        route.Tags.Should().Equal("Bursts");
+    }
+
     [Theory]
     [InlineData("/api/v1/admin/work-items")]
     [InlineData("/api/v1/admin/work-items/{workItemId:guid}")]
@@ -169,5 +180,5 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(26);
+        => Routes.Should().HaveCount(27);
 }
