@@ -17,6 +17,15 @@ public interface IPasswordHasher
 
 public sealed class Argon2PasswordHasher : IPasswordHasher
 {
+    private readonly Func<byte[], byte[], byte[]> argon2;
+
+    public Argon2PasswordHasher()
+        : this(RunArgon2id)
+    {
+    }
+
+    internal Argon2PasswordHasher(Func<byte[], byte[], byte[]> argon2) => this.argon2 = argon2;
+
     public string Hash(string password)
     {
         var salt = RandomNumberGenerator.GetBytes(AppDefaults.Argon2.SaltLength);
@@ -58,12 +67,12 @@ public sealed class Argon2PasswordHasher : IPasswordHasher
         return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
 
-    private static byte[] RunArgon2idSecure(string password, byte[] salt)
+    private byte[] RunArgon2idSecure(string password, byte[] salt)
     {
         var passwordBytes = Encoding.UTF8.GetBytes(password);
         try
         {
-            return RunArgon2id(passwordBytes, salt);
+            return argon2(passwordBytes, salt);
         }
         // Stryker disable once Block,Statement
         finally

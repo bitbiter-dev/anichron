@@ -1,5 +1,6 @@
 using Anichron.API.Security;
-using System.Diagnostics;
+using Anichron.API.Settings;
+using System.Text;
 
 namespace Anichron.API.Tests.Unit.Security;
 
@@ -129,27 +130,18 @@ public sealed class PasswordHasherTests
         result.Should().BeFalse();
     }
 
-    // ⚠️ Named for what it actually pins: that the null path is not a cheap early return. It
-    // does NOT pin "equal work" — it would still pass if the throwaway pass used weaker Argon2
-    // parameters, or were replaced by a sleep. Pinning true equality needs a comparison against
-    // the real path, and that is the wall-clock-ratio shape that goes flaky on a loaded runner.
-    // The guard against weakened parameters is that both paths call the same RunArgon2idSecure.
     [Fact]
-    public void Verify_NullStoredHash_DoesNotShortCircuit()
+    public void Verify_NullStoredHash_RunsOneArgon2PassOnTheGivenPasswordWithAFullSalt()
     {
-        var testee = new Argon2PasswordHasher();
+        var passes = new List<(string Password, int SaltLength)>();
+        var testee = new Argon2PasswordHasher((password, salt) =>
+        {
+            passes.Add((Encoding.UTF8.GetString(password), salt.Length));
+            return new byte[AppDefaults.Argon2.HashLength];
+        });
 
-        var stopwatch = Stopwatch.StartNew();
         testee.Verify("password", null);
-        stopwatch.Stop();
 
-        // ⭐ A LOWER bound, deliberately. "At least this slow" cannot fail on a loaded or slow
-        // machine — only on an impossibly fast one, and 64 MiB of Argon2id at three iterations
-        // does not complete in single-digit milliseconds on any hardware this runs on (measured
-        // ~30–80 ms locally). An upper bound, or a ratio against the real-hash path, is the
-        // shape that goes flaky on a busy CI runner.
-        stopwatch.ElapsedMilliseconds.Should().BeGreaterThan(10,
-            "a null hash must still cost an Argon2 pass; returning early would make "
-            + "verification time reveal that the account does not exist");
+        passes.Should().Equal(("password", AppDefaults.Argon2.SaltLength));
     }
 }
