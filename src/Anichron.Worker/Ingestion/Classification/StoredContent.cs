@@ -9,7 +9,7 @@ namespace Anichron.Worker.Ingestion.Classification;
 /// <param name="ContentHash">The content's hash.</param>
 /// <param name="DateCaptured">The content's capture date.</param>
 /// <param name="MediaType">The content's media type.</param>
-/// <param name="Description">The metadata values; a detached row that only carries them.</param>
+/// <param name="Description">The metadata values; a stored row copies them, a new row takes this row as its own.</param>
 /// <param name="Proxies">The content's proxies, owned by the row that takes it.</param>
 internal sealed record AssetContent(
     string ContentHash, LocalDateTime DateCaptured, MediaType MediaType, Metadata Description, IReadOnlyList<ProxyFile> Proxies)
