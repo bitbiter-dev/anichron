@@ -73,6 +73,13 @@ public sealed partial class AssetViewReaderTests
             return asset;
         }
 
+        public MediaAsset LivePhoto(MediaAsset mov, LocalDateTime? captured = null, bool softDeleted = false)
+        {
+            var heic = Asset(MiraConfig, captured, MediaType.LivePhoto, softDeleted);
+            heic.PairedAssetId = mov.Id;
+            return heic;
+        }
+
         public void Interaction(User user, MediaAsset asset, bool starred = false, bool liked = false, bool hidden = false)
             => interactions.Add(new AssetInteraction
             {
@@ -317,8 +324,7 @@ public sealed partial class AssetViewReaderTests
     {
         var library = new Library();
         var mov = library.Asset(library.MiraConfig, type: MediaType.Video, softDeleted: movSoftDeleted, proxyTypes: movProxies);
-        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto);
-        heic.PairedAssetId = mov.Id;
+        var heic = library.LivePhoto(mov);
 
         var views = await ReadAsync(library, library.Mira, new OnlyAsset(heic.Id));
         return views.Should().ContainSingle().Which;
@@ -356,8 +362,7 @@ public sealed partial class AssetViewReaderTests
     {
         var library = new Library();
         var mov = library.Asset(library.MiraConfig, type: MediaType.Video, proxyTypes: ProxyType.WebVideo);
-        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto);
-        heic.PairedAssetId = mov.Id;
+        var heic = library.LivePhoto(mov);
         var video = library.Asset(library.MiraConfig, type: MediaType.Video);
 
         var views = await ReadAsync(library, library.Mira);
@@ -371,8 +376,7 @@ public sealed partial class AssetViewReaderTests
     {
         var library = new Library();
         var mov = library.Asset(library.MiraConfig, type: MediaType.Video);
-        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto);
-        heic.PairedAssetId = mov.Id;
+        var heic = library.LivePhoto(mov);
         library.Interaction(library.Mira, heic, hidden: true);
         var kept = library.Asset(library.MiraConfig);
 
@@ -386,8 +390,7 @@ public sealed partial class AssetViewReaderTests
     {
         var library = new Library();
         var mov = library.Asset(library.MiraConfig, type: MediaType.Video);
-        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto, softDeleted: true);
-        heic.PairedAssetId = mov.Id;
+        library.LivePhoto(mov, softDeleted: true);
 
         var views = await ReadAsync(library, library.Mira);
 
@@ -507,9 +510,8 @@ public sealed partial class AssetViewReaderTests
     {
         var library = new Library();
         var onTheDay = new LocalDateTime(2019, 7, 14, 9, 0);
-        var mov = library.Asset(library.MiraConfig, onTheDay, MediaType.Video, false, null, ProxyType.WebVideo);
-        var heic = library.Asset(library.MiraConfig, onTheDay, MediaType.LivePhoto);
-        heic.PairedAssetId = mov.Id;
+        var mov = library.Asset(library.MiraConfig, onTheDay, MediaType.Video, proxyTypes: ProxyType.WebVideo);
+        var heic = library.LivePhoto(mov, onTheDay);
         var video = library.Asset(library.MiraConfig, onTheDay, MediaType.Video);
 
         var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
@@ -527,7 +529,8 @@ public sealed partial class AssetViewReaderTests
 
         var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
 
-        views.Should().ContainSingle().Which.Should().Match<AssetView>(v => v.Id == mov.Id && v.MediaType == MediaType.Video);
+        var view = views.Should().ContainSingle().Which;
+        (view.Id, view.MediaType).Should().Be((mov.Id, MediaType.Video));
     }
 
     [Theory]
@@ -570,8 +573,7 @@ public sealed partial class AssetViewReaderTests
     {
         var library = new Library();
         var mov = library.Asset(library.MiraConfig, type: MediaType.Video);
-        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto);
-        heic.PairedAssetId = mov.Id;
+        var heic = library.LivePhoto(mov);
         var other = library.Asset(library.MiraConfig);
         var burst = library.Burst(heic, other, mov);
 

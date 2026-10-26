@@ -9,4 +9,7 @@ public static class MediaAssetVisibility
 
     public static IQueryable<MediaAsset> NotHiddenFor(this IQueryable<MediaAsset> assets, Guid userId)
         => assets.Where(a => !a.Interactions.Any(i => i.UserId == userId && i.IsHidden));
+
+    public static IQueryable<MediaAsset> NotPairedMovOf(this IQueryable<MediaAsset> assets, IQueryable<MediaAsset> livePhotos)
+        => assets.Where(a => !livePhotos.Any(livePhoto => livePhoto.PairedAssetId == a.Id));
 }
