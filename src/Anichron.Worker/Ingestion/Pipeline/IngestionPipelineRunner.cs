@@ -36,7 +36,7 @@ internal sealed partial class IngestionPipelineRunner(
     private void Compensate(IngestionContext context)
     {
         const string proxyRoot = StoragePath.ProxiesRoot;
-        var proxies = context.ProxyFiles;
+        var proxies = context.CreatedProxyFiles;
 
         foreach (var proxy in proxies)
             TryDelete(fileSystem.Path.Combine(proxyRoot, proxy.ProxyPath));

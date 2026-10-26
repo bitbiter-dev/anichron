@@ -8,7 +8,9 @@ internal sealed record ScriptedItem(
     FileOutcome Primary,
     FileOutcome? Secondary = null,
     bool Fails = false,
-    CancellationTokenSource? Cancels = null);
+    CancellationTokenSource? Cancels = null,
+    int SoftDeleted = 0,
+    int AutoRestored = 0);
 
 internal sealed class ScriptedClassificationMiddleware(params ScriptedItem[] itemsInOrder) : IIngestionMiddleware
 {
@@ -28,6 +30,10 @@ internal sealed class ScriptedClassificationMiddleware(params ScriptedItem[] ite
         }
 
         context.Classification = Classifications.Of(item.Primary, item.Secondary);
+        for (var i = 0; i < item.SoftDeleted; i++)
+            context.CountSoftDeleted();
+        for (var i = 0; i < item.AutoRestored; i++)
+            context.CountAutoRestored();
         if (item.Fails)
             throw new InvalidOperationException("boom");
     }

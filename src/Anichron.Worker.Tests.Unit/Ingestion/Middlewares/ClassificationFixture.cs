@@ -20,17 +20,21 @@ internal sealed class ClassificationFixture
     public static readonly Instant Now = Instant.FromUtc(2026, 5, 19, 10, 0, 0);
 
     public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
+    public IBurstRepository Bursts { get; } = Substitute.For<IBurstRepository>();
     public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
     public MockFileSystem FileSystem { get; } = new();
     public IClock Clock { get; } = Substitute.For<IClock>();
     public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
     public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
     public FakeLogger<KnownFileReconciler> Logger { get; } = new();
+    public FakeLogger<ClassificationMiddleware> MiddlewareLogger { get; } = new();
     public List<ProxyFile> AddedProxies { get; } = [];
 
     public ClassificationFixture()
     {
         Clock.GetCurrentInstant().Returns(Now);
+        UnitOfWork.ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<Func<Task>>()());
         Store();
     }
 
@@ -56,7 +60,12 @@ internal sealed class ClassificationFixture
                 new FakeLogger<PairedMovProxyWriter>()),
             saver,
             new FakeLogger<LivePhotoPairer>());
-        return new(new IngestionClassifier(Repository, FileSystem), pairer, new KnownFileReconciler(Clock, Logger), saver);
+        return new(
+            new IngestionClassifier(Repository, FileSystem),
+            pairer,
+            new KnownFileReconciler(Clock, Repository, Bursts, GuidFactory, Logger),
+            saver,
+            MiddlewareLogger);
     }
 
     public Task DidNotTranscodeAsync()

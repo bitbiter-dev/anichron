@@ -59,7 +59,7 @@ internal sealed partial class FileIngestionPipeline(
             var pending = new Stack<string>([config.RootPath]);
             while (pending.TryPop(out var directory))
             {
-                var (files, subdirectories) = ListDirectory(directory, config.RootPath);
+                var (files, subdirectories) = ListDirectory(directory, config.RootPath, tally);
                 await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, tally, ct);
                 foreach (var subdirectory in subdirectories)
                     pending.Push(subdirectory);
@@ -73,7 +73,7 @@ internal sealed partial class FileIngestionPipeline(
         }
     }
 
-    private (List<string> Files, List<string> Subdirectories) ListDirectory(string directory, string rootPath)
+    private (List<string> Files, List<string> Subdirectories) ListDirectory(string directory, string rootPath, CrawlTally tally)
     {
         try
         {
@@ -86,6 +86,7 @@ internal sealed partial class FileIngestionPipeline(
         catch (Exception ex) when (directory != rootPath && ex is UnauthorizedAccessException or IOException)
         {
             Log.DirectoryUnreadable(logger, directory, ex);
+            tally.FolderSkipped();
             return ([], []);
         }
     }
@@ -101,7 +102,7 @@ internal sealed partial class FileIngestionPipeline(
 
         foreach (var item in linkResult.Items)
         {
-            tally.Found();
+            tally.Found(item);
             await writer.WriteAsync(item, ct);
         }
 
@@ -117,9 +118,9 @@ internal sealed partial class FileIngestionPipeline(
                 continue;
             }
 
-            var relativePath = fileSystem.Path.GetRelativePath(rootPath, filePath);
-            tally.Found();
-            await writer.WriteAsync(new SingleFileItem(filePath, relativePath, mediaType.Value), ct);
+            var item = new SingleFileItem(filePath, fileSystem.Path.GetRelativePath(rootPath, filePath), mediaType.Value);
+            tally.Found(item);
+            await writer.WriteAsync(item, ct);
         }
     }
 
@@ -142,7 +143,7 @@ internal sealed partial class FileIngestionPipeline(
             {
                 var context = new IngestionContext { Item = item, Config = config, AttemptId = guidFactory.NewGuid() };
                 await runner.RunAsync(context, ct);
-                tally.Processed(context.Classification?.DuplicateCopies ?? 0);
+                tally.Processed(context);
             }
             catch (Exception ex) when (IngestionCancellation.IsRequested(ex, ct))
             {

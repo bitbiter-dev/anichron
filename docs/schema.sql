@@ -150,7 +150,7 @@ COMMENT ON COLUMN "MediaAssets"."FilePath" IS 'Path relative to the storage conf
 COMMENT ON COLUMN "MediaAssets"."ContentHash" IS 'XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same bytes under two storage configs are two assets, which is what makes multi-user work. A global unique index on this column alone would break that and must never be added.';
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';
 COMMENT ON COLUMN "MediaAssets"."Day" IS 'See Month — the pair backs IX_MediaAsset_Flashback.';
-COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a file is gone from the NAS. Soft rather than hard so the user''s interactions survive a temporarily unmounted share.';
+COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore).';
 
 
 CREATE TABLE "Interactions" (
@@ -238,6 +238,9 @@ CREATE INDEX "IX_MediaAssets_PairedAssetId" ON "MediaAssets" ("PairedAssetId");
 
 
 CREATE UNIQUE INDEX ix_mediaassets_storageconfigid_contenthash_active ON "MediaAssets" ("StorageConfigId", "ContentHash") WHERE "IsSoftDeleted" = false;
+
+
+CREATE INDEX ix_mediaassets_storageconfigid_contenthash_softdeleted ON "MediaAssets" ("StorageConfigId", "ContentHash") WHERE "IsSoftDeleted" = true;
 
 
 CREATE INDEX "IX_MediaAssets_StorageConfigId_DateCaptured" ON "MediaAssets" ("StorageConfigId", "DateCaptured");

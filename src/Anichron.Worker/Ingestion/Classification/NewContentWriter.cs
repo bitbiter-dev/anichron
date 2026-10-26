@@ -17,7 +17,7 @@ internal sealed class NewContentWriter(
     ILogger<NewContentWriter> logger)
     : ProcessedContentWriter(saver, fileSystem, clock, pairedMovResolver, pairedMovProxyWriter, logger)
 {
-    public override FileOutcome Outcome => FileOutcome.New;
+    public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.New];
 
     protected override Task<MediaAsset> WriteAssetAsync(IngestionContext context, CancellationToken ct)
     {
