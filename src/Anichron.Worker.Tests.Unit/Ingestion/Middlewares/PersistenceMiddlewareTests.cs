@@ -30,7 +30,7 @@ public sealed class PersistenceMiddlewareTests
         private static IOutcomeWriter Writer(FileOutcome outcome)
         {
             var writer = Substitute.For<IOutcomeWriter>();
-            writer.Outcome.Returns(outcome);
+            writer.Outcomes.Returns([outcome]);
             return writer;
         }
     }
@@ -73,11 +73,13 @@ public sealed class PersistenceMiddlewareTests
         var fx = new TestFixture();
         var context = Context(FileOutcome.New);
         var asset = new MediaAsset { Id = AssetId };
+        context.CountAutoRestored();
         fx.NewWriter.TryWriteAsync(context, Arg.Any<CancellationToken>()).Returns(asset);
 
         await fx.InvokeAsync(context);
 
         context.Asset.Should().BeSameAs(asset);
+        context.AutoRestored.Should().Be(1);
         fx.NextCalled.Should().BeTrue();
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle()
             .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Information
@@ -89,11 +91,13 @@ public sealed class PersistenceMiddlewareTests
     {
         var fx = new TestFixture();
         var context = Context(FileOutcome.New);
+        context.CountAutoRestored();
         fx.NewWriter.TryWriteAsync(context, Arg.Any<CancellationToken>()).Returns((MediaAsset?)null);
 
         await fx.InvokeAsync(context);
 
         context.Asset.Should().BeNull();
+        context.AutoRestored.Should().Be(0);
         fx.NextCalled.Should().BeFalse();
     }
 }

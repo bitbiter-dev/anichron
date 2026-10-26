@@ -18,7 +18,7 @@ internal sealed partial class ContentChangedWriter(
     ILogger<ContentChangedWriter> logger)
     : ProcessedContentWriter(saver, fileSystem, clock, pairedMovResolver, pairedMovProxyWriter, logger)
 {
-    public override FileOutcome Outcome => FileOutcome.ContentChanged;
+    public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.ContentChanged, FileOutcome.AutoRestoredContentChanged];
 
     protected override async Task<MediaAsset> WriteAssetAsync(IngestionContext context, CancellationToken ct)
     {
@@ -27,38 +27,25 @@ internal sealed partial class ContentChangedWriter(
 
         await repository.LoadMetadataAsync(asset, ct);
         DescribeContent(asset, asset.Metadata ??= new Metadata { AssetId = asset.Id }, context);
-        ReplaceProxyFiles(asset, context.ProxyFilesOf(asset.Id));
+        ProxyFileRows.Replace(repository, asset, context.ProxyFilesOf(asset.Id));
         asset.BurstId = null;
         await bursts.RemoveCheckAsync(asset.Id, ct);
-        return asset;
-    }
-
-    private void ReplaceProxyFiles(MediaAsset asset, IReadOnlyList<ProxyFile> generated)
-    {
-        var stale = asset.ProxyFiles.Where(old => generated.All(proxy => proxy.ProxyType != old.ProxyType));
-        foreach (var proxy in stale.ToList())
-            repository.RemoveProxyFile(proxy);
-
-        var added = new List<ProxyFile>();
-        foreach (var proxy in generated)
+        if (asset.IsSoftDeleted)
         {
-            if (asset.ProxyFiles.FirstOrDefault(old => old.ProxyType == proxy.ProxyType) is not { } existing)
-            {
-                added.Add(proxy);
-                continue;
-            }
-
-            existing.ProxyPath = proxy.ProxyPath;
-            existing.SizeBytes = proxy.SizeBytes;
-            existing.CreatedAt = proxy.CreatedAt;
+            asset.IsSoftDeleted = false;
+            context.CountAutoRestored();
+            Log.AutoRestored(logger, asset.Id, context.Item.RelativePath);
         }
 
-        repository.AddProxyFiles(added);
+        return asset;
     }
 
     private static partial class Log
     {
         [LoggerMessage(Level = LogLevel.Information, Message = "Asset {AssetId} at {RelativePath} changed content from {OldHash} to {NewHash}, updating it in place.")]
         public static partial void ContentChanged(ILogger logger, Guid assetId, string relativePath, string oldHash, string newHash);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Auto-restored asset {AssetId} at {RelativePath} with its new content.")]
+        public static partial void AutoRestored(ILogger logger, Guid assetId, string relativePath);
     }
 }

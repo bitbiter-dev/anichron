@@ -3,11 +3,12 @@ using Anichron.Worker.Ingestion.Pipeline;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
 
-internal sealed class ClassificationMiddleware(
+internal sealed partial class ClassificationMiddleware(
     IngestionClassifier classifier,
     LivePhotoPairer pairer,
     KnownFileReconciler reconciler,
-    IngestionSaver saver) : IIngestionMiddleware
+    IngestionSaver saver,
+    ILogger<ClassificationMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Classification;
     public bool CanInvoke(IngestionContext context) => true;
@@ -19,20 +20,43 @@ internal sealed class ClassificationMiddleware(
         context.AssetId = classification.Primary.Stored?.Id ?? context.AttemptId;
         if (classification.NeedsProcessing)
         {
+            await ReconcileSecondaryAsync(context, classification, ct);
             await next(context, ct);
             return;
         }
 
         await pairer.PairAsync(context, classification, ct);
 
-        var changed = reconciler.Reconcile(classification.Primary, context.Item.RelativePath);
-        if (classification.Secondary is not null
-            && reconciler.Reconcile(classification.Secondary, context.Item.SecondaryFile!.RelativePath))
-        {
+        var changed = await reconciler.ReconcileAsync(context, classification.Primary, context.Item.RelativePath, ct);
+        if (await ReconcileSecondaryAsync(context, classification, ct))
             changed = true;
+
+        if (!changed)
+            return;
+        if (classification.Primary is { Outcome: FileOutcome.OverwrittenByMove, Retired: { } retired })
+        {
+            if (!await saver.TrySaveRetiringFirstAsync(retired, ct))
+            {
+                context.ForgetCounts();
+                Log.ContentTakenConcurrently(logger, context.Item.RelativePath);
+            }
+
+            return;
         }
 
-        if (changed)
-            await saver.SaveAsync(context, null, ct);
+        await saver.SaveAsync(context, null, ct);
+    }
+
+    private async Task<bool> ReconcileSecondaryAsync(
+        IngestionContext context, IngestionClassification classification, CancellationToken ct)
+        => classification.Secondary is { } secondary
+            && await reconciler.ReconcileAsync(context, secondary, context.Item.SecondaryFile!.RelativePath, ct);
+
+    private static partial class Log
+    {
+        [LoggerMessage(
+            Level = LogLevel.Debug,
+            Message = "Another consumer took the content now at {RelativePath} first, skipping; the next crawl reconciles it.")]
+        public static partial void ContentTakenConcurrently(ILogger logger, string relativePath);
     }
 }

@@ -23,6 +23,19 @@ internal sealed class IngestionContext
     public string? Blurhash { get; set; }
     public MediaAsset? Asset { get; set; }
 
+    /// <summary>Rows this item soft-deleted, counted once the change is made.</summary>
+    public int SoftDeleted { get; private set; }
+
+    /// <summary>Soft-deleted rows this item made active again, counted once the change is made.</summary>
+    public int AutoRestored { get; private set; }
+
+    public void CountSoftDeleted() => SoftDeleted++;
+
+    public void CountAutoRestored() => AutoRestored++;
+
+    /// <summary>Forgets the counts when the changes they counted were not saved.</summary>
+    public void ForgetCounts() => (SoftDeleted, AutoRestored) = (0, 0);
+
     // Image proxies register concurrently.
     public IReadOnlyList<ProxyFile> ProxyFiles
     {

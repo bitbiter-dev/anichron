@@ -95,7 +95,7 @@ public sealed class NewContentWriterTests
 
     [Fact]
     public void Outcome_IsNew()
-        => new TestFixture().Build().Outcome.Should().Be(FileOutcome.New);
+        => new TestFixture().Build().Outcomes.Should().Equal(FileOutcome.New);
 
     // ==========================================================================
     // TryWriteAsync

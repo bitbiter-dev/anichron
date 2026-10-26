@@ -14,7 +14,7 @@ internal abstract partial class ProcessedContentWriter(
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger logger) : IOutcomeWriter
 {
-    public abstract FileOutcome Outcome { get; }
+    public abstract IReadOnlyCollection<FileOutcome> Outcomes { get; }
 
     public async Task<MediaAsset?> TryWriteAsync(IngestionContext context, CancellationToken ct)
     {
