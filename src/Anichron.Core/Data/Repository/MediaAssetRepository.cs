@@ -60,8 +60,6 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .Include(a => a.ProxyFiles)
             .ToListAsync(ct);
 
-    // One branch per index, so PostgreSQL can combine their scans: the active content-hash index,
-    // the soft-deleted content-hash index and the path index.
     internal static IQueryable<MediaAsset> HashesOrPathsQuery(
         AnichronDbContext db,
         Guid storageConfigId,
