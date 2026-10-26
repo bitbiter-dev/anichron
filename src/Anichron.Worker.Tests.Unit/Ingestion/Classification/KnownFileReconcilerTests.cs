@@ -52,7 +52,7 @@ public sealed class KnownFileReconcilerTests
             clock.GetCurrentInstant().Returns(Now);
             var guids = Substitute.For<IGuidFactory>();
             guids.NewGuid().Returns(NewProxyId);
-            return new KnownFileReconciler(clock, Repository, Bursts, guids, Logger)
+            return new KnownFileReconciler(clock, Repository, new StoredContent(Repository, Bursts, clock), guids, Logger)
                 .ReconcileAsync(Context, file, relativePath, CancellationToken.None);
         }
     }
@@ -193,6 +193,21 @@ public sealed class KnownFileReconcilerTests
             Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
         }, options => options.Excluding(m => m.Asset));
         await fx.Bursts.Received(1).RemoveCheckAsync(PathRowId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_OverwrittenByMove_CarriesEveryMetadataValueOfTheMovedRowAsync()
+    {
+        var fx = new TestFixture();
+        var (atPath, moved) = MoveOntoAnotherRow(fx);
+        var movedMetadata = MetadataValuesTests.FullyPopulated();
+        movedMetadata.AssetId = MovedRowId;
+        fx.LoadsMetadata(moved, movedMetadata);
+
+        await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
+
+        atPath.Metadata.Should().BeEquivalentTo(movedMetadata, options => options.Excluding(m => m.AssetId).Excluding(m => m.Asset));
+        atPath.Metadata.AssetId.Should().Be(PathRowId);
     }
 
     [Fact]

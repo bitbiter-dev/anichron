@@ -9,7 +9,7 @@ namespace Anichron.Worker.Ingestion.Classification;
 internal sealed partial class KnownFileReconciler(
     IClock clock,
     IMediaAssetRepository repository,
-    IBurstRepository bursts,
+    StoredContent storedContent,
     IGuidFactory guidFactory,
     ILogger<KnownFileReconciler> logger)
 {
@@ -67,16 +67,9 @@ internal sealed partial class KnownFileReconciler(
     private async Task<bool> TakeMovedContentAsync(
         IngestionContext context, MediaAsset atPath, MediaAsset moved, string relativePath, CancellationToken ct)
     {
-        await repository.LoadMetadataAsync(atPath, ct);
         await repository.LoadMetadataAsync(moved, ct);
-
-        atPath.ContentHash = moved.ContentHash;
-        atPath.DateCaptured = moved.DateCaptured;
-        atPath.MediaType = moved.MediaType;
-        CopyMetadata(moved.Metadata ?? new Metadata(), atPath.Metadata ??= new Metadata { AssetId = atPath.Id });
-        ProxyFileRows.Replace(repository, atPath, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))]);
-        atPath.BurstId = null;
-        await ReactivateAsync(context, atPath, ct);
+        await storedContent.TakeAsync(
+            context, atPath, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))]), ct);
 
         moved.IsSoftDeleted = true;
         context.StageSoftDeleted();
@@ -87,18 +80,9 @@ internal sealed partial class KnownFileReconciler(
     private async Task<bool> AutoRestoreAsync(IngestionContext context, MediaAsset trashed, string relativePath, CancellationToken ct)
     {
         MoveTo(trashed, relativePath);
-        await ReactivateAsync(context, trashed, ct);
+        await storedContent.ReactivateAsync(context, trashed, ct);
         Log.AutoRestored(logger, trashed.Id, relativePath);
         return true;
-    }
-
-    private Task ReactivateAsync(IngestionContext context, MediaAsset asset, CancellationToken ct)
-    {
-        if (asset.IsSoftDeleted)
-            context.StageAutoRestored();
-        asset.IsSoftDeleted = false;
-        asset.LastSeenOnNas = clock.GetCurrentInstant();
-        return bursts.RemoveCheckAsync(asset.Id, ct);
     }
 
     private ProxyFile ProxyOf(MediaAsset owner, ProxyFile source) => new()
@@ -115,20 +99,6 @@ internal sealed partial class KnownFileReconciler(
     {
         asset.FilePath = relativePath;
         asset.FileName = Path.GetFileName(relativePath);
-    }
-
-    private static void CopyMetadata(Metadata source, Metadata target)
-    {
-        target.Width = source.Width;
-        target.Height = source.Height;
-        target.Orientation = source.Orientation;
-        target.Latitude = source.Latitude;
-        target.Longitude = source.Longitude;
-        target.CameraMake = source.CameraMake;
-        target.CameraModel = source.CameraModel;
-        target.LensModel = source.LensModel;
-        target.DurationInSeconds = source.DurationInSeconds;
-        target.Blurhash = source.Blurhash;
     }
 
     private static partial class Log
