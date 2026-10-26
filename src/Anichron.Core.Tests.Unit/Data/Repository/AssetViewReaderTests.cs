@@ -4,10 +4,11 @@ using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using System.Text.RegularExpressions;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
 
-public sealed class AssetViewReaderTests
+public sealed partial class AssetViewReaderTests
 {
     private sealed class Everything : IAssetSelection
     {
@@ -350,6 +351,49 @@ public sealed class AssetViewReaderTests
         view.PairedMovHasVideo.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ReadAsync_PairedMov_IsNotListedOnItsOwn()
+    {
+        var library = new Library();
+        var mov = library.Asset(library.MiraConfig, type: MediaType.Video, proxyTypes: ProxyType.WebVideo);
+        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto);
+        heic.PairedAssetId = mov.Id;
+        var video = library.Asset(library.MiraConfig, type: MediaType.Video);
+
+        var views = await ReadAsync(library, library.Mira);
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([heic.Id, video.Id]);
+        views.Single(v => v.Id == heic.Id).PairedMovId.Should().Be(mov.Id);
+    }
+
+    [Fact]
+    public async Task ReadAsync_MovOfAHiddenLivePhoto_IsNotListedOnItsOwn()
+    {
+        var library = new Library();
+        var mov = library.Asset(library.MiraConfig, type: MediaType.Video);
+        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto);
+        heic.PairedAssetId = mov.Id;
+        library.Interaction(library.Mira, heic, hidden: true);
+        var kept = library.Asset(library.MiraConfig);
+
+        var views = await ReadAsync(library, library.Mira);
+
+        views.Select(v => v.Id).Should().Equal(kept.Id);
+    }
+
+    [Fact]
+    public async Task ReadAsync_MovOfASoftDeletedLivePhoto_IsListedAsAVideo()
+    {
+        var library = new Library();
+        var mov = library.Asset(library.MiraConfig, type: MediaType.Video);
+        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto, softDeleted: true);
+        heic.PairedAssetId = mov.Id;
+
+        var views = await ReadAsync(library, library.Mira);
+
+        views.Select(v => v.Id).Should().Equal(mov.Id);
+    }
+
     // ==========================================================================
     // OnThisDay (#38)
     // ==========================================================================
@@ -458,6 +502,34 @@ public sealed class AssetViewReaderTests
         views.Select(v => v.Id).Should().BeEquivalentTo([first.Id, second.Id]);
     }
 
+    [Fact]
+    public async Task OnThisDay_LivePhoto_IsListedOnceWithItsMov()
+    {
+        var library = new Library();
+        var onTheDay = new LocalDateTime(2019, 7, 14, 9, 0);
+        var mov = library.Asset(library.MiraConfig, onTheDay, MediaType.Video, false, null, ProxyType.WebVideo);
+        var heic = library.Asset(library.MiraConfig, onTheDay, MediaType.LivePhoto);
+        heic.PairedAssetId = mov.Id;
+        var video = library.Asset(library.MiraConfig, onTheDay, MediaType.Video);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([heic.Id, video.Id]);
+        var livePhoto = views.Single(v => v.Id == heic.Id);
+        (livePhoto.PairedMovId, livePhoto.PairedMovHasVideo).Should().Be((mov.Id, true));
+    }
+
+    [Fact]
+    public async Task OnThisDay_MovWhoseLivePhotoRowIsGone_IsListedAsAVideo()
+    {
+        var library = new Library();
+        var mov = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 0), MediaType.Video);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Should().ContainSingle().Which.Should().Match<AssetView>(v => v.Id == mov.Id && v.MediaType == MediaType.Video);
+    }
+
     [Theory]
     [InlineData(2019, 7, 14, true)]
     [InlineData(2019, 7, 13, false)]
@@ -491,6 +563,21 @@ public sealed class AssetViewReaderTests
         var views = await ReadAsync(library, library.Mira, new BurstMembers(burst.Id));
 
         views.Select(v => v.Id).Should().BeEquivalentTo([first.Id, second.Id]);
+    }
+
+    [Fact]
+    public async Task BurstMembers_PairedMovInTheBurst_IsNotListed()
+    {
+        var library = new Library();
+        var mov = library.Asset(library.MiraConfig, type: MediaType.Video);
+        var heic = library.Asset(library.MiraConfig, type: MediaType.LivePhoto);
+        heic.PairedAssetId = mov.Id;
+        var other = library.Asset(library.MiraConfig);
+        var burst = library.Burst(heic, other, mov);
+
+        var views = await ReadAsync(library, library.Mira, new BurstMembers(burst.Id));
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([heic.Id, other.Id]);
     }
 
     [Fact]
@@ -541,8 +628,8 @@ public sealed class AssetViewReaderTests
             .And.NotContain(";");
         sql.Split("\"Month\" = @Date_Month AND").Should().HaveCount(3,
             "both arms of the union start from the indexed day columns, the members' arm joining on BurstId");
-        sql.Split("\"UserId\" = @").Should().HaveCount(8,
-            "the burst lookup applies the owned-config check and the hidden rule to the caller as well");
+        sql.Split("\"UserId\" = @").Should().HaveCount(11,
+            "the burst lookup applies the owned-config check, the hidden rule and the paired-MOV exclusion to the caller as well");
     }
 
     [Fact]
@@ -559,6 +646,34 @@ public sealed class AssetViewReaderTests
     }
 
     [Fact]
+    public void Query_OnThisDay_ExcludesPairedMovsInTheSameStatement()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new OnThisDay(new LocalDate(2026, 7, 14))).ToQueryString();
+
+        PairedMovExclusions(sql).Should().Be(3,
+            "both arms of the union and the burst lookup leave out a row a visible Live Photo points at");
+        sql.Should().NotContain(";");
+    }
+
+    [Fact]
+    public void Query_BurstMembers_ExcludesPairedMovsInTheSameStatement()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new BurstMembers(Guid.NewGuid())).ToQueryString();
+
+        PairedMovExclusions(sql).Should().Be(1);
+        sql.Should().NotContain(";");
+    }
+
+    private static int PairedMovExclusions(string sql) => PairedMovExclusion().Count(sql);
+
+    [GeneratedRegex(@"""PairedAssetId"" = \w+\.""Id""\)")]
+    private static partial Regex PairedMovExclusion();
+
+    [Fact]
     public void Query_FiltersVisibilityTheHiddenRuleAndTheInteractionJoinOnTheCaller()
     {
         using var db = AnichronDbContexts.NpgsqlModel();
@@ -571,8 +686,8 @@ public sealed class AssetViewReaderTests
             .And.Contain("\"IsHidden\"")
             .And.Contain("LEFT JOIN")
             .And.Contain("FROM \"Interactions\"");
-        sql.Split("\"UserId\" = @").Should().HaveCount(4,
-            "the owned-config check, the hidden rule and the interaction join each filter on the caller");
+        sql.Split("\"UserId\" = @").Should().HaveCount(5,
+            "the owned-config check, the hidden rule, the paired-MOV exclusion and the interaction join each filter on the caller");
     }
 
     [Fact]
