@@ -188,6 +188,87 @@ public sealed class BurstRepositoryTests
            .And.Contain("""m."DateCaptured" = @capturedAt AND m."Id" > @id""");
     }
 
+    [Fact]
+    public async Task GetUncheckedPhotosAsync_SoftDeletedPhoto_IsLeftOutAsync()
+    {
+        var name = Guid.NewGuid().ToString();
+        var configId = Guid.NewGuid();
+        var active = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
+        var trashed = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
+        trashed.IsSoftDeleted = true;
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            seed.MediaAssets.AddRange(active, trashed);
+            await seed.SaveChangesAsync(Ct);
+        }
+
+        await using var db = AnichronDbContexts.InMemory(name);
+        var photos = await new EfBurstRepository(db).GetUncheckedPhotosAsync(configId, null, 10, Ct);
+
+        photos.Should().ContainSingle().Which.Id.Should().Be(active.Id);
+    }
+
+    [Fact]
+    public void UncheckedPhotos_StatesTheActivePhotosInItsOwnPredicate()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = new EfBurstRepository(db).UncheckedPhotos(Guid.NewGuid()).ToQueryString();
+
+        sql.Should().Contain("""WHERE m."StorageConfigId" = @storageConfigId AND NOT (m."IsSoftDeleted") AND m."MediaType" IN""");
+    }
+
+    [Fact]
+    public async Task GetCandidatesLabelledAsync_ReturnsTheConfigsActiveCandidatesWithTheLabelAsync()
+    {
+        var name = Guid.NewGuid().ToString();
+        var (config, other) = (Guid.NewGuid(), Guid.NewGuid());
+        static object[] Labelled(string file, Guid inConfig, string label = "burst-1", bool candidate = true, bool softDeleted = false)
+        {
+            var rows = Photo(file, inConfig, 0, candidate: candidate, softDeleted: softDeleted);
+            ((BurstCheck)rows[1]).CameraBurstId = label;
+            return rows;
+        }
+
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            seed.AddRange((IEnumerable<object>)[
+                .. Labelled("wanted.jpg", config),
+                .. Labelled("other-label.jpg", config, label: "burst-2"),
+                .. Labelled("other-config.jpg", other),
+                .. Labelled("no-candidate.jpg", config, candidate: false),
+                .. Labelled("deleted.jpg", config, softDeleted: true)]);
+            await seed.SaveChangesAsync(Ct);
+        }
+
+        await using var db = AnichronDbContexts.InMemory(name);
+        var labelled = await new EfBurstRepository(db).GetCandidatesLabelledAsync(config, "burst-1", Ct);
+
+        labelled.Should().ContainSingle().Which.FileName.Should().Be("wanted.jpg");
+    }
+
+    [Fact]
+    public void CandidatesLabelled_StatesTheActiveCandidatesInItsOwnPredicate()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = new EfBurstRepository(db).CandidatesLabelled(Guid.NewGuid(), "burst-1").ToQueryString();
+
+        sql.Should().Contain("""AND m."StorageConfigId" = @storageConfigId AND NOT (m."IsSoftDeleted")""");
+    }
+
+    [Fact]
+    public void CandidatesNear_StatesTheActiveCandidatesInItsOwnPredicate()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = new EfBurstRepository(db)
+            .CandidatesNear(Guid.NewGuid(), "Apple", "iPhone 15 Pro", Noon, Noon.PlusSeconds(120))
+            .ToQueryString();
+
+        sql.Should().Contain("""WHERE m."StorageConfigId" = @storageConfigId AND NOT (m."IsSoftDeleted") AND m."DateCaptured" >= @from""");
+    }
+
     private static MediaAsset UncheckedPhoto(Guid configId, Guid id, LocalDateTime capturedAt) => new()
     {
         Id = id,

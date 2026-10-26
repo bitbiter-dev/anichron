@@ -102,22 +102,30 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
 
     public async Task<IReadOnlyList<MediaAsset>> GetCandidatesLabelledAsync(
         Guid storageConfigId, string cameraBurstId, CancellationToken ct)
-        => await db.BurstChecks
-            .Where(c => c.IsCandidate && c.CameraBurstId == cameraBurstId && c.Asset.StorageConfigId == storageConfigId)
-            .Select(c => c.Asset)
-            .ToListAsync(ct);
+        => await CandidatesLabelled(storageConfigId, cameraBurstId).ToListAsync(ct);
+
+    internal IQueryable<MediaAsset> CandidatesLabelled(Guid storageConfigId, string cameraBurstId)
+        => db.BurstChecks
+            .IgnoreQueryFilters()
+            .Where(c => c.IsCandidate && c.CameraBurstId == cameraBurstId
+                && c.Asset.StorageConfigId == storageConfigId && !c.Asset.IsSoftDeleted)
+            .Select(c => c.Asset);
 
     public async Task<IReadOnlyList<MediaAsset>> GetCandidatesNearAsync(
         Guid storageConfigId, string cameraMake, string cameraModel, LocalDateTime from, LocalDateTime to, CancellationToken ct)
-        => await db.MediaAssets
+        => await CandidatesNear(storageConfigId, cameraMake, cameraModel, from, to).ToListAsync(ct);
+
+    internal IQueryable<MediaAsset> CandidatesNear(
+        Guid storageConfigId, string cameraMake, string cameraModel, LocalDateTime from, LocalDateTime to)
+        => db.MediaAssets
+            .IgnoreQueryFilters()
             .Include(a => a.ProxyFiles)
-            .Where(a => a.StorageConfigId == storageConfigId
+            .Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted
                 && a.DateCaptured >= from && a.DateCaptured <= to
                 && a.Metadata!.CameraMake == cameraMake && a.Metadata.CameraModel == cameraModel
                 && a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail)
                 && db.BurstChecks.Any(c => c.AssetId == a.Id && c.IsCandidate))
-            .OrderBy(a => a.DateCaptured).ThenBy(a => a.Id)
-            .ToListAsync(ct);
+            .OrderBy(a => a.DateCaptured).ThenBy(a => a.Id);
 
     public void Add(Burst burst)
         => db.Bursts.Add(burst);
@@ -150,8 +158,8 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
             .Where(a => a.DateCaptured > capturedAt || (a.DateCaptured == capturedAt && a.Id.CompareTo(id) > 0));
     }
 
-    private IQueryable<MediaAsset> UncheckedPhotos(Guid storageConfigId)
-        => db.MediaAssets.Where(a => a.StorageConfigId == storageConfigId
+    internal IQueryable<MediaAsset> UncheckedPhotos(Guid storageConfigId)
+        => db.MediaAssets.IgnoreQueryFilters().Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted
             && (a.MediaType == MediaType.Image || a.MediaType == MediaType.LivePhoto)
             && !db.BurstChecks.Any(c => c.AssetId == a.Id));
 }
