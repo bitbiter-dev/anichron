@@ -11,7 +11,7 @@ public interface IBurstRepository
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<Burst>> GetInConfigWithMembersAsync(Guid storageConfigId, CancellationToken ct);
 
-    /// <summary>The bursts with every member, oldest first (then by id).</summary>
+    /// <summary>The bursts with every member.</summary>
     /// <param name="burstIds">The bursts to load.</param>
     /// <param name="ct">Cancels the query.</param>
     Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct);
@@ -79,7 +79,6 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
     public async Task<IReadOnlyList<Burst>> GetWithMembersAsync(IReadOnlyCollection<Guid> burstIds, CancellationToken ct)
         => await WithMembers()
             .Where(b => burstIds.Contains(b.Id))
-            .OrderBy(b => b.CreatedAt).ThenBy(b => b.Id)
             .ToListAsync(ct);
 
     // Stryker disable all
