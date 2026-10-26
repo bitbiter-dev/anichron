@@ -68,27 +68,30 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
         => await Query(db, userId, selection).ToListAsync(ct);
 
     internal static IQueryable<AssetView> Query(AnichronDbContext db, Guid userId, IAssetSelection selection)
-        => from a in selection.Apply(db.MediaAssets.VisibleTo(userId).NotHiddenFor(userId))
-           join i in db.Interactions.Where(i => i.UserId == userId) on a.Id equals i.AssetId into interactions
-           from i in interactions.DefaultIfEmpty()
-           select new AssetView(
-               a.Id,
-               a.MediaType,
-               a.Year,
-               a.Month,
-               a.Day,
-               a.DateCaptured,
-               a.Metadata!.Width,
-               a.Metadata.Height,
-               a.Metadata.Orientation,
-               a.Metadata.DurationInSeconds,
-               a.Metadata.Blurhash,
-               a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail),
-               a.ProxyFiles.Any(p => p.ProxyType == ProxyType.FullPreview),
-               a.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
-               a.PairedAsset!.Id,
-               a.PairedAsset.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
-               i != null && i.IsStarred,
-               i != null && i.IsLiked,
-               a.BurstId);
+    {
+        var visible = db.MediaAssets.VisibleTo(userId);
+        return from a in selection.Apply(visible.NotHiddenFor(userId).NotPairedMovOf(visible))
+               join i in db.Interactions.Where(i => i.UserId == userId) on a.Id equals i.AssetId into interactions
+               from i in interactions.DefaultIfEmpty()
+               select new AssetView(
+                   a.Id,
+                   a.MediaType,
+                   a.Year,
+                   a.Month,
+                   a.Day,
+                   a.DateCaptured,
+                   a.Metadata!.Width,
+                   a.Metadata.Height,
+                   a.Metadata.Orientation,
+                   a.Metadata.DurationInSeconds,
+                   a.Metadata.Blurhash,
+                   a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail),
+                   a.ProxyFiles.Any(p => p.ProxyType == ProxyType.FullPreview),
+                   a.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
+                   a.PairedAsset!.Id,
+                   a.PairedAsset.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
+                   i != null && i.IsStarred,
+                   i != null && i.IsLiked,
+                   a.BurstId);
+    }
 }

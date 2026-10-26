@@ -66,29 +66,29 @@ public sealed class TokenServiceTests
     };
 
     // ==========================================================================
-    // IssueAsync
+    // Issue
     // ==========================================================================
 
     [Fact]
-    public async Task IssueAsync_ValidUser_ReturnsAccessTokenFromJwtFactory()
+    public void Issue_ValidUser_ReturnsAccessTokenFromJwtFactory()
     {
         var user = new User { Id = Guid.Parse("11111111-1111-1111-1111-111111111111") };
         var testee = new TestFixture().CreateTestee();
 
-        var result = await testee.IssueAsync(user, CancellationToken.None);
+        var result = testee.Issue(user);
 
         result.AccessToken.Should().Be("access_token");
     }
 
     [Fact]
-    public async Task IssueAsync_ValidUser_AddsRefreshTokenWithCorrectProperties()
+    public void Issue_ValidUser_AddsRefreshTokenWithCorrectProperties()
     {
         RefreshToken? captured = null;
         var user = new User { Id = Guid.Parse("11111111-1111-1111-1111-111111111111") };
         var fixture = new TestFixture().CaptureAddedToken(t => captured = t);
         var testee = fixture.CreateTestee();
 
-        await testee.IssueAsync(user, CancellationToken.None);
+        testee.Issue(user);
 
         Assert.Multiple(() =>
         {
@@ -100,29 +100,29 @@ public sealed class TokenServiceTests
     }
 
     [Fact]
-    public async Task IssueAsync_ValidUser_StoredHashMatchesSha256OfRawToken()
+    public void Issue_ValidUser_StoredHashMatchesSha256OfRawToken()
     {
         RefreshToken? captured = null;
         var user = new User();
         var fixture = new TestFixture().CaptureAddedToken(t => captured = t);
         var testee = fixture.CreateTestee();
 
-        var tokens = await testee.IssueAsync(user, CancellationToken.None);
+        var tokens = testee.Issue(user);
 
         var expectedHash = Convert.ToBase64String(SHA256.HashData(Convert.FromBase64String(tokens.RefreshToken)));
         captured!.TokenHash.Should().Be(expectedHash);
     }
 
     [Fact]
-    public async Task IssueAsync_ValidUser_SavesChanges()
+    public async Task Issue_ValidUser_StagesWithoutSaving()
     {
-        var user = new User();
         var fixture = new TestFixture();
         var testee = fixture.CreateTestee();
 
-        await testee.IssueAsync(user, CancellationToken.None);
+        testee.Issue(new User());
 
-        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        fixture.Tokens.Received(1).Add(Arg.Any<RefreshToken>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================
@@ -243,6 +243,23 @@ public sealed class TokenServiceTests
             result.Value!.AccessToken.Should().Be("access_token");
             token.RevokedAt.Should().Be(FixedNow);
         });
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ValidToken_SavesTheRevocationAndTheNewTokenOnce()
+    {
+        var token = ActiveToken(new User());
+        var fixture = new TestFixture().WithToken(token);
+        var testee = fixture.CreateTestee();
+
+        await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        Received.InOrder(() =>
+        {
+            fixture.Tokens.Add(Arg.Any<RefreshToken>());
+            _ = fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>());
+        });
+        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
