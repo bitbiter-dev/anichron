@@ -1,6 +1,7 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Tests.Integration.Ingestion;
@@ -41,6 +42,13 @@ public sealed class IngestionSaverTests(PostgresServer server)
         return await db.MediaAssets.IgnoreQueryFilters().ToDictionaryAsync(a => a.Id, a => (a.ContentHash, a.IsSoftDeleted), Ct);
     }
 
+    private static IngestionContext Taking() => new()
+    {
+        Item = new SingleFileItem("/data/originals/mira/2024/taken.jpg", "2024/taken.jpg", MediaType.Image),
+        Config = new UserStorageConfig { Id = Guid.NewGuid(), RootPath = "/data/originals/mira" },
+        AttemptId = Guid.NewGuid(),
+    };
+
     private static async Task<bool> TakeContentAsync(string connectionString, string hash)
     {
         await using var db = PostgresServer.Context(connectionString);
@@ -48,7 +56,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
         var atPath = await db.MediaAssets.SingleAsync(a => a.Id == AtPath, Ct);
         moved.IsSoftDeleted = true;
         atPath.ContentHash = hash;
-        return await new IngestionSaver(db, new EfMediaAssetRepository(db)).TrySaveRetiringFirstAsync(moved, Ct);
+        return await new IngestionSaver(db, new EfMediaAssetRepository(db)).TrySaveRetiringFirstAsync(Taking(), moved, Ct);
     }
 
     [Fact]

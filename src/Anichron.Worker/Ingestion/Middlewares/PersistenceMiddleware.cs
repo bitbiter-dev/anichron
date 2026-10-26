@@ -16,10 +16,7 @@ internal sealed partial class PersistenceMiddleware(
         var writer = writers.Single(candidate => candidate.Outcomes.Contains(outcome));
         var asset = await writer.TryWriteAsync(context, ct);
         if (asset is null)
-        {
-            context.ForgetCounts();
             return;
-        }
 
         context.Asset = asset;
         Log.Persisted(logger, context.Item.RelativePath, asset.Id);

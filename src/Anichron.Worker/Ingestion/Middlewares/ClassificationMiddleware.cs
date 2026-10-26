@@ -35,11 +35,8 @@ internal sealed partial class ClassificationMiddleware(
             return;
         if (classification.Primary is { Outcome: FileOutcome.OverwrittenByMove, Retired: { } retired })
         {
-            if (!await saver.TrySaveRetiringFirstAsync(retired, ct))
-            {
-                context.ForgetCounts();
+            if (!await saver.TrySaveRetiringFirstAsync(context, retired, ct))
                 Log.ContentTakenConcurrently(logger, context.Item.RelativePath);
-            }
 
             return;
         }

@@ -31,9 +31,10 @@ internal sealed class ScriptedClassificationMiddleware(params ScriptedItem[] ite
 
         context.Classification = Classifications.Of(item.Primary, item.Secondary);
         for (var i = 0; i < item.SoftDeleted; i++)
-            context.CountSoftDeleted();
+            context.StageSoftDeleted();
         for (var i = 0; i < item.AutoRestored; i++)
-            context.CountAutoRestored();
+            context.StageAutoRestored();
+        context.CommitCounts();
         if (item.Fails)
             throw new InvalidOperationException("boom");
     }

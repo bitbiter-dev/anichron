@@ -33,7 +33,7 @@ internal sealed partial class ContentChangedWriter(
         if (asset.IsSoftDeleted)
         {
             asset.IsSoftDeleted = false;
-            context.CountAutoRestored();
+            context.StageAutoRestored();
             Log.AutoRestored(logger, asset.Id, context.Item.RelativePath);
         }
 

@@ -59,7 +59,7 @@ internal sealed partial class KnownFileReconciler(
     {
         SkipDuplicate(copied, relativePath);
         atPath.IsSoftDeleted = true;
-        context.CountSoftDeleted();
+        context.StageSoftDeleted();
         Log.OverwrittenByCopy(logger, atPath.Id, relativePath, copied.FilePath);
         return true;
     }
@@ -79,7 +79,7 @@ internal sealed partial class KnownFileReconciler(
         await ReactivateAsync(context, atPath, ct);
 
         moved.IsSoftDeleted = true;
-        context.CountSoftDeleted();
+        context.StageSoftDeleted();
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
         return true;
     }
@@ -95,7 +95,7 @@ internal sealed partial class KnownFileReconciler(
     private Task ReactivateAsync(IngestionContext context, MediaAsset asset, CancellationToken ct)
     {
         if (asset.IsSoftDeleted)
-            context.CountAutoRestored();
+            context.StageAutoRestored();
         asset.IsSoftDeleted = false;
         asset.LastSeenOnNas = clock.GetCurrentInstant();
         return bursts.RemoveCheckAsync(asset.Id, ct);

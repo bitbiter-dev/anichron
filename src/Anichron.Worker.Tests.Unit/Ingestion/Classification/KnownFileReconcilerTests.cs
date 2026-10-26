@@ -108,7 +108,7 @@ public sealed class KnownFileReconcilerTests
         reconciled.Should().BeTrue();
         atPath.Should().BeEquivalentTo(new { IsSoftDeleted = true, ContentHash = "f00d", FilePath = "2024/taken.jpg" });
         copied.Should().BeEquivalentTo(new { IsSoftDeleted = false, FilePath = "2023/photo.jpg", LastSeenOnNas = FirstSeen });
-        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 0));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((1, 0));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information).Which.Message.Should().Be(
             "Soft-deleted asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at 2024/taken.jpg: the path now holds a copy of 2023/photo.jpg.");
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Debug).Which.Message.Should().Be(
@@ -243,7 +243,7 @@ public sealed class KnownFileReconcilerTests
         await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
 
         moved.Should().BeEquivalentTo(new { IsSoftDeleted = true, FilePath = "2023/photo.jpg", ContentHash = "abc123", LastSeenOnNas = FirstSeen });
-        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 0));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((1, 0));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information).Which.Message.Should().Be(
             "Asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at 2024/taken.jpg took the content of asset "
             + "dddddddd-dddd-dddd-dddd-dddddddddddd, moved there from 2023/photo.jpg; soft-deleted asset dddddddd-dddd-dddd-dddd-dddddddddddd.");
@@ -259,7 +259,7 @@ public sealed class KnownFileReconcilerTests
 
         atPath.Should().BeEquivalentTo(new { IsSoftDeleted = false, ContentHash = "abc123" });
         moved.IsSoftDeleted.Should().BeTrue();
-        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 1));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((1, 1));
     }
 
     [Fact]
@@ -312,7 +312,7 @@ public sealed class KnownFileReconcilerTests
         });
         trashed.Interactions.Should().ContainSingle().Which.IsHidden.Should().BeTrue();
         await fx.Bursts.Received(1).RemoveCheckAsync(PathRowId, Arg.Any<CancellationToken>());
-        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((0, 1));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 1));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r =>
             r.Level == LogLevel.Debug && r.Message == "Auto-restored asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at 2024/taken.jpg.");
     }
@@ -327,7 +327,7 @@ public sealed class KnownFileReconcilerTests
 
         trashed.Should().BeEquivalentTo(new { IsSoftDeleted = false, LastSeenOnNas = Now, FilePath = "2024/taken.jpg", FileName = "taken.jpg" });
         await fx.Bursts.Received(1).RemoveCheckAsync(MovedRowId, Arg.Any<CancellationToken>());
-        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((0, 1));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 1));
     }
 
     [Fact]
@@ -340,7 +340,7 @@ public sealed class KnownFileReconcilerTests
 
         reconciled.Should().BeTrue();
         mov.Should().BeEquivalentTo(new { IsSoftDeleted = false, LastSeenOnNas = Now, ContentHash = "0ldm0v" });
-        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((0, 1));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 1));
     }
 
     // ==========================================================================
@@ -357,7 +357,7 @@ public sealed class KnownFileReconcilerTests
 
         reconciled.Should().BeFalse();
         mov.LastSeenOnNas.Should().Be(FirstSeen);
-        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((0, 0));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
     }
 
     [Fact]

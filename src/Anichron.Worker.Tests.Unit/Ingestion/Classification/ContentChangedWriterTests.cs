@@ -373,6 +373,22 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
+    public async Task TryWriteAsync_SoftDeletedRowLosesTheRaceForTheNewContent_CountsNoAutoRestoreAsync()
+    {
+        var fx = new TestFixture();
+        fx.Stored.IsSoftDeleted = true;
+        var context = fx.Context();
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        fx.Repository.FindByHashAsync("n3wc0ntent", context.Config.Id, Arg.Any<CancellationToken>())
+            .Returns(new MediaAsset { ContentHash = "n3wc0ntent" });
+
+        await fx.WriteAsync(context);
+
+        context.AutoRestored.Should().Be(0);
+    }
+
+    [Fact]
     public async Task TryWriteAsync_SaveFailsForAnotherReason_RethrowsAsync()
     {
         var fx = new TestFixture();

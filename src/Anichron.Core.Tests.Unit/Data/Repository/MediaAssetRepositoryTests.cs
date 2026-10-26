@@ -61,6 +61,25 @@ public sealed class MediaAssetRepositoryTests
     }
 
     [Fact]
+    public async Task FindByHashAsync_OnlyASoftDeletedRowHoldsTheHash_ReturnsNull()
+    {
+        var trashed = MakeAsset(ConfigA, "cafe");
+        trashed.IsSoftDeleted = true;
+
+        (await FindAsync([trashed], "cafe", ConfigA)).Should().BeNull();
+    }
+
+    [Fact]
+    public void FindByHash_StatesTheActiveRowInItsOwnPredicate()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfMediaAssetRepository.ActiveByHashQuery(db, "cafe", ConfigA).ToQueryString();
+
+        sql.Should().Contain("""WHERE m."ContentHash" = @contentHash AND m."StorageConfigId" = @storageConfigId AND NOT (m."IsSoftDeleted")""");
+    }
+
+    [Fact]
     public async Task Add_TracksTheAssetForInsert()
     {
         await using var db = AnichronDbContexts.InMemory();
@@ -234,6 +253,30 @@ public sealed class MediaAssetRepositoryTests
         db.ChangeTracker.Entries().Should().BeEmpty();
     }
 
+    [Fact]
+    public void GetActivePaths_StatesTheActiveRowsInItsOwnPredicate()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfMediaAssetRepository.ActivePathsQuery(db, ConfigA).ToQueryString();
+
+        sql.Should().Contain("""WHERE m."StorageConfigId" = @storageConfigId AND NOT (m."IsSoftDeleted")""");
+    }
+
+    // ==========================================================================
+    // SoftDeleteAsync
+    // ==========================================================================
+
+    [Fact]
+    public void SoftDelete_StatesTheStillActiveRowsInItsOwnPredicate()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfMediaAssetRepository.StillActiveQuery(db, [Guid.NewGuid()]).ToQueryString();
+
+        sql.Should().Contain("""WHERE m."Id" = ANY (@ids) AND NOT (m."IsSoftDeleted")""");
+    }
+
     // ==========================================================================
     // FindSharedContentAsync
     // ==========================================================================
@@ -322,7 +365,7 @@ public sealed class MediaAssetRepositoryTests
 
         sql.Should().Contain("GROUP BY")
             .And.Contain("HAVING count(*)::int > 1")
-            .And.Contain("\"StorageConfigId\" = ANY (@")
-            .And.Contain("\"IsSoftDeleted\"");
+            .And.Contain("""WHERE m."StorageConfigId" = ANY (@storageConfigIds) AND NOT (m."IsSoftDeleted") AND EXISTS""")
+            .And.Contain("""WHERE m0."StorageConfigId" = ANY (@storageConfigIds) AND NOT (m0."IsSoftDeleted")""");
     }
 }
