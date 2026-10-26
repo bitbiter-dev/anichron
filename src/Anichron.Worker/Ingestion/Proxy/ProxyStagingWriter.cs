@@ -46,12 +46,14 @@ internal sealed partial class ProxyStagingWriter(
 
             await produceAsync(temporaryAbsolutePath, ct);
             var sizeBytes = fileSystem.FileInfo.New(temporaryAbsolutePath).Length;
+            var replacedExistingFile = fileSystem.File.Exists(proxyAbsolutePath);
             fileSystem.File.Move(temporaryAbsolutePath, proxyAbsolutePath, overwrite: true);
 
             // Registered at the moment it lands, so the context always reflects what is on disk
             // and compensation can delete precisely the files this attempt wrote.
             context.AddProxyFile(
-                ProxyFileBuilder.Build(ownerAssetId, relativePath, proxyType, sizeBytes, guidFactory, clock));
+                ProxyFileBuilder.Build(ownerAssetId, relativePath, proxyType, sizeBytes, guidFactory, clock),
+                replacedExistingFile);
             Log.ProxyWritten(logger, proxyType, sizeBytes, context.Item.RelativePath);
         }
         finally

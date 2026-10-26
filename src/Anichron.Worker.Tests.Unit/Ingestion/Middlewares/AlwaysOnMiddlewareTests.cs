@@ -1,3 +1,4 @@
+using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Worker.Ingestion;
@@ -24,8 +25,11 @@ public sealed class AlwaysOnMiddlewareTests
             "Classification" => new ClassificationMiddleware(
                 new IngestionClassifier(repository, fileSystem),
                 new LivePhotoPairer(null!, null!, saver, new FakeLogger<LivePhotoPairer>()),
-                new KnownFileReconciler(Substitute.For<IClock>(), new FakeLogger<KnownFileReconciler>()),
-                saver),
+                new KnownFileReconciler(
+                    Substitute.For<IClock>(), repository, Substitute.For<IBurstRepository>(), Substitute.For<IGuidFactory>(),
+                    new FakeLogger<KnownFileReconciler>()),
+                saver,
+                new FakeLogger<ClassificationMiddleware>()),
             "ContentHashing" => new ContentHashingMiddleware(fileSystem),
             "Logging" => new LoggingMiddleware(new FakeLogger<LoggingMiddleware>()),
             "Persistence" => new PersistenceMiddleware([], new FakeLogger<PersistenceMiddleware>()),

@@ -10,6 +10,11 @@ internal enum FileOutcome
     DuplicateCopy = 3,
     PathTaken = 4,
     ContentChanged = 5,
+    OverwrittenByCopy = 6,
+    OverwrittenByMove = 7,
+    AutoRestored = 8,
+    AutoRestoredMoved = 9,
+    AutoRestoredContentChanged = 10,
 }
 
 internal enum PairingAction
@@ -19,16 +24,21 @@ internal enum PairingAction
     BackfillMovProxy = 2,
 }
 
-internal sealed record FileClassification(FileOutcome Outcome, MediaAsset? Stored);
+/// <summary>What one crawled file is, and the stored rows its outcome acts on.</summary>
+/// <param name="Outcome">What the crawled file is.</param>
+/// <param name="Stored">The row the outcome acts on.</param>
+/// <param name="Retired">The row the outcome soft-deletes.</param>
+internal sealed record FileClassification(FileOutcome Outcome, MediaAsset? Stored, MediaAsset? Retired = null);
 
 internal sealed record IngestionClassification(
     FileClassification Primary,
     FileClassification? Secondary,
     PairingAction Pairing)
 {
-    public bool NeedsProcessing => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged;
+    public bool NeedsProcessing
+        => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged;
 
     public int DuplicateCopies => NeedsProcessing
         ? 0
-        : new[] { Primary, Secondary }.Count(file => file?.Outcome == FileOutcome.DuplicateCopy);
+        : new[] { Primary, Secondary }.Count(file => file?.Outcome is FileOutcome.DuplicateCopy or FileOutcome.OverwrittenByCopy);
 }

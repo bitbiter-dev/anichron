@@ -25,6 +25,19 @@ public sealed class ModelInvariantsTests
     }
 
     [Fact]
+    public void SoftDeletedRows_AreIndexedByStorageConfigAndContentHash()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var mediaAsset = context.Model.FindEntityType(typeof(MediaAsset))!;
+
+        var index = mediaAsset.GetIndexes()
+            .Should().ContainSingle(index => index.GetDatabaseName() == MediaAssetIndexNames.SoftDeletedContentHash).Which;
+        index.IsUnique.Should().BeFalse();
+        index.Properties.Select(p => p.Name).Should().Equal(nameof(MediaAsset.StorageConfigId), nameof(MediaAsset.ContentHash));
+        index.GetFilter().Should().Be("\"IsSoftDeleted\" = true");
+    }
+
+    [Fact]
     public void Interactions_AreUniquePerUserAndAssetUnderTheNameTheWriterRetriesOn()
     {
         using var context = AnichronDbContexts.NpgsqlModel();

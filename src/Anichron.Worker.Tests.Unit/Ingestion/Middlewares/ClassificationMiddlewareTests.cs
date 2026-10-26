@@ -210,21 +210,120 @@ public sealed class ClassificationMiddlewareTests
         fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
     }
 
+    private static readonly Guid PathRowId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+    private static MediaAsset PathRow(string filePath, string contentHash, bool softDeleted = false)
+    {
+        var row = Stored(filePath, contentHash);
+        row.Id = PathRowId;
+        row.IsSoftDeleted = softDeleted;
+        return row;
+    }
+
     [Fact]
-    public async Task InvokeAsync_MoveOntoPathHeldByAnotherRow_LeavesRowAndWarnsWithoutSavingAsync()
+    public async Task InvokeAsync_MoveOntoPathHeldByAnotherRow_ThePathsRowTakesTheContentAndTheMovedRowIsRetiredFirstAsync()
     {
         var fx = new ClassificationFixture();
-        var stored = Stored("2023/photo.jpg");
-        fx.Store(stored, Stored("2024/taken.jpg", contentHash: "f00d"));
+        var moved = Stored("2023/photo.jpg");
+        var atPath = PathRow("2024/taken.jpg", "f00d");
+        fx.Store(moved, atPath);
+        var context = Single("2024/taken.jpg");
 
-        await fx.Build().InvokeAsync(Single("2024/taken.jpg"), NoOpNextAsync, CancellationToken.None);
+        (await NextCalledAsync(fx, context)).Should().BeFalse();
 
-        stored.FilePath.Should().Be("2023/photo.jpg");
-        stored.FileName.Should().Be("photo.jpg");
-        stored.LastSeenOnNas.Should().Be(FirstSeen);
+        atPath.Should().BeEquivalentTo(new { ContentHash = "abc123", FilePath = "2024/taken.jpg", IsSoftDeleted = false });
+        moved.Should().BeEquivalentTo(new { IsSoftDeleted = true, FilePath = "2023/photo.jpg" });
+        context.AssetId.Should().Be(PathRowId);
+        await fx.Repository.Received(1).SoftDeleteAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { moved.Id })), Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        (context.SoftDeleted, context.AutoRestored).Should().Be((1, 0));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_MoveOntoSoftDeletedPath_AutoRestoresThePathsRowWithTheContentAsync()
+    {
+        var fx = new ClassificationFixture();
+        var atPath = PathRow("2024/taken.jpg", "f00d", softDeleted: true);
+        fx.Store(Stored("2023/photo.jpg"), atPath);
+        var context = Single("2024/taken.jpg");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        atPath.Should().BeEquivalentTo(new { ContentHash = "abc123", IsSoftDeleted = false });
+        (context.SoftDeleted, context.AutoRestored).Should().Be((1, 1));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_MoveOntoPathWhileAnotherConsumerTakesTheContent_SkipsAndCountsNothingAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.Store(Stored("2023/photo.jpg"), PathRow("2024/taken.jpg", "f00d", softDeleted: true));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        var context = Single("2024/taken.jpg");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        (context.SoftDeleted, context.AutoRestored).Should().Be((0, 0));
+        fx.MiddlewareLogger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
+            "Another consumer took the content now at 2024/taken.jpg first, skipping; the next crawl reconciles it.");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_CopyOverPathHeldByAnotherRow_SoftDeletesThePathsRowAndCountsTheCopyAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.FileSystem.AddEmptyFile("/abs/2023/photo.jpg");
+        var copied = Stored("2023/photo.jpg");
+        var atPath = PathRow("copy/photo.jpg", "f00d");
+        fx.Store(copied, atPath);
+        var context = Single("copy/photo.jpg");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        atPath.IsSoftDeleted.Should().BeTrue();
+        copied.IsSoftDeleted.Should().BeFalse();
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fx.Repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, TestContext.Current.CancellationToken);
+        context.Classification!.DuplicateCopies.Should().Be(1);
+        context.SoftDeleted.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SoftDeletedRowAtThePath_IsAutoRestoredAndSavedAsync()
+    {
+        var fx = new ClassificationFixture();
+        var trashed = PathRow("2023/photo.jpg", "abc123", softDeleted: true);
+        fx.Store(trashed);
+        var context = Single("2023/photo.jpg");
+
+        (await NextCalledAsync(fx, context)).Should().BeFalse();
+
+        trashed.Should().BeEquivalentTo(new { IsSoftDeleted = false, LastSeenOnNas = Now });
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        context.AutoRestored.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_NewHeicWithItsMovSoftDeletedAtItsPath_RestoresTheMovBeforeProcessingAsync()
+    {
+        var fx = new ClassificationFixture();
+        var mov = StoredMov("photo.mov");
+        mov.IsSoftDeleted = true;
+        fx.Store(mov);
+        var context = Pair();
+        bool? movActiveWhenProcessed = null;
+
+        await fx.Build().InvokeAsync(context, (_, _) =>
+        {
+            movActiveWhenProcessed = !mov.IsSoftDeleted;
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+
+        movActiveWhenProcessed.Should().BeTrue();
+        context.AutoRestored.Should().Be(1);
         await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
-        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
-            .Which.Message.Should().Be("Cannot record 2024/taken.jpg: another asset row already holds that path, skipping.");
     }
 
     [Fact]
@@ -268,21 +367,21 @@ public sealed class ClassificationMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_HeicPathTaken_StillMovesMovAsync()
+    public async Task InvokeAsync_HeicMovedOntoAnotherRowsPath_StillMovesMovInTheSameSaveAsync()
     {
         var fx = new ClassificationFixture();
         var heic = Stored("2023/live.heic");
         var mov = StoredMov("2023/live.mov");
-        fx.Store(heic, mov, Stored("2024/live.heic", contentHash: "f00d"));
+        var atPath = PathRow("2024/live.heic", "f00d");
+        fx.Store(heic, mov, atPath);
         heic.PairedAssetId = Guid.NewGuid();
 
         await fx.Build().InvokeAsync(Pair("2024/live.heic", "2024/live.mov"), NoOpNextAsync, CancellationToken.None);
 
-        heic.FilePath.Should().Be("2023/live.heic");
+        atPath.ContentHash.Should().Be("abc123");
+        heic.IsSoftDeleted.Should().BeTrue();
         mov.FilePath.Should().Be("2024/live.mov");
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
-        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
-            .Which.Message.Should().Contain("2024/live.heic");
     }
 
     [Fact]

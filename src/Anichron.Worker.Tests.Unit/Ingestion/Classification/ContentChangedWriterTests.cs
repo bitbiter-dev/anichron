@@ -142,7 +142,7 @@ public sealed class ContentChangedWriterTests
 
     [Fact]
     public void Outcome_IsContentChanged()
-        => new TestFixture().Build().Outcome.Should().Be(FileOutcome.ContentChanged);
+        => new TestFixture().Build().Outcomes.Should().Equal(FileOutcome.ContentChanged, FileOutcome.AutoRestoredContentChanged);
 
     // ==========================================================================
     // The row
@@ -161,6 +161,30 @@ public sealed class ContentChangedWriterTests
         asset.FilePath.Should().Be("2022/photo.jpg");
         asset.Interactions.Should().Equal(interactions);
         fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
+    }
+
+    [Fact]
+    public async Task TryWriteAsync_SoftDeletedRowAtThePath_IsAutoRestoredWithTheNewContentAsync()
+    {
+        var fx = new TestFixture();
+        fx.Stored.IsSoftDeleted = true;
+        var context = fx.Context();
+
+        var asset = await fx.WriteAsync(context);
+
+        asset.Should().BeEquivalentTo(new { Id = StoredId, IsSoftDeleted = false, ContentHash = "n3wc0ntent" });
+        (context.SoftDeleted, context.AutoRestored).Should().Be((0, 1));
+    }
+
+    [Fact]
+    public async Task TryWriteAsync_ActiveRow_CountsNoAutoRestoreAsync()
+    {
+        var fx = new TestFixture();
+        var context = fx.Context();
+
+        await fx.WriteAsync(context);
+
+        context.AutoRestored.Should().Be(0);
     }
 
     [Fact]

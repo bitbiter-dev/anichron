@@ -6,6 +6,7 @@ namespace Anichron.Worker.Ingestion.Pipeline;
 internal sealed class IngestionContext
 {
     private readonly List<ProxyFile> proxyFiles = [];
+    private readonly HashSet<ProxyFile> replacedFiles = [];
     private readonly Lock proxyFilesLock = new();
 
     public required IngestionItem Item { get; init; }
@@ -21,6 +22,19 @@ internal sealed class IngestionContext
     public ExifData? Exif { get; set; }
     public string? Blurhash { get; set; }
     public MediaAsset? Asset { get; set; }
+
+    /// <summary>Rows this item soft-deleted, counted once the change is made.</summary>
+    public int SoftDeleted { get; private set; }
+
+    /// <summary>Soft-deleted rows this item made active again, counted once the change is made.</summary>
+    public int AutoRestored { get; private set; }
+
+    public void CountSoftDeleted() => SoftDeleted++;
+
+    public void CountAutoRestored() => AutoRestored++;
+
+    /// <summary>Forgets the counts when the changes they counted were not saved.</summary>
+    public void ForgetCounts() => (SoftDeleted, AutoRestored) = (0, 0);
 
     // Image proxies register concurrently.
     public IReadOnlyList<ProxyFile> ProxyFiles
@@ -38,10 +52,24 @@ internal sealed class IngestionContext
             return [.. proxyFiles.Where(proxy => proxy.AssetId == ownerAssetId)];
     }
 
-    public void AddProxyFile(ProxyFile proxyFile)
+    /// <summary>The registered proxies whose final file did not exist before this attempt wrote it.</summary>
+    public IReadOnlyList<ProxyFile> CreatedProxyFiles
+    {
+        get
+        {
+            lock (proxyFilesLock)
+                return [.. proxyFiles.Where(proxy => !replacedFiles.Contains(proxy))];
+        }
+    }
+
+    public void AddProxyFile(ProxyFile proxyFile, bool replacedExistingFile = false)
     {
         lock (proxyFilesLock)
+        {
             proxyFiles.Add(proxyFile);
+            if (replacedExistingFile)
+                replacedFiles.Add(proxyFile);
+        }
     }
 
     public void ReleaseProxyFiles(Guid ownerAssetId)

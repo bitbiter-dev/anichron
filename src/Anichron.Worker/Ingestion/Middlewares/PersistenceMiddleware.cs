@@ -13,10 +13,13 @@ internal sealed partial class PersistenceMiddleware(
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         var outcome = context.Classification!.Primary.Outcome;
-        var writer = writers.Single(candidate => candidate.Outcome == outcome);
+        var writer = writers.Single(candidate => candidate.Outcomes.Contains(outcome));
         var asset = await writer.TryWriteAsync(context, ct);
         if (asset is null)
+        {
+            context.ForgetCounts();
             return;
+        }
 
         context.Asset = asset;
         Log.Persisted(logger, context.Item.RelativePath, asset.Id);

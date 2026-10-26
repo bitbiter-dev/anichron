@@ -35,4 +35,18 @@ public sealed class IngestionClassificationTests
     [Fact]
     public void DuplicateCopies_ChangedPrimaryWithADuplicateMov_IsZero()
         => DuplicateCopies(FileOutcome.ContentChanged, FileOutcome.DuplicateCopy).Should().Be(0);
+
+    [Fact]
+    public void DuplicateCopies_OverwrittenByCopy_IsOne()
+        => DuplicateCopies(FileOutcome.OverwrittenByCopy).Should().Be(1);
+
+    [Fact]
+    public void NeedsProcessing_ContentNotStoredYet_IsTrue()
+        => new[] { FileOutcome.New, FileOutcome.ContentChanged, FileOutcome.AutoRestoredContentChanged }
+            .Should().AllSatisfy(outcome => Classifications.Of(outcome).NeedsProcessing.Should().BeTrue());
+
+    [Fact]
+    public void NeedsProcessing_StoredContent_IsFalse()
+        => new[] { FileOutcome.Unchanged, FileOutcome.OverwrittenByMove, FileOutcome.AutoRestored, FileOutcome.AutoRestoredMoved }
+            .Should().AllSatisfy(outcome => Classifications.Of(outcome).NeedsProcessing.Should().BeFalse());
 }

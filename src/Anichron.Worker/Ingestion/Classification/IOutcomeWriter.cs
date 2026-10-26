@@ -5,7 +5,7 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 internal interface IOutcomeWriter
 {
-    FileOutcome Outcome { get; }
+    IReadOnlyCollection<FileOutcome> Outcomes { get; }
 
     Task<MediaAsset?> TryWriteAsync(IngestionContext context, CancellationToken ct);
 }

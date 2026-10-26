@@ -84,6 +84,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<CrawlExclusions>();
             services.AddSingleton<IFileIngestionPipeline, FileIngestionPipeline>();
             services.AddScoped<ISharedContentReporter, SharedContentReporter>();
+            services.AddScoped<IMissingFileSweep, MissingFileSweep>();
             services.AddSingleton<IOriginalPhotoReader, OriginalPhotoReader>();
             services.AddScoped<IThumbnailMatcher, OrbThumbnailMatcher>();
             services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();

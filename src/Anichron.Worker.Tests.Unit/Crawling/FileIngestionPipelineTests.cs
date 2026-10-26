@@ -402,7 +402,75 @@ public sealed class FileIngestionPipelineTests
         var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
-        result.Should().Be(new CrawlRun(new CrawlResult(Found: 4, Processed: 3, Failed: 1), DuplicateCopies: 3));
+        (result.Result, result.DuplicateCopies).Should().Be((new CrawlResult(Found: 4, Processed: 3, Failed: 1), 3));
+    }
+
+    [Fact]
+    public async Task RunAsync_CountsTheSoftDeletesAndAutoRestoresOfItemsThatSucceededOnlyAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/c.jpg", new MockFileData([]));
+        var middleware = new ScriptedClassificationMiddleware(
+            new ScriptedItem(FileOutcome.OverwrittenByMove, SoftDeleted: 1, AutoRestored: 1),
+            new ScriptedItem(FileOutcome.AutoRestored, Fails: true, AutoRestored: 1),
+            new ScriptedItem(FileOutcome.OverwrittenByCopy, SoftDeleted: 1));
+
+        var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        (result.SoftDeleted, result.AutoRestored).Should().Be((2, 1));
+    }
+
+    // ==========================================================================
+    // What the walk found
+    // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_FoundPaths_HoldEveryQueuedFileIncludingBothLivePhotoHalvesAndFailedItemsAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/2024/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/2024/live.heic", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/2024/live.mov", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/notes.txt", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/@eaDir/a.jpg", new MockFileData([]));
+        var middleware = new ScriptedClassificationMiddleware(
+            new ScriptedItem(FileOutcome.Unchanged, Fails: true),
+            new ScriptedItem(FileOutcome.Unchanged),
+            new ScriptedItem(FileOutcome.Unchanged));
+
+        var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        result.FoundPaths.Should().BeEquivalentTo("2024/a.jpg", "2024/live.heic", "2024/live.mov", "b.jpg");
+        result.WalkComplete.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_FoundPaths_CompareByExactSpellingAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/IMG_0001.JPG", new MockFileData([]));
+
+        var result = await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        result.FoundPaths.Should().Contain("IMG_0001.JPG").And.NotContain("img_0001.jpg");
+    }
+
+    [Fact]
+    public async Task RunAsync_UnreadableSubfolder_LeavesTheWalkIncompleteAsync()
+    {
+        var fixture = new TestFixture { UnreadableDirectory = "/nas/locked" };
+        fixture.FileSystem.AddFile("/nas/IMG_0001.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/locked/IMG_0002.jpg", new MockFileData([]));
+
+        var result = await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        result.WalkComplete.Should().BeFalse();
+        result.FoundPaths.Should().BeEquivalentTo("IMG_0001.jpg");
     }
 
     [Fact]
@@ -432,7 +500,9 @@ public sealed class FileIngestionPipelineTests
         var first = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
         var second = await pipeline.RunAsync(config, NoProgress, CancellationToken.None);
 
-        (first, second).Should().Be((new CrawlRun(new CrawlResult(2, 2, 0), 0), new CrawlRun(new CrawlResult(2, 2, 0), 0)));
+        (first.Result, first.DuplicateCopies, second.Result, second.DuplicateCopies)
+            .Should().Be((new CrawlResult(2, 2, 0), 0, new CrawlResult(2, 2, 0), 0));
+        second.FoundPaths.Should().BeEquivalentTo(first.FoundPaths);
     }
 
     private sealed class RecordingProgress : IWorkProgress
