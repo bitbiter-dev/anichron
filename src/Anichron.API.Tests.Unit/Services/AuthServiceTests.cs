@@ -30,11 +30,7 @@ public sealed class AuthServiceTests
             _guidFactory.NewGuid().Returns(Guid.Empty);
             PasswordHasher.Hash(Arg.Any<string>()).Returns("hashed_value");
             _clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 1, 1, 12, 0, 0));
-            TokenService.IssueAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
-                .Returns(new AuthTokens("access_token", "refresh_token"));
-            UnitOfWork
-                .ExecuteInTransactionAsync(Arg.Any<Func<Task<AuthTokens>>>(), Arg.Any<CancellationToken>())
-                .Returns(callInfo => callInfo.Arg<Func<Task<AuthTokens>>>()());
+            TokenService.Issue(Arg.Any<User>()).Returns(new AuthTokens("access_token", "refresh_token"));
             UnitOfWork
                 .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo => callInfo.Arg<Func<Task>>()());
@@ -103,7 +99,7 @@ public sealed class AuthServiceTests
 
         public TestFixture WithTokenIssued(AuthTokens tokens)
         {
-            TokenService.IssueAsync(Arg.Any<User>(), Arg.Any<CancellationToken>()).Returns(tokens);
+            TokenService.Issue(Arg.Any<User>()).Returns(tokens);
             return this;
         }
 
@@ -176,6 +172,23 @@ public sealed class AuthServiceTests
 
         fixture.Users.Received(1).Add(Arg.Is<User>(u =>
             u.Username == "alice" && u.Email == "alice@example.com" && u.PasswordHash == "hashed_value"));
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ValidInput_IssuesTheTokenThenSavesOnceWithoutATransaction()
+    {
+        var fixture = new TestFixture();
+        var testee = fixture.CreateTestee();
+
+        await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
+
+        Received.InOrder(() =>
+        {
+            fixture.TokenService.Issue(Arg.Is<User>(u => u.Username == "alice"));
+            _ = fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>());
+        });
+        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -431,16 +444,24 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_ValidCredentials_SavesChangesAsync()
+    public async Task LoginAsync_ValidCredentials_ResetsTheLockoutIssuesTheTokenThenSavesOnce()
     {
+        var user = new User { PasswordHash = "hashed_value" };
         var fixture = new TestFixture()
             .WithPasswordValid()
-            .WithUser(new User { PasswordHash = "hashed_value" });
+            .WithUser(user);
         var testee = fixture.CreateTestee();
 
         await testee.LoginAsync("alice", "correct_password", CancellationToken.None);
 
+        Received.InOrder(() =>
+        {
+            fixture.Lockout.PrepareReset(user);
+            fixture.TokenService.Issue(user);
+            _ = fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>());
+        });
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

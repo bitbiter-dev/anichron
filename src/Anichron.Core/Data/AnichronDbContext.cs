@@ -23,15 +23,6 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
 
     // Stryker disable all
-    public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action, CancellationToken ct = default)
-    {
-        await using var tx = await Database.BeginTransactionAsync(ct);
-        var result = await action();
-        await tx.CommitAsync(ct);
-        return result;
-    }
-
-    // Stryker disable all
     public async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken ct = default)
     {
         await using var tx = await Database.BeginTransactionAsync(ct);

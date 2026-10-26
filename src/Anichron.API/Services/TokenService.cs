@@ -10,7 +10,7 @@ namespace Anichron.API.Services;
 
 public interface ITokenService
 {
-    Task<AuthTokens> IssueAsync(User user, CancellationToken ct);
+    AuthTokens Issue(User user);
     Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct);
     Task RevokeAsync(string rawToken, CancellationToken ct);
     Task MarkAllSessionsRevokedAsync(Guid userId, Instant revokedAt, CancellationToken ct);
@@ -26,7 +26,7 @@ public sealed class TokenService(
 {
     private readonly JwtSettings settings = options.Value;
 
-    public async Task<AuthTokens> IssueAsync(User user, CancellationToken ct)
+    public AuthTokens Issue(User user)
     {
         var rawToken = GenerateRefreshToken();
         var now = clock.GetCurrentInstant();
@@ -39,8 +39,6 @@ public sealed class TokenService(
             CreatedAt = now,
             ExpiresAt = now.Plus(Duration.FromDays(settings.RefreshTokenDays)),
         });
-
-        await unitOfWork.SaveChangesAsync(ct);
 
         return new AuthTokens(jwtFactory.Create(user), rawToken);
     }
@@ -74,10 +72,11 @@ public sealed class TokenService(
                 Math.Max(1, (int)Math.Ceiling((lockedUntil - now).TotalSeconds)));
         }
 
-        // Mark old token revoked; IssueAsync's SaveChangesAsync persists both
         stored.RevokedAt = now;
+        var issued = Issue(stored.User);
+        await unitOfWork.SaveChangesAsync(ct);
 
-        return AuthResult.Ok(await IssueAsync(stored.User, ct));
+        return AuthResult.Ok(issued);
     }
 
     public async Task RevokeAsync(string rawToken, CancellationToken ct)

@@ -85,7 +85,7 @@ The directive is left bare — the reason lives here, not in the code.
 
 | Member | Why it is not unit-tested |
 | --- | --- |
-| `AnichronDbContext.ExecuteInTransactionAsync` (both overloads) | Commit versus no commit is only observable on a provider with real transactions. |
+| `AnichronDbContext.ExecuteInTransactionAsync` | Commit versus no commit is only observable on a provider with real transactions. |
 | `EfRefreshTokenRepository.RevokeAllActiveByUserIdAsync` and `DeleteExpiredAsync` | `ExecuteUpdate`/`ExecuteDelete` are not supported by the EF InMemory provider. |
 | `EfBurstRepository.DeleteMemberlessAsync` | One `ExecuteDelete`, so two Workers repairing at once each delete a burst at most once instead of failing on a stale row; `ExecuteDelete` is not supported by the EF InMemory provider. Covered by `BurstRepositoryTests` on real PostgreSQL. |
 | `EfWorkQueue.TryInsertAsync` | Absorbing a lost race needs the partial unique index on `DedupKey`, which the InMemory provider does not enforce. The rest of `EnqueueAsync` is in scope. |

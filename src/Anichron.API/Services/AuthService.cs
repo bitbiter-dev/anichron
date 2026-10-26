@@ -100,13 +100,12 @@ public sealed class AuthService(
         invite.UsedAt = now;
         invite.UsedByUserId = user.Id;
 
+        var tokens = tokenService.Issue(user);
+
         try
         {
-            return AuthResult.Ok(await unitOfWork.ExecuteInTransactionAsync(async () =>
-            {
-                await unitOfWork.SaveChangesAsync(ct);
-                return await tokenService.IssueAsync(user, ct);
-            }, ct));
+            await unitOfWork.SaveChangesAsync(ct);
+            return AuthResult.Ok(tokens);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -163,15 +162,9 @@ public sealed class AuthService(
             return AuthResult.Locked<AuthTokens>(Math.Max(1, secondsRemaining));
         }
 
-        // Counter reset and token issuance share one transaction — if IssueAsync fails,
-        // the counter is not persisted so the user's lockout state is preserved correctly.
         lockout.PrepareReset(user);
-
-        var tokens = await unitOfWork.ExecuteInTransactionAsync(async () =>
-        {
-            await unitOfWork.SaveChangesAsync(ct);
-            return await tokenService.IssueAsync(user, ct);
-        }, ct);
+        var tokens = tokenService.Issue(user);
+        await unitOfWork.SaveChangesAsync(ct);
 
         return AuthResult.Ok(tokens);
     }
