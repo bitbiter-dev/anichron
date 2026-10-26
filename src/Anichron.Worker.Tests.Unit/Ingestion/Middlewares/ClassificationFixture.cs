@@ -63,7 +63,7 @@ internal sealed class ClassificationFixture
         return new(
             new IngestionClassifier(Repository, FileSystem),
             pairer,
-            new KnownFileReconciler(Clock, Repository, Bursts, GuidFactory, Logger),
+            new KnownFileReconciler(Clock, Repository, new StoredContent(Repository, Bursts, Clock), GuidFactory, Logger),
             saver,
             MiddlewareLogger);
     }

@@ -15,14 +15,14 @@ internal sealed class NewContentWriter(
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<NewContentWriter> logger)
-    : ProcessedContentWriter(saver, fileSystem, clock, pairedMovResolver, pairedMovProxyWriter, logger)
+    : ProcessedContentWriter(saver, fileSystem, pairedMovResolver, pairedMovProxyWriter, logger)
 {
     public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.New];
 
     protected override Task<MediaAsset> WriteAssetAsync(IngestionContext context, CancellationToken ct)
     {
         var relativePath = context.Item.RelativePath;
-        var metadata = new Metadata();
+        var content = ContentOf(context, context.AssetId);
         var asset = new MediaAsset
         {
             Id = context.AssetId,
@@ -30,12 +30,14 @@ internal sealed class NewContentWriter(
             FilePath = relativePath,
             FileName = Path.GetFileName(relativePath),
             IsSoftDeleted = false,
-            Metadata = metadata,
+            LastSeenOnNas = clock.GetCurrentInstant(),
+            Metadata = content.Description,
         };
-        DescribeContent(asset, metadata, context);
+        content.Description.AssetId = asset.Id;
+        content.ApplyTo(asset);
 
         repository.Add(asset);
-        repository.AddProxyFiles(context.ProxyFilesOf(asset.Id));
+        repository.AddProxyFiles(content.Proxies);
         return Task.FromResult(asset);
     }
 }

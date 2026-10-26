@@ -26,7 +26,8 @@ public sealed class AlwaysOnMiddlewareTests
                 new IngestionClassifier(repository, fileSystem),
                 new LivePhotoPairer(null!, null!, saver, new FakeLogger<LivePhotoPairer>()),
                 new KnownFileReconciler(
-                    Substitute.For<IClock>(), repository, Substitute.For<IBurstRepository>(), Substitute.For<IGuidFactory>(),
+                    Substitute.For<IClock>(), repository,
+                    new StoredContent(repository, Substitute.For<IBurstRepository>(), Substitute.For<IClock>()), Substitute.For<IGuidFactory>(),
                     new FakeLogger<KnownFileReconciler>()),
                 saver,
                 new FakeLogger<ClassificationMiddleware>()),

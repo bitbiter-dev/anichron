@@ -45,6 +45,7 @@ public sealed class ContentChangedWriterTests
         public MockFileSystem FileSystem { get; } = new();
         public List<ProxyFile> Added { get; } = [];
         public List<ProxyFile> Removed { get; } = [];
+        public FakeLogger<ContentChangedWriter> Logger { get; } = new();
         public Metadata StoredMetadata { get; } = new() { AssetId = StoredId, Width = 10, Height = 10, CameraMake = "Old" };
         public MediaAsset Stored { get; }
 
@@ -87,12 +88,12 @@ public sealed class ContentChangedWriterTests
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
             var stagingWriter = new ProxyStagingWriter(FileSystem, clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());
-            return new(Repository, Bursts, new IngestionSaver(UnitOfWork, Repository), FileSystem, clock,
+            return new(new StoredContent(Repository, Bursts, clock), new IngestionSaver(UnitOfWork, Repository), FileSystem,
                 new PairedMovResolver(Repository, FileSystem, clock, GuidFactory),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),
-                new FakeLogger<ContentChangedWriter>());
+                Logger);
         }
 
         public IngestionContext Context(IngestionItem? item = null, MediaAsset? storedMov = null)
@@ -174,6 +175,8 @@ public sealed class ContentChangedWriterTests
 
         asset.Should().BeEquivalentTo(new { Id = StoredId, IsSoftDeleted = false, ContentHash = "n3wc0ntent" });
         (context.SoftDeleted, context.AutoRestored).Should().Be((0, 1));
+        fx.Logger.Collector.GetSnapshot().Should().Contain(r => r.Message
+            == "Auto-restored asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at 2022/photo.jpg with its new content.");
     }
 
     [Fact]
@@ -185,6 +188,7 @@ public sealed class ContentChangedWriterTests
         await fx.WriteAsync(context);
 
         context.AutoRestored.Should().Be(0);
+        fx.Logger.Collector.GetSnapshot().Should().NotContain(r => r.Message.StartsWith("Auto-restored", StringComparison.Ordinal));
     }
 
     [Fact]

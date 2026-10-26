@@ -1,22 +1,18 @@
-using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using NodaTime;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
 internal sealed partial class ContentChangedWriter(
-    IMediaAssetRepository repository,
-    IBurstRepository bursts,
+    StoredContent storedContent,
     IngestionSaver saver,
     IFileSystem fileSystem,
-    IClock clock,
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<ContentChangedWriter> logger)
-    : ProcessedContentWriter(saver, fileSystem, clock, pairedMovResolver, pairedMovProxyWriter, logger)
+    : ProcessedContentWriter(saver, fileSystem, pairedMovResolver, pairedMovProxyWriter, logger)
 {
     public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.ContentChanged, FileOutcome.AutoRestoredContentChanged];
 
@@ -25,17 +21,8 @@ internal sealed partial class ContentChangedWriter(
         var asset = context.Classification!.Primary.Stored!;
         Log.ContentChanged(logger, asset.Id, context.Item.RelativePath, asset.ContentHash, context.ContentHash!);
 
-        await repository.LoadMetadataAsync(asset, ct);
-        DescribeContent(asset, asset.Metadata ??= new Metadata { AssetId = asset.Id }, context);
-        ProxyFileRows.Replace(repository, asset, context.ProxyFilesOf(asset.Id));
-        asset.BurstId = null;
-        await bursts.RemoveCheckAsync(asset.Id, ct);
-        if (asset.IsSoftDeleted)
-        {
-            asset.IsSoftDeleted = false;
-            context.StageAutoRestored();
+        if (await storedContent.TakeAsync(context, asset, ContentOf(context, asset.Id), ct))
             Log.AutoRestored(logger, asset.Id, context.Item.RelativePath);
-        }
 
         return asset;
     }

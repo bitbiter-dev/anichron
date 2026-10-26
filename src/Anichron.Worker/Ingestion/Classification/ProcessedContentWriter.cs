@@ -1,7 +1,6 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using NodaTime;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
@@ -9,7 +8,6 @@ namespace Anichron.Worker.Ingestion.Classification;
 internal abstract partial class ProcessedContentWriter(
     IngestionSaver saver,
     IFileSystem fileSystem,
-    IClock clock,
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger logger) : IOutcomeWriter
@@ -37,24 +35,30 @@ internal abstract partial class ProcessedContentWriter(
 
     protected abstract Task<MediaAsset> WriteAssetAsync(IngestionContext context, CancellationToken ct);
 
-    protected void DescribeContent(MediaAsset asset, Metadata metadata, IngestionContext context)
+    /// <summary>The processed file's content, with the proxies this attempt registered for <paramref name="assetId"/>.</summary>
+    /// <param name="context">The processed item.</param>
+    /// <param name="assetId">The row that takes the content.</param>
+    protected AssetContent ContentOf(IngestionContext context, Guid assetId)
     {
         var exif = context.Exif!;
-        asset.ContentHash = context.ContentHash!;
-        asset.DateCaptured = CaptureDate.FromExifOrLastWrite(exif.DateCaptured, fileSystem, context.Item.AbsolutePath);
-        asset.MediaType = context.Item.PrimaryMediaType;
-        asset.LastSeenOnNas = clock.GetCurrentInstant();
-
-        metadata.Width = exif.Width;
-        metadata.Height = exif.Height;
-        metadata.Orientation = exif.Orientation;
-        metadata.Latitude = exif.Latitude;
-        metadata.Longitude = exif.Longitude;
-        metadata.CameraMake = exif.CameraMake;
-        metadata.CameraModel = exif.CameraModel;
-        metadata.LensModel = exif.LensModel;
-        metadata.DurationInSeconds = exif.DurationInSeconds;
-        metadata.Blurhash = context.Blurhash;
+        return new AssetContent(
+            context.ContentHash!,
+            CaptureDate.FromExifOrLastWrite(exif.DateCaptured, fileSystem, context.Item.AbsolutePath),
+            context.Item.PrimaryMediaType,
+            new Metadata
+            {
+                Width = exif.Width,
+                Height = exif.Height,
+                Orientation = exif.Orientation,
+                Latitude = exif.Latitude,
+                Longitude = exif.Longitude,
+                CameraMake = exif.CameraMake,
+                CameraModel = exif.CameraModel,
+                LensModel = exif.LensModel,
+                DurationInSeconds = exif.DurationInSeconds,
+                Blurhash = context.Blurhash,
+            },
+            context.ProxyFilesOf(assetId));
     }
 
     private static partial class Log
