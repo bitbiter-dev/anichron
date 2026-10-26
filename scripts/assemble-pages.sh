@@ -66,7 +66,8 @@ output_abs="$output_parent/$(basename "$output")"
 # basename both yield `/` -- and slips past the blocklist to be caught by the
 # sentinel check instead, with a message about a missing sentinel rather than
 # about the filesystem root. Caught by this script's own test suite.
-while [ "$output_abs" != "${output_abs//\/\//\/}" ]; do output_abs="${output_abs//\/\//\/}"; done
+slash=/
+while [ "$output_abs" != "${output_abs//\/\//$slash}" ]; do output_abs="${output_abs//\/\//$slash}"; done
 case "$output_abs" in
   /) ;;
   */) output_abs="${output_abs%/}" ;;

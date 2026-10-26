@@ -29,6 +29,10 @@ See the **[Self-Hosting guide](https://github.com/bitbiter-dev/anichron/wiki/Sel
 
 The **[wiki](https://github.com/bitbiter-dev/anichron/wiki)** covers features, architecture, deployment decisions, and the release process.
 
+## Contributing
+
+Anichron is a solo project: bug reports are welcome, pull requests are not accepted. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 [AGPL-3.0](LICENSE)

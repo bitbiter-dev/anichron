@@ -162,8 +162,11 @@ assert_fails 'refuses . as the output' 'relative directory reference' \
 assert_fails 'refuses .. as the output' 'relative directory reference' \
   "$script" "$cov" "$mut" "$work/.."
 
+root_cwd="$work/root-cwd"
+mkdir -p "$root_cwd"
 assert_fails 'refuses the filesystem root' 'refusing to write the site to' \
-  "$script" "$cov" "$mut" "/"
+  sh -c 'cd "$1" && shift && exec "$@"' sh "$root_cwd" "$script" "$cov" "$mut" "/"
+assert_eq 'refusing the root writes nothing' '' "$(ls -A "$root_cwd")"
 
 # A path whose parent does not exist cannot be resolved, so it is refused
 # rather than guessed at.
