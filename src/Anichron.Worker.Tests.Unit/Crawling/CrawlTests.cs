@@ -20,8 +20,13 @@ public sealed class CrawlTests
     private readonly IWorkProgress progress = Substitute.For<IWorkProgress>();
     private readonly ISharedContentReporter reporter = Substitute.For<ISharedContentReporter>();
     private readonly IWorkQueue queue = Substitute.For<IWorkQueue>();
+    private readonly IMissingFileSweep sweep = Substitute.For<IMissingFileSweep>();
     private readonly FakeLogger<CrawlHandler> logger = new();
     private readonly FakeLogger<ActiveStorageConfigs> activeLogger = new();
+
+    public CrawlTests()
+        => sweep.SweepAsync(Arg.Any<UserStorageConfig>(), Arg.Any<CrawlRun>(), Arg.Any<CancellationToken>())
+            .Returns(new MissingFiles(0, null));
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -34,7 +39,7 @@ public sealed class CrawlTests
     };
 
     private Task<object?> RunAsync(Guid configId)
-        => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, reporter, queue, logger).RunAsync(new CrawlPayload(configId), progress, Ct);
+        => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, reporter, queue, logger).RunAsync(new CrawlPayload(configId), progress, Ct);
 
     // ==========================================================================
     // CrawlHandler
@@ -47,17 +52,90 @@ public sealed class CrawlTests
         var other = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
         configs.GetActiveByUserIdAsync(MiraId, Ct).Returns([config, other]);
-        pipeline.RunAsync(config, progress, Ct).Returns(new CrawlRun(new CrawlResult(5, 4, 1), DuplicateCopies: 2));
+        var run = new CrawlRun(new CrawlResult(5, 4, 1), DuplicateCopies: 2) { SoftDeleted = 1, AutoRestored = 3 };
+        pipeline.RunAsync(config, progress, Ct).Returns(run);
+        sweep.SweepAsync(config, run, Ct).Returns(new MissingFiles(SoftDeleted: 4, SkippedBecause: null));
         reporter.ReportAsync(config, Arg.Is<IReadOnlyCollection<UserStorageConfig>>(c => c.SequenceEqual(new[] { config, other })), 2, Ct)
             .Returns(new DuplicateCounts(2, 1));
 
         var result = await RunAsync(config.Id);
 
-        result.Should().Be(new CrawlResult(5, 4, 1) { Duplicates = new DuplicateCounts(2, 1) });
+        result.Should().Be(new CrawlResult(5, 4, 1)
+        {
+            Duplicates = new DuplicateCounts(2, 1),
+            Reconciliation = new ReconciliationCounts(SoftDeleted: 5, AutoRestored: 3, SkippedBecause: null),
+        });
         await queue.Received(1).EnqueueAsync(new BurstDetectionPayload(config.Id), null, Ct);
         logger.Collector.GetSnapshot().Should().ContainSingle(e =>
             e.Level == LogLevel.Information && e.Message.Contains("/data/originals/mira"));
     }
+
+    [Fact]
+    public async Task RunAsync_SweepsBeforeTheDuplicateReportAndTheBurstDetectionAsync()
+    {
+        var config = Config();
+        configs.FindByIdAsync(config.Id, Ct).Returns(config);
+        var steps = new List<string>();
+        pipeline.RunAsync(config, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0), 0));
+        sweep.SweepAsync(config, Arg.Any<CrawlRun>(), Ct).Returns(_ =>
+        {
+            steps.Add("sweep");
+            return new MissingFiles(0, null);
+        });
+        reporter.ReportAsync(Arg.Any<UserStorageConfig>(), Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<int>(), Ct)
+            .Returns(_ =>
+            {
+                steps.Add("report");
+                return new DuplicateCounts(0, 0);
+            });
+        queue.When(q => q.EnqueueAsync(Arg.Any<BurstDetectionPayload>(), null, Ct)).Do(_ => steps.Add("enqueue"));
+
+        await RunAsync(config.Id);
+
+        steps.Should().Equal("sweep", "report", "enqueue");
+    }
+
+    [Fact]
+    public async Task RunAsync_LogsOneSummaryOfTheReconciliationAsync()
+    {
+        var config = Config();
+        configs.FindByIdAsync(config.Id, Ct).Returns(config);
+        var run = new CrawlRun(new CrawlResult(3, 3, 0), 0) { SoftDeleted = 1, AutoRestored = 2 };
+        pipeline.RunAsync(config, progress, Ct).Returns(run);
+        sweep.SweepAsync(config, run, Ct).Returns(new MissingFiles(3, null));
+
+        await RunAsync(config.Id);
+
+        logger.Collector.GetSnapshot().Where(e => e.Message.StartsWith("Reconciled", StringComparison.Ordinal))
+            .Should().ContainSingle().Which.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Information
+                && e.Message == $"Reconciled storage config {config.Id}: 4 soft-deleted, 2 auto-restored.");
+    }
+
+    [Fact]
+    public async Task RunAsync_SweepSkipped_ReportsAndLogsWhyAsync()
+    {
+        var config = Config();
+        configs.FindByIdAsync(config.Id, Ct).Returns(config);
+        var run = new CrawlRun(new CrawlResult(0, 0, 0), 0) { AutoRestored = 1 };
+        pipeline.RunAsync(config, progress, Ct).Returns(run);
+        sweep.SweepAsync(config, run, Ct).Returns(new MissingFiles(0, MissingFileSkip.EmptyRoot));
+
+        var result = await RunAsync(config.Id);
+
+        result.Should().BeOfType<CrawlResult>().Which.Reconciliation
+            .Should().Be(new ReconciliationCounts(0, 1, MissingFileSkip.EmptyRoot));
+        logger.Collector.GetSnapshot().Where(e => e.Message.StartsWith("Reconciled", StringComparison.Ordinal))
+            .Should().ContainSingle().Which.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Information
+                && e.Message == $"Reconciled storage config {config.Id}: 0 soft-deleted, 1 auto-restored; "
+                    + "missing files were not looked for (EmptyRoot).");
+    }
+
+    [Fact]
+    public void Result_NamesTheSkipReasonInItsJson()
+        => WorkJson.SerializeResult(new CrawlResult(0, 0, 0) { Reconciliation = new ReconciliationCounts(0, 0, MissingFileSkip.IncompleteWalk) })
+            .Should().Contain("""
+                "reconciliation":{"softDeleted":0,"autoRestored":0,"skippedBecause":"IncompleteWalk"}
+                """);
 
     [Fact]
     public async Task RunAsync_DuplicateReportFails_LogsItAndStillSucceedsWithoutTheReportAsync()
@@ -70,7 +148,7 @@ public sealed class CrawlTests
 
         var result = await RunAsync(config.Id);
 
-        result.Should().Be(new CrawlResult(1, 1, 0) { Duplicates = null });
+        result.Should().BeOfType<CrawlResult>().Which.Duplicates.Should().BeNull();
         await queue.Received(1).EnqueueAsync(new BurstDetectionPayload(config.Id), null, Ct);
         logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Error)
             .Which.Should().Match<FakeLogRecord>(e =>
@@ -92,7 +170,7 @@ public sealed class CrawlTests
             throw new OperationCanceledException(shutdown.Token);
         });
 
-        var act = () => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, reporter, queue, logger)
+        var act = () => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, reporter, queue, logger)
             .RunAsync(new CrawlPayload(config.Id), progress, shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
@@ -173,7 +251,7 @@ public sealed class CrawlTests
             new ScriptedItem(FileOutcome.Unchanged));
         var realPipeline = FileIngestionPipelines.Build([middleware], fileSystem, new WorkerSettings { MaxConcurrentFiles = 1 });
         var handler = new CrawlHandler(
-            new ActiveStorageConfigs(configs, activeLogger), configs, realPipeline,
+            new ActiveStorageConfigs(configs, activeLogger), configs, realPipeline, sweep,
             new SharedContentReporter(Substitute.For<IMediaAssetRepository>(), new FakeLogger<SharedContentReporter>()),
             queue, logger);
 

@@ -10,6 +10,7 @@ internal sealed partial class CrawlHandler(
     ActiveStorageConfigs activeConfigs,
     IUserStorageConfigRepository configs,
     IFileIngestionPipeline pipeline,
+    IMissingFileSweep sweep,
     ISharedContentReporter reporter,
     IWorkQueue queue,
     ILogger<CrawlHandler> logger) : IWorkHandler<CrawlPayload>
@@ -21,9 +22,25 @@ internal sealed partial class CrawlHandler(
 
         Log.Crawling(logger, config.RootPath, config.UserId);
         var run = await pipeline.RunAsync(config, progress, ct);
-        var result = run.Result with { Duplicates = await ReportDuplicatesAsync(config, run.DuplicateCopies, ct) };
+        var reconciliation = await ReconcileAsync(config, run, ct);
+        var result = run.Result with
+        {
+            Duplicates = await ReportDuplicatesAsync(config, run.DuplicateCopies, ct),
+            Reconciliation = reconciliation,
+        };
         await queue.EnqueueAsync(new BurstDetectionPayload(config.Id), null, ct);
         return result;
+    }
+
+    private async Task<ReconciliationCounts> ReconcileAsync(UserStorageConfig config, CrawlRun run, CancellationToken ct)
+    {
+        var missing = await sweep.SweepAsync(config, run, ct);
+        var counts = new ReconciliationCounts(run.SoftDeleted + missing.SoftDeleted, run.AutoRestored, missing.SkippedBecause);
+        if (counts.SkippedBecause is { } reason)
+            Log.ReconciledWithoutSweep(logger, config.Id, counts.SoftDeleted, counts.AutoRestored, reason);
+        else
+            Log.Reconciled(logger, config.Id, counts.SoftDeleted, counts.AutoRestored);
+        return counts;
     }
 
     private async Task<DuplicateCounts?> ReportDuplicatesAsync(
@@ -45,6 +62,17 @@ internal sealed partial class CrawlHandler(
     {
         [LoggerMessage(Level = LogLevel.Information, Message = "Crawling {RootPath} (userId={UserId}).")]
         public static partial void Crawling(ILogger logger, string rootPath, Guid userId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "Reconciled storage config {Id}: {SoftDeleted} soft-deleted, {AutoRestored} auto-restored.")]
+        public static partial void Reconciled(ILogger logger, Guid id, int softDeleted, int autoRestored);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "Reconciled storage config {Id}: {SoftDeleted} soft-deleted, {AutoRestored} auto-restored; "
+                + "missing files were not looked for ({Reason}).")]
+        public static partial void ReconciledWithoutSweep(ILogger logger, Guid id, int softDeleted, int autoRestored, MissingFileSkip reason);
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Reporting duplicate content for storage config {Id} failed.")]
         public static partial void DuplicateReportFailed(ILogger logger, Guid id, Exception ex);
