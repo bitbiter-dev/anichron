@@ -111,6 +111,8 @@ public sealed class KnownFileReconcilerTests
         (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 0));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information).Which.Message.Should().Be(
             "Soft-deleted asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at 2024/taken.jpg: the path now holds a copy of 2023/photo.jpg.");
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Debug).Which.Message.Should().Be(
+            "Duplicate content abc123 in storage config 00000000-0000-0000-0000-000000000000: 2024/taken.jpg is a copy of 2023/photo.jpg.");
     }
 
     // ==========================================================================
@@ -191,6 +193,20 @@ public sealed class KnownFileReconcilerTests
             Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
         }, options => options.Excluding(m => m.Asset));
         await fx.Bursts.Received(1).RemoveCheckAsync(PathRowId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_OverwrittenByMove_UpdatesThePathsStoredMetadataRowInPlaceAsync()
+    {
+        var fx = new TestFixture();
+        var (atPath, moved) = MoveOntoAnotherRow(fx);
+        var stored = new Metadata { AssetId = PathRowId, Width = 10 };
+        fx.LoadsMetadata(atPath, stored);
+
+        await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
+
+        atPath.Metadata.Should().BeSameAs(stored);
+        stored.Width.Should().Be(4032);
     }
 
     [Fact]
@@ -342,5 +358,27 @@ public sealed class KnownFileReconcilerTests
         reconciled.Should().BeFalse();
         mov.LastSeenOnNas.Should().Be(FirstSeen);
         (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((0, 0));
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_DuplicateCopy_ChangesNothingAsync()
+    {
+        var fx = new TestFixture();
+        var stored = Row(MovedRowId, "2023/photo.jpg", "abc123");
+
+        (await fx.ReconcileAsync(new FileClassification(FileOutcome.DuplicateCopy, stored))).Should().BeFalse();
+        stored.LastSeenOnNas.Should().Be(FirstSeen);
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_PathTaken_ChangesNothingAndWarnsAsync()
+    {
+        var fx = new TestFixture();
+        var stored = Row(MovedRowId, "2023/live.mov", "cafebabe");
+
+        (await fx.ReconcileAsync(new FileClassification(FileOutcome.PathTaken, stored), "2024/live.mov")).Should().BeFalse();
+        stored.FilePath.Should().Be("2023/live.mov");
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Warning
+            && r.Message == "Cannot record 2024/live.mov: another asset row already holds that path, skipping.");
     }
 }
