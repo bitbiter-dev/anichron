@@ -13,12 +13,12 @@ namespace Anichron.Worker.Bursts;
 
 public sealed record BurstDetectionResult
 {
-    public int Checked { get; set; }
-    public int Created { get; set; }
-    public int Merged { get; set; }
-    public int Dissolved { get; set; }
-    public int Matched { get; set; }
-    public int NotMatched { get; set; }
+    public int Checked { get; init; }
+    public int Created { get; init; }
+    public int Merged { get; init; }
+    public int Dissolved { get; init; }
+    public int Matched { get; init; }
+    public int NotMatched { get; init; }
 }
 
 internal sealed partial class BurstDetectionHandler(
@@ -43,34 +43,34 @@ internal sealed partial class BurstDetectionHandler(
         if (!fileSystem.Directory.Exists(config.RootPath))
             throw new DirectoryNotFoundException($"The storage config's root {config.RootPath} is missing.");
 
-        var result = new BurstDetectionResult();
-        await RepairAsync(config.Id, result, ct);
-        await CheckAsync(config, result, progress, ct);
+        var tally = new Tally();
+        await RepairAsync(config.Id, tally, ct);
+        await CheckAsync(config, tally, progress, ct);
 
-        Log.Finished(logger, config.Id, result.Checked, result.Created, result.Merged, result.Dissolved, result.Matched, result.NotMatched);
-        return result;
+        Log.Finished(logger, config.Id, tally.Checked, tally.Created, tally.Merged, tally.Dissolved, tally.Matched, tally.NotMatched);
+        return tally.ToResult();
     }
 
-    private async Task RepairAsync(Guid configId, BurstDetectionResult result, CancellationToken ct)
+    private async Task RepairAsync(Guid configId, Tally tally, CancellationToken ct)
     {
         foreach (var burst in await bursts.GetInConfigWithMembersAsync(configId, ct))
         {
             if (burst.Assets.Count(a => !a.IsSoftDeleted) < 2)
             {
                 bursts.Remove(burst);
-                result.Dissolved++;
+                tally.Dissolved++;
             }
             else
             {
-                burst.PrimaryAssetId = Earliest(burst.Assets).Id;
+                burst.PrimaryAssetId = BurstGrouping.Cover(burst.Assets).Id;
             }
         }
 
         await unitOfWork.SaveChangesAsync(ct);
-        result.Dissolved += await bursts.DeleteMemberlessAsync(ct);
+        tally.Dissolved += await bursts.DeleteMemberlessAsync(ct);
     }
 
-    private async Task CheckAsync(UserStorageConfig config, BurstDetectionResult result, IWorkProgress progress, CancellationToken ct)
+    private async Task CheckAsync(UserStorageConfig config, Tally tally, IWorkProgress progress, CancellationToken ct)
     {
         var total = await bursts.CountUncheckedPhotosAsync(config.Id, ct);
         MediaAsset? last = null;
@@ -78,8 +78,8 @@ internal sealed partial class BurstDetectionHandler(
         {
             foreach (var photo in batch)
             {
-                await CheckAsync(config, photo, result, ct);
-                progress.Report(++result.Checked, total, "Checking photos for bursts");
+                await CheckAsync(config, photo, tally, ct);
+                progress.Report(++tally.Checked, total, "Checking photos for bursts");
             }
 
             last = batch[^1];
@@ -88,7 +88,7 @@ internal sealed partial class BurstDetectionHandler(
         }
     }
 
-    private async Task CheckAsync(UserStorageConfig config, MediaAsset photo, BurstDetectionResult result, CancellationToken ct)
+    private async Task CheckAsync(UserStorageConfig config, MediaAsset photo, Tally tally, CancellationToken ct)
     {
         var facts = reader.Read(fileSystem.Path.Combine(config.RootPath, photo.FilePath));
         var check = new BurstCheck
@@ -102,55 +102,44 @@ internal sealed partial class BurstDetectionHandler(
         };
         bursts.AddCheck(check);
         if (check.IsCandidate)
-            await GroupAsync(config.Id, photo, check.CameraBurstId, result, ct);
+            await GroupAsync(config.Id, photo, check.CameraBurstId, tally, ct);
 
         await unitOfWork.SaveChangesAsync(ct);
     }
 
-    private async Task GroupAsync(Guid configId, MediaAsset photo, string? label, BurstDetectionResult result, CancellationToken ct)
+    private async Task GroupAsync(Guid configId, MediaAsset photo, string? label, Tally tally, CancellationToken ct)
     {
         var labelled = label is null ? [] : await bursts.GetCandidatesLabelledAsync(configId, label, ct);
-        var similar = await SimilarNeighboursAsync(configId, photo, labelled, result, ct);
+        var similar = await SimilarNeighboursAsync(configId, photo, labelled, tally, ct);
         if (labelled.Count + similar.Count == 0)
             return;
 
         var joined = await bursts.GetWithMembersAsync(
             [.. labelled.Concat(similar).Select(a => a.BurstId).OfType<Guid>().Distinct()], ct);
-        IEnumerable<MediaAsset> GroupOf(MediaAsset asset)
-            => joined.FirstOrDefault(b => b.Id == asset.BurstId)?.Assets ?? [asset];
-
-        HashSet<MediaAsset> members = [photo, .. labelled.SelectMany(GroupOf)];
-        foreach (var neighbour in similar)
-        {
-            HashSet<MediaAsset> grown = [.. members, .. GroupOf(neighbour)];
-            if (WithinSpan(grown))
-                members = grown;
-        }
-
-        if (members.Count == 1)
+        if (BurstGrouping.Join(photo, labelled, similar, joined, options.Value.BurstSpanSeconds) is not { } join)
             return;
 
-        var included = joined.Where(b => members.Any(m => m.BurstId == b.Id)).ToList();
-        if (included is not [var target, ..])
+        var target = join.Target;
+        if (target is null)
         {
             target = new Burst { Id = guids.NewGuid(), CreatedAt = clock.GetCurrentInstant() };
             bursts.Add(target);
-            result.Created++;
+            tally.Created++;
         }
 
-        foreach (var merged in included.Skip(1))
+        foreach (var merged in join.Merged)
         {
             bursts.Remove(merged);
-            result.Merged++;
+            tally.Merged++;
         }
 
-        foreach (var member in members)
+        foreach (var member in join.Members)
             member.BurstId = target.Id;
-        target.PrimaryAssetId = Earliest(members).Id;
+        target.PrimaryAssetId = join.Cover.Id;
     }
 
     private async Task<IReadOnlyList<MediaAsset>> SimilarNeighboursAsync(
-        Guid configId, MediaAsset photo, IReadOnlyCollection<MediaAsset> labelled, BurstDetectionResult result, CancellationToken ct)
+        Guid configId, MediaAsset photo, IReadOnlyCollection<MediaAsset> labelled, Tally tally, CancellationToken ct)
     {
         var labelledBursts = labelled.Select(a => a.BurstId).OfType<Guid>().ToHashSet();
         var gap = options.Value.BurstGapSeconds;
@@ -170,29 +159,40 @@ internal sealed partial class BurstDetectionHandler(
             if (score >= options.Value.BurstSimilarityThreshold)
             {
                 similar.Add(neighbour);
-                result.Matched++;
+                tally.Matched++;
             }
             else
             {
-                result.NotMatched++;
+                tally.NotMatched++;
             }
         }
 
         return similar;
     }
 
-    private bool WithinSpan(IEnumerable<MediaAsset> members)
-    {
-        var captured = members.Where(a => !a.IsSoftDeleted).Select(a => a.DateCaptured).ToList();
-        return captured.Max() <= captured.Min().PlusSeconds(options.Value.BurstSpanSeconds);
-    }
-
     private static string Thumbnail(MediaAsset asset)
         // Stryker disable once Linq
         => asset.ProxyFiles.First(p => p.ProxyType == ProxyType.Thumbnail).ProxyPath;
 
-    private static MediaAsset Earliest(IEnumerable<MediaAsset> members)
-        => members.Where(a => !a.IsSoftDeleted).MinBy(a => (a.DateCaptured, a.Id))!;
+    private sealed class Tally
+    {
+        public int Checked { get; set; }
+        public int Created { get; set; }
+        public int Merged { get; set; }
+        public int Dissolved { get; set; }
+        public int Matched { get; set; }
+        public int NotMatched { get; set; }
+
+        public BurstDetectionResult ToResult() => new()
+        {
+            Checked = Checked,
+            Created = Created,
+            Merged = Merged,
+            Dissolved = Dissolved,
+            Matched = Matched,
+            NotMatched = NotMatched,
+        };
+    }
 
     private static partial class Log
     {
