@@ -23,18 +23,28 @@ internal sealed class IngestionContext
     public string? Blurhash { get; set; }
     public MediaAsset? Asset { get; set; }
 
-    /// <summary>Rows this item soft-deleted, counted once the change is made.</summary>
+    /// <summary>Rows this item soft-deleted, counted once the save that soft-deleted them succeeded.</summary>
     public int SoftDeleted { get; private set; }
 
-    /// <summary>Soft-deleted rows this item made active again, counted once the change is made.</summary>
+    /// <summary>Soft-deleted rows this item made active again, counted once the save that restored them succeeded.</summary>
     public int AutoRestored { get; private set; }
 
-    public void CountSoftDeleted() => SoftDeleted++;
+    /// <summary>Rows soft-deleted on tracked entities, not saved yet.</summary>
+    public int StagedSoftDeleted { get; private set; }
 
-    public void CountAutoRestored() => AutoRestored++;
+    /// <summary>Rows made active again on tracked entities, not saved yet.</summary>
+    public int StagedAutoRestored { get; private set; }
 
-    /// <summary>Forgets the counts when the changes they counted were not saved.</summary>
-    public void ForgetCounts() => (SoftDeleted, AutoRestored) = (0, 0);
+    public void StageSoftDeleted() => StagedSoftDeleted++;
+
+    public void StageAutoRestored() => StagedAutoRestored++;
+
+    /// <summary>Counts the staged changes, once a save has persisted them.</summary>
+    public void CommitCounts()
+    {
+        (SoftDeleted, AutoRestored) = (SoftDeleted + StagedSoftDeleted, AutoRestored + StagedAutoRestored);
+        (StagedSoftDeleted, StagedAutoRestored) = (0, 0);
+    }
 
     // Image proxies register concurrently.
     public IReadOnlyList<ProxyFile> ProxyFiles

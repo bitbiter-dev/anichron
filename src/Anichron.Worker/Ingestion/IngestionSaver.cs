@@ -20,6 +20,7 @@ internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetReposito
             throw;
         }
 
+        context.CommitCounts();
         Release(context, pairedMovId);
     }
 
@@ -42,10 +43,11 @@ internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetReposito
     /// Soft-deletes <paramref name="retired"/> before saving the tracked changes, in one transaction, so a
     /// row can take the content the retired row held in the active content-hash index.
     /// </summary>
+    /// <param name="context">The item whose staged counts the save commits.</param>
     /// <param name="retired">The row giving up its content.</param>
     /// <param name="ct">Cancels the save.</param>
     /// <returns>False when another consumer took the content first; nothing is saved then.</returns>
-    public async Task<bool> TrySaveRetiringFirstAsync(MediaAsset retired, CancellationToken ct)
+    public async Task<bool> TrySaveRetiringFirstAsync(IngestionContext context, MediaAsset retired, CancellationToken ct)
     {
         try
         {
@@ -56,12 +58,14 @@ internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetReposito
                     await unitOfWork.SaveChangesAsync(ct);
                 },
                 ct);
-            return true;
         }
         catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex))
         {
             return false;
         }
+
+        context.CommitCounts();
+        return true;
     }
 
     private static void Release(IngestionContext context, Guid? pairedMovId)

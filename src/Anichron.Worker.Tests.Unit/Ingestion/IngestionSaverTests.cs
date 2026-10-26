@@ -97,9 +97,65 @@ public sealed class IngestionSaverTests
         fx.Context.ProxyFiles.Should().HaveCount(2);
     }
 
+    [Fact]
+    public async Task SaveAsync_Commits_CountsTheStagedChanges()
+    {
+        var fx = new TestFixture();
+        fx.Context.StageSoftDeleted();
+        fx.Context.StageAutoRestored();
+        fx.Context.StageAutoRestored();
+
+        await fx.Build().SaveAsync(fx.Context, null, CancellationToken.None);
+
+        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 2));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
+    }
+
+    [Fact]
+    public async Task SaveAsync_SecondSaveWithNothingStaged_CountsNothingMore()
+    {
+        var fx = new TestFixture();
+        var saver = fx.Build();
+        fx.Context.StageSoftDeleted();
+        fx.Context.StageAutoRestored();
+        await saver.SaveAsync(fx.Context, null, CancellationToken.None);
+
+        await saver.SaveAsync(fx.Context, null, CancellationToken.None);
+
+        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 1));
+    }
+
+    [Fact]
+    public async Task SaveAsync_LosesARace_CountsNothing()
+    {
+        var fx = new TestFixture();
+        fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        fx.Context.StageSoftDeleted();
+        fx.Context.StageAutoRestored();
+
+        var act = () => fx.Build().SaveAsync(fx.Context, null, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((0, 0));
+    }
+
     // ==========================================================================
     // TrySaveNewAsync
     // ==========================================================================
+
+    [Fact]
+    public async Task TrySaveNewAsync_LosesTheRaceToAConsumerThatCommittedTheContent_CountsNothing()
+    {
+        var fx = new TestFixture();
+        fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        fx.Repository.FindByHashAsync("deadbeef", ConfigId, Arg.Any<CancellationToken>())
+            .Returns(new MediaAsset { ContentHash = "deadbeef" });
+        fx.Context.StageAutoRestored();
+
+        await fx.Build().TrySaveNewAsync(fx.Context, NewAsset, null, CancellationToken.None);
+
+        fx.Context.AutoRestored.Should().Be(0);
+    }
 
     [Fact]
     public async Task TrySaveNewAsync_Commits_ReturnsTrue()
@@ -181,10 +237,37 @@ public sealed class IngestionSaverTests
             return 1;
         });
 
-        var saved = await fx.Build().TrySaveRetiringFirstAsync(new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        var saved = await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
 
         saved.Should().BeTrue();
         steps.Should().Equal("begin", "soft-delete dddddddd-dddd-dddd-dddd-dddddddddddd", "save", "commit");
+    }
+
+    [Fact]
+    public async Task TrySaveRetiringFirstAsync_Commits_CountsTheStagedChanges()
+    {
+        var fx = new TestFixture();
+        fx.TransactionsRunTheirWork();
+        fx.Context.StageSoftDeleted();
+        fx.Context.StageAutoRestored();
+
+        await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
+
+        (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 1));
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
+    }
+
+    [Fact]
+    public async Task TrySaveRetiringFirstAsync_LostTheRaceForTheContent_CountsNothing()
+    {
+        var fx = new TestFixture();
+        fx.TransactionsRunTheirWork();
+        fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        fx.Context.StageSoftDeleted();
+
+        await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
+
+        fx.Context.SoftDeleted.Should().Be(0);
     }
 
     [Fact]
@@ -194,7 +277,7 @@ public sealed class IngestionSaverTests
         fx.TransactionsRunTheirWork();
         fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
 
-        var saved = await fx.Build().TrySaveRetiringFirstAsync(new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        var saved = await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
 
         saved.Should().BeFalse();
     }
@@ -206,7 +289,7 @@ public sealed class IngestionSaverTests
         fx.TransactionsRunTheirWork();
         fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.FilePathUnique));
 
-        var act = () => fx.Build().TrySaveRetiringFirstAsync(new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        var act = () => fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
 
         await act.Should().ThrowAsync<DbUpdateException>();
     }

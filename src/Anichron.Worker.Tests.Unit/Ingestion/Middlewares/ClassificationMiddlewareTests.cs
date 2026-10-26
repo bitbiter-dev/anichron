@@ -322,7 +322,7 @@ public sealed class ClassificationMiddlewareTests
         }, CancellationToken.None);
 
         movActiveWhenProcessed.Should().BeTrue();
-        context.AutoRestored.Should().Be(1);
+        context.StagedAutoRestored.Should().Be(1);
         await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
