@@ -350,6 +350,20 @@ public sealed class ClassificationMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_SaveWithNothingRetiredFirstLosesARace_FailsTheItemAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.Store(Stored("2023/photo.jpg"));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+
+        var act = () => fx.Build().InvokeAsync(Single("2024/renamed.jpg"), NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        await fx.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void CanInvoke_AnyItem_IsTrue()
         => new ClassificationFixture().Build().CanInvoke(Single()).Should().BeTrue();
 

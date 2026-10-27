@@ -230,6 +230,18 @@ public sealed class KnownFileReconcilerTests
     }
 
     [Fact]
+    public async Task ReconcileAsync_OverwrittenByMoveOfAPairedRowElsewhere_MovesItToTheCrawledPathAsync()
+    {
+        var fx = new TestFixture();
+        var (atPath, moved) = MoveOntoAnotherRow(fx);
+        atPath.FilePath = "2023/old.mov";
+
+        await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved), "2024/live.mov");
+
+        (atPath.FilePath, atPath.FileName).Should().Be(("2024/live.mov", "live.mov"));
+    }
+
+    [Fact]
     public async Task ReconcileAsync_OverwrittenByMove_CarriesEveryMetadataValueOfTheMovedRowAsync()
     {
         var fx = new TestFixture();
