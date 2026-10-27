@@ -11,6 +11,7 @@ using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Maintenance;
+using Anichron.Worker.ProxySweeps;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Anichron.Worker.Work;
@@ -47,6 +48,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IMediaAssetRepository, EfMediaAssetRepository>();
             services.AddScoped<IBurstRepository, EfBurstRepository>();
+            services.AddScoped<IProxyOrphanStore, EfProxyOrphanStore>();
             services.AddScoped<ActiveStorageConfigs>();
             services.AddScoped<IDatabaseMigrator, EfDatabaseMigrator>();
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
@@ -62,6 +64,8 @@ internal static class WorkerServiceCollectionExtensions
             services.AddWorkHandler<WorkItemRetentionPayload, WorkItemRetentionHandler>();
             services.AddWorkHandler<CrawlPayload, CrawlHandler>();
             services.AddWorkHandler<BurstDetectionPayload, BurstDetectionHandler>();
+            services.AddWorkHandler<ProxySweepPayload, ProxySweepHandler>();
+            services.AddWorkHandler<ProxyDeletionPayload, ProxyDeletionHandler>();
             services.AddSingleton<IWorkScheduleSource, TokenCleanupSchedule>();
             services.AddSingleton<IWorkScheduleSource, WorkItemRetentionSchedule>();
             services.AddSingleton<IWorkScheduleSource, StorageConfigSchedules<CrawlPayload>>();

@@ -34,6 +34,16 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         public static WorkKind Kind => WorkKind.BurstDetection;
     }
 
+    public sealed record Sweep : IWorkPayload
+    {
+        public static WorkKind Kind => WorkKind.ProxySweep;
+    }
+
+    public sealed record Deletion : IWorkPayload
+    {
+        public static WorkKind Kind => WorkKind.ProxyDeletion;
+    }
+
     private static readonly TimeSpan Heartbeat = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan Poll = TimeSpan.FromSeconds(5);
     private static readonly Duration Lease = Duration.FromSeconds(60);
@@ -109,8 +119,9 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             [
                 WorkHandlerRegistration.For<Cleanup>(), WorkHandlerRegistration.For<Retention>(),
                 WorkHandlerRegistration.For<Crawl>(), WorkHandlerRegistration.For<Bursts>(),
+                WorkHandlerRegistration.For<Sweep>(), WorkHandlerRegistration.For<Deletion>(),
             ],
-            [typeof(Cleanup), typeof(Retention), typeof(Crawl), typeof(Bursts)]);
+            [typeof(Cleanup), typeof(Retention), typeof(Crawl), typeof(Bursts), typeof(Sweep), typeof(Deletion)]);
         executor = new WorkExecutor(
             store, registry, workerState, ScopeFactories.Providing(services => services.AddSingleton(handler)),
             timeline.Clock, Options.Create(new WorkerSettings()), logger);

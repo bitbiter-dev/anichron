@@ -322,6 +322,11 @@ namespace Anichron.Core.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProxyPath")
+                        .HasDatabaseName("ix_proxyfiles_proxypath");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("ProxyPath"), new[] { "text_pattern_ops" });
+
                     b.HasIndex("AssetId", "ProxyType")
                         .IsUnique()
                         .HasDatabaseName("ix_proxyfiles_assetid_proxytype");
@@ -329,6 +334,52 @@ namespace Anichron.Core.Migrations
                     b.ToTable("ProxyFiles", t =>
                         {
                             t.HasComment("One row per generated artefact on the local SSD. An asset has several, but at most one per ProxyType, so of two attempts racing to add the same proxy only one row lands. Written only by ProxyStagingWriter, at the moment the file reaches its final name.");
+                        });
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.ProxyOrphan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeletionOutcome")
+                        .HasColumnType("text")
+                        .HasComment("Deleted, SkippedReferenced, SkippedChanged, Missing or Failed, persisted as text; null until a deletion processed the file. A processed orphan is never processed again.");
+
+                    b.Property<Instant>("LastWriteTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasComment("Last write time at the scan, truncated to microseconds. A deletion skips the file when it has changed since.");
+
+                    b.Property<Instant?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProxyPath")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("Path relative to the proxy root, compared as is with ProxyFiles.ProxyPath.");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasComment("Size at the scan. A deletion skips the file when its size has changed since.");
+
+                    b.Property<Guid?>("StorageConfigId")
+                        .HasColumnType("uuid")
+                        .HasComment("The storage config named by the file's directory, read through IProxyDirectoryStrategy; null when the path names none. No foreign key: the config may be gone already, or go later.");
+
+                    b.Property<Guid>("SweepId")
+                        .HasColumnType("uuid")
+                        .HasComment("The ProxySweep work item that found the file; retention of the item purges its report.");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SweepId", "ProxyPath")
+                        .IsUnique()
+                        .HasDatabaseName("ix_proxyorphans_sweepid_proxypath");
+
+                    b.ToTable("ProxyOrphans", t =>
+                        {
+                            t.HasComment("A file under the proxy root that a ProxySweep found unreferenced by any ProxyFiles row, soft-deleted assets' included, and last written more than an hour before the scan. Written only by the Worker; the API reads it. Nothing is deleted until an admin asks, and a ProxyDeletion re-checks each file before it removes it.");
                         });
                 });
 
@@ -558,7 +609,7 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("WorkItems", t =>
                         {
-                            t.HasComment("Durable work for the Worker: periodic maintenance today, admin requests later. Only IWorkQueue inserts rows; the API's only other write is an admin's cancel, and every other state change belongs to the Worker's executor. Delivery is at least once, so handlers start from scratch and converge.");
+                            t.HasComment("Durable work for the Worker, scheduled by Workers or requested by an admin. Only IWorkQueue inserts rows; the API's only other write is an admin's cancel, and every other state change belongs to the Worker's executor. Delivery is at least once, so handlers start from scratch and converge.");
                         });
                 });
 
@@ -664,6 +715,15 @@ namespace Anichron.Core.Migrations
                         .IsRequired();
 
                     b.Navigation("Asset");
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.ProxyOrphan", b =>
+                {
+                    b.HasOne("Anichron.Core.Domain.WorkItem", null)
+                        .WithMany()
+                        .HasForeignKey("SweepId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.RefreshToken", b =>
