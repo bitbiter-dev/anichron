@@ -616,4 +616,81 @@ public sealed class IngestionClassifierTests
         result.Primary.Should().Be(new FileClassification(FileOutcome.Unchanged, heic));
         result.Secondary.Should().Be(new FileClassification(FileOutcome.Unchanged, mov));
     }
+
+    [Fact]
+    public async Task ClassifyAsync_PhotoCopiedOverALivePhoto_LeavesItsVideoAloneAsALoneLivePhotoVideo()
+    {
+        var fx = new TestFixture();
+        fx.FileSystem.AddEmptyFile("/abs/B.heic");
+        var copied = Row("abc123", "B.heic", pairedAssetId: Guid.NewGuid());
+        var overwritten = Row("f00d", "live.heic", pairedAssetId: MovId);
+        var video = Row("cafebabe", "live.mov", id: MovId);
+        fx.StoreMatched(Standalone(copied), Standalone(overwritten), LivePhotoVideo(video));
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.OverwrittenByCopy, copied, Retired: overwritten));
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.LoneLivePhotoVideo, video));
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_NextCrawlOfAPhotoCopiedOverALivePhoto_DoesNotAutoRestoreItsVideo()
+    {
+        var fx = new TestFixture();
+        fx.FileSystem.AddEmptyFile("/abs/B.heic");
+        var copied = Row("abc123", "B.heic", pairedAssetId: Guid.NewGuid());
+        var overwritten = Row("f00d", "live.heic", softDeleted: true, pairedAssetId: MovId);
+        var video = Row("cafebabe", "live.mov", softDeleted: true, id: MovId);
+        fx.StoreMatched(Standalone(copied), Standalone(overwritten), LivePhotoVideo(video));
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.DuplicateCopy, copied));
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.LoneLivePhotoVideo, video));
+        result.Pairing.Should().Be(PairingAction.None);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_UnpairedPhotoBesideAnotherLivePhotosVideo_IsNotPairedWithIt()
+    {
+        var fx = new TestFixture();
+        var heic = Row("abc123", "live.heic");
+        var video = Row("cafebabe", "live.mov", id: MovId);
+        fx.StoreMatched(Standalone(heic), LivePhotoVideo(video));
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.Unchanged, heic));
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.LoneLivePhotoVideo, video));
+        result.Pairing.Should().Be(PairingAction.None);
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_PairBackTogetherAfterBothWereSoftDeleted_AutoRestoresTheVideoWithItsPhoto()
+    {
+        var fx = new TestFixture();
+        var heic = Row("abc123", "live.heic", softDeleted: true, pairedAssetId: MovId);
+        var video = Row("cafebabe", "live.mov", softDeleted: true, id: MovId);
+        fx.StoreMatched(Standalone(heic), LivePhotoVideo(video));
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.AutoRestored, heic));
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.AutoRestored, video));
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_LivePhotoVideoCopiedOverTheUnpairedMovOfAPair_RetiresThatMovsRow()
+    {
+        var fx = new TestFixture();
+        fx.FileSystem.AddEmptyFile("/abs/LP/A.mov");
+        var heic = Row("abc123", "live.heic");
+        var unpaired = Row("f00d", "live.mov");
+        var video = Row("cafebabe", "LP/A.mov");
+        fx.StoreMatched(Standalone(heic), Standalone(unpaired), LivePhotoVideo(video));
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.LoneLivePhotoVideo, video, Retired: unpaired));
+    }
 }

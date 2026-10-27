@@ -18,6 +18,7 @@ public sealed class KnownFileReconcilerTests
     private static readonly Guid MovedRowId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static readonly Guid BurstId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid NewProxyId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+    private static readonly Guid PhotoId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     private sealed class TestFixture
     {
@@ -439,8 +440,6 @@ public sealed class KnownFileReconcilerTests
             && r.Message == "Left elsewhere/A.mov alone: it holds the video of a Live Photo, asset "
                 + "dddddddd-dddd-dddd-dddd-dddddddddddd, which follows only its photo.");
     }
-
-    private static readonly Guid PhotoId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     private static IngestionClassification LivePhoto(FileOutcome photoOutcome, MediaAsset video, Guid? photoPointsAt = null)
     {
