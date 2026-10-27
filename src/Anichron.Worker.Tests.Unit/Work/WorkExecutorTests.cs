@@ -69,10 +69,10 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             .Do(_ => timeline.Record("cancel"));
         store.When(s => s.ReleaseAsync(Arg.Any<WorkAttempt>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
             .Do(_ => timeline.Record("release"));
-        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
+        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<WorkRun>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                handlerProgress = call.Arg<IWorkProgress>();
+                handlerProgress = call.Arg<WorkRun>().Progress;
                 handlerToken = call.Arg<CancellationToken>();
                 var run = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 handlerToken.Register(() => run.TrySetCanceled(handlerToken));
@@ -291,10 +291,10 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         => Heartbeats(() => HeartbeatOutcome.CancelRequested);
 
     private void HandlerWindsDownOnlyWhenTold()
-        => handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
+        => handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<WorkRun>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                handlerProgress = call.Arg<IWorkProgress>();
+                handlerProgress = call.Arg<WorkRun>().Progress;
                 handlerToken = call.Arg<CancellationToken>();
                 var run = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 runs.Add(run);
@@ -447,7 +447,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     [Fact]
     public async Task ExecuteAsync_HandlerThrowsSynchronously_FailsTheItemAsync()
     {
-        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
+        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<WorkRun>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 timeline.Record("run");

@@ -60,11 +60,11 @@ public sealed class MaintenanceHandlerTests(PostgresServer server)
     {
         await using var db = work.CreateDbContext();
         return await new TokenCleanupHandler(new EfRefreshTokenRepository(db), work.Clock, NullLogger<TokenCleanupHandler>.Instance)
-            .RunAsync(new TokenCleanupPayload(), Substitute.For<IWorkProgress>(), Ct);
+            .RunAsync(new TokenCleanupPayload(), new WorkRun(Guid.NewGuid(), Substitute.For<IWorkProgress>()), Ct);
     }
 
     private static Task<object?> RunRetentionAsync(WorkDatabase work)
         => new WorkItemRetentionHandler(
                 work.Store, work.Clock, Options.Create(new WorkerSettings()), NullLogger<WorkItemRetentionHandler>.Instance)
-            .RunAsync(new WorkItemRetentionPayload(), Substitute.For<IWorkProgress>(), Ct);
+            .RunAsync(new WorkItemRetentionPayload(), new WorkRun(Guid.NewGuid(), Substitute.For<IWorkProgress>()), Ct);
 }

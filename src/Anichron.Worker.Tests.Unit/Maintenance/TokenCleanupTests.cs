@@ -23,7 +23,7 @@ public sealed class TokenCleanupTests
 
     private Task<object?> RunAsync()
         => new TokenCleanupHandler(repository, clock, logger)
-            .RunAsync(new TokenCleanupPayload(), Substitute.For<IWorkProgress>(), Ct);
+            .RunAsync(new TokenCleanupPayload(), new WorkRun(Guid.NewGuid(), Substitute.For<IWorkProgress>()), Ct);
 
     [Fact]
     public async Task RunAsync_DeletesTokensExpiredBeforeNowAsync()

@@ -39,7 +39,7 @@ public sealed class CrawlTests
     };
 
     private Task<object?> RunAsync(Guid configId)
-        => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, reporter, queue, logger).RunAsync(new CrawlPayload(configId), progress, Ct);
+        => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, reporter, queue, logger).RunAsync(new CrawlPayload(configId), new WorkRun(Guid.NewGuid(), progress), Ct);
 
     // ==========================================================================
     // CrawlHandler
@@ -171,7 +171,7 @@ public sealed class CrawlTests
         });
 
         var act = () => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, reporter, queue, logger)
-            .RunAsync(new CrawlPayload(config.Id), progress, shutdown.Token);
+            .RunAsync(new CrawlPayload(config.Id), new WorkRun(Guid.NewGuid(), progress), shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         logger.Collector.GetSnapshot().Should().NotContain(e => e.Level == LogLevel.Error);
@@ -255,9 +255,9 @@ public sealed class CrawlTests
             new SharedContentReporter(Substitute.For<IMediaAssetRepository>(), new FakeLogger<SharedContentReporter>()),
             queue, logger);
 
-        var cancelled = () => handler.RunAsync(new CrawlPayload(config.Id), progress, cancel.Token);
+        var cancelled = () => handler.RunAsync(new CrawlPayload(config.Id), new WorkRun(Guid.NewGuid(), progress), cancel.Token);
         await cancelled.Should().ThrowAsync<OperationCanceledException>();
-        var next = await handler.RunAsync(new CrawlPayload(config.Id), progress, Ct);
+        var next = await handler.RunAsync(new CrawlPayload(config.Id), new WorkRun(Guid.NewGuid(), progress), Ct);
 
         next.Should().BeOfType<CrawlResult>().Which.Duplicates.Should().Be(new DuplicateCounts(1, 0));
     }

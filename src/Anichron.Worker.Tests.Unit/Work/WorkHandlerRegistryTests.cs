@@ -89,12 +89,13 @@ public sealed class WorkHandlerRegistryTests
         var handler = Substitute.For<IWorkHandler<NumberedRetentionPayload>>();
         var progress = Substitute.For<IWorkProgress>();
         using var cts = new CancellationTokenSource();
-        handler.RunAsync(new NumberedRetentionPayload(7), progress, cts.Token).Returns("summary");
+        var itemId = Guid.NewGuid();
+        handler.RunAsync(new NumberedRetentionPayload(7), new WorkRun(itemId, progress), cts.Token).Returns("summary");
         await using var services = new ServiceCollection().AddSingleton(handler).BuildServiceProvider();
         var registry = new WorkHandlerRegistry(
             [RealHandlers[0], WorkHandlerRegistration.For<NumberedRetentionPayload>(), .. RealHandlers[2..]],
             [typeof(TokenCleanupPayload), typeof(NumberedRetentionPayload), typeof(CrawlPayload), typeof(BurstDetectionPayload)]);
-        var work = new ClaimedWork(new WorkAttempt(Guid.NewGuid(), 1), WorkKind.WorkItemRetention, /*lang=json,strict*/ """{"number":7}""");
+        var work = new ClaimedWork(new WorkAttempt(itemId, 1), WorkKind.WorkItemRetention, /*lang=json,strict*/ """{"number":7}""");
 
         var result = await registry.RunAsync(work, services, progress, cts.Token);
 

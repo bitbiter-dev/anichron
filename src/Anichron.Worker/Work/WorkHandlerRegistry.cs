@@ -5,15 +5,15 @@ using System.Reflection;
 namespace Anichron.Worker.Work;
 
 public delegate Task<object?> WorkDispatch(
-    IServiceProvider services, string payload, IWorkProgress progress, CancellationToken ct);
+    IServiceProvider services, string payload, WorkRun run, CancellationToken ct);
 
 public sealed record WorkHandlerRegistration(WorkKind Kind, Type PayloadType, WorkDispatch Run)
 {
     public static WorkHandlerRegistration For<TPayload>()
         where TPayload : IWorkPayload
-        => new(TPayload.Kind, typeof(TPayload), (services, payload, progress, ct)
+        => new(TPayload.Kind, typeof(TPayload), (services, payload, run, ct)
             => services.GetRequiredService<IWorkHandler<TPayload>>()
-                .RunAsync(WorkJson.Deserialize<TPayload>(payload), progress, ct));
+                .RunAsync(WorkJson.Deserialize<TPayload>(payload), run, ct));
 }
 
 public sealed class WorkHandlerRegistry
@@ -41,7 +41,7 @@ public sealed class WorkHandlerRegistry
 
     public Task<object?> RunAsync(
         ClaimedWork work, IServiceProvider services, IWorkProgress progress, CancellationToken ct)
-        => handlers[work.Kind].Run(services, work.Payload, progress, ct);
+        => handlers[work.Kind].Run(services, work.Payload, new WorkRun(work.Attempt.Id, progress), ct);
 
     internal static IEnumerable<Type> PayloadTypesIn(Assembly assembly)
         => assembly.GetTypes().Where(t => t is { IsAbstract: false, IsInterface: false }
