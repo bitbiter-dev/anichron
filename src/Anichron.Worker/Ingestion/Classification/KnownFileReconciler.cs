@@ -85,6 +85,8 @@ internal sealed partial class KnownFileReconciler(
             context, atPath, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))]), ct);
 
         moved.IsSoftDeleted = true;
+        if (moved.PairedAssetId == atPath.PairedAssetId)
+            moved.PairedAssetId = null;
         context.StageSoftDeleted();
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
         return true;

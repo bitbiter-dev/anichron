@@ -22,6 +22,8 @@ internal abstract partial class ProcessedContentWriter(
         if (context.Classification!.Secondary is { DefersToAnotherRow: false })
         {
             mov = pairedMovResolver.Resolve(context, context.Exif!.DateCaptured);
+            if (context.Classification.Secondary.TakesContent)
+                mov.DateCaptured = asset.DateCaptured;
             await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
             asset.PairedAssetId = mov.Id;
         }

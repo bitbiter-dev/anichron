@@ -404,10 +404,12 @@ public sealed class ClassificationMiddlewareTests
 
         atPath.ContentHash.Should().Be("abc123");
         atPath.PairedAssetId.Should().Be(mov.Id);
-        heic.IsSoftDeleted.Should().BeTrue();
+        (heic.IsSoftDeleted, heic.PairedAssetId).Should().Be((true, null));
         mov.FilePath.Should().Be("2024/live.mov");
         await fx.Repository.Received(1).SoftDeleteAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { heic.Id })), Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -550,6 +552,7 @@ public sealed class ClassificationMiddlewareTests
         (aHeic.ContentHash, aVideo.ContentHash).Should().Be(("b0b0", "b1b1"));
         aHeic.PairedAssetId.Should().Be(AVideoId);
         (bHeic.IsSoftDeleted, bVideo.IsSoftDeleted).Should().Be((true, true));
+        bHeic.PairedAssetId.Should().Be(BVideoId);
         fx.AddedProxies.Should().ContainSingle().Which.Should().BeEquivalentTo(
             new { AssetId = AVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video_720p.mp4" });
         await fx.DidNotTranscodeAsync();

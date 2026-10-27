@@ -385,6 +385,7 @@ public sealed class NewContentWriterTests
         fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
         fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(a => a.Id == context.AssetId));
         asset!.PairedAssetId.Should().Be(existingMov.Id);
+        existingMov.DateCaptured.Should().Be(default);
         await fx.MovGenerator.DidNotReceive().TranscodeAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         fx.Repository.DidNotReceive().AddProxyFiles(Arg.Is<IEnumerable<ProxyFile>>(rows => rows.Any()));
@@ -424,6 +425,7 @@ public sealed class NewContentWriterTests
         var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
 
         asset!.PairedAssetId.Should().Be(holder.Id);
+        holder.DateCaptured.Should().Be(new LocalDateTime(2023, 6, 15, 10, 0));
         await fx.Repository.Received(1).SoftDeleteAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { moved.Id })), Arg.Any<CancellationToken>());
     }

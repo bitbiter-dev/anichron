@@ -27,6 +27,9 @@ internal sealed partial class LivePhotoPairer(
             return;
 
         await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
+        if (classification.RetiredFirst.Count > 0)
+            return;
+
         await saver.SaveAsync(context, mov.Id, ct);
         Log.Paired(logger, context.Item.RelativePath, heic.Id);
     }
