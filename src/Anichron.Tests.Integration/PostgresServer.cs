@@ -11,7 +11,9 @@ public sealed class PostgresServer : IAsyncLifetime
 {
     public const string Image = "postgres:17-alpine";
 
-    private readonly PostgreSqlContainer container = new PostgreSqlBuilder(Image).Build();
+    private readonly PostgreSqlContainer container = new PostgreSqlBuilder(Image)
+        .WithCommand("-c", "max_connections=500")
+        .Build();
 
     public async ValueTask InitializeAsync() => await container.StartAsync();
 

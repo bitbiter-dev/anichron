@@ -35,7 +35,7 @@ internal sealed partial class BurstDetectionHandler(
 {
     internal const int BatchSize = 100;
 
-    public async Task<object?> RunAsync(BurstDetectionPayload payload, IWorkProgress progress, CancellationToken ct)
+    public async Task<object?> RunAsync(BurstDetectionPayload payload, WorkRun run, CancellationToken ct)
     {
         if (await activeConfigs.FindAsync(BurstDetectionPayload.Kind, payload.StorageConfigId, ct) is not { } config)
             return StorageConfigSkipped.MissingOrInactive;
@@ -45,7 +45,7 @@ internal sealed partial class BurstDetectionHandler(
 
         var tally = new Tally();
         await RepairAsync(config.Id, tally, ct);
-        await CheckAsync(config, tally, progress, ct);
+        await CheckAsync(config, tally, run.Progress, ct);
 
         Log.Finished(logger, config.Id, tally.Checked, tally.Created, tally.Merged, tally.Dissolved, tally.Matched, tally.NotMatched);
         return tally.ToResult();

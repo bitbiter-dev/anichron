@@ -14,7 +14,7 @@ public sealed partial class TokenCleanupHandler(
     IClock clock,
     ILogger<TokenCleanupHandler> logger) : IWorkHandler<TokenCleanupPayload>
 {
-    public async Task<object?> RunAsync(TokenCleanupPayload payload, IWorkProgress progress, CancellationToken ct)
+    public async Task<object?> RunAsync(TokenCleanupPayload payload, WorkRun run, CancellationToken ct)
     {
         var deleted = await repository.DeleteExpiredAsync(clock.GetCurrentInstant(), ct);
         Log.TokensDeleted(logger, deleted);

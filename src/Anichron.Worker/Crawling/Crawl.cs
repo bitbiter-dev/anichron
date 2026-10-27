@@ -15,17 +15,17 @@ internal sealed partial class CrawlHandler(
     IWorkQueue queue,
     ILogger<CrawlHandler> logger) : IWorkHandler<CrawlPayload>
 {
-    public async Task<object?> RunAsync(CrawlPayload payload, IWorkProgress progress, CancellationToken ct)
+    public async Task<object?> RunAsync(CrawlPayload payload, WorkRun run, CancellationToken ct)
     {
         if (await activeConfigs.FindAsync(CrawlPayload.Kind, payload.StorageConfigId, ct) is not { } config)
             return StorageConfigSkipped.MissingOrInactive;
 
         Log.Crawling(logger, config.RootPath, config.UserId);
-        var run = await pipeline.RunAsync(config, progress, ct);
-        var reconciliation = await ReconcileAsync(config, run, ct);
-        var result = run.Result with
+        var crawl = await pipeline.RunAsync(config, run.Progress, ct);
+        var reconciliation = await ReconcileAsync(config, crawl, ct);
+        var result = crawl.Result with
         {
-            Duplicates = await ReportDuplicatesAsync(config, run.DuplicateCopies, ct),
+            Duplicates = await ReportDuplicatesAsync(config, crawl.DuplicateCopies, ct),
             Reconciliation = reconciliation,
         };
         await queue.EnqueueAsync(new BurstDetectionPayload(config.Id), null, ct);

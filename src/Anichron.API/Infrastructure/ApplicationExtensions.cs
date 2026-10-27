@@ -22,6 +22,7 @@ public static class ApplicationExtensions
             api.MapFlashbackEndpoints();
             api.MapBurstEndpoints();
             api.MapWorkItemEndpoints();
+            api.MapProxySweepEndpoints();
             return app;
         }
     }

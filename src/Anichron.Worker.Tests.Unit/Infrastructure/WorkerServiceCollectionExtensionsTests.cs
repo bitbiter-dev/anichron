@@ -11,6 +11,7 @@ using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Maintenance;
+using Anichron.Worker.ProxySweeps;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Anichron.Worker.Work;
@@ -227,6 +228,8 @@ public sealed class WorkerServiceCollectionExtensionsTests
                 (typeof(IWorkHandler<WorkItemRetentionPayload>), typeof(WorkItemRetentionHandler)),
                 (typeof(IWorkHandler<CrawlPayload>), typeof(CrawlHandler)),
                 (typeof(IWorkHandler<BurstDetectionPayload>), typeof(BurstDetectionHandler)),
+                (typeof(IWorkHandler<ProxySweepPayload>), typeof(ProxySweepHandler)),
+                (typeof(IWorkHandler<ProxyDeletionPayload>), typeof(ProxyDeletionHandler)),
             ]);
     }
 
@@ -344,6 +347,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IRefreshTokenRepository), typeof(EfRefreshTokenRepository) },
         { typeof(IMediaAssetRepository), typeof(EfMediaAssetRepository) },
         { typeof(IBurstRepository), typeof(EfBurstRepository) },
+        { typeof(IProxyOrphanStore), typeof(EfProxyOrphanStore) },
         { typeof(ActiveStorageConfigs), typeof(ActiveStorageConfigs) },
         { typeof(IDatabaseMigrator), typeof(EfDatabaseMigrator) },
         { typeof(IWorkQueue), typeof(EfWorkQueue) },

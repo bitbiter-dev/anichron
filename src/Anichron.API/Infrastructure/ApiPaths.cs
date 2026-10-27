@@ -62,6 +62,13 @@ internal static class ApiPaths
             => $"{Base}/{Group}/{workItemId}";
     }
 
+    internal static class ProxySweeps
+    {
+        internal const string Group = "admin/proxy-sweeps";
+        internal const string Orphans = "{sweepId:guid}/orphans";
+        internal const string Deletions = "{sweepId:guid}/deletions";
+    }
+
     internal static class Bursts
     {
         internal const string Group = "bursts";

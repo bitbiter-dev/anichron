@@ -37,3 +37,23 @@ public sealed record BurstDetectionPayload(Guid StorageConfigId) : IStorageConfi
 
     Guid? IWorkPayload.StorageConfigId => StorageConfigId;
 }
+
+public sealed record ProxySweepPayload : IWorkPayload
+{
+    public static WorkKind Kind => WorkKind.ProxySweep;
+
+    string IWorkPayload.DedupKey => "proxy-sweep";
+}
+
+/// <summary>Deletes orphans a sweep reported, each re-checked first.</summary>
+/// <param name="SweepId">The sweep whose report holds the orphans.</param>
+/// <param name="StorageConfigId">
+/// The live config the orphans belong to, or null for orphans of no live config, which any Worker may delete.
+/// </param>
+/// <param name="OrphanIds">The orphans to delete, or null for every orphan of the sweep in that scope.</param>
+public sealed record ProxyDeletionPayload(Guid SweepId, Guid? StorageConfigId, IReadOnlyList<Guid>? OrphanIds) : IWorkPayload
+{
+    public static WorkKind Kind => WorkKind.ProxyDeletion;
+
+    Guid? IWorkPayload.StorageConfigId => StorageConfigId;
+}

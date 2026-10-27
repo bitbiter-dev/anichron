@@ -142,7 +142,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         => new BurstDetectionHandler(
                 new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
                 repository, db, reader, matcher, fileSystem, clock, guids, Options.Create(new WorkerSettings()), logger)
-            .RunAsync(new BurstDetectionPayload(configId), progress, ct);
+            .RunAsync(new BurstDetectionPayload(configId), new WorkRun(Guid.NewGuid(), progress), ct);
 
     private Dictionary<string, Guid?> BurstsOf(params MediaAsset[] photos)
     {
@@ -884,7 +884,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
                 new ActiveStorageConfigs(new EfUserStorageConfigRepository(db), activeLogger),
                 bursts, Substitute.For<IUnitOfWork>(), reader, matcher, fileSystem, clock, guids,
                 Options.Create(new WorkerSettings()), logger)
-            .RunAsync(new BurstDetectionPayload(ConfigId), progress, Ct);
+            .RunAsync(new BurstDetectionPayload(ConfigId), new WorkRun(Guid.NewGuid(), progress), Ct);
 
         await bursts.Received(1).GetUncheckedPhotosAsync(ConfigId, photo, Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
