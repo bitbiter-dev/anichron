@@ -12,6 +12,8 @@ public sealed class MissingFileSweepTests
     private static readonly Guid Kept = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private static readonly Guid Gone = Guid.Parse("00000000-0000-0000-0000-000000000002");
     private static readonly Guid AlsoGone = Guid.Parse("00000000-0000-0000-0000-000000000003");
+    private static readonly Guid Photo = Guid.Parse("00000000-0000-0000-0000-00000000000a");
+    private static readonly Guid Video = Guid.Parse("00000000-0000-0000-0000-00000000000b");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -120,5 +122,78 @@ public sealed class MissingFileSweepTests
         var result = await SweepAsync(Walk(complete: true));
 
         result.Should().Be(new MissingFiles(0, null));
+    }
+
+    // ==========================================================================
+    // A Live Photo goes as one
+    // ==========================================================================
+
+    private Task SoftDeletedExactlyAsync(params Guid[] ids)
+        => repository.Received(1).SoftDeleteAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(sent => sent.SequenceEqual(ids)), Arg.Any<CancellationToken>());
+
+    private IEnumerable<FakeLogRecord> InformationLines()
+        => logger.Collector.GetSnapshot().Where(r => r.Level == LogLevel.Information);
+
+    [Fact]
+    public async Task SweepAsync_MissingPhoto_TakesItsVideoWithItAsync()
+    {
+        Stored(new AssetPath(Photo, "a.heic", PairedAssetId: Video), new AssetPath(Video, "a.mov"), new AssetPath(Kept, "b.jpg"));
+        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns(2);
+
+        var result = await SweepAsync(Walk(complete: true, "a.mov", "b.jpg"));
+
+        result.Should().Be(new MissingFiles(SoftDeleted: 2, SkippedBecause: null));
+        await SoftDeletedExactlyAsync(Photo, Video);
+        InformationLines().Should().BeEmpty();
+        logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Message.Contains("0b", StringComparison.Ordinal))
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug
+                && r.Message == "Soft-deleting asset 00000000-0000-0000-0000-00000000000b at a.mov: "
+                    + "it is the video of a Live Photo whose photo is soft-deleted or missing.");
+    }
+
+    [Fact]
+    public async Task SweepAsync_VideoOfASoftDeletedPhoto_IsSoftDeletedThoughItsFileWasFoundAsync()
+    {
+        Stored(new AssetPath(Video, "a.mov", IsVideoOfASoftDeletedPhoto: true), new AssetPath(Kept, "b.jpg"));
+
+        await SweepAsync(Walk(complete: true, "a.mov", "b.jpg"));
+
+        await SoftDeletedExactlyAsync(Video);
+    }
+
+    [Fact]
+    public async Task SweepAsync_MissingPhotoAndVideo_SoftDeletesEachOnceAsync()
+    {
+        Stored(new AssetPath(Photo, "a.heic", PairedAssetId: Video), new AssetPath(Video, "a.mov", IsVideoOfASoftDeletedPhoto: true));
+
+        await SweepAsync(Walk(complete: true, "b.jpg"));
+
+        await SoftDeletedExactlyAsync(Photo, Video);
+        logger.Collector.GetSnapshot().Should().HaveCount(2);
+        InformationLines().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SweepAsync_MissingVideoOfAnActivePhoto_SaysThePhotoIsNowAStillPhotoAsync()
+    {
+        Stored(new AssetPath(Photo, "a.heic", PairedAssetId: Video), new AssetPath(Video, "a.mov"));
+
+        await SweepAsync(Walk(complete: true, "a.heic"));
+
+        await SoftDeletedExactlyAsync(Video);
+        InformationLines().Should().ContainSingle().Which.Message.Should().Be(
+            "Asset 00000000-0000-0000-0000-00000000000a is now a still photo: "
+            + "its video, asset 00000000-0000-0000-0000-00000000000b at a.mov, is missing.");
+    }
+
+    [Fact]
+    public async Task SweepAsync_MissingPhotoWhoseVideoIsNoLongerActive_SoftDeletesOnlyThePhotoAsync()
+    {
+        Stored(new AssetPath(Photo, "a.heic", PairedAssetId: Video), new AssetPath(Kept, "b.jpg"));
+
+        await SweepAsync(Walk(complete: true, "b.jpg"));
+
+        await SoftDeletedExactlyAsync(Photo);
     }
 }

@@ -15,6 +15,7 @@ internal enum FileOutcome
     AutoRestored = 8,
     AutoRestoredMoved = 9,
     AutoRestoredContentChanged = 10,
+    LoneLivePhotoVideo = 11,
 }
 
 internal enum PairingAction

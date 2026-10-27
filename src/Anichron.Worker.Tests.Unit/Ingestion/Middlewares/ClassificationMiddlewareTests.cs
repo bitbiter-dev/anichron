@@ -1,4 +1,5 @@
 using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Anichron.Worker.Ingestion.Classification;
@@ -68,7 +69,7 @@ public sealed class ClassificationMiddlewareTests
         fx.Repository.FindByHashesOrPathsAsync(
                 Arg.Is<Guid>(id => id != ConfigId), Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns([Stored("photo.jpg")]);
+            .Returns([new MatchedAsset(Stored("photo.jpg"), IsLivePhotoVideo: false)]);
 
         (await NextCalledAsync(fx, Single())).Should().BeTrue();
     }

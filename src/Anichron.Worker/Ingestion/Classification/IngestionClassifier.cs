@@ -14,12 +14,30 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
         string[] hashes = mov is null ? [contentHash] : [contentHash, secondaryHash];
         string[] paths = mov is null ? [item.RelativePath] : [item.RelativePath, mov.RelativePath];
 
-        var rows = await repository.FindByHashesOrPathsAsync(context.Config.Id, hashes, paths, ct);
+        var matched = await repository.FindByHashesOrPathsAsync(context.Config.Id, hashes, paths, ct);
+        var rows = matched.Select(row => row.Asset).ToList();
 
         var rootPath = context.Config.RootPath;
-        var primary = Classify(rows, contentHash, item.RelativePath, rootPath, isMov: false);
-        var secondary = mov is null ? null : Classify(rows, secondaryHash, mov.RelativePath, rootPath, isMov: true);
+        var primary = (mov is null ? LoneLivePhotoVideo(matched, item.RelativePath, photo: null) : null)
+            ?? Classify(rows, contentHash, item.RelativePath, rootPath, isMov: false);
+        var secondary = mov is null
+            ? null
+            : LoneLivePhotoVideo(matched, mov.RelativePath, primary.Stored)
+                ?? Classify(rows, secondaryHash, mov.RelativePath, rootPath, isMov: true);
         return new(primary, secondary, PairingFor(primary, secondary));
+    }
+
+    private static FileClassification? LoneLivePhotoVideo(
+        IReadOnlyList<MatchedAsset> matched, string relativePath, MediaAsset? photo)
+    {
+        if (matched.FirstOrDefault(row => row.IsLivePhotoVideo && row.Asset.Id != photo?.PairedAssetId) is not { } video)
+            return null;
+
+        var atPath = matched.FirstOrDefault(row => row.Asset.FilePath == relativePath);
+        return new(
+            FileOutcome.LoneLivePhotoVideo,
+            video.Asset,
+            Retired: atPath is { IsLivePhotoVideo: false, Asset.IsSoftDeleted: false } ? atPath.Asset : null);
     }
 
     private FileClassification Classify(
@@ -64,6 +82,7 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
     private static PairingAction PairingFor(FileClassification primary, FileClassification? secondary)
         => (primary, secondary) switch
         {
+            (_, { Outcome: FileOutcome.LoneLivePhotoVideo }) => PairingAction.None,
             ({ Stored: null }
                 or { Outcome: FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged or FileOutcome.OverwrittenByMove },
                 _) or (_, null) => PairingAction.None,
