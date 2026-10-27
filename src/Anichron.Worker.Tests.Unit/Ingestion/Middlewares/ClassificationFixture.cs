@@ -56,17 +56,15 @@ internal sealed class ClassificationFixture
 
         var saver = new IngestionSaver(UnitOfWork, Repository);
         var stagingWriter = new ProxyStagingWriter(FileSystem, Clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());
+        var movProxyWriter = new PairedMovProxyWriter(
+            [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository, new FakeLogger<PairedMovProxyWriter>());
         var pairer = new LivePhotoPairer(
-            new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
-            new PairedMovProxyWriter(
-                [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
-                new FakeLogger<PairedMovProxyWriter>()),
-            saver,
-            new FakeLogger<LivePhotoPairer>());
+            new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory), movProxyWriter, saver, new FakeLogger<LivePhotoPairer>());
         return new(
             new IngestionClassifier(Repository, FileSystem),
             pairer,
-            new KnownFileReconciler(Clock, Repository, new StoredContent(Repository, Bursts, Clock), GuidFactory, Logger),
+            new KnownFileReconciler(
+                Clock, Repository, new StoredContent(Repository, Bursts, Clock), GuidFactory, movProxyWriter, FileSystem, Logger),
             saver,
             MiddlewareLogger);
     }

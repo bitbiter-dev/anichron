@@ -33,9 +33,9 @@ internal sealed partial class ClassificationMiddleware(
 
         if (!changed)
             return;
-        if (classification.Primary is { Outcome: FileOutcome.OverwrittenByMove, Retired: { } retired })
+        if (classification.RetiredFirst.Count > 0)
         {
-            if (!await saver.TrySaveRetiringFirstAsync(context, retired, ct))
+            if (!await saver.TrySaveRetiringFirstAsync(context, ct))
                 Log.ContentTakenConcurrently(logger, context.Item.RelativePath);
 
             return;

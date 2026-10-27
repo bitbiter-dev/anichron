@@ -109,17 +109,22 @@ public sealed class ClassificationMiddlewarePairingTests
     }
 
     [Fact]
-    public async Task InvokeAsync_StoredHeicAlreadyPaired_LeavesThePairingUnchangedAsync()
+    public async Task InvokeAsync_PairedHeicWhoseVideoRowIsNotFound_InsertsTheVideoAndPointsThePhotoAtItAsync()
     {
         var fx = new ClassificationFixture();
         var heic = StoredHeic(PairedMovId);
+        heic.MediaType = MediaType.LivePhoto;
         fx.Store(heic);
+        fx.GuidFactory.NewGuid().Returns(NewMovId);
+        MediaAsset? addedMov = null;
+        fx.Repository.When(r => r.Add(Arg.Any<MediaAsset>())).Do(call => addedMov = call.Arg<MediaAsset>());
 
         await fx.Build().InvokeAsync(Pair(), NoOpNextAsync, CancellationToken.None);
 
-        heic.PairedAssetId.Should().Be(PairedMovId);
-        heic.MediaType.Should().Be(MediaType.Image);
-        await fx.DidNotTranscodeAsync();
+        addedMov.Should().NotBeNull();
+        addedMov.Should().BeEquivalentTo(new { Id = NewMovId, ContentHash = "cafebabe", FilePath = "photo.mov" });
+        heic.PairedAssetId.Should().Be(NewMovId);
+        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -148,29 +153,18 @@ public sealed class ClassificationMiddlewarePairingTests
     }
 
     [Fact]
-    public async Task InvokeAsync_AlreadyPairedToADifferentMovThanThisFile_LeavesItAloneAsync()
-    {
-        var fx = new ClassificationFixture();
-        fx.Store(StoredHeic(PairedMovId), StoredMov(Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd")));
-
-        await fx.Build().InvokeAsync(Pair(), NoOpNextAsync, CancellationToken.None);
-
-        await fx.DidNotTranscodeAsync();
-        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task InvokeAsync_PairedHeicWithMovNotStored_RefreshesTheHeicOnlyAsync()
+    public async Task InvokeAsync_PairedToAVideoRowNotFoundWhileAnotherRowHoldsTheVideo_PointsThePhotoAtThatRowAsync()
     {
         var fx = new ClassificationFixture();
         var heic = StoredHeic(PairedMovId);
-        fx.Store(heic);
+        var other = StoredMov(Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), ProxyType.WebVideo);
+        fx.Store(heic, other);
 
         await fx.Build().InvokeAsync(Pair(), NoOpNextAsync, CancellationToken.None);
 
-        heic.LastSeenOnNas.Should().Be(Now);
-        fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
-        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        heic.PairedAssetId.Should().Be(other.Id);
+        await fx.DidNotTranscodeAsync();
+        await fx.UnitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

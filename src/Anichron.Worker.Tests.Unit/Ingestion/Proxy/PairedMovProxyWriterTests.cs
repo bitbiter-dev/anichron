@@ -28,6 +28,7 @@ public sealed class PairedMovProxyWriterTests
             Generator.FileName.Returns("video_720p.mp4");
             Generator.ProxyType.Returns(ProxyType.WebVideo);
             DirectoryStrategy.GetDirectory(ConfigId, "cafebabe").Returns("ca/mov");
+            DirectoryStrategy.GetDirectory(ConfigId, "0ldm0v").Returns("0l/old");
             Generator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo =>
                 {
@@ -132,5 +133,49 @@ public sealed class PairedMovProxyWriterTests
 
         wrote.Should().BeTrue();
         fixture.TranscodedSources.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task WriteMissingAsync_VideoProxyThisAttemptAlreadyWroteForTheMov_TranscodesNothingAsync()
+    {
+        var fixture = new TestFixture();
+        var context = MakePairContext();
+        context.AddProxyFile(new ProxyFile { AssetId = MovId, ProxyType = ProxyType.WebVideo });
+
+        var wrote = await fixture.Build().WriteMissingAsync(context, Mov(), CancellationToken.None);
+
+        wrote.Should().BeFalse();
+        fixture.TranscodedSources.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task WriteForNewContentAsync_TranscodesIntoTheNewContentsDirectoryEvenWithAVideoProxyAsync()
+    {
+        var fixture = new TestFixture();
+        var context = MakePairContext();
+        var mov = Mov(ProxyType.WebVideo);
+        mov.ContentHash = "0ldm0v";
+
+        var written = await fixture.Build().WriteForNewContentAsync(context, mov, CancellationToken.None);
+
+        fixture.TranscodedSources.Should().Equal("/nas/photo.mov");
+        fixture.FileSystem.FileExists("/data/proxies/ca/mov/video_720p.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/0l/old/video_720p.mp4").Should().BeFalse();
+        var proxy = written.Should().ContainSingle().Which;
+        proxy.Should().BeEquivalentTo(new { AssetId = MovId, ProxyType = ProxyType.WebVideo, ProxyPath = "ca/mov/video_720p.mp4" });
+        context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(proxy);
+        fixture.Repository.DidNotReceive().AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>());
+    }
+
+    [Fact]
+    public async Task WriteForNewContentAsync_ReturnsOnlyTheMovsProxiesAsync()
+    {
+        var fixture = new TestFixture();
+        var context = MakePairContext();
+        context.AddProxyFile(new ProxyFile { AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail });
+
+        var written = await fixture.Build().WriteForNewContentAsync(context, Mov(), CancellationToken.None);
+
+        written.Should().ContainSingle().Which.AssetId.Should().Be(MovId);
     }
 }

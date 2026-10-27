@@ -2,11 +2,13 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using NodaTime;
 using NSubstitute.ExceptionExtensions;
 using static Anichron.Worker.Tests.Unit.Ingestion.Middlewares.ClassificationFixture;
 
@@ -106,27 +108,34 @@ public sealed class ClassificationMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_UnchangedHeicWithEditedMov_LeavesBothRowsAndSavesOnlyTheHeicRefreshAsync()
+    public async Task InvokeAsync_VideoEditedInPlace_ItsRowTakesTheNewContentAndANewVideoProxyAsync()
     {
         var fx = new ClassificationFixture();
         var heic = Stored("photo.heic");
+        heic.DateCaptured = new LocalDateTime(2023, 6, 15, 10, 0);
         var mov = StoredMov("photo.mov");
         mov.ContentHash = "0ldm0v";
-        mov.ProxyFiles = [new ProxyFile { AssetId = mov.Id, ProxyType = ProxyType.WebVideo }];
+        var webVideo = new ProxyFile { AssetId = mov.Id, ProxyType = ProxyType.WebVideo, ProxyPath = "0l/old/video_720p.mp4" };
+        mov.ProxyFiles = [webVideo];
         heic.PairedAssetId = mov.Id;
         fx.Store(heic, mov);
+        var context = Pair();
 
-        (await NextCalledAsync(fx, Pair())).Should().BeFalse();
+        (await NextCalledAsync(fx, context)).Should().BeFalse();
 
         heic.LastSeenOnNas.Should().Be(Now);
-        mov.ContentHash.Should().Be("0ldm0v");
-        mov.LastSeenOnNas.Should().Be(FirstSeen);
+        mov.Should().BeEquivalentTo(new
+        {
+            ContentHash = "cafebabe",
+            DateCaptured = new LocalDateTime(2023, 6, 15, 10, 0),
+            MediaType = MediaType.Video,
+            LastSeenOnNas = Now,
+        });
+        webVideo.ProxyPath.Should().Be("ca/11111111111111111111111111111111-cafebabe/video_720p.mp4");
+        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        context.ProxyFiles.Should().ContainSingle().Which.AssetId.Should().Be(mov.Id);
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
-
-    // ==========================================================================
-    // Known content
-    // ==========================================================================
 
     [Fact]
     public async Task InvokeAsync_KnownHash_DoesNotCallNextAsync()
@@ -341,6 +350,20 @@ public sealed class ClassificationMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_SaveWithNothingRetiredFirstLosesARace_FailsTheItemAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.Store(Stored("2023/photo.jpg"));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+
+        var act = () => fx.Build().InvokeAsync(Single("2024/renamed.jpg"), NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        await fx.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void CanInvoke_AnyItem_IsTrue()
         => new ClassificationFixture().Build().CanInvoke(Single()).Should().BeTrue();
 
@@ -368,38 +391,47 @@ public sealed class ClassificationMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_HeicMovedOntoAnotherRowsPath_StillMovesMovInTheSameSaveAsync()
+    public async Task InvokeAsync_LivePhotoMovedOntoAStillPhoto_TheStillPhotoTakesThePhotoAndTheMovedVideoAsync()
     {
         var fx = new ClassificationFixture();
         var heic = Stored("2023/live.heic");
         var mov = StoredMov("2023/live.mov");
         var atPath = PathRow("2024/live.heic", "f00d");
+        heic.PairedAssetId = mov.Id;
         fx.Store(heic, mov, atPath);
-        heic.PairedAssetId = Guid.NewGuid();
 
         await fx.Build().InvokeAsync(Pair("2024/live.heic", "2024/live.mov"), NoOpNextAsync, CancellationToken.None);
 
         atPath.ContentHash.Should().Be("abc123");
-        heic.IsSoftDeleted.Should().BeTrue();
+        atPath.PairedAssetId.Should().Be(mov.Id);
+        (heic.IsSoftDeleted, heic.PairedAssetId).Should().Be((true, null));
         mov.FilePath.Should().Be("2024/live.mov");
+        await fx.Repository.Received(1).SoftDeleteAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { heic.Id })), Arg.Any<CancellationToken>());
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task InvokeAsync_MovPathTaken_KeepsHeicMoveAndNamesMovPathAsync()
+    public async Task InvokeAsync_VideoMovedOntoAPathAnotherRowHolds_ThatRowTakesItAndThePhotoPointsAtItInOneSaveAsync()
     {
         var fx = new ClassificationFixture();
         var heic = Stored("2023/live.heic");
         var mov = StoredMov("2023/live.mov");
-        fx.Store(heic, mov, Stored("2024/live.mov", contentHash: "f00d"));
-        heic.PairedAssetId = Guid.NewGuid();
+        var holder = PathRow("2024/live.mov", "f00d");
+        heic.PairedAssetId = mov.Id;
+        fx.Store(heic, mov, holder);
 
         await fx.Build().InvokeAsync(Pair("2024/live.heic", "2024/live.mov"), NoOpNextAsync, CancellationToken.None);
 
         heic.FilePath.Should().Be("2024/live.heic");
-        mov.FilePath.Should().Be("2023/live.mov");
-        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
-            .Which.Message.Should().Contain("2024/live.mov");
+        heic.PairedAssetId.Should().Be(holder.Id);
+        holder.ContentHash.Should().Be("cafebabe");
+        mov.IsSoftDeleted.Should().BeTrue();
+        await fx.MovGenerator.DidNotReceive().TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await fx.Repository.Received(1).SoftDeleteAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { mov.Id })), Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -467,5 +499,166 @@ public sealed class ClassificationMiddlewareTests
             .Should().Equal(
                 "Duplicate content abc123 in storage config 11111111-1111-1111-1111-111111111111: copy/live.heic is a copy of 2023/live.heic.",
                 "Duplicate content cafebabe in storage config 11111111-1111-1111-1111-111111111111: copy/live.mov is a copy of 2023/live.mov.");
+    }
+
+    // ==========================================================================
+    // A Live Photo as one unit
+    // ==========================================================================
+
+    private static readonly Guid AHeicId = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000000");
+    private static readonly Guid AVideoId = Guid.Parse("a2a2a2a2-0000-0000-0000-000000000000");
+    private static readonly Guid BHeicId = Guid.Parse("b1b1b1b1-0000-0000-0000-000000000000");
+    private static readonly Guid BVideoId = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000000");
+
+    private static MediaAsset Half(Guid id, string filePath, string contentHash, Guid? pairedAssetId = null) => new()
+    {
+        Id = id,
+        StorageConfigId = ConfigId,
+        FilePath = filePath,
+        FileName = Path.GetFileName(filePath),
+        ContentHash = contentHash,
+        MediaType = pairedAssetId is null ? MediaType.Video : MediaType.LivePhoto,
+        PairedAssetId = pairedAssetId,
+        LastSeenOnNas = FirstSeen,
+    };
+
+    private static IngestionContext LivePhoto(string name) => new()
+    {
+        Item = new LivePhotoPairItem($"/abs/{name}.heic", $"{name}.heic", $"/abs/{name}.mov", $"{name}.mov"),
+        Config = new UserStorageConfig { Id = ConfigId, UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AttemptId = Guid.NewGuid(),
+        ContentHash = "b0b0",
+        SecondaryHash = "b1b1",
+    };
+
+    private static Task SoftDeletedAsync(ClassificationFixture fx, params Guid[] ids)
+        => fx.Repository.Received(1).SoftDeleteAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(retired => retired.SequenceEqual(ids)), Arg.Any<CancellationToken>());
+
+    [Fact]
+    public async Task InvokeAsync_WholeLivePhotoMovedOntoAnother_BothOfItsRowsTakeTheContentInOneTransactionAsync()
+    {
+        var fx = new ClassificationFixture();
+        var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "a0a0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
+        var (bHeic, bVideo) = (Half(BHeicId, "B.heic", "b0b0", BVideoId), Half(BVideoId, "B.mov", "b1b1"));
+        bVideo.ProxyFiles = [new ProxyFile { AssetId = BVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video_720p.mp4" }];
+        fx.StoreMatched(
+            new MatchedAsset(aHeic, IsLivePhotoVideo: false), new MatchedAsset(aVideo, IsLivePhotoVideo: true),
+            new MatchedAsset(bHeic, IsLivePhotoVideo: false), new MatchedAsset(bVideo, IsLivePhotoVideo: true));
+        var context = LivePhoto("A");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        (aHeic.ContentHash, aVideo.ContentHash).Should().Be(("b0b0", "b1b1"));
+        aHeic.PairedAssetId.Should().Be(AVideoId);
+        (bHeic.IsSoftDeleted, bVideo.IsSoftDeleted).Should().Be((true, true));
+        bHeic.PairedAssetId.Should().Be(BVideoId);
+        fx.AddedProxies.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new { AssetId = AVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video_720p.mp4" });
+        await fx.DidNotTranscodeAsync();
+        await SoftDeletedAsync(fx, BHeicId, BVideoId);
+        await fx.UnitOfWork.Received(1).ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        context.SoftDeleted.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WholeLivePhotoMovedOntoAnotherLosesTheRace_SavesNothingAndCountsNothingAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.StoreMatched(
+            new MatchedAsset(Half(AHeicId, "A.heic", "a0a0", AVideoId), IsLivePhotoVideo: false),
+            new MatchedAsset(Half(AVideoId, "A.mov", "a1a1"), IsLivePhotoVideo: true),
+            new MatchedAsset(Half(BHeicId, "B.heic", "b0b0", BVideoId), IsLivePhotoVideo: false),
+            new MatchedAsset(Half(BVideoId, "B.mov", "b1b1"), IsLivePhotoVideo: true));
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        var context = LivePhoto("A");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.SoftDeleted.Should().Be(0);
+        fx.MiddlewareLogger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Message.Should().Contain("A.heic");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AnotherLivePhotosVideoCopiedOverTheVideo_RetiresThePairedRowAndCountsTheCopyAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.FileSystem.AddEmptyFile("/abs/B.mov");
+        var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "b0b0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
+        var bVideo = Half(BVideoId, "B.mov", "b1b1");
+        fx.StoreMatched(
+            new MatchedAsset(aHeic, IsLivePhotoVideo: false),
+            new MatchedAsset(aVideo, IsLivePhotoVideo: true),
+            new MatchedAsset(bVideo, IsLivePhotoVideo: true));
+        var context = LivePhoto("A");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        aVideo.IsSoftDeleted.Should().BeTrue();
+        (bVideo.IsSoftDeleted, bVideo.FilePath).Should().Be((false, "B.mov"));
+        aHeic.PairedAssetId.Should().Be(AVideoId);
+        context.Classification!.DuplicateCopies.Should().Be(1);
+        context.SoftDeleted.Should().Be(1);
+        await fx.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AnotherLivePhotosVideoMovedOntoTheVideo_ThePairedRowTakesItAndTheMovedRowIsRetiredFirstAsync()
+    {
+        var fx = new ClassificationFixture();
+        var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "b0b0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
+        var bVideo = Half(BVideoId, "B.mov", "b1b1");
+        fx.StoreMatched(
+            new MatchedAsset(aHeic, IsLivePhotoVideo: false),
+            new MatchedAsset(aVideo, IsLivePhotoVideo: true),
+            new MatchedAsset(bVideo, IsLivePhotoVideo: true));
+
+        await fx.Build().InvokeAsync(LivePhoto("A"), NoOpNextAsync, CancellationToken.None);
+
+        (aVideo.ContentHash, aVideo.IsSoftDeleted).Should().Be(("b1b1", false));
+        bVideo.IsSoftDeleted.Should().BeTrue();
+        await SoftDeletedAsync(fx, BVideoId);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotoCopiedOverAnother_LeavesTheCopiedRowsAndRetiresOnlyTheOverwrittenPhotoAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.FileSystem.AddEmptyFile("/abs/B.heic");
+        var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "a0a0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
+        var bHeic = Half(BHeicId, "B.heic", "b0b0", BVideoId);
+        fx.StoreMatched(
+            new MatchedAsset(aHeic, IsLivePhotoVideo: false),
+            new MatchedAsset(aVideo, IsLivePhotoVideo: true),
+            new MatchedAsset(bHeic, IsLivePhotoVideo: false));
+
+        await fx.Build().InvokeAsync(LivePhoto("A"), NoOpNextAsync, CancellationToken.None);
+
+        aHeic.IsSoftDeleted.Should().BeTrue();
+        (aVideo.IsSoftDeleted, aVideo.LastSeenOnNas).Should().Be((false, FirstSeen));
+        (bHeic.PairedAssetId, bHeic.FilePath, bHeic.LastSeenOnNas).Should().Be((BVideoId, "B.heic", FirstSeen));
+        fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PhotoAndVideoEditedTogether_TheVideoTakesItsContentBeforeThePhotoIsProcessedAsync()
+    {
+        var fx = new ClassificationFixture();
+        var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "a0a0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
+        fx.Store(aHeic, aVideo);
+        string? videoHashAtNext = null;
+
+        await fx.Build().InvokeAsync(LivePhoto("A"), (_, _) =>
+        {
+            videoHashAtNext = aVideo.ContentHash;
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+
+        videoHashAtNext.Should().Be("b1b1");
+        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/A.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

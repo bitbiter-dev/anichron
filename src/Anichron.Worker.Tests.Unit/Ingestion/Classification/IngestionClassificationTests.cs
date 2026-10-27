@@ -1,3 +1,4 @@
+using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Classification;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Classification;
@@ -25,7 +26,7 @@ public sealed class IngestionClassificationTests
 
     [Fact]
     public void DuplicateCopies_KnownContentWithoutCopies_IsZero()
-        => (DuplicateCopies(FileOutcome.Moved), DuplicateCopies(FileOutcome.PathTaken, FileOutcome.Unchanged))
+        => (DuplicateCopies(FileOutcome.Moved), DuplicateCopies(FileOutcome.Unchanged, FileOutcome.Unchanged))
             .Should().Be((0, 0));
 
     [Fact]
@@ -54,4 +55,81 @@ public sealed class IngestionClassificationTests
     public void LoneLivePhotoVideo_NeedsNoProcessingAndIsNoCopy()
         => Classifications.Of(FileOutcome.LoneLivePhotoVideo)
             .Should().Match<IngestionClassification>(c => !c.NeedsProcessing && c.DuplicateCopies == 0);
+
+    [Fact]
+    public void Row_OutcomeTheStoredRowDescribesTheFileAfter_IsTheStoredRow()
+        => new[]
+            {
+                FileOutcome.Unchanged, FileOutcome.Moved, FileOutcome.ContentChanged, FileOutcome.OverwrittenByMove,
+                FileOutcome.AutoRestored, FileOutcome.AutoRestoredMoved, FileOutcome.AutoRestoredContentChanged,
+            }
+            .Should().AllSatisfy(outcome =>
+            {
+                var stored = new MediaAsset();
+                new FileClassification(outcome, stored).Row.Should().BeSameAs(stored);
+            });
+
+    [Fact]
+    public void Row_ContentAnotherRowKeeps_IsNone()
+        => new[] { FileOutcome.DuplicateCopy, FileOutcome.OverwrittenByCopy, FileOutcome.LoneLivePhotoVideo }
+            .Should().AllSatisfy(outcome => new FileClassification(outcome, new MediaAsset()).Row.Should().BeNull());
+
+    [Fact]
+    public void TakesContent_ContentTheStoredRowDoesNotHold_IsTrue()
+        => new[] { FileOutcome.ContentChanged, FileOutcome.AutoRestoredContentChanged, FileOutcome.OverwrittenByMove }
+            .Should().AllSatisfy(outcome => new FileClassification(outcome, new MediaAsset()).TakesContent.Should().BeTrue());
+
+    [Fact]
+    public void TakesContent_ContentTheStoredRowHolds_IsFalse()
+        => new[]
+            {
+                FileOutcome.Unchanged, FileOutcome.Moved, FileOutcome.AutoRestored, FileOutcome.AutoRestoredMoved,
+                FileOutcome.New, FileOutcome.DuplicateCopy, FileOutcome.OverwrittenByCopy,
+            }
+            .Should().AllSatisfy(outcome => new FileClassification(outcome, new MediaAsset()).TakesContent.Should().BeFalse());
+
+    [Fact]
+    public void RetiredFirst_NeitherHalfOverwrittenByMove_IsEmpty()
+    {
+        var classification = new IngestionClassification(
+            new FileClassification(FileOutcome.OverwrittenByCopy, new MediaAsset(), Retired: new MediaAsset()),
+            new FileClassification(FileOutcome.OverwrittenByCopy, new MediaAsset(), Retired: new MediaAsset()),
+            PairingAction.None);
+
+        classification.RetiredFirst.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RetiredFirst_SingleFileOverwrittenByMove_IsItsRetiredRow()
+    {
+        var retired = new MediaAsset();
+        var classification = new IngestionClassification(
+            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: retired), null, PairingAction.None);
+
+        classification.RetiredFirst.Should().Equal(retired);
+    }
+
+    [Fact]
+    public void RetiredFirst_VideoOverwrittenByMove_IsEveryHalfsRetiredRow()
+    {
+        var (photoRetired, videoRetired) = (new MediaAsset(), new MediaAsset());
+        var classification = new IngestionClassification(
+            new FileClassification(FileOutcome.OverwrittenByCopy, new MediaAsset(), Retired: photoRetired),
+            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: videoRetired),
+            PairingAction.None);
+
+        classification.RetiredFirst.Should().Equal(photoRetired, videoRetired);
+    }
+
+    [Fact]
+    public void RetiredFirst_HalfWithoutARetiredRow_IsLeftOut()
+    {
+        var retired = new MediaAsset();
+        var classification = new IngestionClassification(
+            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: retired),
+            new FileClassification(FileOutcome.Moved, new MediaAsset()),
+            PairingAction.None);
+
+        classification.RetiredFirst.Should().Equal(retired);
+    }
 }
