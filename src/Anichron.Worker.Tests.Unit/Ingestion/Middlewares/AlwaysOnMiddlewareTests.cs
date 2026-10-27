@@ -28,7 +28,7 @@ public sealed class AlwaysOnMiddlewareTests
                 new KnownFileReconciler(
                     Substitute.For<IClock>(), repository,
                     new StoredContent(repository, Substitute.For<IBurstRepository>(), Substitute.For<IClock>()), Substitute.For<IGuidFactory>(),
-                    new FakeLogger<KnownFileReconciler>()),
+                    null!, fileSystem, new FakeLogger<KnownFileReconciler>()),
                 saver,
                 new FakeLogger<ClassificationMiddleware>()),
             "ContentHashing" => new ContentHashingMiddleware(fileSystem),

@@ -2,7 +2,9 @@ using Anichron.Core;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 using NodaTime;
+using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
@@ -11,6 +13,8 @@ internal sealed partial class KnownFileReconciler(
     IMediaAssetRepository repository,
     StoredContent storedContent,
     IGuidFactory guidFactory,
+    PairedMovProxyWriter pairedMovProxyWriter,
+    IFileSystem fileSystem,
     ILogger<KnownFileReconciler> logger)
 {
     public Task<bool> ReconcileAsync(
@@ -19,12 +23,11 @@ internal sealed partial class KnownFileReconciler(
             FileOutcome.Unchanged => Task.FromResult(Refresh(file.Stored!, relativePath)),
             FileOutcome.Moved => Task.FromResult(Move(file.Stored!, relativePath)),
             FileOutcome.DuplicateCopy => Task.FromResult(SkipDuplicate(file.Stored!, relativePath)),
-            FileOutcome.PathTaken => Task.FromResult(SkipTakenPath(relativePath)),
             FileOutcome.OverwrittenByCopy => Task.FromResult(RetireOverwritten(context, file.Stored!, file.Retired!, relativePath)),
             FileOutcome.OverwrittenByMove => TakeMovedContentAsync(context, file.Stored!, file.Retired!, relativePath, ct),
-            FileOutcome.AutoRestored or FileOutcome.AutoRestoredContentChanged
-                => AutoRestoreAsync(context, file.Stored!, file.Stored!.FilePath, ct),
-            FileOutcome.AutoRestoredMoved => AutoRestoreAsync(context, file.Stored!, relativePath, ct),
+            FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged
+                => TakeVideoContentAsync(context, file.Stored!, relativePath, ct),
+            FileOutcome.AutoRestored or FileOutcome.AutoRestoredMoved => AutoRestoreAsync(context, file.Stored!, relativePath, ct),
             FileOutcome.LoneLivePhotoVideo => Task.FromResult(LeaveLivePhotoVideo(context, file.Stored!, file.Retired, relativePath)),
             _ => Task.FromResult(false),
         };
@@ -47,12 +50,6 @@ internal sealed partial class KnownFileReconciler(
     private bool SkipDuplicate(MediaAsset stored, string relativePath)
     {
         Log.DuplicateCopy(logger, stored.ContentHash, stored.StorageConfigId, relativePath, stored.FilePath);
-        return false;
-    }
-
-    private bool SkipTakenPath(string relativePath)
-    {
-        Log.PathTaken(logger, relativePath);
         return false;
     }
 
@@ -83,12 +80,28 @@ internal sealed partial class KnownFileReconciler(
         IngestionContext context, MediaAsset atPath, MediaAsset moved, string relativePath, CancellationToken ct)
     {
         await repository.LoadMetadataAsync(moved, ct);
+        MoveTo(atPath, relativePath);
         await storedContent.TakeAsync(
             context, atPath, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))]), ct);
 
         moved.IsSoftDeleted = true;
+        if (moved.PairedAssetId == atPath.PairedAssetId)
+            moved.PairedAssetId = null;
         context.StageSoftDeleted();
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
+        return true;
+    }
+
+    private async Task<bool> TakeVideoContentAsync(
+        IngestionContext context, MediaAsset video, string relativePath, CancellationToken ct)
+    {
+        Log.VideoContentChanged(logger, video.Id, relativePath, video.ContentHash, context.SecondaryHash!);
+        MoveTo(video, relativePath);
+        var proxies = await pairedMovProxyWriter.WriteForNewContentAsync(context, video, ct);
+        var captured = context.Classification!.Primary.Row?.DateCaptured
+            ?? CaptureDate.FromExifOrLastWrite(null, fileSystem, context.Item.SecondaryFile!.AbsolutePath);
+        await storedContent.TakeAsync(
+            context, video, new AssetContent(context.SecondaryHash!, captured, MediaType.Video, new Metadata(), proxies), ct);
         return true;
     }
 
@@ -137,8 +150,10 @@ internal sealed partial class KnownFileReconciler(
         [LoggerMessage(Level = LogLevel.Information, Message = "Asset {AssetId} moved from {OldPath} to {NewPath}")]
         public static partial void Moved(ILogger logger, Guid assetId, string oldPath, string newPath);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Cannot record {RelativePath}: another asset row already holds that path, skipping.")]
-        public static partial void PathTaken(ILogger logger, string relativePath);
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "Video asset {AssetId} at {RelativePath} changed content from {OldHash} to {NewHash}, updating it in place.")]
+        public static partial void VideoContentChanged(ILogger logger, Guid assetId, string relativePath, string oldHash, string newHash);
 
         [LoggerMessage(
             Level = LogLevel.Information,
