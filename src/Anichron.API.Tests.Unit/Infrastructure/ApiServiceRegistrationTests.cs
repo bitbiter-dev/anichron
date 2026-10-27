@@ -121,6 +121,8 @@ public sealed class ApiServiceRegistrationTests
     [InlineData(typeof(IWorkItemReader), typeof(EfWorkItemReader))]
     [InlineData(typeof(IWorkItemCanceller), typeof(EfWorkItemCanceller))]
     [InlineData(typeof(WorkItemEvents), typeof(WorkItemEvents))]
+    [InlineData(typeof(IWorkQueue), typeof(EfWorkQueue))]
+    [InlineData(typeof(IProxyOrphanReader), typeof(EfProxyOrphanReader))]
     public void AddWorkItemServices_RegistersTheScopedImplementation(Type service, Type implementation)
         => WorkItemServices().Should().ContainSingle(d => d.ServiceType == service)
             .Which.Should().Match<ServiceDescriptor>(d => d.ImplementationType == implementation && d.Lifetime == ServiceLifetime.Scoped);

@@ -50,7 +50,7 @@ internal sealed partial class ProxySweepHandler(
     private async Task<List<FoundOrphan>> ScanRootAsync(Instant writtenBefore, CancellationToken ct)
     {
         var found = new List<FoundOrphan>();
-        foreach (var file in fileSystem.Directory.EnumerateFiles(StoragePath.ProxiesRoot).Order(StringComparer.Ordinal))
+        foreach (var file in fileSystem.Directory.EnumerateFiles(StoragePath.ProxiesRoot))
         {
             var path = RelativePath(file);
             if (Unreferenced(file, path, writtenBefore) is { } orphan && !await store.IsReferencedAsync(path, ct))
@@ -63,13 +63,16 @@ internal sealed partial class ProxySweepHandler(
     private async Task<List<FoundOrphan>> ScanShardAsync(string shard, Instant writtenBefore, CancellationToken ct)
     {
         var referenced = await store.ReferencedUnderAsync(fileSystem.Path.GetFileName(shard), ct);
-        return [.. fileSystem.Directory.EnumerateFiles(shard, "*", SearchOption.AllDirectories)
-            .Order(StringComparer.Ordinal)
+        return [.. FilesUnder(shard)
             .Select(file => (File: file, Path: RelativePath(file)))
             .Where(file => !referenced.Contains(file.Path))
             .Select(file => Unreferenced(file.File, file.Path, writtenBefore))
             .OfType<FoundOrphan>()];
     }
+
+    private IEnumerable<string> FilesUnder(string directory)
+        => fileSystem.Directory.EnumerateFiles(directory)
+            .Concat(fileSystem.Directory.EnumerateDirectories(directory).SelectMany(FilesUnder));
 
     private FoundOrphan? Unreferenced(string file, string path, Instant writtenBefore)
     {
