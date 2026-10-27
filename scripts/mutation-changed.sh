@@ -3,9 +3,17 @@
 #
 # Runs Stryker over only the C# files changed since the merge-base with <ref>
 # (default origin/master): committed, staged, unstaged and untracked. A changed
-# test file <Name>Tests.cs selects <Name>.cs in the matching production project.
-# Test changes that map to no source file exit 1 unless the source files they
-# cover are passed explicitly, as paths relative to src/.
+# test file <Name><Suffix>Tests.cs in <Project>.Tests.Unit selects, in <Project>,
+# the file <Name><Suffix>.cs, else the file declaring that type, else the file
+# named after the longest leading CamelCase part of it (ProxySweepEndpointsHttp
+# finds ProxySweepEndpoints.cs). A test project with no production project
+# (Anichron.Architecture.Tests.Unit) is not mutated. Test changes that map to no
+# source file exit 1 unless the source files they cover are passed explicitly,
+# as paths relative to src/.
+#
+# Before Stryker, the unit suite runs once: Stryker tests every mutant against
+# every test project, so one failing test fails each project's run. A failing
+# suite exits 1 with no Stryker run.
 #
 # One Stryker run per mutation target project (scripts/mutation-targets.sh),
 # one after another, each with its own TMPDIR. Every run goes ahead; the exit
@@ -24,7 +32,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) explicit+=("${1#src/}"); shift ;;
   esac
@@ -49,6 +57,26 @@ changed=$(
 
 targets=()
 unmapped=()
+outside_tests=()
+
+# The source file in $1 (a project folder under src/) that the test class $2 covers, if exactly one.
+subject_of() {
+  local project="$1" name="$2" match stem
+  match=$(cd "$src" && find "$project" -name "$name.cs" -not -path '*/obj/*' -not -path '*/bin/*')
+  if [ -z "$match" ]; then
+    match=$(cd "$src" && grep -rlE --include='*.cs' --exclude-dir=obj --exclude-dir=bin \
+      "(class|record|struct|interface)[[:space:]]+$name([^[:alnum:]_]|\$)" "$project" || true)
+  fi
+  stem="$name"
+  while [ -z "$match" ]; do
+    stem=$(sed -E 's/[A-Z][a-z0-9]*$//' <<<"$stem")
+    [ -n "$stem" ] || break
+    match=$(cd "$src" && find "$project" -name "$stem.cs" -not -path '*/obj/*' -not -path '*/bin/*')
+  done
+  if [ -n "$match" ] && [ "$(wc -l <<<"$match")" -eq 1 ]; then
+    printf '%s' "$match"
+  fi
+}
 
 while IFS= read -r path; do
   [ -n "$path" ] || continue
@@ -59,10 +87,14 @@ while IFS= read -r path; do
       file=$(basename "$rel")
       name="${file%Tests.cs}"
       match=''
-      if [ "$name" != "$file" ] && [ -d "$src/$project" ]; then
-        match=$(cd "$src" && find "$project" -name "$name.cs" -not -path '*/obj/*' -not -path '*/bin/*')
+      if [ ! -d "$src/$project" ]; then
+        outside_tests+=("$rel")
+        continue
       fi
-      if [ -n "$match" ] && [ "$(wc -l <<<"$match")" -eq 1 ]; then
+      if [ "$name" != "$file" ]; then
+        match=$(subject_of "$project" "$name")
+      fi
+      if [ -n "$match" ]; then
         targets+=("$match")
       else
         unmapped+=("$rel")
@@ -88,6 +120,10 @@ if [ "${#unmapped[@]}" -gt 0 ]; then
     echo '  scripts/mutation-changed.sh Anichron.API/Endpoints/AdminUserEndpoints.cs' >&2
     exit 1
   fi
+fi
+
+if [ "${#outside_tests[@]}" -gt 0 ]; then
+  echo "not mutated (tests of no production project): ${outside_tests[*]}"
 fi
 
 if [ "${#targets[@]}" -eq 0 ]; then
@@ -143,6 +179,12 @@ run_tmp=$(mktemp -d "${TMPDIR:-/tmp}/mutation-changed.XXXXXXXX") \
 trap 'rm -rf "$run_tmp"' EXIT
 
 cd "$src"
+echo '== unit tests'
+if ! dotnet test; then
+  echo '== unit tests failed: fix them before mutating; Stryker would fail every run' >&2
+  exit 1
+fi
+
 worst=0
 for project in "${runs[@]}"; do
   name=$(basename "$project" .csproj)
