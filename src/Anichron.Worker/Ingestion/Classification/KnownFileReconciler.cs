@@ -25,6 +25,7 @@ internal sealed partial class KnownFileReconciler(
             FileOutcome.AutoRestored or FileOutcome.AutoRestoredContentChanged
                 => AutoRestoreAsync(context, file.Stored!, file.Stored!.FilePath, ct),
             FileOutcome.AutoRestoredMoved => AutoRestoreAsync(context, file.Stored!, relativePath, ct),
+            FileOutcome.LoneLivePhotoVideo => Task.FromResult(LeaveLivePhotoVideo(context, file.Stored!, file.Retired, relativePath)),
             _ => Task.FromResult(false),
         };
 
@@ -64,6 +65,20 @@ internal sealed partial class KnownFileReconciler(
         return true;
     }
 
+    private bool LeaveLivePhotoVideo(IngestionContext context, MediaAsset video, MediaAsset? atPath, string relativePath)
+    {
+        if (atPath is null)
+        {
+            Log.LeftLivePhotoVideo(logger, relativePath, video.Id);
+            return false;
+        }
+
+        atPath.IsSoftDeleted = true;
+        context.StageSoftDeleted();
+        Log.OverwrittenByLivePhotoVideo(logger, atPath.Id, relativePath, video.Id, video.FilePath);
+        return true;
+    }
+
     private async Task<bool> TakeMovedContentAsync(
         IngestionContext context, MediaAsset atPath, MediaAsset moved, string relativePath, CancellationToken ct)
     {
@@ -82,6 +97,13 @@ internal sealed partial class KnownFileReconciler(
         MoveTo(trashed, relativePath);
         await storedContent.ReactivateAsync(context, trashed, ct);
         Log.AutoRestored(logger, trashed.Id, relativePath);
+        if (context.Classification?.Primary is { Stored: { } photo } primary
+            && photo.PairedAssetId == trashed.Id
+            && primary.Outcome is not (FileOutcome.AutoRestored or FileOutcome.AutoRestoredMoved or FileOutcome.AutoRestoredContentChanged))
+        {
+            Log.LivePhotoAgain(logger, photo.Id, trashed.Id, relativePath);
+        }
+
         return true;
     }
 
@@ -131,5 +153,22 @@ internal sealed partial class KnownFileReconciler(
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Auto-restored asset {AssetId} at {RelativePath}.")]
         public static partial void AutoRestored(ILogger logger, Guid assetId, string relativePath);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "Asset {PhotoId} is a Live Photo again: its video, asset {VideoId} at {RelativePath}, was auto-restored.")]
+        public static partial void LivePhotoAgain(ILogger logger, Guid photoId, Guid videoId, string relativePath);
+
+        [LoggerMessage(
+            Level = LogLevel.Debug,
+            Message = "Left {RelativePath} alone: it holds the video of a Live Photo, asset {VideoId}, which follows only its photo.")]
+        public static partial void LeftLivePhotoVideo(ILogger logger, string relativePath, Guid videoId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "Soft-deleted asset {AssetId} at {RelativePath}: the path now holds a copy of the video of a Live Photo, "
+                + "{VideoId} at {VideoPath}.")]
+        public static partial void OverwrittenByLivePhotoVideo(
+            ILogger logger, Guid assetId, string relativePath, Guid videoId, string videoPath);
     }
 }

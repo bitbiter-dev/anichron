@@ -123,6 +123,7 @@ public sealed class MediaAssetRepositoryTests(PostgresServer server)
         string.Join('\n', plan).Should()
             .Contain("ix_mediaassets_storageconfigid_contenthash_active")
             .And.Contain("ix_mediaassets_storageconfigid_contenthash_softdeleted")
-            .And.Contain("IX_MediaAssets_StorageConfigId_FilePath");
+            .And.Contain("IX_MediaAssets_StorageConfigId_FilePath")
+            .And.Contain("IX_MediaAssets_PairedAssetId");
     }
 }

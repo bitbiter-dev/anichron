@@ -49,4 +49,9 @@ public sealed class IngestionClassificationTests
     public void NeedsProcessing_StoredContent_IsFalse()
         => new[] { FileOutcome.Unchanged, FileOutcome.OverwrittenByMove, FileOutcome.AutoRestored, FileOutcome.AutoRestoredMoved }
             .Should().AllSatisfy(outcome => Classifications.Of(outcome).NeedsProcessing.Should().BeFalse());
+
+    [Fact]
+    public void LoneLivePhotoVideo_NeedsNoProcessingAndIsNoCopy()
+        => Classifications.Of(FileOutcome.LoneLivePhotoVideo)
+            .Should().Match<IngestionClassification>(c => !c.NeedsProcessing && c.DuplicateCopies == 0);
 }

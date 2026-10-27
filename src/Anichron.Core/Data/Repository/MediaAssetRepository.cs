@@ -5,18 +5,28 @@ namespace Anichron.Core.Data.Repository;
 
 public sealed record ContentLocation(Guid UserId, string ContentHash, Guid StorageConfigId, string FilePath);
 
-public sealed record AssetPath(Guid Id, string FilePath);
+/// <summary>An active row's path, with what the missing-file sweep needs to soft-delete a Live Photo as one.</summary>
+/// <param name="Id">The row.</param>
+/// <param name="FilePath">Its path, relative to the config's root.</param>
+/// <param name="PairedAssetId">The video the row points at, when it is a Live Photo's photo.</param>
+/// <param name="IsVideoOfASoftDeletedPhoto">Whether a soft-deleted photo points at the row as its video.</param>
+public sealed record AssetPath(Guid Id, string FilePath, Guid? PairedAssetId = null, bool IsVideoOfASoftDeletedPhoto = false);
+
+/// <summary>A row the classification query found.</summary>
+/// <param name="Asset">The tracked row, with its proxy rows.</param>
+/// <param name="IsLivePhotoVideo">Whether some photo, active or soft-deleted, points at the row as its video.</param>
+public sealed record MatchedAsset(MediaAsset Asset, bool IsLivePhotoVideo);
 
 public interface IMediaAssetRepository
 {
     Task<MediaAsset?> FindByHashAsync(string contentHash, Guid storageConfigId, CancellationToken ct);
 
-    /// <summary>The config's rows that match, each with its proxy rows.</summary>
+    /// <summary>The config's rows that match, each with its proxy rows and whether it is a Live Photo's video.</summary>
     /// <param name="storageConfigId">The config whose rows are searched.</param>
     /// <param name="contentHashes">Matches active and soft-deleted rows.</param>
     /// <param name="filePaths">Matches active and soft-deleted rows, as the unique path index does.</param>
     /// <param name="ct">Cancels the query.</param>
-    Task<IReadOnlyList<MediaAsset>> FindByHashesOrPathsAsync(
+    Task<IReadOnlyList<MatchedAsset>> FindByHashesOrPathsAsync(
         Guid storageConfigId,
         IReadOnlyCollection<string> contentHashes,
         IReadOnlyCollection<string> filePaths,
@@ -55,26 +65,26 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .IgnoreQueryFilters()
             .Where(a => a.ContentHash == contentHash && a.StorageConfigId == storageConfigId && !a.IsSoftDeleted);
 
-    public async Task<IReadOnlyList<MediaAsset>> FindByHashesOrPathsAsync(
+    public async Task<IReadOnlyList<MatchedAsset>> FindByHashesOrPathsAsync(
         Guid storageConfigId,
         IReadOnlyCollection<string> contentHashes,
         IReadOnlyCollection<string> filePaths,
         CancellationToken ct)
-        => await HashesOrPathsQuery(db, storageConfigId, contentHashes, filePaths)
-            .Include(a => a.ProxyFiles)
-            .ToListAsync(ct);
+        => await HashesOrPathsQuery(db, storageConfigId, contentHashes, filePaths).ToListAsync(ct);
 
-    internal static IQueryable<MediaAsset> HashesOrPathsQuery(
+    internal static IQueryable<MatchedAsset> HashesOrPathsQuery(
         AnichronDbContext db,
         Guid storageConfigId,
         IReadOnlyCollection<string> contentHashes,
         IReadOnlyCollection<string> filePaths)
         => db.MediaAssets
             .IgnoreQueryFilters()
+            .Include(a => a.ProxyFiles)
             .Where(a => a.StorageConfigId == storageConfigId
                 && ((!a.IsSoftDeleted && contentHashes.Contains(a.ContentHash))
                     || (a.IsSoftDeleted && contentHashes.Contains(a.ContentHash))
-                    || filePaths.Contains(a.FilePath)));
+                    || filePaths.Contains(a.FilePath)))
+            .Select(a => new MatchedAsset(a, db.MediaAssets.IgnoreQueryFilters().Any(photo => photo.PairedAssetId == a.Id)));
 
     public async Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(
         IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct)
@@ -103,7 +113,11 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .AsNoTracking()
             .IgnoreQueryFilters()
             .Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted)
-            .Select(a => new AssetPath(a.Id, a.FilePath));
+            .Select(a => new AssetPath(
+                a.Id,
+                a.FilePath,
+                a.PairedAssetId,
+                db.MediaAssets.IgnoreQueryFilters().Any(photo => photo.IsSoftDeleted && photo.PairedAssetId == a.Id)));
 
     public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
         => db.Entry(asset).Reference(a => a.Metadata).Query().IgnoreQueryFilters().LoadAsync(ct);

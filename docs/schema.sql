@@ -145,7 +145,7 @@ CREATE TABLE "MediaAssets" (
     CONSTRAINT "FK_MediaAssets_StorageConfigs_StorageConfigId" FOREIGN KEY ("StorageConfigId") REFERENCES "StorageConfigs" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "MediaAssets" IS 'One row per media file, scoped to a storage config. Written ONLY by the Worker — the API never writes media data.';
-COMMENT ON COLUMN "MediaAssets"."PairedAssetId" IS 'Live Photo pairing: the HEIC parent points at its MOV child. SetNull on delete so losing one half leaves the other a usable standalone asset.';
+COMMENT ON COLUMN "MediaAssets"."PairedAssetId" IS 'Live Photo pairing: the photo points at its video. The video is part of the photo, never a memory of its own: reconciliation soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo is shown as a still photo, so SetNull on delete.';
 COMMENT ON COLUMN "MediaAssets"."FilePath" IS 'Path relative to the storage config root. Not to be confused with ProxyFiles.ProxyPath, which is relative to the proxy root.';
 COMMENT ON COLUMN "MediaAssets"."ContentHash" IS 'XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same bytes under two storage configs are two assets, which is what makes multi-user work. A global unique index on this column alone would break that and must never be added.';
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';

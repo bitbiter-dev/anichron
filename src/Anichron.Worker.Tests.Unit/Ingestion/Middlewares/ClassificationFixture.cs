@@ -39,6 +39,9 @@ internal sealed class ClassificationFixture
     }
 
     public void Store(params MediaAsset[] rows)
+        => StoreMatched([.. rows.Select(row => new MatchedAsset(row, IsLivePhotoVideo: false))]);
+
+    public void StoreMatched(params MatchedAsset[] rows)
         => Repository.FindByHashesOrPathsAsync(
                 ConfigId, Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
             .Returns(rows);
