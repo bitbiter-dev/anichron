@@ -544,6 +544,21 @@ public sealed class IngestionClassifierTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_NextCrawlOfALivePhotoMovedOntoAStillPhoto_IsUnchanged()
+    {
+        var fx = new TestFixture();
+        var aHeic = Row("abc123", "A.heic", pairedAssetId: MovId);
+        var video = Row("cafebabe", "A.mov", id: MovId);
+        fx.StoreMatched(Standalone(aHeic), Standalone(Row("abc123", "B.heic", softDeleted: true)), LivePhotoVideo(video));
+
+        var result = await fx.ClassifyAsync(Pair("A.heic", "A.mov"));
+
+        result.Primary.Should().Be(new FileClassification(FileOutcome.Unchanged, aHeic));
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.Unchanged, video));
+        result.Pairing.Should().Be(PairingAction.BackfillMovProxy);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_LivePhotoMovedOntoASoftDeletedStandaloneVideosName_ThatRowTakesTheVideo()
     {
         var fx = new TestFixture();
