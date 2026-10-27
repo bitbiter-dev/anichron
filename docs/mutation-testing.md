@@ -84,10 +84,18 @@ line as `not mutated` and does not fail the run. The full sweep still runs in so
 not read `IsMutationTarget`, so an opted-out project also needs its `!**/<Name>/**` entry in
 `stryker-config.json`. `mutation-guard.sh` checks that the two agree.
 
-A changed test file `<Name>Tests.cs` selects `<Name>.cs` in the matching production project. About
-a fifth of the test files are not named after one source file (endpoint and registration tests,
-test doubles), and a change to one of those exits `1` and lists them, because silently mutating
-nothing would read as a pass. Pass the source files they cover as arguments, relative to `src/`.
+A changed test file `<Name>Tests.cs` in `<Project>.Tests.Unit` selects, in `<Project>`, the first
+of these that names exactly one file: `<Name>.cs`; the file declaring the type `<Name>`
+(`EfProxyOrphanStoreTests` → `ProxyOrphanStore.cs`); the file named after the longest leading
+CamelCase part of `<Name>` (`ProxySweepEndpointsHttpTests` → `ProxySweepEndpoints.cs`). A test
+project with no production project (`Anichron.Architecture.Tests.Unit`) is named as `not mutated`.
+The rest (route-table and registration tests, test doubles, helpers) exit `1` and are listed,
+because silently mutating nothing would read as a pass. Pass the source files they cover as
+arguments, relative to `src/`.
+
+Before the first Stryker run, the script runs the unit suite once (`dotnet test`) and exits `1` if a
+test fails. Stryker tests every mutant against every test project, so one failing test, even in a
+project the change did not touch, fails each project's run at its initial test run.
 
 What the scoped run cannot see, and the full sweep in CI catches:
 
