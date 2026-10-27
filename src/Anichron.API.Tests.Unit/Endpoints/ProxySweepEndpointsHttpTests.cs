@@ -21,7 +21,6 @@ public sealed class ProxySweepEndpointsHttpTests
     private readonly IWorkQueue queue = Substitute.For<IWorkQueue>();
     private readonly IWorkItemReader items = Substitute.For<IWorkItemReader>();
     private readonly IProxyOrphanReader orphans = Substitute.For<IProxyOrphanReader>();
-    private readonly IUserStorageConfigRepository configs = Substitute.For<IUserStorageConfigRepository>();
 
     public ProxySweepEndpointsHttpTests()
         => items.FindAsync(SweepId, Arg.Any<CancellationToken>()).Returns(new WorkItemView(
@@ -36,7 +35,6 @@ public sealed class ProxySweepEndpointsHttpTests
             services.AddSingleton(queue);
             services.AddSingleton(items);
             services.AddSingleton(orphans);
-            services.AddSingleton(configs);
         });
 
     private static HttpRequestMessage PostAsAdmin(string path, string? json = null)
@@ -88,11 +86,11 @@ public sealed class ProxySweepEndpointsHttpTests
         using var client = app.Client;
 
         using var response = await client.SendAsync(AuthenticatedTestApp.GetAsAdmin(
-            $"/api/v1/admin/proxy-sweeps/{SweepId}/orphans?outcome=Deleted&storageConfigId={ConfigId}&page=2&pageSize=10", AdminId), Ct);
+            $"/api/v1/admin/proxy-sweeps/{SweepId}/orphans?outcome=Deleted&pending=false&storageConfigId={ConfigId}&page=2&pageSize=10", AdminId), Ct);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await orphans.Received(1).ListAsync(
-            new ProxyOrphanQuery(SweepId, ProxyDeletionOutcome.Deleted, ConfigId, Skip: 10, Take: 10), Arg.Any<CancellationToken>());
+            new ProxyOrphanQuery(SweepId, ProxyDeletionOutcome.Deleted, false, ConfigId, Skip: 10, Take: 10), Arg.Any<CancellationToken>());
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
         body.RootElement.GetProperty("total").GetInt32().Should().Be(11);
         body.RootElement.GetProperty("items")[0].GetProperty("outcome").GetString().Should().Be("Deleted");

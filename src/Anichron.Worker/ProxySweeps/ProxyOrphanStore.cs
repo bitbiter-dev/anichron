@@ -2,6 +2,7 @@ using Anichron.Core;
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
+using Anichron.Worker.Ingestion.Proxy;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
@@ -27,7 +28,10 @@ internal interface IProxyOrphanStore
     /// <param name="ct">Cancels the insert.</param>
     Task RecordAsync(Guid sweepId, IReadOnlyList<FoundOrphan> orphans, CancellationToken ct);
 
-    Task<IReadOnlySet<Guid>> ExistingConfigsAsync(IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct);
+    /// <summary>What the sweep's report holds, rows an earlier attempt of it recorded included.</summary>
+    /// <param name="sweepId">The sweep's work item.</param>
+    /// <param name="ct">Cancels the read.</param>
+    Task<ProxySweepResult> SummariseAsync(Guid sweepId, CancellationToken ct);
 
     /// <summary>
     /// The first unprocessed orphans in the deletion's scope, by id: of its config, or, unscoped, of no
@@ -37,8 +41,6 @@ internal interface IProxyOrphanStore
     /// <param name="take">How many to read at most.</param>
     /// <param name="ct">Cancels the read.</param>
     Task<IReadOnlyList<ProxyOrphan>> GetPendingAsync(ProxyDeletionPayload deletion, int take, CancellationToken ct);
-
-    Task SaveChangesAsync(CancellationToken ct);
 
     /// <summary>Stops tracking the orphans read so far.</summary>
     void ForgetLoaded();
@@ -73,8 +75,19 @@ internal sealed class EfProxyOrphanStore(AnichronDbContext db, IGuidFactory guid
             ct);
     }
 
-    public async Task<IReadOnlySet<Guid>> ExistingConfigsAsync(IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct)
-        => (await db.StorageConfigs.Where(c => storageConfigIds.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct)).ToHashSet();
+    public async Task<ProxySweepResult> SummariseAsync(Guid sweepId, CancellationToken ct)
+    {
+        var report = db.ProxyOrphans.Where(o => o.SweepId == sweepId);
+        return new ProxySweepResult(
+            await report.CountAsync(ct),
+            await report.SumAsync(o => o.SizeBytes, ct),
+            await report.CountAsync(o => o.ProxyPath.EndsWith(ProxyStagingWriter.TemporaryFileSuffix), ct),
+            await report
+                .Where(o => o.StorageConfigId != null && !db.StorageConfigs.Any(c => c.Id == o.StorageConfigId))
+                .Select(o => o.StorageConfigId)
+                .Distinct()
+                .CountAsync(ct));
+    }
 
     public async Task<IReadOnlyList<ProxyOrphan>> GetPendingAsync(ProxyDeletionPayload deletion, int take, CancellationToken ct)
     {
@@ -86,8 +99,6 @@ internal sealed class EfProxyOrphanStore(AnichronDbContext db, IGuidFactory guid
             pending = pending.Where(o => selected.Contains(o.Id));
         return await pending.OrderBy(o => o.Id).Take(take).ToListAsync(ct);
     }
-
-    public Task SaveChangesAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
 
     public void ForgetLoaded() => db.ChangeTracker.Clear();
 

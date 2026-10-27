@@ -1,5 +1,7 @@
+using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
+using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.ProxySweeps;
 using Anichron.Worker.Tests.Unit.TestDoubles;
 using Microsoft.Extensions.Logging;
@@ -22,6 +24,7 @@ public sealed class ProxyDeletionTests
     private static readonly Instant Now = Instant.FromUtc(2026, 10, 27, 12, 0);
 
     private readonly IProxyOrphanStore store = Substitute.For<IProxyOrphanStore>();
+    private readonly IUnitOfWork unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IClock clock = Substitute.For<IClock>();
     private readonly IWorkProgress progress = Substitute.For<IWorkProgress>();
     private readonly FakeLogger<ProxyDeletionHandler> logger = new();
@@ -54,7 +57,7 @@ public sealed class ProxyDeletionTests
 
     private async Task<ProxyDeletionResult> RunAsync(IFileSystem fileSystem)
     {
-        var result = await new ProxyDeletionHandler(store, fileSystem, clock, logger)
+        var result = await new ProxyDeletionHandler(store, unitOfWork, new TwoLevelHexShardStrategy(), fileSystem, clock, logger)
             .RunAsync(payload, new WorkRun(Guid.NewGuid(), progress), Ct);
         return result.Should().BeOfType<ProxyDeletionResult>().Subject;
     }
@@ -222,6 +225,18 @@ public sealed class ProxyDeletionTests
     }
 
     [Fact]
+    public async Task RunAsync_FolderNamingNoConfig_IsKeptAsync()
+    {
+        var fileSystem = new MockFileSystem();
+        File(fileSystem, "ab/lost/stray.bin");
+        Pending([Orphan("ab/lost/stray.bin")]);
+
+        await RunAsync(fileSystem);
+
+        fileSystem.Directory.Exists("/data/proxies/ab/lost").Should().BeTrue();
+    }
+
+    [Fact]
     public async Task RunAsync_FileDirectlyInAShard_KeepsTheShardAsync()
     {
         var fileSystem = new MockFileSystem();
@@ -274,7 +289,7 @@ public sealed class ProxyDeletionTests
         var second = Orphan(Preview);
         Pending([first, second]);
         var saved = new List<(ProxyDeletionOutcome?, ProxyDeletionOutcome?)>();
-        store.When(s => s.SaveChangesAsync(Arg.Any<CancellationToken>()))
+        unitOfWork.When(u => u.SaveChangesAsync(Arg.Any<CancellationToken>()))
             .Do(_ => saved.Add((first.DeletionOutcome, second.DeletionOutcome)));
 
         await RunAsync(fileSystem);
@@ -325,7 +340,7 @@ public sealed class ProxyDeletionTests
         var result = await RunAsync(new MockFileSystem());
 
         result.Should().Be(new ProxyDeletionResult(Deleted: 0, SkippedReferenced: 0, SkippedChanged: 0, Missing: 0, Failed: 0));
-        await store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        await unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -339,6 +354,14 @@ public sealed class ProxyDeletionTests
 
         logger.LatestRecord.Message.Should().Be(
             $"Deleted orphaned proxy files of sweep {SweepId}: 1 deleted, 0 referenced, 0 changed, 1 missing, 0 failed.");
+    }
+
+    [Fact]
+    public void Counting_NoDeletionOutcome_Throws()
+    {
+        var act = () => ProxyDeletionResult.None.Counting((ProxyDeletionOutcome)99);
+
+        act.Should().Throw<ArgumentOutOfRangeException>().WithMessage("Not a deletion outcome.*");
     }
 
     private sealed class DirectoryDeleteFailingFileSystem : MockFileSystem

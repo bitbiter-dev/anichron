@@ -61,6 +61,7 @@ public static class ProxySweepEndpoints
     internal static async Task<Results<Ok<ProxyOrphanPageDto>, ValidationProblem, NotFound, Conflict>> ListOrphansAsync(
         Guid sweepId,
         ProxyDeletionOutcome? outcome,
+        bool? pending,
         Guid? storageConfigId,
         int? page,
         int? pageSize,
@@ -74,14 +75,16 @@ public static class ProxySweepEndpoints
             return Invalid(nameof(pageSize), $"pageSize must be from 1 to {MaxPageSize}.");
         if (number < 1 || number > int.MaxValue / size)
             return Invalid(nameof(page), "page is out of range.");
+        if (pending is true && outcome is not null)
+            return Invalid(nameof(pending), "Give either pending or outcome, not both.");
 
-        var sweep = await items.FindAsync(sweepId, ct);
-        if (sweep is null or { Kind: not WorkKind.ProxySweep })
+        var sweep = await StateOfAsync(sweepId, items, ct);
+        if (sweep == SweepState.Unknown)
             return TypedResults.NotFound();
-        if (sweep.Status != WorkItemStatus.Succeeded)
+        if (sweep == SweepState.Unfinished)
             return TypedResults.Conflict();
 
-        var found = await orphans.ListAsync(new ProxyOrphanQuery(sweepId, outcome, storageConfigId, (number - 1) * size, size), ct);
+        var found = await orphans.ListAsync(new ProxyOrphanQuery(sweepId, outcome, pending is true, storageConfigId, (number - 1) * size, size), ct);
         return TypedResults.Ok(new ProxyOrphanPageDto([.. found.Items.Select(ToDto)], number, size, found.Total));
     }
 
@@ -94,7 +97,6 @@ public static class ProxySweepEndpoints
     /// <param name="caller">The requesting admin.</param>
     /// <param name="items">Reads the sweep's work item.</param>
     /// <param name="orphans">Reads the sweep's orphans.</param>
-    /// <param name="configs">Tells which storage configs still exist.</param>
     /// <param name="queue">Takes the deletions.</param>
     /// <param name="ct">Cancels the request.</param>
     /// <returns>202 with the deletions' work items.</returns>
@@ -104,7 +106,6 @@ public static class ProxySweepEndpoints
         ClaimsPrincipal caller,
         [FromServices] IWorkItemReader items,
         [FromServices] IProxyOrphanReader orphans,
-        [FromServices] IUserStorageConfigRepository configs,
         [FromServices] IWorkQueue queue,
         CancellationToken ct)
     {
@@ -116,44 +117,49 @@ public static class ProxySweepEndpoints
         if (selected is { Count: 0 or > MaxSelectedOrphans })
             return Invalid(nameof(request.OrphanIds), $"orphanIds must hold from 1 to {MaxSelectedOrphans} ids.");
 
-        var sweep = await items.FindAsync(sweepId, ct);
-        if (sweep is null or { Kind: not WorkKind.ProxySweep })
+        var sweep = await StateOfAsync(sweepId, items, ct);
+        if (sweep == SweepState.Unknown)
             return TypedResults.NotFound();
-        if (sweep.Status != WorkItemStatus.Succeeded)
+        if (sweep == SweepState.Unfinished)
             return TypedResults.Conflict();
 
-        List<ProxyOrphanScope> scopes;
+        IEnumerable<(Guid? Config, Guid? Orphan)> scopes;
         if (selected is null)
         {
-            scopes = [.. (await orphans.PendingConfigsAsync(sweepId, ct)).Select(config => new ProxyOrphanScope(Guid.Empty, config))];
+            scopes = (await orphans.PendingConfigsAsync(sweepId, ct)).Select(config => (config, (Guid?)null));
         }
         else
         {
-            scopes = [.. await orphans.FindAsync(sweepId, selected, ct)];
-            if (scopes.Count < selected.Count)
+            var found = await orphans.FindAsync(sweepId, selected, ct);
+            if (found.Count < selected.Count)
                 return Invalid(nameof(request.OrphanIds), "Some ids are not orphans of this sweep.");
-        }
-
-        var live = new HashSet<Guid>();
-        foreach (var id in scopes.Select(s => s.StorageConfigId).OfType<Guid>().Distinct())
-        {
-            var config = await configs.FindByIdAsync(id, ct);
-            if (config is not null)
-                live.Add(id);
+            scopes = found.Select(o => (o.LiveStorageConfigId, (Guid?)o.Id));
         }
 
         var queued = new List<Guid>();
-        foreach (var group in scopes
-            .GroupBy(s => s.StorageConfigId is { } id && live.Contains(id) ? s.StorageConfigId : null)
-            .OrderBy(g => g.Key is null)
-            .ThenBy(g => g.Key))
+        foreach (var group in scopes.GroupBy(s => s.Config).OrderBy(g => g.Key is null).ThenBy(g => g.Key))
         {
-            var deletion = new ProxyDeletionPayload(sweepId, group.Key, selected is null ? null : [.. group.Select(s => s.Id)]);
+            var deletion = new ProxyDeletionPayload(sweepId, group.Key, selected is null ? null : [.. group.Select(s => s.Orphan!.Value)]);
             queued.Add(await queue.EnqueueAsync(deletion, callerId, ct));
         }
 
         return TypedResults.Accepted((string?)null, new ProxyDeletionsRequestedDto(queued));
     }
+
+    private enum SweepState
+    {
+        Unknown = 1,
+        Unfinished = 2,
+        Succeeded = 3,
+    }
+
+    private static async Task<SweepState> StateOfAsync(Guid sweepId, IWorkItemReader items, CancellationToken ct)
+        => await items.FindAsync(sweepId, ct) switch
+        {
+            null or { Kind: not WorkKind.ProxySweep } => SweepState.Unknown,
+            { Status: not WorkItemStatus.Succeeded } => SweepState.Unfinished,
+            _ => SweepState.Succeeded,
+        };
 
     private static ProxyOrphanDto ToDto(ProxyOrphanView view)
         => new(

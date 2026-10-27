@@ -80,4 +80,18 @@ public sealed class ProxyShardStrategyTests
     [InlineData("01/-0123456789abcdef/thumbnail.jpg")]
     public void StorageConfigOf_PathNamingNoConfig_IsNull(string relativePath)
         => new TwoLevelHexShardStrategy().StorageConfigOf(relativePath).Should().BeNull();
+
+    [Fact]
+    public void ContentDirectoryOf_FileInAContentDirectory_IsThatDirectory()
+        => new TwoLevelHexShardStrategy().ContentDirectoryOf("01/abcdef1234567890abcdef1234567890-0123456789abcdef/thumbnail.jpg")
+            .Should().Be("01/abcdef1234567890abcdef1234567890-0123456789abcdef");
+
+    [Theory]
+    [InlineData("stray.txt")]
+    [InlineData("01/stray.txt")]
+    [InlineData("01/abcdef1234567890abcdef1234567890-0123456789abcdef")]
+    [InlineData("01/abcdef1234567890abcdef1234567890-0123456789abcdef/nested/stray.bin")]
+    [InlineData("01/lost/stray.bin")]
+    public void ContentDirectoryOf_PathNotDirectlyInAContentDirectory_IsNull(string relativePath)
+        => new TwoLevelHexShardStrategy().ContentDirectoryOf(relativePath).Should().BeNull();
 }

@@ -1,15 +1,32 @@
 using Anichron.Core;
+using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
+using Anichron.Worker.Ingestion.Proxy;
 using NodaTime;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.ProxySweeps;
 
-public sealed record ProxyDeletionResult(int Deleted, int SkippedReferenced, int SkippedChanged, int Missing, int Failed);
+public sealed record ProxyDeletionResult(int Deleted, int SkippedReferenced, int SkippedChanged, int Missing, int Failed)
+{
+    public static ProxyDeletionResult None { get; } = new(0, 0, 0, 0, 0);
+
+    public ProxyDeletionResult Counting(ProxyDeletionOutcome outcome) => outcome switch
+    {
+        ProxyDeletionOutcome.Deleted => this with { Deleted = Deleted + 1 },
+        ProxyDeletionOutcome.SkippedReferenced => this with { SkippedReferenced = SkippedReferenced + 1 },
+        ProxyDeletionOutcome.SkippedChanged => this with { SkippedChanged = SkippedChanged + 1 },
+        ProxyDeletionOutcome.Missing => this with { Missing = Missing + 1 },
+        ProxyDeletionOutcome.Failed => this with { Failed = Failed + 1 },
+        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Not a deletion outcome."),
+    };
+}
 
 internal sealed partial class ProxyDeletionHandler(
     IProxyOrphanStore store,
+    IUnitOfWork unitOfWork,
+    IProxyDirectoryStrategy directories,
     IFileSystem fileSystem,
     IClock clock,
     ILogger<ProxyDeletionHandler> logger) : IWorkHandler<ProxyDeletionPayload>
@@ -18,7 +35,7 @@ internal sealed partial class ProxyDeletionHandler(
 
     public async Task<object?> RunAsync(ProxyDeletionPayload payload, WorkRun run, CancellationToken ct)
     {
-        var outcomes = new Dictionary<ProxyDeletionOutcome, int>();
+        var result = ProxyDeletionResult.None;
         var done = 0;
         while (await store.GetPendingAsync(payload, BatchSize, ct) is { Count: > 0 } batch)
         {
@@ -27,20 +44,14 @@ internal sealed partial class ProxyDeletionHandler(
                 var outcome = await DeleteAsync(orphan, ct);
                 orphan.DeletionOutcome = outcome;
                 orphan.ProcessedAt = clock.GetCurrentInstant();
-                await store.SaveChangesAsync(ct);
-                outcomes[outcome] = outcomes.GetValueOrDefault(outcome) + 1;
+                await unitOfWork.SaveChangesAsync(ct);
+                result = result.Counting(outcome);
                 run.Progress.Report(++done, note: "Deleting orphaned proxy files");
             }
 
             store.ForgetLoaded();
         }
 
-        var result = new ProxyDeletionResult(
-            outcomes.GetValueOrDefault(ProxyDeletionOutcome.Deleted),
-            outcomes.GetValueOrDefault(ProxyDeletionOutcome.SkippedReferenced),
-            outcomes.GetValueOrDefault(ProxyDeletionOutcome.SkippedChanged),
-            outcomes.GetValueOrDefault(ProxyDeletionOutcome.Missing),
-            outcomes.GetValueOrDefault(ProxyDeletionOutcome.Failed));
         Log.Finished(logger, payload.SweepId, result.Deleted, result.SkippedReferenced, result.SkippedChanged, result.Missing, result.Failed);
         return result;
     }
@@ -72,10 +83,10 @@ internal sealed partial class ProxyDeletionHandler(
 
     private void RemoveContentDirectoryIfEmpty(string proxyPath)
     {
-        if (proxyPath.Split('/') is not [var shard, var content, _])
+        if (directories.ContentDirectoryOf(proxyPath) is not { } content)
             return;
 
-        var directory = fileSystem.Path.Combine(StoragePath.ProxiesRoot, shard, content);
+        var directory = fileSystem.Path.Combine(StoragePath.ProxiesRoot, content);
         try
         {
             if (!fileSystem.Directory.EnumerateFileSystemEntries(directory).Any())

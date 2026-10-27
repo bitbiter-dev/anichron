@@ -47,13 +47,14 @@ public sealed class EfProxyOrphanStoreTests : IAsyncDisposable
     }
 
     private static ProxyOrphan Orphan(
-        string id, Guid? configId, Guid? sweepId = null, ProxyDeletionOutcome? outcome = null)
+        string id, Guid? configId, Guid? sweepId = null, ProxyDeletionOutcome? outcome = null, string? path = null, long size = 0)
         => new()
         {
             Id = Guid.Parse(id),
             SweepId = sweepId ?? SweepId,
-            ProxyPath = $"ab/{id}/thumbnail.jpg",
+            ProxyPath = path ?? $"ab/{id}/thumbnail.jpg",
             StorageConfigId = configId,
+            SizeBytes = size,
             DeletionOutcome = outcome,
         };
 
@@ -131,17 +132,32 @@ public sealed class EfProxyOrphanStoreTests : IAsyncDisposable
     }
 
     // ==========================================================================
-    // ExistingConfigsAsync
+    // SummariseAsync
     // ==========================================================================
 
     [Fact]
-    public async Task ExistingConfigsAsync_KeepsOnlyTheConfigsThatExistAsync()
+    public async Task SummariseAsync_CountsTheSweepsReportAsync()
+    {
+        await SeedOrphansAsync(
+            Orphan("00000000-0000-0000-0000-000000000001", null, path: "stray.txt", size: 1),
+            Orphan("00000000-0000-0000-0000-000000000002", LiveConfigId, outcome: ProxyDeletionOutcome.Deleted, size: 20),
+            Orphan("00000000-0000-0000-0000-000000000003", LiveConfigId, path: "ab/x/preview.jpg.0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f.tmp", size: 300),
+            Orphan("00000000-0000-0000-0000-000000000004", GoneConfigId, size: 4000),
+            Orphan("00000000-0000-0000-0000-000000000005", GoneConfigId, size: 50000),
+            Orphan("00000000-0000-0000-0000-000000000006", Guid.Parse("c8000000-0000-0000-0000-000000000000"), path: "cd/x/thumbnail.tmp.jpg", size: 600000),
+            Orphan("00000000-0000-0000-0000-000000000007", Guid.Parse("c7000000-0000-0000-0000-000000000000"), sweepId: OtherSweepId, path: "ef/x/thumbnail.jpg.tmp", size: 7000000));
+
+        var summary = await Store.SummariseAsync(SweepId, Ct);
+
+        summary.Should().Be(new ProxySweepResult(Orphans: 6, Bytes: 654321, TemporaryFiles: 1, ConfigsGone: 2));
+    }
+
+    [Fact]
+    public async Task SummariseAsync_EmptyReport_IsAllZeroAsync()
     {
         await SeedOrphansAsync();
 
-        var existing = await Store.ExistingConfigsAsync([LiveConfigId, GoneConfigId], Ct);
-
-        existing.Should().BeEquivalentTo([LiveConfigId]);
+        (await Store.SummariseAsync(SweepId, Ct)).Should().Be(new ProxySweepResult(0, 0, 0, 0));
     }
 
     // ==========================================================================
@@ -212,18 +228,18 @@ public sealed class EfProxyOrphanStoreTests : IAsyncDisposable
     }
 
     // ==========================================================================
-    // SaveChangesAsync, ForgetLoaded
+    // ForgetLoaded
     // ==========================================================================
 
     [Fact]
-    public async Task SaveChangesAsync_PersistsAnOutcomeSetOnAPendingOrphanAsync()
+    public async Task GetPendingAsync_TracksTheOrphansSoAnOutcomeSetOnOneIsSavedAsync()
     {
         await SeedOrphansAsync(Orphan("00000000-0000-0000-0000-000000000001", LiveConfigId));
         var store = Store;
         var orphan = (await store.GetPendingAsync(new ProxyDeletionPayload(SweepId, LiveConfigId, null), 10, Ct)).Single();
 
         orphan.DeletionOutcome = ProxyDeletionOutcome.Deleted;
-        await store.SaveChangesAsync(Ct);
+        await db.SaveChangesAsync(Ct);
 
         db.ChangeTracker.Clear();
         (await db.ProxyOrphans.SingleAsync(Ct)).DeletionOutcome.Should().Be(ProxyDeletionOutcome.Deleted);

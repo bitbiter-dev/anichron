@@ -13,20 +13,16 @@ public sealed class ProxySweepEndpointsTests
     private static readonly Guid SweepId = Guid.Parse("50000000-0000-0000-0000-000000000000");
     private static readonly Guid ConfigA = Guid.Parse("c1000000-0000-0000-0000-000000000000");
     private static readonly Guid ConfigB = Guid.Parse("c2000000-0000-0000-0000-000000000000");
-    private static readonly Guid GoneConfig = Guid.Parse("c9000000-0000-0000-0000-000000000000");
     private static readonly Instant Start = Instant.FromUtc(2026, 10, 27, 9, 0);
 
     private readonly IWorkQueue queue = Substitute.For<IWorkQueue>();
     private readonly IWorkItemReader items = Substitute.For<IWorkItemReader>();
     private readonly IProxyOrphanReader orphans = Substitute.For<IProxyOrphanReader>();
-    private readonly IUserStorageConfigRepository configs = Substitute.For<IUserStorageConfigRepository>();
     private readonly List<ProxyDeletionPayload> enqueued = [];
 
     public ProxySweepEndpointsTests()
     {
         Sweep(WorkKind.ProxySweep, WorkItemStatus.Succeeded);
-        foreach (var id in new[] { ConfigA, ConfigB })
-            configs.FindByIdAsync(id, Arg.Any<CancellationToken>()).Returns(new UserStorageConfig { Id = id, RootPath = "/data/originals/mira" });
         queue.EnqueueAsync(Arg.Any<ProxyDeletionPayload>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
@@ -52,11 +48,11 @@ public sealed class ProxySweepEndpointsTests
 
     private Task<Results<Accepted<ProxyDeletionsRequestedDto>, ValidationProblem, NotFound, Conflict, UnauthorizedHttpResult>> DeleteAsync(
         ProxyDeletionRequest request, ClaimsPrincipal? caller = null)
-        => ProxySweepEndpoints.RequestDeletionsAsync(SweepId, request, caller ?? Admin, items, orphans, configs, queue, Ct);
+        => ProxySweepEndpoints.RequestDeletionsAsync(SweepId, request, caller ?? Admin, items, orphans, queue, Ct);
 
     private Task<Results<Ok<ProxyOrphanPageDto>, ValidationProblem, NotFound, Conflict>> ListAsync(
-        int? page = null, int? pageSize = null, ProxyDeletionOutcome? outcome = null, Guid? storageConfigId = null)
-        => ProxySweepEndpoints.ListOrphansAsync(SweepId, outcome, storageConfigId, page, pageSize, items, orphans, Ct);
+        int? page = null, int? pageSize = null, ProxyDeletionOutcome? outcome = null, bool? pending = null, Guid? storageConfigId = null)
+        => ProxySweepEndpoints.ListOrphansAsync(SweepId, outcome, pending, storageConfigId, page, pageSize, items, orphans, Ct);
 
     private static void ShouldBeInvalid(object result, string field, string message)
         => result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails.Errors
@@ -120,7 +116,37 @@ public sealed class ProxySweepEndpointsTests
         await ListAsync(page: 3, pageSize: 20, outcome: ProxyDeletionOutcome.Failed, storageConfigId: ConfigA);
 
         await orphans.Received(1).ListAsync(
-            new ProxyOrphanQuery(SweepId, ProxyDeletionOutcome.Failed, ConfigA, Skip: 40, Take: 20), Arg.Any<CancellationToken>());
+            new ProxyOrphanQuery(SweepId, ProxyDeletionOutcome.Failed, false, ConfigA, Skip: 40, Take: 20), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(null, false)]
+    public async Task ListOrphansAsync_PassesThePendingFilterAsync(bool? pending, bool expected)
+    {
+        orphans.ListAsync(Arg.Any<ProxyOrphanQuery>(), Arg.Any<CancellationToken>()).Returns(new ProxyOrphanPage([], 0));
+
+        await ListAsync(pending: pending);
+
+        await orphans.Received(1).ListAsync(
+            new ProxyOrphanQuery(SweepId, null, expected, null, Skip: 0, Take: 100), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ListOrphansAsync_PendingAndAnOutcome_IsInvalidAsync()
+        => ShouldBeInvalid(
+            (await ListAsync(outcome: ProxyDeletionOutcome.Deleted, pending: true)).Result,
+            "pending", "Give either pending or outcome, not both.");
+
+    [Fact]
+    public async Task ListOrphansAsync_NotPendingAndAnOutcome_IsReadAsync()
+    {
+        orphans.ListAsync(Arg.Any<ProxyOrphanQuery>(), Arg.Any<CancellationToken>()).Returns(new ProxyOrphanPage([], 0));
+
+        var result = await ListAsync(outcome: ProxyDeletionOutcome.Deleted, pending: false);
+
+        result.Result.Should().BeOfType<Ok<ProxyOrphanPageDto>>();
     }
 
     [Theory]
@@ -284,7 +310,7 @@ public sealed class ProxySweepEndpointsTests
     {
         Found(
             new ProxyOrphanScope(Id(1), ConfigB),
-            new ProxyOrphanScope(Id(2), GoneConfig),
+            new ProxyOrphanScope(Id(2), null),
             new ProxyOrphanScope(Id(3), ConfigA),
             new ProxyOrphanScope(Id(4), null),
             new ProxyOrphanScope(Id(5), ConfigB));
@@ -302,7 +328,7 @@ public sealed class ProxySweepEndpointsTests
     [Fact]
     public async Task RequestDeletionsAsync_All_QueuesWholeScopesWithNoSelectionAsync()
     {
-        orphans.PendingConfigsAsync(SweepId, Arg.Any<CancellationToken>()).Returns([null, GoneConfig, ConfigA]);
+        orphans.PendingConfigsAsync(SweepId, Arg.Any<CancellationToken>()).Returns([null, ConfigA]);
 
         var result = await DeleteAsync(new ProxyDeletionRequest(null, true));
 
@@ -320,17 +346,5 @@ public sealed class ProxySweepEndpointsTests
 
         result.Result.Should().BeOfType<Accepted<ProxyDeletionsRequestedDto>>().Which.Value!.WorkItemIds.Should().BeEmpty();
         enqueued.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task RequestDeletionsAsync_ConfigDeletedSinceAnEarlierRequest_IsAskedAgainUnscopedAsync()
-    {
-        orphans.PendingConfigsAsync(SweepId, Arg.Any<CancellationToken>()).Returns([ConfigA]);
-        await DeleteAsync(new ProxyDeletionRequest(null, true));
-        configs.FindByIdAsync(ConfigA, Arg.Any<CancellationToken>()).Returns((UserStorageConfig?)null);
-
-        await DeleteAsync(new ProxyDeletionRequest(null, true));
-
-        enqueued.Should().Equal(new ProxyDeletionPayload(SweepId, ConfigA, null), new ProxyDeletionPayload(SweepId, null, null));
     }
 }

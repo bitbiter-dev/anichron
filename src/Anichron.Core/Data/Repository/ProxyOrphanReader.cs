@@ -12,14 +12,21 @@ public sealed record ProxyOrphanView(
     ProxyDeletionOutcome? DeletionOutcome,
     Instant? ProcessedAt);
 
-public sealed record ProxyOrphanQuery(Guid SweepId, ProxyDeletionOutcome? Outcome, Guid? StorageConfigId, int Skip, int Take);
+/// <summary>Which orphans of a sweep to page through.</summary>
+/// <param name="SweepId">The sweep.</param>
+/// <param name="Outcome">Only orphans a deletion gave this outcome, or null for any.</param>
+/// <param name="Pending">Only orphans no deletion processed yet.</param>
+/// <param name="StorageConfigId">Only orphans of this storage config, or null for any.</param>
+/// <param name="Skip">Orphans before the page.</param>
+/// <param name="Take">The page size.</param>
+public sealed record ProxyOrphanQuery(Guid SweepId, ProxyDeletionOutcome? Outcome, bool Pending, Guid? StorageConfigId, int Skip, int Take);
 
 public sealed record ProxyOrphanPage(IReadOnlyList<ProxyOrphanView> Items, int Total);
 
-/// <summary>An orphan's id and the storage config its directory names.</summary>
+/// <summary>An orphan's id and the live storage config its directory names.</summary>
 /// <param name="Id">The orphan.</param>
-/// <param name="StorageConfigId">The config, or null when its path names none.</param>
-public sealed record ProxyOrphanScope(Guid Id, Guid? StorageConfigId);
+/// <param name="LiveStorageConfigId">The config, or null when its path names none or the config no longer exists.</param>
+public sealed record ProxyOrphanScope(Guid Id, Guid? LiveStorageConfigId);
 
 public interface IProxyOrphanReader
 {
@@ -35,7 +42,7 @@ public interface IProxyOrphanReader
     /// <param name="ct">Cancels the read.</param>
     Task<IReadOnlyList<ProxyOrphanScope>> FindAsync(Guid sweepId, IReadOnlyCollection<Guid> ids, CancellationToken ct);
 
-    /// <summary>Each storage config, null included, that a sweep's unprocessed orphans name.</summary>
+    /// <summary>Each live storage config, null for none, that a sweep's unprocessed orphans name.</summary>
     /// <param name="sweepId">The sweep.</param>
     /// <param name="ct">Cancels the read.</param>
     Task<IReadOnlyList<Guid?>> PendingConfigsAsync(Guid sweepId, CancellationToken ct);
@@ -48,6 +55,8 @@ public sealed class EfProxyOrphanReader(AnichronDbContext db) : IProxyOrphanRead
         var matching = db.ProxyOrphans.Where(o => o.SweepId == query.SweepId);
         if (query.Outcome is { } outcome)
             matching = matching.Where(o => o.DeletionOutcome == outcome);
+        if (query.Pending)
+            matching = matching.Where(o => o.DeletionOutcome == null);
         if (query.StorageConfigId is { } configId)
             matching = matching.Where(o => o.StorageConfigId == configId);
 
@@ -64,13 +73,13 @@ public sealed class EfProxyOrphanReader(AnichronDbContext db) : IProxyOrphanRead
     public async Task<IReadOnlyList<ProxyOrphanScope>> FindAsync(Guid sweepId, IReadOnlyCollection<Guid> ids, CancellationToken ct)
         => await db.ProxyOrphans
             .Where(o => o.SweepId == sweepId && ids.Contains(o.Id))
-            .Select(o => new ProxyOrphanScope(o.Id, o.StorageConfigId))
+            .Select(o => new ProxyOrphanScope(o.Id, db.StorageConfigs.Any(c => c.Id == o.StorageConfigId) ? o.StorageConfigId : null))
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Guid?>> PendingConfigsAsync(Guid sweepId, CancellationToken ct)
         => await db.ProxyOrphans
             .Where(o => o.SweepId == sweepId && o.DeletionOutcome == null)
-            .Select(o => o.StorageConfigId)
+            .Select(o => db.StorageConfigs.Any(c => c.Id == o.StorageConfigId) ? o.StorageConfigId : null)
             .Distinct()
             .ToListAsync(ct);
 }

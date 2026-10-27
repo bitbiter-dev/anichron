@@ -12,7 +12,6 @@ public sealed class ProxySweepTests
     private const string LiveDirectory = "ab/c1000000000000000000000000000000-ab01";
     private const string GoneDirectory = "cd/c9000000000000000000000000000000-cd01";
     private static readonly Guid LiveConfigId = Guid.Parse("c1000000-0000-0000-0000-000000000000");
-    private static readonly Guid GoneConfigId = Guid.Parse("c9000000-0000-0000-0000-000000000000");
     private static readonly Guid SweepId = Guid.Parse("50000000-0000-0000-0000-000000000000");
     private static readonly Instant Now = Instant.FromUtc(2026, 10, 27, 12, 0);
     private static readonly Instant TwoHoursAgo = Now - Duration.FromHours(2);
@@ -29,8 +28,7 @@ public sealed class ProxySweepTests
         clock.GetCurrentInstant().Returns(Now);
         fileSystem.AddDirectory("/data/proxies");
         store.ReferencedUnderAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new HashSet<string>());
-        store.ExistingConfigsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns(call => call.Arg<IReadOnlyCollection<Guid>>().Where(id => id != GoneConfigId).ToHashSet());
+        store.SummariseAsync(SweepId, Arg.Any<CancellationToken>()).Returns(new ProxySweepResult(0, 0, 0, 0));
         store.When(s => s.RecordAsync(SweepId, Arg.Any<IReadOnlyList<FoundOrphan>>(), Arg.Any<CancellationToken>()))
             .Do(call => recorded.AddRange(call.Arg<IReadOnlyList<FoundOrphan>>()));
     }
@@ -204,28 +202,30 @@ public sealed class ProxySweepTests
     }
 
     [Fact]
-    public async Task RunAsync_SummarisesEveryOrphanFoundAsync()
+    public async Task RunAsync_ReturnsTheSummaryOfTheReportOnceEveryShardIsRecordedAsync()
     {
-        File("stray.txt", TwoHoursAgo, size: 1);
-        File($"{LiveDirectory}/thumbnail.jpg", TwoHoursAgo, size: 20);
-        File($"{LiveDirectory}/preview.jpg.0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f.tmp", TwoHoursAgo, size: 300);
-        File($"{GoneDirectory}/thumbnail.jpg", TwoHoursAgo, size: 4000);
-        File($"{GoneDirectory}/preview.jpg", TwoHoursAgo, size: 50000);
-        File("cd/c8000000000000000000000000000000-cd02/thumbnail.tmp.jpg", TwoHoursAgo, size: 600000);
+        File($"{LiveDirectory}/thumbnail.jpg", TwoHoursAgo);
+        var summary = new ProxySweepResult(Orphans: 6, Bytes: 654321, TemporaryFiles: 1, ConfigsGone: 1);
+        store.SummariseAsync(SweepId, Arg.Any<CancellationToken>()).Returns(summary);
 
         var result = await RunAsync();
 
-        result.Should().Be(new ProxySweepResult(Orphans: 6, Bytes: 654321, TemporaryFiles: 1, ConfigsGone: 1));
+        result.Should().Be(summary);
+        Received.InOrder(() =>
+        {
+            _ = store.RecordAsync(SweepId, Arg.Is<IReadOnlyList<FoundOrphan>>(o => o.Count == 1), Arg.Any<CancellationToken>());
+            _ = store.SummariseAsync(SweepId, Arg.Any<CancellationToken>());
+        });
     }
 
     [Fact]
     public async Task RunAsync_LogsTheSummaryAsync()
     {
-        File($"{GoneDirectory}/thumbnail.jpg", TwoHoursAgo, size: 7);
+        store.SummariseAsync(SweepId, Arg.Any<CancellationToken>()).Returns(new ProxySweepResult(1, 7, 2, 3));
 
         await RunAsync();
 
         logger.LatestRecord.Message.Should().Be(
-            "Swept the proxy root: 1 orphan(s), 7 B, 0 temporary file(s), 1 storage config(s) gone.");
+            "Swept the proxy root: 1 orphan(s), 7 B, 2 temporary file(s), 3 storage config(s) gone.");
     }
 }

@@ -1,4 +1,5 @@
 using Anichron.Core;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Worker.ProxySweeps;
@@ -113,6 +114,55 @@ public sealed class ProxyOrphanStoreTests(PostgresServer server)
         var pending = await new EfProxyOrphanStore(read, new TimeOrderedGuidFactory())
             .GetPendingAsync(new ProxyDeletionPayload(sweepId, null, null), 10, Ct);
         pending.Select(o => o.ProxyPath).Should().BeEquivalentTo("ab/gone/thumbnail.jpg", "stray.txt");
+    }
+
+    private static async Task SeedLiveConfigAsync(WorkDatabase work)
+    {
+        await using var db = work.CreateDbContext();
+        var user = new User { Id = Guid.NewGuid(), Username = "mira", Email = "mira@example.com", PasswordHash = "hash" };
+        db.Users.Add(user);
+        db.StorageConfigs.Add(new UserStorageConfig { Id = LiveConfigId, UserId = user.Id, RootPath = "/data/originals/mira", IsActive = true });
+        await db.SaveChangesAsync(Ct);
+    }
+
+    [Fact]
+    public async Task SummariseAsync_CountsTheReportOnPostgresAsync()
+    {
+        var (work, sweepId) = await SweepAsync(server);
+        await SeedLiveConfigAsync(work);
+        await RecordAsync(work, sweepId,
+            new FoundOrphan("ab/live/thumbnail.jpg", LiveConfigId, 10, Written),
+            new FoundOrphan("ab/gone/thumbnail.jpg.0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f.tmp", GoneConfigId, 200, Written),
+            new FoundOrphan("ab/gone/preview.jpg", GoneConfigId, 3000, Written),
+            new FoundOrphan("stray.txt", null, 40000, Written));
+
+        await using var db = work.CreateDbContext();
+        var summary = await new EfProxyOrphanStore(db, new TimeOrderedGuidFactory()).SummariseAsync(sweepId, Ct);
+
+        summary.Should().Be(new ProxySweepResult(Orphans: 4, Bytes: 43210, TemporaryFiles: 1, ConfigsGone: 1));
+    }
+
+    [Fact]
+    public async Task ProxyOrphanReader_ResolvesOnlyLiveConfigsOnPostgresAsync()
+    {
+        var (work, sweepId) = await SweepAsync(server);
+        await SeedLiveConfigAsync(work);
+        await RecordAsync(work, sweepId,
+            new FoundOrphan("ab/live/thumbnail.jpg", LiveConfigId, 1, Written),
+            new FoundOrphan("ab/gone/thumbnail.jpg", GoneConfigId, 1, Written),
+            new FoundOrphan("stray.txt", null, 1, Written));
+        var ids = (await OrphansAsync(work)).ToDictionary(o => o.ProxyPath, o => o.Id);
+
+        await using var db = work.CreateDbContext();
+        var reader = new EfProxyOrphanReader(db);
+        var found = await reader.FindAsync(sweepId, [.. ids.Values], Ct);
+        var pending = await reader.PendingConfigsAsync(sweepId, Ct);
+
+        found.Should().BeEquivalentTo([
+            new ProxyOrphanScope(ids["ab/live/thumbnail.jpg"], LiveConfigId),
+            new ProxyOrphanScope(ids["ab/gone/thumbnail.jpg"], null),
+            new ProxyOrphanScope(ids["stray.txt"], null)]);
+        pending.Should().BeEquivalentTo(new Guid?[] { LiveConfigId, null });
     }
 
     [Fact]

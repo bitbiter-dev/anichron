@@ -20,6 +20,8 @@ internal sealed partial class ProxySweepHandler(
     IClock clock,
     ILogger<ProxySweepHandler> logger) : IWorkHandler<ProxySweepPayload>
 {
+    internal const string ScanningNote = "Scanning proxy shards";
+
     internal static Duration GracePeriod { get; } = Duration.FromHours(1);
 
     public async Task<object?> RunAsync(ProxySweepPayload payload, WorkRun run, CancellationToken ct)
@@ -31,18 +33,15 @@ internal sealed partial class ProxySweepHandler(
         var atRoot = await ScanRootAsync(writtenBefore, ct);
         await store.RecordAsync(run.ItemId, atRoot, ct);
 
-        var all = new List<FoundOrphan>(atRoot);
         var shards = fileSystem.Directory.EnumerateDirectories(StoragePath.ProxiesRoot).Order(StringComparer.Ordinal).ToList();
         for (var i = 0; i < shards.Count; i++)
         {
-            run.Progress.Report(i, shards.Count, "Scanning proxy shards");
-            var inShard = await ScanShardAsync(shards[i], writtenBefore, ct);
-            await store.RecordAsync(run.ItemId, inShard, ct);
-            all.AddRange(inShard);
+            run.Progress.Report(i, shards.Count, ScanningNote);
+            await store.RecordAsync(run.ItemId, await ScanShardAsync(shards[i], writtenBefore, ct), ct);
         }
 
-        run.Progress.Report(shards.Count, shards.Count, "Scanning proxy shards");
-        var result = await SummariseAsync(all, ct);
+        run.Progress.Report(shards.Count, shards.Count, ScanningNote);
+        var result = await store.SummariseAsync(run.ItemId, ct);
         Log.Swept(logger, result.Orphans, result.Bytes, result.TemporaryFiles, result.ConfigsGone);
         return result;
     }
@@ -80,17 +79,6 @@ internal sealed partial class ProxySweepHandler(
         return stamp.LastWriteTime < writtenBefore
             ? new FoundOrphan(path, directories.StorageConfigOf(path), stamp.SizeBytes, stamp.LastWriteTime)
             : null;
-    }
-
-    private async Task<ProxySweepResult> SummariseAsync(List<FoundOrphan> found, CancellationToken ct)
-    {
-        var named = found.Select(o => o.StorageConfigId).OfType<Guid>().ToHashSet();
-        var existing = await store.ExistingConfigsAsync(named, ct);
-        return new ProxySweepResult(
-            found.Count,
-            found.Sum(o => o.SizeBytes),
-            found.Count(o => o.ProxyPath.EndsWith(ProxyStagingWriter.TemporaryFileSuffix, StringComparison.Ordinal)),
-            named.Count(id => !existing.Contains(id)));
     }
 
     private string RelativePath(string file) => fileSystem.Path.GetRelativePath(StoragePath.ProxiesRoot, file);

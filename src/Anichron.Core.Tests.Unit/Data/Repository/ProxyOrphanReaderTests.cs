@@ -12,6 +12,7 @@ public sealed class ProxyOrphanReaderTests : IAsyncDisposable
     private static readonly Guid OtherSweepId = Guid.Parse("51000000-0000-0000-0000-000000000000");
     private static readonly Guid ConfigA = Guid.Parse("c1000000-0000-0000-0000-000000000000");
     private static readonly Guid ConfigB = Guid.Parse("c2000000-0000-0000-0000-000000000000");
+    private static readonly Guid GoneConfig = Guid.Parse("c9000000-0000-0000-0000-000000000000");
     private static readonly Instant Written = Instant.FromUtc(2026, 10, 27, 9, 0);
     private static readonly Instant Processed = Instant.FromUtc(2026, 10, 27, 12, 0);
 
@@ -41,6 +42,9 @@ public sealed class ProxyOrphanReaderTests : IAsyncDisposable
 
     private async Task SeedAsync(params ProxyOrphan[] orphans)
     {
+        db.StorageConfigs.AddRange(
+            new UserStorageConfig { Id = ConfigA, UserId = Guid.NewGuid(), RootPath = "/data/originals/mira" },
+            new UserStorageConfig { Id = ConfigB, UserId = Guid.NewGuid(), RootPath = "/data/originals/alice" });
         db.ProxyOrphans.AddRange(orphans);
         await db.SaveChangesAsync(Ct);
         db.ChangeTracker.Clear();
@@ -58,7 +62,7 @@ public sealed class ProxyOrphanReaderTests : IAsyncDisposable
             Orphan(2, "ab/x/thumbnail.jpg"),
             Orphan(3, "ab/x/preview.jpg", sweepId: OtherSweepId));
 
-        var page = await Reader.ListAsync(new ProxyOrphanQuery(SweepId, null, null, 0, 10), Ct);
+        var page = await Reader.ListAsync(new ProxyOrphanQuery(SweepId, null, false, null, 0, 10), Ct);
 
         page.Total.Should().Be(2);
         page.Items.Should().Equal(
@@ -75,9 +79,24 @@ public sealed class ProxyOrphanReaderTests : IAsyncDisposable
             Orphan(3, "c", ConfigB, ProxyDeletionOutcome.Deleted),
             Orphan(4, "d", ConfigA, ProxyDeletionOutcome.Deleted));
 
-        var page = await Reader.ListAsync(new ProxyOrphanQuery(SweepId, ProxyDeletionOutcome.Deleted, ConfigA, 0, 10), Ct);
+        var page = await Reader.ListAsync(new ProxyOrphanQuery(SweepId, ProxyDeletionOutcome.Deleted, false, ConfigA, 0, 10), Ct);
 
         page.Items.Select(o => o.Id).Should().Equal(Id(1), Id(4));
+        page.Total.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ListAsync_Pending_ReadsOnlyUnprocessedOrphansAsync()
+    {
+        await SeedAsync(
+            Orphan(1, "a", ConfigA, ProxyDeletionOutcome.Deleted),
+            Orphan(2, "b", ConfigA),
+            Orphan(3, "c", ConfigA, ProxyDeletionOutcome.Failed),
+            Orphan(4, "d"));
+
+        var page = await Reader.ListAsync(new ProxyOrphanQuery(SweepId, null, true, null, 0, 10), Ct);
+
+        page.Items.Select(o => o.Id).Should().Equal(Id(2), Id(4));
         page.Total.Should().Be(2);
     }
 
@@ -86,7 +105,7 @@ public sealed class ProxyOrphanReaderTests : IAsyncDisposable
     {
         await SeedAsync(Orphan(1, "a"), Orphan(2, "b"), Orphan(3, "c"), Orphan(4, "d"));
 
-        var page = await Reader.ListAsync(new ProxyOrphanQuery(SweepId, null, null, 1, 2), Ct);
+        var page = await Reader.ListAsync(new ProxyOrphanQuery(SweepId, null, false, null, 1, 2), Ct);
 
         page.Items.Select(o => o.Id).Should().Equal(Id(2), Id(3));
         page.Total.Should().Be(4);
@@ -103,11 +122,13 @@ public sealed class ProxyOrphanReaderTests : IAsyncDisposable
             Orphan(1, "a", ConfigA),
             Orphan(2, "b"),
             Orphan(3, "c", ConfigB, sweepId: OtherSweepId),
-            Orphan(4, "d", ConfigB));
+            Orphan(4, "d", ConfigB),
+            Orphan(5, "e", GoneConfig));
 
-        var found = await Reader.FindAsync(SweepId, [Id(1), Id(2), Id(3), Id(9)], Ct);
+        var found = await Reader.FindAsync(SweepId, [Id(1), Id(2), Id(3), Id(5), Id(9)], Ct);
 
-        found.Should().BeEquivalentTo([new ProxyOrphanScope(Id(1), ConfigA), new ProxyOrphanScope(Id(2), null)]);
+        found.Should().BeEquivalentTo([
+            new ProxyOrphanScope(Id(1), ConfigA), new ProxyOrphanScope(Id(2), null), new ProxyOrphanScope(Id(5), null)]);
     }
 
     // ==========================================================================
@@ -115,14 +136,15 @@ public sealed class ProxyOrphanReaderTests : IAsyncDisposable
     // ==========================================================================
 
     [Fact]
-    public async Task PendingConfigsAsync_ReadsEachConfigOfTheSweepsUnprocessedOrphansOnceAsync()
+    public async Task PendingConfigsAsync_ReadsEachLiveConfigOfTheSweepsUnprocessedOrphansOnceAsync()
     {
         await SeedAsync(
             Orphan(1, "a", ConfigA),
             Orphan(2, "b", ConfigA),
             Orphan(3, "c"),
             Orphan(4, "d", ConfigB, ProxyDeletionOutcome.Deleted),
-            Orphan(5, "e", ConfigB, sweepId: OtherSweepId));
+            Orphan(5, "e", ConfigB, sweepId: OtherSweepId),
+            Orphan(6, "f", GoneConfig));
 
         var configs = await Reader.PendingConfigsAsync(SweepId, Ct);
 
