@@ -8,7 +8,6 @@ internal enum FileOutcome
     Unchanged = 1,
     Moved = 2,
     DuplicateCopy = 3,
-    PathTaken = 4,
     ContentChanged = 5,
     OverwrittenByCopy = 6,
     OverwrittenByMove = 7,
@@ -29,7 +28,18 @@ internal enum PairingAction
 /// <param name="Outcome">What the crawled file is.</param>
 /// <param name="Stored">The row the outcome acts on.</param>
 /// <param name="Retired">The row the outcome soft-deletes.</param>
-internal sealed record FileClassification(FileOutcome Outcome, MediaAsset? Stored, MediaAsset? Retired = null);
+internal sealed record FileClassification(FileOutcome Outcome, MediaAsset? Stored, MediaAsset? Retired = null)
+{
+    /// <summary>The row that describes the file at its path once the outcome is applied; null when the file is new or a copy.</summary>
+    public MediaAsset? Row => DefersToAnotherRow ? null : Stored;
+
+    /// <summary>Whether the file holds content another row keeps, so it has no row of its own.</summary>
+    public bool DefersToAnotherRow => Outcome is FileOutcome.DuplicateCopy or FileOutcome.OverwrittenByCopy or FileOutcome.LoneLivePhotoVideo;
+
+    /// <summary>Whether <see cref="Stored"/> takes content it does not hold yet.</summary>
+    public bool TakesContent
+        => Outcome is FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged or FileOutcome.OverwrittenByMove;
+}
 
 internal sealed record IngestionClassification(
     FileClassification Primary,
@@ -38,6 +48,17 @@ internal sealed record IngestionClassification(
 {
     public bool NeedsProcessing
         => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged;
+
+    /// <summary>
+    /// The rows soft-deleted before the item's save, so another row can take their content: every half's retired
+    /// row once either half was overwritten by a move, otherwise none.
+    /// </summary>
+    public IReadOnlyList<MediaAsset> RetiredFirst
+        => Halves.Any(file => file.Outcome == FileOutcome.OverwrittenByMove)
+            ? [.. Halves.Select(file => file.Retired).OfType<MediaAsset>()]
+            : [];
+
+    private IEnumerable<FileClassification> Halves => Secondary is null ? [Primary] : [Primary, Secondary];
 
     public int DuplicateCopies => NeedsProcessing
         ? 0

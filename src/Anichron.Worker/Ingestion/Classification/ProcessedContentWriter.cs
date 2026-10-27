@@ -19,7 +19,7 @@ internal abstract partial class ProcessedContentWriter(
         var asset = await WriteAssetAsync(context, ct);
         MediaAsset? mov = null;
 
-        if (context.Item.SecondaryFile is not null)
+        if (context.Classification!.Secondary is { DefersToAnotherRow: false })
         {
             mov = pairedMovResolver.Resolve(context, context.Exif!.DateCaptured);
             await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
