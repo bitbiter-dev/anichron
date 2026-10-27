@@ -12,6 +12,10 @@ _Avoid_: Moment, similar group, near-duplicates
 The member of a burst that represents it wherever the burst is shown as one memory: the earliest member the viewing user has not hidden.
 _Avoid_: Primary photo, key photo
 
+**Live Photo**:
+A photo and the short video the camera recorded with it, shown as one memory. Its video is part of the photo, never a memory of its own; without its video, the photo is shown as a still photo.
+_Avoid_: Pair, HEIC+MOV, motion photo
+
 **Missing**:
 An asset whose file a complete crawl of its storage config did not find at its path.
 _Avoid_: Gone, lost, deleted

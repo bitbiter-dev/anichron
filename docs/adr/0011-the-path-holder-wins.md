@@ -41,4 +41,4 @@ no row holds P (`Moved`, #35). That was weighed and rejected:
 - Swapping the contents of two paths can soft-delete both rows for one crawl; the next crawl
   auto-restores each with its path's new content.
 - Live Photo MOV halves keep `DuplicateCopy` and `PathTaken`: a Live Photo moved onto another
-  keeps the old video until treating a Live Photo as one unit lands (the follow-up to #303).
+  keeps the old video until treating a Live Photo as one unit lands (#331, the follow-up to #303).

@@ -82,11 +82,21 @@ public sealed class AssetDtoMapperTests
     }
 
     [Fact]
-    public void LivePhoto_WhosePairedMovHasNoVideoProxy_HasNoLivePhotoUrl()
+    public void LivePhoto_WhosePairedMovHasNoVideoProxy_IsPublishedAsAStillImage()
     {
         var dto = ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovId = MovId });
 
         dto.LivePhotoVideoUrl.Should().BeNull();
+        dto.MediaType.Should().Be("Image");
+    }
+
+    [Fact]
+    public void LivePhoto_WithoutAPairedMov_IsPublishedAsAStillImage()
+    {
+        var dto = ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovHasVideo = true });
+
+        dto.LivePhotoVideoUrl.Should().BeNull();
+        dto.MediaType.Should().Be("Image");
     }
 
     [Fact]
@@ -151,15 +161,18 @@ public sealed class AssetDtoMapperTests
         => AssetDtoMapper.ToDto(new InteractionState(starred, liked, hidden))
             .Should().Be(new AssetInteractionDto(starred, liked, hidden, weight));
 
+    private static AssetView WithLiveVideo(MediaType type)
+        => Photo with { MediaType = type, PairedMovId = MovId, PairedMovHasVideo = true };
+
     [Theory]
     [InlineData(MediaType.Image, "Image")]
     [InlineData(MediaType.Video, "Video")]
     [InlineData(MediaType.LivePhoto, "LivePhoto")]
     public void MediaType_IsPublishedAsItsContractValue(MediaType type, string published)
-        => ToDto(Photo with { MediaType = type }).MediaType.Should().Be(published);
+        => ToDto(WithLiveVideo(type)).MediaType.Should().Be(published);
 
     [Fact]
     public void EveryMediaType_HasAPublishedValue()
-        => Enum.GetValues<MediaType>().Select(t => ToDto(Photo with { MediaType = t }).MediaType)
+        => Enum.GetValues<MediaType>().Select(t => ToDto(WithLiveVideo(t)).MediaType)
             .Should().OnlyHaveUniqueItems().And.HaveCount(Enum.GetValues<MediaType>().Length);
 }
