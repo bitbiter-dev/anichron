@@ -23,7 +23,7 @@ public sealed class WorkItemRetentionTests
 
     private Task<object?> RunAsync(WorkerSettings? settings = null)
         => new WorkItemRetentionHandler(store, clock, Options.Create(settings ?? new WorkerSettings()), logger)
-            .RunAsync(new WorkItemRetentionPayload(), Substitute.For<IWorkProgress>(), Ct);
+            .RunAsync(new WorkItemRetentionPayload(), new WorkRun(Guid.NewGuid(), Substitute.For<IWorkProgress>()), Ct);
 
     [Fact]
     public async Task RunAsync_ByDefault_DeletesItemsFinishedMoreThanThirtyDaysAgoAsync()

@@ -21,6 +21,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
+    public DbSet<ProxyOrphan> ProxyOrphans => Set<ProxyOrphan>();
 
     // Stryker disable all
     public async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken ct = default)
@@ -109,8 +110,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.Property(m => m.Day).HasComment(
                 "See Month — the pair backs IX_MediaAsset_Flashback.");
             entity.Property(m => m.PairedAssetId).HasComment(
-                "Live Photo pairing: the HEIC parent points at its MOV child. SetNull on delete "
-                + "so losing one half leaves the other a usable standalone asset.");
+                "Live Photo pairing: the photo points at its video. The video is part of the photo, never a "
+                + "memory of its own: reconciliation soft-deletes it with its photo and leaves a lone copy of it "
+                + "alone. Without its video the photo is shown as a still photo, so SetNull on delete.");
             entity.Property(m => m.IsSoftDeleted).HasComment(
                 "Set by reconciliation when a complete crawl did not find the file, or when its path "
                 + "now holds content stored at another path. Soft rather than hard so the user's "
@@ -220,6 +222,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.HasIndex(p => new { p.AssetId, p.ProxyType })
                   .IsUnique()
                   .HasDatabaseName(ProxyFileIndexNames.OnePerAssetAndType);
+            entity.HasIndex(p => p.ProxyPath)
+                  .HasOperators("text_pattern_ops")
+                  .HasDatabaseName(ProxyFileIndexNames.ProxyPath);
             entity.Property(p => p.ProxyType).HasConversion<string>();
             entity.HasQueryFilter(e => !e.Asset.IsSoftDeleted);
         });
@@ -336,7 +341,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         modelBuilder.Entity<WorkItem>(entity =>
         {
             entity.ToTable(t => t.HasComment(
-                    "Durable work for the Worker: periodic maintenance today, admin requests later. "
+                    "Durable work for the Worker, scheduled by Workers or requested by an admin. "
                     + "Only IWorkQueue inserts rows; the API's only other write is an admin's cancel, and "
                     + "every other state change belongs to the Worker's executor. Delivery is at least "
                     + "once, so handlers start from scratch and converge."
@@ -403,6 +408,40 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .WithMany()
                   .HasForeignKey(w => w.RequestedBy)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ProxyOrphan>(entity =>
+        {
+            entity.ToTable(t => t.HasComment(
+                    "A file under the proxy root that a ProxySweep found unreferenced by any ProxyFiles row, "
+                    + "soft-deleted assets' included, and last written more than an hour before the scan. "
+                    + "Written only by the Worker; the API reads it. Nothing is deleted until an admin asks, "
+                    + "and a ProxyDeletion re-checks each file before it removes it."
+                ));
+            entity.Property(o => o.SweepId).HasComment(
+                "The ProxySweep work item that found the file; retention of the item purges its report.");
+            entity.Property(o => o.ProxyPath).HasComment(
+                "Path relative to the proxy root, compared as is with ProxyFiles.ProxyPath.");
+            entity.Property(o => o.StorageConfigId).HasComment(
+                "The storage config named by the file's directory, read through IProxyDirectoryStrategy; "
+                + "null when the path names none. No foreign key: the config may be gone already, or go later.");
+            entity.Property(o => o.SizeBytes).HasComment(
+                "Size at the scan. A deletion skips the file when its size has changed since.");
+            entity.Property(o => o.LastWriteTime).HasComment(
+                "Last write time at the scan, truncated to microseconds. A deletion skips the file when it "
+                + "has changed since.");
+            entity.Property(o => o.DeletionOutcome).HasConversion<string>().HasComment(
+                "Deleted, SkippedReferenced, SkippedChanged, Missing or Failed, persisted as text; null until "
+                + "a deletion processed the file. A processed orphan is never processed again.");
+
+            entity.HasIndex(o => new { o.SweepId, o.ProxyPath })
+                  .IsUnique()
+                  .HasDatabaseName(ProxyOrphanIndexNames.OnePerSweepAndPath);
+
+            entity.HasOne<WorkItem>()
+                  .WithMany()
+                  .HasForeignKey(o => o.SweepId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

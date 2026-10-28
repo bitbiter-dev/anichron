@@ -4,9 +4,11 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
+using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Classification;
 
@@ -18,6 +20,7 @@ public sealed class KnownFileReconcilerTests
     private static readonly Guid MovedRowId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static readonly Guid BurstId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid NewProxyId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+    private static readonly Guid PhotoId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     private sealed class TestFixture
     {
@@ -26,7 +29,9 @@ public sealed class KnownFileReconcilerTests
         public FakeLogger<KnownFileReconciler> Logger { get; } = new();
         public List<ProxyFile> Added { get; } = [];
         public List<ProxyFile> Removed { get; } = [];
-        public IngestionContext Context { get; } = new()
+        public MockFileSystem FileSystem { get; } = new();
+        public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
+        public IngestionContext Context { get; set; } = new()
         {
             Item = new SingleFileItem("/abs/2024/taken.jpg", "2024/taken.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
@@ -37,6 +42,10 @@ public sealed class KnownFileReconcilerTests
         {
             Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => Added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
             Repository.When(r => r.RemoveProxyFile(Arg.Any<ProxyFile>())).Do(call => Removed.Add(call.Arg<ProxyFile>()));
+            MovGenerator.FileName.Returns("video_720p.mp4");
+            MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
+            MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01, 0x02]));
         }
 
         public void LoadsMetadata(MediaAsset asset, Metadata? metadata)
@@ -52,9 +61,34 @@ public sealed class KnownFileReconcilerTests
             clock.GetCurrentInstant().Returns(Now);
             var guids = Substitute.For<IGuidFactory>();
             guids.NewGuid().Returns(NewProxyId);
-            return new KnownFileReconciler(clock, Repository, new StoredContent(Repository, Bursts, clock), guids, Logger)
+            var movProxyWriter = new PairedMovProxyWriter(
+                [MovGenerator],
+                new TwoLevelHexShardStrategy(),
+                new ProxyStagingWriter(FileSystem, clock, guids, new FakeLogger<ProxyStagingWriter>()),
+                Repository,
+                new FakeLogger<PairedMovProxyWriter>());
+            return new KnownFileReconciler(
+                    clock, Repository, new StoredContent(Repository, Bursts, clock), guids, movProxyWriter, FileSystem, Logger)
                 .ReconcileAsync(Context, file, relativePath, CancellationToken.None);
         }
+    }
+
+    private static IngestionContext VideoContext(FileOutcome outcome, MediaAsset video, bool withPhoto = true)
+    {
+        var photo = withPhoto ? Row(PhotoId, "2024/live.heic", "abc123") : null;
+        photo?.DateCaptured = new LocalDateTime(2020, 7, 8, 9, 10);
+        return new IngestionContext
+        {
+            Item = new LivePhotoPairItem("/abs/2024/live.heic", "2024/live.heic", "/abs/2024/live.mov", "2024/live.mov"),
+            Config = new UserStorageConfig { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AttemptId = Guid.NewGuid(),
+            ContentHash = "abc123",
+            SecondaryHash = "cafebabe",
+            Classification = new(
+                new FileClassification(photo is null ? FileOutcome.New : FileOutcome.Unchanged, photo),
+                new FileClassification(outcome, video),
+                PairingAction.None),
+        };
     }
 
     private static MediaAsset Row(Guid id, string path, string hash, bool softDeleted = false) => new()
@@ -193,6 +227,18 @@ public sealed class KnownFileReconcilerTests
             Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
         }, options => options.Excluding(m => m.Asset));
         await fx.Bursts.Received(1).RemoveCheckAsync(PathRowId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_OverwrittenByMoveOfAPairedRowElsewhere_MovesItToTheCrawledPathAsync()
+    {
+        var fx = new TestFixture();
+        var (atPath, moved) = MoveOntoAnotherRow(fx);
+        atPath.FilePath = "2023/old.mov";
+
+        await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved), "2024/live.mov");
+
+        (atPath.FilePath, atPath.FileName).Should().Be(("2024/live.mov", "live.mov"));
     }
 
     [Fact]
@@ -346,33 +392,67 @@ public sealed class KnownFileReconcilerTests
     }
 
     [Fact]
-    public async Task ReconcileAsync_MovWithOtherContentAtItsSoftDeletedPath_IsAutoRestoredKeepingItsContentAsync()
+    public async Task ReconcileAsync_VideoWithOtherContentAtItsSoftDeletedRow_IsAutoRestoredWithTheNewContentAsync()
     {
         var fx = new TestFixture();
         var mov = Row(MovedRowId, "2024/live.mov", "0ldm0v", softDeleted: true);
+        fx.Context = VideoContext(FileOutcome.AutoRestoredContentChanged, mov);
 
-        var reconciled = await fx.ReconcileAsync(new FileClassification(FileOutcome.AutoRestoredContentChanged, mov), "2024/live.mov");
+        var reconciled = await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
 
         reconciled.Should().BeTrue();
-        mov.Should().BeEquivalentTo(new { IsSoftDeleted = false, LastSeenOnNas = Now, ContentHash = "0ldm0v" });
+        mov.Should().BeEquivalentTo(new { IsSoftDeleted = false, LastSeenOnNas = Now, ContentHash = "cafebabe" });
         (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 1));
     }
 
-    // ==========================================================================
-    // Outcomes that change nothing
-    // ==========================================================================
+    [Fact]
+    public async Task ReconcileAsync_VideoContentChanged_TakesTheNewContentWithTheCaptureDateOfItsPhotoAsync()
+    {
+        var fx = new TestFixture();
+        var mov = Row(MovedRowId, "2023/live.mov", "0ldm0v");
+        mov.MediaType = MediaType.LivePhoto;
+        mov.BurstId = BurstId;
+        var oldProxy = Proxy(MovedRowId, ProxyType.WebVideo, "0l/old/video_720p.mp4");
+        mov.ProxyFiles = [oldProxy];
+        fx.LoadsMetadata(mov, new Metadata { AssetId = MovedRowId, Width = 1920, Height = 1080 });
+        fx.Context = VideoContext(FileOutcome.ContentChanged, mov);
+
+        var reconciled = await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
+
+        reconciled.Should().BeTrue();
+        mov.Should().BeEquivalentTo(new
+        {
+            FilePath = "2024/live.mov",
+            FileName = "live.mov",
+            ContentHash = "cafebabe",
+            DateCaptured = new LocalDateTime(2020, 7, 8, 9, 10),
+            MediaType = MediaType.Video,
+            BurstId = (Guid?)null,
+            LastSeenOnNas = Now,
+        });
+        mov.Metadata.Should().BeEquivalentTo(new { Width = 0, Height = 0 });
+        oldProxy.ProxyPath.Should().Be($"ca/{fx.Context.Config.Id:N}-cafebabe/video_720p.mp4");
+        oldProxy.SizeBytes.Should().Be(2);
+        fx.Added.Should().BeEmpty();
+        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/2024/live.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        fx.FileSystem.File.Exists($"/data/proxies/ca/{fx.Context.Config.Id:N}-cafebabe/video_720p.mp4").Should().BeTrue();
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information)
+            .Which.Message.Should().Be(
+                "Video asset dddddddd-dddd-dddd-dddd-dddddddddddd at 2024/live.mov changed content from 0ldm0v to cafebabe, updating it in place.");
+    }
 
     [Fact]
-    public async Task ReconcileAsync_ContentChangedMov_ChangesNothingAsync()
+    public async Task ReconcileAsync_VideoContentChangedWithoutAPhotoRow_TakesTheVideoFilesLastWriteTimeAsync()
     {
         var fx = new TestFixture();
         var mov = Row(MovedRowId, "2024/live.mov", "0ldm0v");
+        fx.Context = VideoContext(FileOutcome.ContentChanged, mov, withPhoto: false);
+        fx.FileSystem.AddFile("/abs/2024/live.mov", new MockFileData([]) { LastWriteTime = new DateTime(2021, 2, 3, 4, 5, 6, DateTimeKind.Local) });
 
-        var reconciled = await fx.ReconcileAsync(new FileClassification(FileOutcome.ContentChanged, mov), "2024/live.mov");
+        await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
 
-        reconciled.Should().BeFalse();
-        mov.LastSeenOnNas.Should().Be(FirstSeen);
-        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
+        mov.DateCaptured.Should().Be(new LocalDateTime(2021, 2, 3, 4, 5, 6));
     }
 
     [Fact]
@@ -386,14 +466,98 @@ public sealed class KnownFileReconcilerTests
     }
 
     [Fact]
-    public async Task ReconcileAsync_PathTaken_ChangesNothingAndWarnsAsync()
+    public async Task ReconcileAsync_LoneLivePhotoVideoOverAStandaloneRow_SoftDeletesOnlyTheStandaloneRowAsync()
     {
         var fx = new TestFixture();
-        var stored = Row(MovedRowId, "2023/live.mov", "cafebabe");
+        var video = Row(MovedRowId, "LP/A.mov", "cafebabe");
+        var standalone = Row(PathRowId, "X.mov", "f00d");
 
-        (await fx.ReconcileAsync(new FileClassification(FileOutcome.PathTaken, stored), "2024/live.mov")).Should().BeFalse();
-        stored.FilePath.Should().Be("2023/live.mov");
-        fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Warning
-            && r.Message == "Cannot record 2024/live.mov: another asset row already holds that path, skipping.");
+        var reconciled = await fx.ReconcileAsync(
+            new FileClassification(FileOutcome.LoneLivePhotoVideo, video, Retired: standalone), "X.mov");
+
+        reconciled.Should().BeTrue();
+        standalone.Should().BeEquivalentTo(new { IsSoftDeleted = true, ContentHash = "f00d", FilePath = "X.mov" });
+        video.Should().BeEquivalentTo(new { IsSoftDeleted = false, FilePath = "LP/A.mov", LastSeenOnNas = FirstSeen });
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((1, 0));
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r =>
+            r.Level == LogLevel.Information
+            && r.Message == "Soft-deleted asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at X.mov: the path now holds a copy of "
+                + "the video of a Live Photo, dddddddd-dddd-dddd-dddd-dddddddddddd at LP/A.mov.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReconcileAsync_LoneLivePhotoVideoRetiringNothing_LeavesTheVideoRowAloneAsync(bool softDeleted)
+    {
+        var fx = new TestFixture();
+        var video = Row(MovedRowId, "LP/A.mov", "cafebabe", softDeleted);
+
+        var reconciled = await fx.ReconcileAsync(new FileClassification(FileOutcome.LoneLivePhotoVideo, video), "elsewhere/A.mov");
+
+        reconciled.Should().BeFalse();
+        video.Should().BeEquivalentTo(new { IsSoftDeleted = softDeleted, FilePath = "LP/A.mov", LastSeenOnNas = FirstSeen });
+        (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r =>
+            r.Level == LogLevel.Debug
+            && r.Message == "Left elsewhere/A.mov alone: it holds the video of a Live Photo, asset "
+                + "dddddddd-dddd-dddd-dddd-dddddddddddd, which follows only its photo.");
+    }
+
+    private static IngestionClassification LivePhoto(FileOutcome photoOutcome, MediaAsset video, Guid? photoPointsAt = null)
+    {
+        var photo = Row(PhotoId, "2024/live.heic", "abc123", softDeleted: photoOutcome == FileOutcome.AutoRestored);
+        photo.PairedAssetId = photoPointsAt ?? video.Id;
+        return new(
+            new FileClassification(photoOutcome, photo),
+            new FileClassification(FileOutcome.AutoRestored, video),
+            PairingAction.None);
+    }
+
+    private static IEnumerable<FakeLogRecord> InformationLines(TestFixture fx)
+        => fx.Logger.Collector.GetSnapshot().Where(r => r.Level == LogLevel.Information);
+
+    [Theory]
+    [InlineData((int)FileOutcome.Unchanged)]
+    [InlineData((int)FileOutcome.Moved)]
+    [InlineData((int)FileOutcome.ContentChanged)]
+    public async Task ReconcileAsync_VideoAutoRestoredBesideItsActivePhoto_SaysItIsALivePhotoAgainAsync(int photoOutcome)
+    {
+        var fx = new TestFixture();
+        var video = Row(MovedRowId, "2024/live.mov", "cafebabe", softDeleted: true);
+        fx.Context.Classification = LivePhoto((FileOutcome)photoOutcome, video);
+
+        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
+
+        InformationLines(fx).Should().ContainSingle().Which.Message.Should().Be(
+            "Asset cccccccc-cccc-cccc-cccc-cccccccccccc is a Live Photo again: "
+            + "its video, asset dddddddd-dddd-dddd-dddd-dddddddddddd at 2024/live.mov, was auto-restored.");
+    }
+
+    [Theory]
+    [InlineData((int)FileOutcome.AutoRestored)]
+    [InlineData((int)FileOutcome.AutoRestoredMoved)]
+    [InlineData((int)FileOutcome.AutoRestoredContentChanged)]
+    public async Task ReconcileAsync_VideoAutoRestoredWithItsPhoto_SaysNothingMoreAsync(int photoOutcome)
+    {
+        var fx = new TestFixture();
+        var video = Row(MovedRowId, "2024/live.mov", "cafebabe", softDeleted: true);
+        fx.Context.Classification = LivePhoto((FileOutcome)photoOutcome, video);
+
+        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
+
+        InformationLines(fx).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_VideoAutoRestoredBesideAPhotoPointingElsewhere_SaysNothingMoreAsync()
+    {
+        var fx = new TestFixture();
+        var video = Row(MovedRowId, "2024/live.mov", "cafebabe", softDeleted: true);
+        fx.Context.Classification = LivePhoto(FileOutcome.Unchanged, video, photoPointsAt: Guid.NewGuid());
+
+        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
+
+        InformationLines(fx).Should().BeEmpty();
     }
 }

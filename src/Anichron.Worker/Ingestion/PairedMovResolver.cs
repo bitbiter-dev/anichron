@@ -15,7 +15,7 @@ internal sealed class PairedMovResolver(
 {
     public MediaAsset Resolve(IngestionContext context, LocalDateTime? dateCaptured)
     {
-        var stored = context.Classification!.Secondary!.Stored;
+        var stored = context.Classification!.Secondary!.Row;
         if (stored is not null)
             return stored;
 

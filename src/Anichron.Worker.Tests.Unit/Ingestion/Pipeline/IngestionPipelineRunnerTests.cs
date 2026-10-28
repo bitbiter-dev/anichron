@@ -4,9 +4,12 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
+using Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 using Anichron.Worker.Tests.Unit.TestDoubles;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NodaTime;
+using NSubstitute.ExceptionExtensions;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -153,6 +156,34 @@ public sealed class IngestionPipelineRunnerTests
         await act.Should().ThrowAsync<InvalidOperationException>();
         fixture.FileSystem.FileExists("/data/proxies/ab/cd/thumbnail.jpg").Should().BeFalse();
         fixture.FileSystem.FileExists("/data/proxies/0l/old/thumbnail.jpg").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_EditedVideoFailsToSave_DeletesItsNewVideoProxyAndKeepsTheOldOneAsync()
+    {
+        var classification = new ClassificationFixture();
+        var fileSystem = classification.FileSystem;
+        var movId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        fileSystem.AddFile("/data/proxies/0l/old/video_720p.mp4", new MockFileData([0x02]));
+        classification.Store(
+            new MediaAsset { Id = Guid.NewGuid(), FilePath = "photo.heic", ContentHash = "abc123", PairedAssetId = movId },
+            new MediaAsset
+            {
+                Id = movId,
+                FilePath = "photo.mov",
+                ContentHash = "0ldm0v",
+                ProxyFiles = [new ProxyFile { AssetId = movId, ProxyType = ProxyType.WebVideo, ProxyPath = "0l/old/video_720p.mp4" }],
+            });
+        classification.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new DbUpdateException("down"));
+        var runner = new IngestionPipelineRunner(
+            [classification.Build()], new TwoLevelHexShardStrategy(), fileSystem, Substitute.For<ILogger<IngestionPipelineRunner>>());
+
+        var act = () => runner.RunAsync(ClassificationFixture.Pair(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        await classification.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        fileSystem.FileExists($"/data/proxies/ca/{ClassificationFixture.ConfigId:N}-cafebabe/video_720p.mp4").Should().BeFalse();
+        fileSystem.FileExists("/data/proxies/0l/old/video_720p.mp4").Should().BeTrue();
     }
 
     [Fact]

@@ -26,6 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: dotnet-ef matches EF Core
+        run: scripts/tool-versions.sh
+
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
@@ -82,6 +85,7 @@ jobs:
           scripts/stryker-sweep.test.sh
           scripts/graph.test.sh
           scripts/graph-hint.test.sh
+          scripts/tool-versions.test.sh
 
       - name: Mutation setup matches its rules
         run: scripts/mutation-guard.sh
@@ -516,7 +520,7 @@ jobs:
           # Two prerequisites this job does NOT inherit from the checks job, each of which
           # failed it in turn before being added. It is a separate job on a clean checkout:
           #   1. dotnet-ef is a MANIFEST tool — `--global` is ignored inside a repo carrying
-          #      dotnet-tools.json, and `dotnet ef` then demands a restore.
+          #      .config/dotnet-tools.json, and `dotnet ef` then demands a restore.
           #   2. Nothing has restored the SOLUTION, so `dotnet ef` fails with NETSDK1004
           #      ("Assets file project.assets.json not found") before it reaches the database.
           dotnet tool restore

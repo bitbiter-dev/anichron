@@ -3,6 +3,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute.ExceptionExtensions;
@@ -24,6 +25,7 @@ public sealed class IngestionSaverTests
             Config = new UserStorageConfig { Id = ConfigId, UserId = Guid.NewGuid(), RootPath = "/abs" },
             AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
+            Classification = new(new FileClassification(FileOutcome.New, null), null, PairingAction.None),
         };
 
         public ProxyFile OwnProxy { get; }
@@ -42,6 +44,39 @@ public sealed class IngestionSaverTests
         public void TransactionsRunTheirWork()
             => UnitOfWork.ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
                 .Returns(call => call.Arg<Func<Task>>()());
+    }
+
+    private static readonly Guid RetiredId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+    private static readonly Guid RetiredVideoId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+
+    private static void RetireFirst(IngestionContext context)
+        => context.Classification = new(
+            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: new MediaAsset { Id = RetiredId }),
+            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: new MediaAsset { Id = RetiredVideoId }),
+            PairingAction.None);
+
+    private static List<string> RecordSteps(TestFixture fx)
+    {
+        var steps = new List<string>();
+        fx.UnitOfWork.ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                steps.Add("begin");
+                await call.Arg<Func<Task>>()();
+                steps.Add("commit");
+            });
+        fx.Repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                steps.Add($"soft-delete {string.Join(',', call.Arg<IReadOnlyCollection<Guid>>())}");
+                return 1;
+            });
+        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            steps.Add("save");
+            return 1;
+        });
+        return steps;
     }
 
     private static MediaAsset NewAsset => new() { ContentHash = "deadbeef", StorageConfigId = ConfigId };
@@ -211,47 +246,29 @@ public sealed class IngestionSaverTests
     // TrySaveRetiringFirstAsync
     // ==========================================================================
 
-    private static readonly Guid RetiredId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
-
     [Fact]
-    public async Task TrySaveRetiringFirstAsync_SoftDeletesTheRetiredRowBeforeSavingInOneTransaction()
+    public async Task TrySaveRetiringFirstAsync_SoftDeletesEveryRetiredRowBeforeSavingInOneTransaction()
     {
         var fx = new TestFixture();
-        var steps = new List<string>();
-        fx.UnitOfWork.ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
-            .Returns(async call =>
-            {
-                steps.Add("begin");
-                await call.Arg<Func<Task>>()();
-                steps.Add("commit");
-            });
-        fx.Repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                steps.Add($"soft-delete {string.Join(',', call.Arg<IReadOnlyCollection<Guid>>())}");
-                return 1;
-            });
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(_ =>
-        {
-            steps.Add("save");
-            return 1;
-        });
+        RetireFirst(fx.Context);
+        var steps = RecordSteps(fx);
 
-        var saved = await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        var saved = await fx.Build().TrySaveRetiringFirstAsync(fx.Context, CancellationToken.None);
 
         saved.Should().BeTrue();
-        steps.Should().Equal("begin", "soft-delete dddddddd-dddd-dddd-dddd-dddddddddddd", "save", "commit");
+        steps.Should().Equal(
+            "begin", "soft-delete dddddddd-dddd-dddd-dddd-dddddddddddd,eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "save", "commit");
     }
-
     [Fact]
     public async Task TrySaveRetiringFirstAsync_Commits_CountsTheStagedChanges()
     {
         var fx = new TestFixture();
         fx.TransactionsRunTheirWork();
+        RetireFirst(fx.Context);
         fx.Context.StageSoftDeleted();
         fx.Context.StageAutoRestored();
 
-        await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        await fx.Build().TrySaveRetiringFirstAsync(fx.Context, CancellationToken.None);
 
         (fx.Context.SoftDeleted, fx.Context.AutoRestored).Should().Be((1, 1));
         (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
@@ -262,10 +279,11 @@ public sealed class IngestionSaverTests
     {
         var fx = new TestFixture();
         fx.TransactionsRunTheirWork();
+        RetireFirst(fx.Context);
         fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
         fx.Context.StageSoftDeleted();
 
-        await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        await fx.Build().TrySaveRetiringFirstAsync(fx.Context, CancellationToken.None);
 
         fx.Context.SoftDeleted.Should().Be(0);
     }
@@ -275,9 +293,10 @@ public sealed class IngestionSaverTests
     {
         var fx = new TestFixture();
         fx.TransactionsRunTheirWork();
+        RetireFirst(fx.Context);
         fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
 
-        var saved = await fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        var saved = await fx.Build().TrySaveRetiringFirstAsync(fx.Context, CancellationToken.None);
 
         saved.Should().BeFalse();
     }
@@ -287,10 +306,64 @@ public sealed class IngestionSaverTests
     {
         var fx = new TestFixture();
         fx.TransactionsRunTheirWork();
+        RetireFirst(fx.Context);
         fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.FilePathUnique));
 
-        var act = () => fx.Build().TrySaveRetiringFirstAsync(fx.Context, new MediaAsset { Id = RetiredId }, CancellationToken.None);
+        var act = () => fx.Build().TrySaveRetiringFirstAsync(fx.Context, CancellationToken.None);
 
         await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    [Fact]
+    public async Task TrySaveNewAsync_NothingRetiredFirst_SavesWithoutATransaction()
+    {
+        var fx = new TestFixture();
+
+        await fx.Build().TrySaveNewAsync(fx.Context, NewAsset, MovId, CancellationToken.None);
+
+        await fx.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TrySaveNewAsync_RowsRetiredFirst_SoftDeletesThemBeforeSavingInOneTransaction()
+    {
+        var fx = new TestFixture();
+        RetireFirst(fx.Context);
+        var steps = RecordSteps(fx);
+
+        var saved = await fx.Build().TrySaveNewAsync(fx.Context, NewAsset, MovId, CancellationToken.None);
+
+        saved.Should().BeTrue();
+        steps.Should().Equal(
+            "begin", "soft-delete dddddddd-dddd-dddd-dddd-dddddddddddd,eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "save", "commit");
+        fx.Context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(fx.OwnProxy);
+    }
+
+    [Fact]
+    public async Task TrySaveNewAsync_RowsRetiredFirstAndARaceLost_ReleasesTheMovsProxies()
+    {
+        var fx = new TestFixture();
+        RetireFirst(fx.Context);
+        fx.TransactionsRunTheirWork();
+        fx.SaveFailsWith(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        fx.Repository.FindByHashAsync("deadbeef", ConfigId, Arg.Any<CancellationToken>()).Returns(new MediaAsset());
+
+        var saved = await fx.Build().TrySaveNewAsync(fx.Context, NewAsset, MovId, CancellationToken.None);
+
+        saved.Should().BeFalse();
+        fx.Context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(fx.OwnProxy);
+    }
+
+    [Fact]
+    public async Task SaveAsync_RowsRetiredFirst_SavesWithoutRetiringThem()
+    {
+        var fx = new TestFixture();
+        RetireFirst(fx.Context);
+
+        await fx.Build().SaveAsync(fx.Context, MovId, CancellationToken.None);
+
+        await fx.Repository.DidNotReceive().SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -385,9 +385,49 @@ public sealed class NewContentWriterTests
         fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
         fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(a => a.Id == context.AssetId));
         asset!.PairedAssetId.Should().Be(existingMov.Id);
+        existingMov.DateCaptured.Should().Be(default);
         await fx.MovGenerator.DidNotReceive().TranscodeAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         fx.Repository.DidNotReceive().AddProxyFiles(Arg.Is<IEnumerable<ProxyFile>>(rows => rows.Any()));
+    }
+
+    [Fact]
+    public async Task TryWriteAsync_LivePhotoWhoseVideoCopiesAnotherRow_LeavesThePhotoUnpairedAsync()
+    {
+        var fx = new TestFixture();
+        var context = MakeContext(item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+        context.Classification = context.Classification! with
+        {
+            Secondary = new FileClassification(FileOutcome.DuplicateCopy, new MediaAsset { Id = Guid.NewGuid(), ContentHash = "cafebabe" }),
+        };
+
+        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+
+        asset!.PairedAssetId.Should().BeNull();
+        fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
+        await fx.MovGenerator.DidNotReceive().TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TryWriteAsync_VideoOverwrittenByAMove_RetiresTheMovedRowBeforeSavingAsync()
+    {
+        var fx = new TestFixture();
+        fx.UnitOfWork.ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<Func<Task>>()());
+        var holder = new MediaAsset { Id = Guid.NewGuid(), ContentHash = "cafebabe", ProxyFiles = [new ProxyFile { ProxyType = ProxyType.WebVideo }] };
+        var moved = new MediaAsset { Id = Guid.NewGuid() };
+        var context = MakeContext(item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
+        context.Classification = context.Classification! with
+        {
+            Secondary = new FileClassification(FileOutcome.OverwrittenByMove, holder, Retired: moved),
+        };
+
+        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+
+        asset!.PairedAssetId.Should().Be(holder.Id);
+        holder.DateCaptured.Should().Be(new LocalDateTime(2023, 6, 15, 10, 0));
+        await fx.Repository.Received(1).SoftDeleteAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { moved.Id })), Arg.Any<CancellationToken>());
     }
 
     [Fact]

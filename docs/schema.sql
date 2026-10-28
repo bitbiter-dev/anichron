@@ -85,7 +85,7 @@ CREATE TABLE "WorkItems" (
     CONSTRAINT "FK_WorkItems_StorageConfigs_StorageConfigId" FOREIGN KEY ("StorageConfigId") REFERENCES "StorageConfigs" ("Id") ON DELETE CASCADE,
     CONSTRAINT "FK_WorkItems_Users_RequestedBy" FOREIGN KEY ("RequestedBy") REFERENCES "Users" ("Id") ON DELETE SET NULL
 );
-COMMENT ON TABLE "WorkItems" IS 'Durable work for the Worker: periodic maintenance today, admin requests later. Only IWorkQueue inserts rows; the API''s only other write is an admin''s cancel, and every other state change belongs to the Worker''s executor. Delivery is at least once, so handlers start from scratch and converge.';
+COMMENT ON TABLE "WorkItems" IS 'Durable work for the Worker, scheduled by Workers or requested by an admin. Only IWorkQueue inserts rows; the API''s only other write is an admin''s cancel, and every other state change belongs to the Worker''s executor. Delivery is at least once, so handlers start from scratch and converge.';
 COMMENT ON COLUMN "WorkItems"."Kind" IS 'WorkKind, persisted as text. Picks the payload type and the handler through the registry, never through a switch.';
 COMMENT ON COLUMN "WorkItems"."Payload" IS 'The kind''s IWorkPayload, serialised with System.Text.Json and NodaTime settings.';
 COMMENT ON COLUMN "WorkItems"."DedupKey" IS 'Opt-in coalescing. While an item with this key is Queued, enqueueing the same key returns that item instead of adding a second; the partial unique index enforces it.';
@@ -100,6 +100,27 @@ COMMENT ON COLUMN "WorkItems"."UpdatedAt" IS 'Moves on every insert, claim and t
 COMMENT ON COLUMN "WorkItems"."CancelRequestedAt" IS 'When an admin asked to cancel the item. A Queued item is cancelled at once; a Running one keeps running until the Worker''s next heartbeat reads this and cancels its handler. A requested item is never queued again: release and lease recovery end it Cancelled. A cancelled periodic item counts as that run, so the next one follows a full interval later.';
 COMMENT ON COLUMN "WorkItems"."ProgressNote" IS 'The latest progress snapshot (done, optional total, note), overwritten by each heartbeat; no history is kept.';
 COMMENT ON COLUMN "WorkItems"."Result" IS 'The handler''s results summary, written when the item succeeds, or when it is cancelled after its handler returned one; a Cancelled item''s results are partial.';
+
+
+CREATE TABLE "ProxyOrphans" (
+    "Id" uuid NOT NULL,
+    "SweepId" uuid NOT NULL,
+    "ProxyPath" text NOT NULL,
+    "StorageConfigId" uuid,
+    "SizeBytes" bigint NOT NULL,
+    "LastWriteTime" timestamp with time zone NOT NULL,
+    "DeletionOutcome" text,
+    "ProcessedAt" timestamp with time zone,
+    CONSTRAINT "PK_ProxyOrphans" PRIMARY KEY ("Id"),
+    CONSTRAINT "FK_ProxyOrphans_WorkItems_SweepId" FOREIGN KEY ("SweepId") REFERENCES "WorkItems" ("Id") ON DELETE CASCADE
+);
+COMMENT ON TABLE "ProxyOrphans" IS 'A file under the proxy root that a ProxySweep found unreferenced by any ProxyFiles row, soft-deleted assets'' included, and last written more than an hour before the scan. Written only by the Worker; the API reads it. Nothing is deleted until an admin asks, and a ProxyDeletion re-checks each file before it removes it.';
+COMMENT ON COLUMN "ProxyOrphans"."SweepId" IS 'The ProxySweep work item that found the file; retention of the item purges its report.';
+COMMENT ON COLUMN "ProxyOrphans"."ProxyPath" IS 'Path relative to the proxy root, compared as is with ProxyFiles.ProxyPath.';
+COMMENT ON COLUMN "ProxyOrphans"."StorageConfigId" IS 'The storage config named by the file''s directory, read through IProxyDirectoryStrategy; null when the path names none. No foreign key: the config may be gone already, or go later.';
+COMMENT ON COLUMN "ProxyOrphans"."SizeBytes" IS 'Size at the scan. A deletion skips the file when its size has changed since.';
+COMMENT ON COLUMN "ProxyOrphans"."LastWriteTime" IS 'Last write time at the scan, truncated to microseconds. A deletion skips the file when it has changed since.';
+COMMENT ON COLUMN "ProxyOrphans"."DeletionOutcome" IS 'Deleted, SkippedReferenced, SkippedChanged, Missing or Failed, persisted as text; null until a deletion processed the file. A processed orphan is never processed again.';
 
 
 CREATE TABLE "BurstChecks" (
@@ -145,7 +166,7 @@ CREATE TABLE "MediaAssets" (
     CONSTRAINT "FK_MediaAssets_StorageConfigs_StorageConfigId" FOREIGN KEY ("StorageConfigId") REFERENCES "StorageConfigs" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "MediaAssets" IS 'One row per media file, scoped to a storage config. Written ONLY by the Worker — the API never writes media data.';
-COMMENT ON COLUMN "MediaAssets"."PairedAssetId" IS 'Live Photo pairing: the HEIC parent points at its MOV child. SetNull on delete so losing one half leaves the other a usable standalone asset.';
+COMMENT ON COLUMN "MediaAssets"."PairedAssetId" IS 'Live Photo pairing: the photo points at its video. The video is part of the photo, never a memory of its own: reconciliation soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo is shown as a still photo, so SetNull on delete.';
 COMMENT ON COLUMN "MediaAssets"."FilePath" IS 'Path relative to the storage config root. Not to be confused with ProxyFiles.ProxyPath, which is relative to the proxy root.';
 COMMENT ON COLUMN "MediaAssets"."ContentHash" IS 'XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same bytes under two storage configs are two assets, which is what makes multi-user work. A global unique index on this column alone would break that and must never be added.';
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';
@@ -250,6 +271,12 @@ CREATE UNIQUE INDEX "IX_MediaAssets_StorageConfigId_FilePath" ON "MediaAssets" (
 
 
 CREATE UNIQUE INDEX ix_proxyfiles_assetid_proxytype ON "ProxyFiles" ("AssetId", "ProxyType");
+
+
+CREATE INDEX ix_proxyfiles_proxypath ON "ProxyFiles" ("ProxyPath" text_pattern_ops);
+
+
+CREATE UNIQUE INDEX ix_proxyorphans_sweepid_proxypath ON "ProxyOrphans" ("SweepId", "ProxyPath");
 
 
 CREATE UNIQUE INDEX "IX_RefreshTokens_TokenHash" ON "RefreshTokens" ("TokenHash");

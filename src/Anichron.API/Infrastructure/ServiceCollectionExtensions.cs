@@ -86,6 +86,8 @@ public static class ServiceCollectionExtensions
                 .ValidateOnStart();
             services.AddScoped<IWorkItemReader, EfWorkItemReader>();
             services.AddScoped<IWorkItemCanceller, EfWorkItemCanceller>();
+            services.AddScoped<IWorkQueue, EfWorkQueue>();
+            services.AddScoped<IProxyOrphanReader, EfProxyOrphanReader>();
             services.AddScoped<WorkItemEvents>();
             return services;
         }

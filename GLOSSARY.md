@@ -12,6 +12,10 @@ _Avoid_: Moment, similar group, near-duplicates
 The member of a burst that represents it wherever the burst is shown as one memory: the earliest member the viewing user has not hidden.
 _Avoid_: Primary photo, key photo
 
+**Live Photo**:
+A photo and the short video the camera recorded with it, shown as one memory. Its video is part of the photo, never a memory of its own; without its video, the photo is shown as a still photo.
+_Avoid_: Pair, HEIC+MOV, motion photo
+
 **Missing**:
 An asset whose file a complete crawl of its storage config did not find at its path.
 _Avoid_: Gone, lost, deleted
@@ -23,6 +27,10 @@ _Avoid_: Trashed, archived, deleted
 **Auto-restore**:
 A soft-deleted asset becoming visible again, with its interactions intact, because a crawl found its file at its path or its content elsewhere in the same storage config.
 _Avoid_: Restore (alone), undelete, recover
+
+**Purge**:
+The owner permanently forgetting a soft-deleted asset, together with its stars, likes and hidden flag. The file on the NAS is never touched; if it turns up again, it comes back as a new asset.
+_Avoid_: Hard delete, permanently delete, empty trash
 
 **Overwritten**:
 A file whose path now holds content that the same storage config already stores at another path, either as a copy of that file or because that file was moved there.

@@ -57,6 +57,11 @@ JSON
   echo 'class FooTests {}' > "$repo/src/App.Tests.Unit/FooTests.cs"
   echo 'class OrphanTests {}' > "$repo/src/App.Tests.Unit/OrphanTests.cs"
   echo 'class Helper {}' > "$repo/src/App.Tests.Unit/Helper.cs"
+  echo 'class FooHttpTests {}' > "$repo/src/App.Tests.Unit/FooHttpTests.cs"
+  echo 'class EfStoreTests {}' > "$repo/src/App.Tests.Unit/EfStoreTests.cs"
+  printf 'interface IStore {}\nsealed class EfStore : IStore {}\n' > "$repo/src/App/Store.cs"
+  mkdir -p "$repo/src/Rules.Tests.Unit"
+  echo 'class RulesTests {}' > "$repo/src/Rules.Tests.Unit/RulesTests.cs"
   echo 'notes' > "$repo/docs/notes.md"
   git -C "$repo" init -q -b base
   git -C "$repo" -c user.name=t -c user.email=t@example.invalid add -A
@@ -107,6 +112,25 @@ echo 'class FooTests { int t; }' > "$repo/src/App.Tests.Unit/FooTests.cs"
 out=$(run "$repo"); status=$?
 assert_has_line 'a test change mutates the source it is named after' '**/App/Foo.cs' "$out"
 assert_eq_status 'a fully mapped change exits 0 in print mode' 0 "$status"
+
+repo=$(fixture test-prefix)
+echo 'class FooHttpTests { int t; }' > "$repo/src/App.Tests.Unit/FooHttpTests.cs"
+out=$(run "$repo"); status=$?
+assert_has_line 'a test change mutates the source its name starts with' '**/App/Foo.cs' "$out"
+assert_eq_status 'a prefix-mapped change exits 0 in print mode' 0 "$status"
+
+repo=$(fixture test-type)
+echo 'class EfStoreTests { int t; }' > "$repo/src/App.Tests.Unit/EfStoreTests.cs"
+out=$(run "$repo"); status=$?
+assert_has_line 'a test change mutates the file declaring the type it is named after' '**/App/Store.cs' "$out"
+assert_eq_status 'a type-mapped change exits 0 in print mode' 0 "$status"
+
+repo=$(fixture test-no-production)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo 'class RulesTests { int t; }' > "$repo/src/Rules.Tests.Unit/RulesTests.cs"
+out=$(run "$repo"); status=$?
+assert_contains 'tests of no production project are named' 'not mutated (tests of no production project): Rules.Tests.Unit/RulesTests.cs' "$out"
+assert_eq_status 'tests of no production project do not fail the run' 0 "$status"
 
 repo=$(fixture deleted)
 git -C "$repo" rm -q src/App/Sub/Bar.cs
@@ -182,6 +206,10 @@ mkdir -p "$stub"
 cat > "$stub/dotnet" <<'STUB'
 #!/usr/bin/env bash
 [ "$1" = msbuild ] && exec "$REAL_DOTNET" "$@"
+if [ "$1" = test ]; then
+  echo test >> "$STUB_RECORD"
+  exit "$TEST_STATUS"
+fi
 project=$(sed -n '/^--project$/{n;p;}' < <(printf '%s\n' "$@"))
 printf '%s %s\n' "$project" "$TMPDIR" >> "$STUB_RECORD"
 [ -d "$TMPDIR" ] && echo "$project" >> "$STUB_RECORD.dir"
@@ -194,7 +222,7 @@ mkdir -p "$shared"
 stryker_runs() {
   local repo="$1" record="$2"
   (cd "$repo/src" && PATH="$stub:$PATH" REAL_DOTNET="$real_dotnet" TMPDIR="$shared" \
-    STUB_RECORD="$record" APP_STATUS="$3" OTHER_STATUS="$4" "$script" --base base >/dev/null 2>&1)
+    STUB_RECORD="$record" APP_STATUS="$3" OTHER_STATUS="$4" TEST_STATUS="${5:-0}" "$script" --base base >/dev/null 2>&1)
 }
 
 repo=$(fixture isolated)
@@ -202,7 +230,8 @@ echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
 echo 'class Gadget { int g; }' > "$repo/src/Other/Gadget.cs"
 record="$work/record-isolated"
 stryker_runs "$repo" "$record" 2 0; status=$?
-dirs=$(awk '{print $2}' "$record" 2>/dev/null)
+assert_eq_status 'the unit tests run first' test "$(head -1 "$record")"
+dirs=$(awk '$1 != "test" {print $2}' "$record" 2>/dev/null)
 if [ "$(wc -l <<<"$dirs")" -eq 2 ] && [ "$(sort -u <<<"$dirs" | wc -l)" -eq 2 ] && ! grep -qxF "$shared" <<<"$dirs"; then
   pass 'each run has a temp dir of its own'
 else
@@ -219,6 +248,13 @@ echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
 echo 'class Gadget { int g; }' > "$repo/src/Other/Gadget.cs"
 stryker_runs "$repo" "$work/record-worst" 1 3; status=$?
 assert_eq_status 'a later, worse status wins' 3 "$status"
+
+repo=$(fixture tests-fail)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+record="$work/record-tests-fail"
+stryker_runs "$repo" "$record" 0 0 1; status=$?
+assert_eq_status 'failing unit tests exit 1' 1 "$status"
+assert_eq_status 'failing unit tests start no Stryker run' test "$(cat "$record")"
 
 repo=$(fixture all-pass)
 echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"

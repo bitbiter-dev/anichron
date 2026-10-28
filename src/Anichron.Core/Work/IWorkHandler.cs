@@ -9,5 +9,10 @@ namespace Anichron.Core.Work;
 public interface IWorkHandler<in TPayload>
     where TPayload : IWorkPayload
 {
-    Task<object?> RunAsync(TPayload payload, IWorkProgress progress, CancellationToken ct);
+    Task<object?> RunAsync(TPayload payload, WorkRun run, CancellationToken ct);
 }
+
+/// <summary>The run of one claimed item, as its handler sees it.</summary>
+/// <param name="ItemId">The work item being run.</param>
+/// <param name="Progress">Where the handler reports its progress.</param>
+public sealed record WorkRun(Guid ItemId, IWorkProgress Progress);

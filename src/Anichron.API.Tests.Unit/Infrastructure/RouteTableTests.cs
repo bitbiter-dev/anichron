@@ -174,11 +174,23 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
         => Routes.Where(r => r.Pattern.StartsWith("/api/v1/admin/work-items", StringComparison.Ordinal))
             .Should().HaveCount(4).And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Work items" }));
 
+    [Theory]
+    [InlineData("POST", "/api/v1/admin/proxy-sweeps")]
+    [InlineData("GET", "/api/v1/admin/proxy-sweeps/{sweepId:guid}/orphans")]
+    [InlineData("POST", "/api/v1/admin/proxy-sweeps/{sweepId:guid}/deletions")]
+    public void ProxySweepRoutes_RequireTheAdminPolicyWithoutRateLimit(string method, string pattern)
+        => AssertAdminWithoutRateLimit(Find(method, pattern));
+
+    [Fact]
+    public void ProxySweepRoutes_AreTaggedProxySweeps()
+        => Routes.Where(r => r.Pattern.StartsWith("/api/v1/admin/proxy-sweeps", StringComparison.Ordinal))
+            .Should().HaveCount(3).And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Proxy sweeps" }));
+
     [Fact]
     public void Healthz_IsAnonymous()
         => Find("GET", "/api/v1/healthz").Anonymous.Should().BeTrue();
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(27);
+        => Routes.Should().HaveCount(30);
 }

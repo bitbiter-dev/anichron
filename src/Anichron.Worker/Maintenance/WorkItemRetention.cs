@@ -14,7 +14,7 @@ public sealed partial class WorkItemRetentionHandler(
     IOptions<WorkerSettings> options,
     ILogger<WorkItemRetentionHandler> logger) : IWorkHandler<WorkItemRetentionPayload>
 {
-    public async Task<object?> RunAsync(WorkItemRetentionPayload payload, IWorkProgress progress, CancellationToken ct)
+    public async Task<object?> RunAsync(WorkItemRetentionPayload payload, WorkRun run, CancellationToken ct)
     {
         var cutoff = clock.GetCurrentInstant() - Duration.FromDays(options.Value.WorkItemRetentionDays);
         var deleted = await store.DeleteFinishedBeforeAsync(cutoff, ct);

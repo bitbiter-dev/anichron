@@ -34,6 +34,16 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         public static WorkKind Kind => WorkKind.BurstDetection;
     }
 
+    public sealed record Sweep : IWorkPayload
+    {
+        public static WorkKind Kind => WorkKind.ProxySweep;
+    }
+
+    public sealed record Deletion : IWorkPayload
+    {
+        public static WorkKind Kind => WorkKind.ProxyDeletion;
+    }
+
     private static readonly TimeSpan Heartbeat = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan Poll = TimeSpan.FromSeconds(5);
     private static readonly Duration Lease = Duration.FromSeconds(60);
@@ -69,10 +79,10 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             .Do(_ => timeline.Record("cancel"));
         store.When(s => s.ReleaseAsync(Arg.Any<WorkAttempt>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>()))
             .Do(_ => timeline.Record("release"));
-        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
+        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<WorkRun>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                handlerProgress = call.Arg<IWorkProgress>();
+                handlerProgress = call.Arg<WorkRun>().Progress;
                 handlerToken = call.Arg<CancellationToken>();
                 var run = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 handlerToken.Register(() => run.TrySetCanceled(handlerToken));
@@ -109,8 +119,9 @@ public sealed class WorkExecutorTests : IAsyncDisposable
             [
                 WorkHandlerRegistration.For<Cleanup>(), WorkHandlerRegistration.For<Retention>(),
                 WorkHandlerRegistration.For<Crawl>(), WorkHandlerRegistration.For<Bursts>(),
+                WorkHandlerRegistration.For<Sweep>(), WorkHandlerRegistration.For<Deletion>(),
             ],
-            [typeof(Cleanup), typeof(Retention), typeof(Crawl), typeof(Bursts)]);
+            [typeof(Cleanup), typeof(Retention), typeof(Crawl), typeof(Bursts), typeof(Sweep), typeof(Deletion)]);
         executor = new WorkExecutor(
             store, registry, workerState, ScopeFactories.Providing(services => services.AddSingleton(handler)),
             timeline.Clock, Options.Create(new WorkerSettings()), logger);
@@ -291,10 +302,10 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         => Heartbeats(() => HeartbeatOutcome.CancelRequested);
 
     private void HandlerWindsDownOnlyWhenTold()
-        => handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
+        => handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<WorkRun>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                handlerProgress = call.Arg<IWorkProgress>();
+                handlerProgress = call.Arg<WorkRun>().Progress;
                 handlerToken = call.Arg<CancellationToken>();
                 var run = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 runs.Add(run);
@@ -447,7 +458,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     [Fact]
     public async Task ExecuteAsync_HandlerThrowsSynchronously_FailsTheItemAsync()
     {
-        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<IWorkProgress>(), Arg.Any<CancellationToken>())
+        handler.RunAsync(Arg.Any<Cleanup>(), Arg.Any<WorkRun>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 timeline.Record("run");
