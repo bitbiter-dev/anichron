@@ -28,6 +28,10 @@ _Avoid_: Trashed, archived, deleted
 A soft-deleted asset becoming visible again, with its interactions intact, because a crawl found its file at its path or its content elsewhere in the same storage config.
 _Avoid_: Restore (alone), undelete, recover
 
+**Purge**:
+The owner permanently forgetting a soft-deleted asset, together with its stars, likes and hidden flag. The file on the NAS is never touched; if it turns up again, it comes back as a new asset.
+_Avoid_: Hard delete, permanently delete, empty trash
+
 **Overwritten**:
 A file whose path now holds content that the same storage config already stores at another path, either as a copy of that file or because that file was moved there.
 _Avoid_: Replaced, clobbered
