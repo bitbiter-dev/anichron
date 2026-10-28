@@ -7,9 +7,10 @@ single-page app in React and strict TypeScript, built with Vite, living in `src/
 and served by the API container on the same origin as `/api/v1`. It is phone-first and
 installable as a PWA; there is no UI server and no server-side rendering.
 
-The options, the criteria and the recommended libraries for every layer are in
-`docs/ui/technology-comparison.md`. Those library choices are proposals; each is settled by the
-design of the parent issue that owns it, not by this ADR.
+The full comparison of options and criteria is archived on #338
+(https://github.com/bitbiter-dev/anichron/issues/338#issuecomment-6460603778). The library for
+each layer is proposed in the parent issue that owns it (#344–#349) and settled by that issue's
+design, not by this ADR.
 
 ## Why React
 
