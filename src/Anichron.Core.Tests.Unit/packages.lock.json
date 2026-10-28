@@ -392,7 +392,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
-          "NodaTime": "[3.3.5, )",
+          "NodaTime": "[3.3.6, )",
           "NodaTime.Serialization.SystemTextJson": "[1.4.0, )",
           "Npgsql": "[10.0.3, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
@@ -405,7 +405,7 @@
           "Anichron.Core": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore.InMemory": "[10.0.14, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )",
-          "Microsoft.Extensions.DependencyInjection": "[10.0.13, )",
+          "Microsoft.Extensions.DependencyInjection": "[10.0.14, )",
           "Microsoft.Extensions.Diagnostics.Testing": "[10.11.0, )",
           "Microsoft.Extensions.TimeProvider.Testing": "[10.11.0, )"
         }
@@ -435,7 +435,7 @@
       },
       "Microsoft.Extensions.Configuration": {
         "type": "CentralTransitive",
-        "requested": "[10.0.13, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.13",
         "contentHash": "inhujYI/nikhmLxYI6ZEcaCgZ28ipJsKMPPxxr2XWf3vM0Q2P+E9R3hDHABZOLBxzD3gjpgcbSH/+hd2+gvI2A==",
         "dependencies": {
@@ -445,7 +445,7 @@
       },
       "Microsoft.Extensions.DependencyInjection": {
         "type": "CentralTransitive",
-        "requested": "[10.0.13, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "2LzcuVjemeXR+WdY9wGIr8iGb7fYsDAit+IScxXX2XJnX0b++mWcE/WO6fEGIqhdMfSQM2ZS5JGMHYZix7YXZg==",
         "dependencies": {
@@ -471,9 +471,9 @@
       },
       "NodaTime": {
         "type": "CentralTransitive",
-        "requested": "[3.3.5, )",
-        "resolved": "3.3.5",
-        "contentHash": "0qtGKHOYhQGCeUItP4RN8KJktsKD9j/B4IqmoecUL+ymReq69O71qEpZY6x0aQPZa5KDLXY41aEOOHZ9T6Uqgw=="
+        "requested": "[3.3.6, )",
+        "resolved": "3.3.6",
+        "contentHash": "vAjAdOvqu5hqgDVgzJxFPhSVy4EM5/tmSHJn/k0lLDIn4637OReqJgvR49fzFzj+5uZfebdJEFbI6LOLazWXog=="
       },
       "NodaTime.Serialization.SystemTextJson": {
         "type": "CentralTransitive",

@@ -356,7 +356,10 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "returns that item instead of adding a second; the partial unique index enforces it.");
             entity.Property(w => w.StorageConfigId).HasComment(
                 "The storage config the work belongs to, or null for unscoped work. A per-user Worker "
-                + "claims only its user's configs and unscoped work; deleting the config deletes its items.");
+                + "claims only its user's configs and unscoped work; deleting the config deletes its items. "
+                + "At most one item per config is Running, across all Workers, so two attempts never touch "
+                + "one config's files at once: the claim passes over a busy config, and a partial unique "
+                + "index rejects a racing second claim.");
             entity.Property(w => w.RequestedBy).HasComment(
                 "The admin who asked for the work; null when a Worker's scheduler enqueued it.");
             entity.Property(w => w.Status).HasConversion<string>().HasComment(
@@ -394,6 +397,10 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .IsUnique()
                   .HasFilter(@"""Status"" = 'Queued' AND ""DedupKey"" IS NOT NULL")
                   .HasDatabaseName(WorkItemIndexNames.QueuedDedupKeyUnique);
+            entity.HasIndex(w => w.StorageConfigId);
+            entity.HasIndex(w => w.StorageConfigId, WorkItemIndexNames.RunningStorageConfigUnique)
+                  .IsUnique()
+                  .HasFilter(@"""Status"" = 'Running' AND ""StorageConfigId"" IS NOT NULL");
             entity.HasIndex(w => w.LeaseUntil)
                   .HasFilter(@"""Status"" = 'Running'")
                   .HasDatabaseName("ix_workitems_lease");

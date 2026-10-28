@@ -18,7 +18,7 @@ namespace Anichron.Core.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -580,7 +580,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<Guid?>("StorageConfigId")
                         .HasColumnType("uuid")
-                        .HasComment("The storage config the work belongs to, or null for unscoped work. A per-user Worker claims only its user's configs and unscoped work; deleting the config deletes its items.");
+                        .HasComment("The storage config the work belongs to, or null for unscoped work. A per-user Worker claims only its user's configs and unscoped work; deleting the config deletes its items. At most one item per config is Running, across all Workers, so two attempts never touch one config's files at once: the claim passes over a busy config, and a partial unique index rejects a racing second claim.");
 
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -606,6 +606,10 @@ namespace Anichron.Core.Migrations
                     b.HasIndex("StorageConfigId");
 
                     b.HasIndex("UpdatedAt");
+
+                    b.HasIndex(new[] { "StorageConfigId" }, "ix_workitems_storageconfig_running")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Running' AND \"StorageConfigId\" IS NOT NULL");
 
                     b.ToTable("WorkItems", t =>
                         {

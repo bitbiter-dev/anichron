@@ -49,6 +49,19 @@ public sealed class ModelInvariantsTests
     }
 
     [Fact]
+    public void RunningWorkItems_AreUniquePerStorageConfigUnderTheNameTheClaimRecognises()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var workItem = context.Model.FindEntityType(typeof(WorkItem))!;
+
+        var index = workItem.GetIndexes()
+            .Should().ContainSingle(index => index.GetDatabaseName() == WorkItemIndexNames.RunningStorageConfigUnique).Which;
+        index.IsUnique.Should().BeTrue();
+        index.Properties.Select(p => p.Name).Should().Equal(nameof(WorkItem.StorageConfigId));
+        index.GetFilter().Should().Be("\"Status\" = 'Running' AND \"StorageConfigId\" IS NOT NULL");
+    }
+
+    [Fact]
     public void QueryFilters_AreSoftDeleteOnly()
     {
         using var context = AnichronDbContexts.NpgsqlModel();

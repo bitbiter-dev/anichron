@@ -89,7 +89,7 @@ COMMENT ON TABLE "WorkItems" IS 'Durable work for the Worker, scheduled by Worke
 COMMENT ON COLUMN "WorkItems"."Kind" IS 'WorkKind, persisted as text. Picks the payload type and the handler through the registry, never through a switch.';
 COMMENT ON COLUMN "WorkItems"."Payload" IS 'The kind''s IWorkPayload, serialised with System.Text.Json and NodaTime settings.';
 COMMENT ON COLUMN "WorkItems"."DedupKey" IS 'Opt-in coalescing. While an item with this key is Queued, enqueueing the same key returns that item instead of adding a second; the partial unique index enforces it.';
-COMMENT ON COLUMN "WorkItems"."StorageConfigId" IS 'The storage config the work belongs to, or null for unscoped work. A per-user Worker claims only its user''s configs and unscoped work; deleting the config deletes its items.';
+COMMENT ON COLUMN "WorkItems"."StorageConfigId" IS 'The storage config the work belongs to, or null for unscoped work. A per-user Worker claims only its user''s configs and unscoped work; deleting the config deletes its items. At most one item per config is Running, across all Workers, so two attempts never touch one config''s files at once: the claim passes over a busy config, and a partial unique index rejects a racing second claim.';
 COMMENT ON COLUMN "WorkItems"."RequestedBy" IS 'The admin who asked for the work; null when a Worker''s scheduler enqueued it.';
 COMMENT ON COLUMN "WorkItems"."Status" IS 'Queued, Running, Succeeded, Failed or Cancelled, persisted as text.';
 COMMENT ON COLUMN "WorkItems"."Attempt" IS 'Incremented by every claim. Every write a Worker makes while running an item is fenced by (Id, Attempt), so an attempt that lost its lease changes nothing.';
@@ -307,6 +307,9 @@ CREATE INDEX ix_workitems_lease ON "WorkItems" ("LeaseUntil") WHERE "Status" = '
 
 
 CREATE INDEX "IX_WorkItems_RequestedBy" ON "WorkItems" ("RequestedBy");
+
+
+CREATE UNIQUE INDEX ix_workitems_storageconfig_running ON "WorkItems" ("StorageConfigId") WHERE "Status" = 'Running' AND "StorageConfigId" IS NOT NULL;
 
 
 CREATE INDEX "IX_WorkItems_StorageConfigId" ON "WorkItems" ("StorageConfigId");
