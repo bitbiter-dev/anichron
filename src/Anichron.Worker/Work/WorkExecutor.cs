@@ -27,6 +27,8 @@ public sealed partial class WorkExecutor(
 
     private Duration Lease => Duration.FromSeconds(settings.WorkLeaseSeconds);
 
+    private TimeSpan SelfStopAfter => TimeSpan.FromSeconds(settings.WorkLeaseSeconds) / 2;
+
     private Instant Now => Instant.FromDateTimeOffset(timeProvider.GetUtcNow());
 
     private async Task DrainOrLogAsync(CancellationToken stopping)
@@ -44,11 +46,12 @@ public sealed partial class WorkExecutor(
 
     private async Task RunAsync(ClaimedWork work, CancellationToken stopping)
     {
-        using var running = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+        using var selfStop = new CancellationTokenSource(SelfStopAfter, timeProvider);
+        using var running = CancellationTokenSource.CreateLinkedTokenSource(stopping, selfStop.Token);
         using var done = new CancellationTokenSource();
         var progress = new WorkProgressSink();
         await using var scope = scopeFactory.CreateAsyncScope();
-        var heartbeat = HeartbeatAsync(work.Attempt, progress, running, done.Token);
+        var heartbeat = HeartbeatAsync(work.Attempt, progress, running, selfStop, done.Token);
 
         object? result = null;
         Exception? failure = null;
@@ -67,6 +70,10 @@ public sealed partial class WorkExecutor(
         if (lastHeartbeat == HeartbeatOutcome.Lost)
         {
             Log.Fenced(logger, work.Attempt.Id);
+        }
+        else if (selfStop.IsCancellationRequested)
+        {
+            Log.SelfStopped(logger, work.Attempt.Id);
         }
         else if (lastHeartbeat == HeartbeatOutcome.CancelRequested && failure is null or OperationCanceledException)
         {
@@ -94,7 +101,8 @@ public sealed partial class WorkExecutor(
     }
 
     private async Task<HeartbeatOutcome> HeartbeatAsync(
-        WorkAttempt attempt, WorkProgressSink progress, CancellationTokenSource running, CancellationToken done)
+        WorkAttempt attempt, WorkProgressSink progress, CancellationTokenSource running, CancellationTokenSource selfStop,
+        CancellationToken done)
     {
         var interval = TimeSpan.FromSeconds(settings.WorkHeartbeatSeconds);
         var outcome = HeartbeatOutcome.Held;
@@ -111,12 +119,20 @@ public sealed partial class WorkExecutor(
 
             try
             {
-                var beat = await store.HeartbeatAsync(attempt, progress.Snapshot, Now, Lease, CancellationToken.None);
+                using var timeout = new CancellationTokenSource(interval, timeProvider);
+                using var limit = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, done);
+                var beat = await store.HeartbeatAsync(attempt, progress.Snapshot, Now, Lease, limit.Token)
+                    .WaitAsync(limit.Token);
+                selfStop.CancelAfter(SelfStopAfter);
                 if (beat != HeartbeatOutcome.Held)
                     await running.CancelAsync();
                 if (beat == HeartbeatOutcome.Lost)
                     return beat;
                 outcome = beat;
+            }
+            catch (OperationCanceledException) when (done.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {
@@ -143,6 +159,9 @@ public sealed partial class WorkExecutor(
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Work item {Id} is no longer held by this attempt (its lease was recovered, or the item was deleted with its storage config); this attempt stopped and wrote nothing more.")]
         public static partial void Fenced(ILogger logger, Guid id);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Work item {Id} stopped itself: no heartbeat reached the database for half a lease, so its lease may already be recovered by another Worker; this attempt wrote nothing more.")]
+        public static partial void SelfStopped(ILogger logger, Guid id);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Heartbeat for work item {Id} failed; will retry.")]
         public static partial void HeartbeatFailed(ILogger logger, Guid id, Exception ex);

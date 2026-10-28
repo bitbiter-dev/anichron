@@ -41,3 +41,26 @@ The full evaluation is on #273. In short:
   within its interval), so no host keeps timer state and overdue work runs right after downtime.
 - `LISTEN/NOTIFY`, priorities and automatic retry are left out; each can be added without changing
   the handler contract.
+
+## Amendment: one running item per storage config, and the self-stop (2026-10-28, #337)
+
+Decided by the maintainer on #337.
+
+- **At most one item per storage config is `Running`, across all Workers.** Unscoped items are not
+  serialised. The claim passes over a config that has a `Running` item (`NOT EXISTS`) and takes the
+  next eligible item, so other configs and unscoped work are not held up. `NOT EXISTS` alone does not
+  hold the rule under READ COMMITTED: two claims at the same moment each take a different queued item
+  of one config. A partial unique index on `StorageConfigId` where `Status = 'Running'` rejects the
+  second; the claim recognises the violation by index name and returns nothing, and the Worker tries
+  again at its next poll. The rule is a schema invariant, like one queued item per dedup key.
+- **An attempt that cannot reach the database stops itself.** The executor cancels its handler half a
+  lease after its last heartbeat that reached the database, on a timer of its own, and each heartbeat
+  call is limited to one heartbeat interval, so a hung call cannot use up the margin. Lease recovery
+  needs the full lease, so an attempt has stopped, or been asked to, at least half a lease before
+  another Worker can claim work for its config. Without this, a Worker cut off from PostgreSQL would
+  keep writing and deleting files after its item was requeued and claimed elsewhere: database writes
+  are fenced by `(Id, Attempt)`, file side effects are not.
+- A self-stopped attempt writes nothing, as a fenced one does; lease recovery requeues the item and
+  counts a stall. A database outage longer than half a lease therefore restarts running work, a long
+  first crawl included, and the `WorkMaxStalls`th such stall fails the item. `WorkLeaseSeconds` must
+  exceed four heartbeat intervals, so a slow but answering database never triggers the self-stop.

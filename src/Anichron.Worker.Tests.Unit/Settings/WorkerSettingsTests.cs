@@ -248,19 +248,19 @@ public sealed class WorkerSettingsTests
             .Should().Equal(nameof(WorkerSettings.WorkLeaseSeconds), nameof(WorkerSettings.BurstSpanSeconds));
 
     [Theory]
-    [InlineData(2, 2)]
+    [InlineData(2, 8)]
     [InlineData(10, 2)]
-    public void Validate_LeaseNotLongerThanTheHeartbeat_ReportsTheLease(double heartbeat, double lease)
+    public void Validate_LeaseNotLongerThanFourHeartbeats_ReportsTheLease(double heartbeat, double lease)
         => GetFailures(ValidSettings with { WorkHeartbeatSeconds = heartbeat, WorkLeaseSeconds = lease })
             .Should().ContainSingle().Which.Should().BeEquivalentTo(new
             {
                 MemberNames = new[] { nameof(WorkerSettings.WorkLeaseSeconds) },
-                ErrorMessage = "Worker:WorkLeaseSeconds must be longer than Worker:WorkHeartbeatSeconds, or every lease expires between heartbeats.",
+                ErrorMessage = "Worker:WorkLeaseSeconds must be longer than four times Worker:WorkHeartbeatSeconds: a running item stops itself half a lease after its last heartbeat that reached the database, and a slow heartbeat may answer up to two intervals after the one before.",
             });
 
     [Fact]
-    public void Validate_LeaseJustLongerThanTheHeartbeat_ReturnsSuccess()
-        => IsValid(ValidSettings with { WorkHeartbeatSeconds = 2, WorkLeaseSeconds = 2.5 }).Should().BeTrue();
+    public void Validate_LeaseJustLongerThanFourHeartbeats_ReturnsSuccess()
+        => IsValid(ValidSettings with { WorkHeartbeatSeconds = 2, WorkLeaseSeconds = 8.5 }).Should().BeTrue();
 
     [Fact]
     public void Validate_LeaseAndAPathEntryBothWrong_ReportsThePathFirst()

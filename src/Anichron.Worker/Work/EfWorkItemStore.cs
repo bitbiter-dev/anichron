@@ -21,23 +21,35 @@ public sealed class EfWorkItemStore(IDbContextFactory<AnichronDbContext> context
         await using var db = await contexts.CreateDbContextAsync(ct);
         var leaseUntil = now + lease;
         var kinds = Enum.GetNames<WorkKind>();
-        var rows = await db.Database.SqlQuery<ClaimRow>($"""
-            UPDATE "WorkItems"
-            SET "Status" = 'Running', "Attempt" = "Attempt" + 1, "ClaimedBy" = {claimedBy},
-                "StartedAt" = {now}, "LeaseUntil" = {leaseUntil}, "UpdatedAt" = {now},
-                "ProgressDone" = 0, "ProgressTotal" = NULL, "ProgressNote" = NULL
-            WHERE "Id" = (
-                SELECT "Id" FROM "WorkItems"
-                WHERE "Status" = 'Queued' AND "Kind" = ANY({kinds})
-                  AND ("StorageConfigId" IS NULL
-                    OR CAST({servedUserId} AS uuid) IS NULL
-                    OR "StorageConfigId" IN (
-                        SELECT "Id" FROM "StorageConfigs" WHERE "UserId" = CAST({servedUserId} AS uuid)))
-                ORDER BY "RequestedAt", "Id"
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED)
-            RETURNING "Id", "Kind", "Payload", "Attempt"
-            """).ToListAsync(ct);
+        List<ClaimRow> rows;
+        try
+        {
+            rows = await db.Database.SqlQuery<ClaimRow>($"""
+                UPDATE "WorkItems"
+                SET "Status" = 'Running', "Attempt" = "Attempt" + 1, "ClaimedBy" = {claimedBy},
+                    "StartedAt" = {now}, "LeaseUntil" = {leaseUntil}, "UpdatedAt" = {now},
+                    "ProgressDone" = 0, "ProgressTotal" = NULL, "ProgressNote" = NULL
+                WHERE "Id" = (
+                    SELECT q."Id" FROM "WorkItems" q
+                    WHERE q."Status" = 'Queued' AND q."Kind" = ANY({kinds})
+                      AND (q."StorageConfigId" IS NULL
+                        OR CAST({servedUserId} AS uuid) IS NULL
+                        OR q."StorageConfigId" IN (
+                            SELECT "Id" FROM "StorageConfigs" WHERE "UserId" = CAST({servedUserId} AS uuid)))
+                      AND NOT EXISTS (
+                        SELECT 1 FROM "WorkItems" r
+                        WHERE r."Status" = 'Running' AND r."StorageConfigId" = q."StorageConfigId")
+                    ORDER BY q."RequestedAt", q."Id"
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED)
+                RETURNING "Id", "Kind", "Payload", "Attempt"
+                """).ToListAsync(ct);
+        }
+        catch (Exception ex) when (IsViolationOf(ex, WorkItemIndexNames.RunningStorageConfigUnique))
+        {
+            return null;
+        }
+
         return rows is [var row]
             ? new ClaimedWork(new WorkAttempt(row.Id, row.Attempt), Enum.Parse<WorkKind>(row.Kind), row.Payload)
             : null;
@@ -182,19 +194,18 @@ public sealed class EfWorkItemStore(IDbContextFactory<AnichronDbContext> context
 
             return true;
         }
-        catch (Exception ex) when (IsQueuedDedupViolation(ex))
+        catch (Exception ex) when (IsViolationOf(ex, WorkItemIndexNames.QueuedDedupKeyUnique))
         {
             return false;
         }
     }
 
     // Stryker disable all
-    private static bool IsQueuedDedupViolation(Exception ex)
+    private static bool IsViolationOf(Exception ex, string index)
         => (ex as PostgresException ?? ex.InnerException as PostgresException) is
         {
             SqlState: PostgresErrorCodes.UniqueViolation,
-            ConstraintName: WorkItemIndexNames.QueuedDedupKeyUnique,
-        };
+        } violation && violation.ConstraintName == index;
 
     public async Task<bool> IsDueAsync(string dedupKey, Instant finishedBefore, CancellationToken ct)
     {
