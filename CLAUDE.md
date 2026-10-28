@@ -106,7 +106,7 @@ Four projects with strict separation of concerns:
 - **Proxy orphans** (`ProxyOrphans`, a proxy sweep's report) are written only by the Worker; outside it only `EfProxyOrphanReader` depends on the entity (`only-worker-writes-proxy-orphans`). See `docs/architecture/work-queue.md`, "Proxy sweeps".
 - Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
-A planned `Anichron.UI` (NextJS/React) for the Instagram Story-style flashback experience is documented but not yet in the solution.
+A planned `Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is not yet in the solution: a React + TypeScript single-page app built with Vite and served by the API on the same origin (ADR 0012; options and the recommended stack in `docs/ui/technology-comparison.md`).
 
 ### Storage Layout
 

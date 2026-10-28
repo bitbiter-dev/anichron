@@ -5,7 +5,7 @@ an agent implementing this re-checks anything marked *verify* before relying on 
 
 `Anichron.UI` is one web app holding the admin screens (Epic 6) and the Instagram Story-style
 flashback experience (Epic 7). This document compares the options for each part of the stack and
-recommends one. The pick is recorded on #338 and as ADR 0012.
+recommends one. **Decided 2026-10-28: React** (#338, ADR 0012); the per-layer picks below stay proposals until the parent issue that owns each is designed.
 
 ## Already decided
 
