@@ -2,6 +2,12 @@
   "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
   "tasks": [
     {
+      "name": "tool-versions",
+      "group": "pre-commit",
+      "command": "bash",
+      "args": ["scripts/tool-versions.sh"]
+    },
+    {
       "name": "format-check",
       "group": "pre-commit",
       "command": "dotnet",

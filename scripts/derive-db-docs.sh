@@ -29,7 +29,7 @@ check=false
 
 mkdir -p "$(dirname "$target")"
 
-# ⛔ dotnet-ef is a MANIFEST tool (dotnet-tools.json), not something the SDK ships. Without a
+# ⛔ dotnet-ef is a MANIFEST tool (.config/dotnet-tools.json), not something the SDK ships. Without a
 # restore it is simply absent, and `dotnet ef` then fails with "dotnet-ef does not exist" —
 # which reads as a broken script rather than as a missing prerequisite. It is also commonly
 # installed GLOBALLY on a developer machine, so the dependency is invisible locally and only
@@ -44,7 +44,7 @@ derive() {
   # 🔴 `dotnet ef` writes its tools-version-mismatch notice to STDOUT, not stderr — so `2>/dev/null`
   # does NOT keep it out of the schema. The first committed version of docs/schema.sql began with
   #   "The Entity Framework tools version '10.0.7' is older than that of the runtime '10.0.12'..."
-  # and was therefore not valid SQL. Pinning dotnet-ef in dotnet-tools.json to match the runtime
+  # and was therefore not valid SQL. Pinning dotnet-ef in .config/dotnet-tools.json to match the runtime
   # removes the notice at source; this guard is what makes a future mismatch loud instead of
   # silently corrupting the file again.
   local out
@@ -72,7 +72,7 @@ derive() {
     CREATE*|ALTER*|COMMENT*|DROP*|--*|START*|DO\ *) ;;
     *)
       printf 'dotnet ef emitted something that is not SQL as its first line:\n\n  %s\n\n' "$first" >&2
-      printf 'Most likely the dotnet-ef version in dotnet-tools.json no longer matches the\n' >&2
+      printf 'Most likely the dotnet-ef version in .config/dotnet-tools.json no longer matches the\n' >&2
       printf 'runtime, and the mismatch notice is being written to stdout. Align them.\n' >&2
       return 1
       ;;
