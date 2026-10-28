@@ -48,6 +48,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     private static readonly TimeSpan Poll = TimeSpan.FromSeconds(5);
     private static readonly Duration Lease = Duration.FromSeconds(60);
     private static readonly TimeSpan SelfStop = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ShortSelfStop = TimeSpan.FromSeconds(4.5);
 
     private readonly Timeline timeline = new();
     private readonly IWorkItemStore store = Substitute.For<IWorkItemStore>();
@@ -235,9 +236,9 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         timeline.Unread.Should().BeEmpty();
 
         timeline.Clock.Advance(TimeSpan.FromTicks(1));
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
         timeline.Clock.Advance(Heartbeat);
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
     }
 
     [Fact]
@@ -248,7 +249,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
 
         timeline.Clock.Advance(Heartbeat);
 
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
         await store.Received(1).HeartbeatAsync(
             Work().Attempt, new WorkProgress(3, 8, "walking"), Now, Lease, Arg.Any<CancellationToken>());
     }
@@ -261,10 +262,10 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         await StartRunningAsync();
 
         timeline.Clock.Advance(Heartbeat);
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
         timeline.Clock.Advance(Heartbeat);
 
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
         handlerToken.IsCancellationRequested.Should().BeFalse();
         logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning);
     }
@@ -304,16 +305,14 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     // Self-stop
     // ==========================================================================
 
-    private static readonly TimeSpan ShortSelfStop = TimeSpan.FromSeconds(4.5);
-
     private async Task StartRunningWithAShortLeaseAsync()
     {
         await StartAsync(new WorkerSettings { WorkHeartbeatSeconds = 2, WorkLeaseSeconds = 9 }, Work());
         await timeline.ExpectAsync(new Called("claim"), new TimerArmed(ShortSelfStop), new TimerArmed(Heartbeat), new Called("run"));
     }
 
-    private void HeartbeatsFailWhile(Func<bool> down)
-        => Heartbeats(() => down() ? throw new InvalidOperationException("db down") : HeartbeatOutcome.Held);
+    private void HeartbeatsFail()
+        => Heartbeats(() => throw new InvalidOperationException("db down"));
 
     private void HeartbeatsNeverAnswer()
         => store.HeartbeatAsync(
@@ -339,8 +338,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     [Fact]
     public async Task ExecuteAsync_HeartbeatsFailForHalfALease_CancelsTheHandlerThenAndWritesNothingAsync()
     {
-        var down = true;
-        HeartbeatsFailWhile(() => down);
+        HeartbeatsFail();
         await StartRunningWithAShortLeaseAsync();
         timeline.Clock.Advance(Heartbeat);
         await timeline.ExpectAsync(Beat());
@@ -349,7 +347,6 @@ public sealed class WorkExecutorTests : IAsyncDisposable
 
         timeline.Clock.Advance(ShortSelfStop - (Heartbeat * 2) - TimeSpan.FromTicks(1));
         handlerToken.IsCancellationRequested.Should().BeFalse();
-        down = false;
         timeline.Clock.Advance(TimeSpan.FromTicks(1));
 
         await ExpectSelfStoppedAsync();
@@ -368,6 +365,35 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         }
 
         timeline.Clock.Advance((Heartbeat * 2) + ShortSelfStop - (Heartbeat * 4) - TimeSpan.FromTicks(1));
+        handlerToken.IsCancellationRequested.Should().BeFalse();
+        timeline.Clock.Advance(TimeSpan.FromTicks(1));
+
+        await ExpectSelfStoppedAsync();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ASlowHeartbeatSucceeds_RestartsTheHalfLeaseFromWhenItWasSentAsync()
+    {
+        var slow = new TaskCompletionSource<HeartbeatOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var beats = 0;
+        store.HeartbeatAsync(
+                Arg.Any<WorkAttempt>(), Arg.Any<WorkProgress>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                timeline.Record("heartbeat");
+                return ++beats == 1 ? slow.Task : throw new InvalidOperationException("db down");
+            });
+        await StartRunningWithAShortLeaseAsync();
+        timeline.Clock.Advance(Heartbeat);
+        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"));
+        timeline.Clock.Advance(TimeSpan.FromSeconds(1));
+        slow.SetResult(HeartbeatOutcome.Held);
+        await timeline.ExpectAsync(new TimerArmed(Heartbeat));
+        timeline.Clock.Advance(Heartbeat);
+        await timeline.ExpectAsync(Beat());
+
+        var now = (Heartbeat * 2) + TimeSpan.FromSeconds(1);
+        timeline.Clock.Advance(Heartbeat + ShortSelfStop - now - TimeSpan.FromTicks(1));
         handlerToken.IsCancellationRequested.Should().BeFalse();
         timeline.Clock.Advance(TimeSpan.FromTicks(1));
 
@@ -407,6 +433,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"));
         logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
             .Which.Exception.Should().BeAssignableTo<OperationCanceledException>();
+        await StopWhileAHeartbeatHangsAsync();
     }
 
     [Fact]
@@ -426,24 +453,30 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         token.IsCancellationRequested.Should().BeTrue();
     }
 
+    private Task StopWhileAHeartbeatHangsAsync()
+    {
+        var stopping = executor!.StopAsync(Ct);
+        timeline.Clock.Advance(Heartbeat);
+        return stopping.WaitAsync(Timeline.DefaultSilenceLimit, Ct);
+    }
+
     [Fact]
-    public async Task StopAsync_WhileAHeartbeatHangs_ReleasesTheItemWithoutWaitingForItAsync()
+    public async Task StopAsync_WhileAHeartbeatHangs_ReleasesTheItemOnceTheHeartbeatsLimitIsReachedAsync()
     {
         HeartbeatsNeverAnswer();
         await StartRunningAsync();
         timeline.Clock.Advance(Heartbeat);
         await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"));
 
-        await StopAsync();
+        await StopWhileAHeartbeatHangsAsync();
 
-        await timeline.ExpectAsync(new Called("release"), new Finished(TaskStatus.Canceled));
-        logger.Collector.GetSnapshot().Should().NotContain(e => e.Level == LogLevel.Warning);
+        await store.Received(1).ReleaseAsync(Work().Attempt, Arg.Any<Instant>(), CancellationToken.None);
     }
 
     [Fact]
     public async Task ExecuteAsync_SelfStoppedHandlerFinishesAnyway_WritesNothingAsync()
     {
-        HeartbeatsFailWhile(() => true);
+        HeartbeatsFail();
         HandlerWindsDownOnlyWhenTold();
         await StartRunningWithAShortLeaseAsync();
         timeline.Clock.Advance(Heartbeat);
@@ -485,7 +518,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         HandlerWindsDownOnlyWhenTold();
         await StartRunningAsync();
         timeline.Clock.Advance(Heartbeat);
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
     }
 
     [Fact]
@@ -495,7 +528,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
 
         handlerToken.IsCancellationRequested.Should().BeTrue();
         timeline.Clock.Advance(Heartbeat);
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
         runs[0].SetCanceled(handlerToken);
         await timeline.ExpectAsync(new Called("cancel"), new Called("claim"), new TimerArmed(Poll));
     }
@@ -558,7 +591,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         HandlerWindsDownOnlyWhenTold();
         await StartRunningAsync();
         timeline.Clock.Advance(Heartbeat);
-        await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"), new TimerArmed(Heartbeat));
+        await timeline.ExpectAsync(Beat());
 
         timeline.Clock.Advance(Heartbeat);
         await timeline.ExpectAsync(new TimerFired(Heartbeat), new TimerArmed(Heartbeat), new Called("heartbeat"));

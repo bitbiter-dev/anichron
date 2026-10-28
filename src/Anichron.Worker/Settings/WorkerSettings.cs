@@ -84,7 +84,7 @@ public sealed record WorkerSettings : IValidatableObject
                 $"Worker:ExcludedDirectories takes folder names, not paths: '{name}'.",
                 [nameof(ExcludedDirectories)]))
             .ToList();
-        if (WorkLeaseSeconds <= 4 * WorkHeartbeatSeconds)
+        if (WorkLeaseSeconds / 2 <= 2 * WorkHeartbeatSeconds)
         {
             failures.Add(new ValidationResult(
                 "Worker:WorkLeaseSeconds must be longer than four times Worker:WorkHeartbeatSeconds: a running item stops itself half a lease after its last heartbeat that reached the database, and a slow heartbeat may answer up to two intervals after the one before.",

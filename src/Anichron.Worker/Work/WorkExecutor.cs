@@ -119,20 +119,16 @@ public sealed partial class WorkExecutor(
 
             try
             {
-                using var timeout = new CancellationTokenSource(interval, timeProvider);
-                using var limit = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, done);
-                var beat = await store.HeartbeatAsync(attempt, progress.Snapshot, Now, Lease, limit.Token)
+                using var limit = new CancellationTokenSource(interval, timeProvider);
+                var sentAt = timeProvider.GetUtcNow();
+                var beat = await store.HeartbeatAsync(attempt, progress.Snapshot, Instant.FromDateTimeOffset(sentAt), Lease, limit.Token)
                     .WaitAsync(limit.Token);
-                selfStop.CancelAfter(SelfStopAfter);
+                selfStop.CancelAfter(SelfStopAfter - (timeProvider.GetUtcNow() - sentAt));
                 if (beat != HeartbeatOutcome.Held)
                     await running.CancelAsync();
                 if (beat == HeartbeatOutcome.Lost)
                     return beat;
                 outcome = beat;
-            }
-            catch (OperationCanceledException) when (done.IsCancellationRequested)
-            {
-                break;
             }
             catch (Exception ex)
             {
