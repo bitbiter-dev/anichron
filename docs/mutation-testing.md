@@ -452,7 +452,7 @@ It runs weekly and on `workflow_dispatch`. It never runs on a pull request and n
 
 Re-run it from the Actions tab (`Mutation divergence` → *Run workflow*) after either of these:
 
-1. **A Stryker upgrade** — any change to the pinned version in `dotnet-tools.json` at the repository root.
+1. **A Stryker upgrade** — any change to the pinned version in `.config/dotnet-tools.json`.
 2. **A significant change in the shape of the test suite** — deleting or splitting a test class,
    changing the test runner, or a large change in how many tests there are.
 

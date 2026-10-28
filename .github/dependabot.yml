@@ -10,6 +10,10 @@ updates:
       - dependency-name: "Microsoft.NET.Test.Sdk"
       - dependency-name: "xunit.v3"
       - dependency-name: "xunit.runner.visualstudio"
+      # .config/dotnet-tools.json is in scope too (Dependabot looks for it from /src up to the
+      # root), so dotnet-ef moves with EF Core in the nuget group. A Stryker upgrade has its own
+      # procedure: docs/mutation-testing.md, "When to run it by hand".
+      - dependency-name: "dotnet-stryker"
     groups:
       # Analyzers are separated from everything else because they fail differently.
       #
