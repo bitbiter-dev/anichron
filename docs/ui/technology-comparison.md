@@ -549,7 +549,7 @@ Epic 6.
 1. **Media cookie (Q15):** login and refresh also set an httpOnly, `Secure`, `SameSite=Strict`
    cookie with the access token; only `GET /api/v1/assets/{id}/proxies/*` accepts it; logout
    clears it.
-2. **Cache-busting proxy URLs:** proxy responses are `private, max-age=31536000, immutable`
+2. **Cache-busting proxy URLs (#340):** proxy responses are `private, max-age=31536000, immutable`
    (`MediaEndpoints.ProxyCacheControl`), but the URL is `/assets/{id}/proxies/{type}`, and a row
    keeps its `Id` when it takes new content (`ContentChanged`, `OverwrittenByMove`, #250, #331).
    A browser or service worker then shows the old image for up to a year. The URL in `AssetDto`
