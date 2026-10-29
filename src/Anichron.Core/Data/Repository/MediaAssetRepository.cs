@@ -9,8 +9,7 @@ public sealed record ContentLocation(Guid UserId, string ContentHash, Guid Stora
 /// <param name="Id">The row.</param>
 /// <param name="FilePath">Its path, relative to the config's root.</param>
 /// <param name="PairedAssetId">The video the row points at, when it is a Live Photo's photo.</param>
-/// <param name="IsVideoOfASoftDeletedPhoto">Whether a soft-deleted photo points at the row as its video.</param>
-public sealed record AssetPath(Guid Id, string FilePath, Guid? PairedAssetId = null, bool IsVideoOfASoftDeletedPhoto = false);
+public sealed record AssetPath(Guid Id, string FilePath, Guid? PairedAssetId = null);
 
 /// <summary>A row the classification query found.</summary>
 /// <param name="Asset">The tracked row, with its proxy rows.</param>
@@ -38,6 +37,18 @@ public interface IMediaAssetRepository
     Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct);
 
     Task<IReadOnlyList<AssetPath>> GetActivePathsAsync(Guid storageConfigId, CancellationToken ct);
+
+    /// <summary>The tracked row with the id, else the active stored one.</summary>
+    /// <param name="id">The row.</param>
+    /// <param name="ct">Cancels the query.</param>
+    /// <returns>The row, tracked; null when it is neither tracked nor active.</returns>
+    Task<MediaAsset?> FindAsync(Guid id, CancellationToken ct);
+
+    /// <summary>The stored rows, active or soft-deleted, that point at the video.</summary>
+    /// <param name="videoId">The video.</param>
+    /// <param name="ct">Cancels the query.</param>
+    /// <returns>The rows, tracked: a row already tracked comes back as that instance, with its current values.</returns>
+    Task<IReadOnlyList<MediaAsset>> FindPhotosOfAsync(Guid videoId, CancellationToken ct);
 
     /// <summary>Soft-deletes the rows among <paramref name="ids"/> that are still active.</summary>
     /// <param name="ids">The rows to soft-delete.</param>
@@ -113,11 +124,18 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .AsNoTracking()
             .IgnoreQueryFilters()
             .Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted)
-            .Select(a => new AssetPath(
-                a.Id,
-                a.FilePath,
-                a.PairedAssetId,
-                db.MediaAssets.IgnoreQueryFilters().Any(photo => photo.IsSoftDeleted && photo.PairedAssetId == a.Id)));
+            .Select(a => new AssetPath(a.Id, a.FilePath, a.PairedAssetId));
+
+    public async Task<MediaAsset?> FindAsync(Guid id, CancellationToken ct)
+        => await db.MediaAssets.FindAsync([id], ct);
+
+    public async Task<IReadOnlyList<MediaAsset>> FindPhotosOfAsync(Guid videoId, CancellationToken ct)
+        => await PhotosOfQuery(db, videoId).ToListAsync(ct);
+
+    internal static IQueryable<MediaAsset> PhotosOfQuery(AnichronDbContext db, Guid videoId)
+        => db.MediaAssets
+            .IgnoreQueryFilters()
+            .Where(a => a.PairedAssetId == videoId);
 
     public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
         => db.Entry(asset).Reference(a => a.Metadata).Query().IgnoreQueryFilters().LoadAsync(ct);

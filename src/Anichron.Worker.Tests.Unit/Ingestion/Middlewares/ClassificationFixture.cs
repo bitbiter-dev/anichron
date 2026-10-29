@@ -42,9 +42,17 @@ internal sealed class ClassificationFixture
         => StoreMatched([.. rows.Select(row => new MatchedAsset(row, IsLivePhotoVideo: false))]);
 
     public void StoreMatched(params MatchedAsset[] rows)
-        => Repository.FindByHashesOrPathsAsync(
+    {
+        Repository.FindByHashesOrPathsAsync(
                 ConfigId, Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
             .Returns(rows);
+        var tracked = rows.Select(row => row.Asset).ToList();
+        var storedPointers = tracked.Where(row => row.PairedAssetId is not null).ToLookup(row => row.PairedAssetId!.Value);
+        Repository.FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(call => tracked.FirstOrDefault(row => row.Id == call.Arg<Guid>()));
+        Repository.FindPhotosOfAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(call => [.. storedPointers[call.Arg<Guid>()]]);
+    }
 
     public ClassificationMiddleware Build()
     {
@@ -59,12 +67,12 @@ internal sealed class ClassificationFixture
         var movProxyWriter = new PairedMovProxyWriter(
             [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository, new FakeLogger<PairedMovProxyWriter>());
         var pairer = new LivePhotoPairer(
-            new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory), movProxyWriter, new FakeLogger<LivePhotoPairer>());
+            new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory, new FakeLogger<PairedMovResolver>()), movProxyWriter, new FakeLogger<LivePhotoPairer>());
         return new(
             new IngestionClassifier(Repository, FileSystem),
             pairer,
             new KnownFileReconciler(
-                Clock, Repository, new StoredContent(Repository, Bursts, Clock), GuidFactory, movProxyWriter, FileSystem, Logger),
+                Clock, Repository, new StoredContent(Repository, Bursts, Clock, new FakeLogger<StoredContent>()), GuidFactory, movProxyWriter, FileSystem, Logger),
             saver,
             MiddlewareLogger);
     }

@@ -149,23 +149,24 @@ public sealed class MissingFileSweepTests
         logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Message.Contains("0b", StringComparison.Ordinal))
             .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug
                 && r.Message == "Soft-deleting asset 00000000-0000-0000-0000-00000000000b at a.mov: "
-                    + "it is the video of a Live Photo whose photo is soft-deleted or missing.");
+                    + "it is the video of a Live Photo whose photo is missing.");
     }
 
     [Fact]
-    public async Task SweepAsync_VideoOfASoftDeletedPhoto_IsSoftDeletedThoughItsFileWasFoundAsync()
+    public async Task SweepAsync_FoundVideoNoMissingPhotoPointsAt_StaysActiveAsync()
     {
-        Stored(new AssetPath(Video, "a.mov", IsVideoOfASoftDeletedPhoto: true), new AssetPath(Kept, "b.jpg"));
+        Stored(new AssetPath(Video, "a.mov"), new AssetPath(Kept, "b.jpg"));
 
-        await SweepAsync(Walk(complete: true, "a.mov", "b.jpg"));
+        var result = await SweepAsync(Walk(complete: true, "a.mov", "b.jpg"));
 
-        await SoftDeletedExactlyAsync(Video);
+        result.Should().Be(new MissingFiles(0, null));
+        await repository.DidNotReceive().SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task SweepAsync_MissingPhotoAndVideo_SoftDeletesEachOnceAsync()
     {
-        Stored(new AssetPath(Photo, "a.heic", PairedAssetId: Video), new AssetPath(Video, "a.mov", IsVideoOfASoftDeletedPhoto: true));
+        Stored(new AssetPath(Photo, "a.heic", PairedAssetId: Video), new AssetPath(Video, "a.mov"));
 
         await SweepAsync(Walk(complete: true, "b.jpg"));
 

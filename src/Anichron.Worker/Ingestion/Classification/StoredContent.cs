@@ -27,7 +27,8 @@ internal sealed record AssetContent(
     }
 }
 
-internal sealed class StoredContent(IMediaAssetRepository repository, IBurstRepository bursts, IClock clock)
+internal sealed partial class StoredContent(
+    IMediaAssetRepository repository, IBurstRepository bursts, IClock clock, ILogger<StoredContent> logger)
 {
     /// <summary>
     /// Makes <paramref name="asset"/> hold <paramref name="content"/>: its content fields, metadata and proxy rows,
@@ -62,5 +63,39 @@ internal sealed class StoredContent(IMediaAssetRepository repository, IBurstRepo
         asset.LastSeenOnNas = clock.GetCurrentInstant();
         await bursts.RemoveCheckAsync(asset.Id, ct);
         return wasSoftDeleted;
+    }
+
+    /// <summary>
+    /// Soft-deletes the row and, when it is a Live Photo's photo, its video: a video has one photo, so it goes with it.
+    /// A row already soft-deleted is left alone and not counted again.
+    /// </summary>
+    /// <param name="context">The item that stages the soft-delete counts.</param>
+    /// <param name="asset">A tracked row.</param>
+    /// <param name="ct">Cancels the lookup of the video.</param>
+    public async Task RetireAsync(IngestionContext context, MediaAsset asset, CancellationToken ct)
+    {
+        if (!SoftDelete(context, asset) || asset.PairedAssetId is not { } videoId)
+            return;
+
+        if (await repository.FindAsync(videoId, ct) is { } video && SoftDelete(context, video))
+            Log.RetiredWithItsPhoto(logger, video.Id, video.FilePath, asset.Id);
+    }
+
+    private static bool SoftDelete(IngestionContext context, MediaAsset asset)
+    {
+        if (asset.IsSoftDeleted)
+            return false;
+
+        asset.IsSoftDeleted = true;
+        context.StageSoftDeleted();
+        return true;
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "Soft-deleted asset {VideoId} at {FilePath} with its photo, asset {PhotoId}: it is that Live Photo's video.")]
+        public static partial void RetiredWithItsPhoto(ILogger logger, Guid videoId, string filePath, Guid photoId);
     }
 }

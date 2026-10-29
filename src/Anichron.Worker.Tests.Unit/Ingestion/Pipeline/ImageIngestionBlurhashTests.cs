@@ -61,7 +61,7 @@ public sealed class ImageIngestionBlurhashTests
                         repository,
                         fileSystem,
                         clock,
-                        new PairedMovResolver(repository, fileSystem, clock, guids),
+                        new PairedMovResolver(repository, fileSystem, clock, guids, new FakeLogger<PairedMovResolver>()),
                         new PairedMovProxyWriter(
                             [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
                             new FakeLogger<PairedMovProxyWriter>())),

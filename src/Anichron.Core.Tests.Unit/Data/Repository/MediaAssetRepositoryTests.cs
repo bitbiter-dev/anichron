@@ -316,22 +316,16 @@ public sealed class MediaAssetRepositoryTests
     }
 
     [Fact]
-    public async Task GetActivePathsAsync_SaysWhichPhotoPointsAtWhichVideoAndWhichVideosASoftDeletedPhotoPointsAt()
+    public async Task GetActivePathsAsync_SaysWhichPhotoPointsAtWhichVideo()
     {
         var ct = TestContext.Current.CancellationToken;
         var (video, photo) = (AssetAt(ConfigA, "cafe", "a.mov"), AssetAt(ConfigA, "beef", "a.heic"));
         photo.PairedAssetId = video.Id;
-        var (orphan, trashedPhoto) = (AssetAt(ConfigA, "f00d", "b.mov"), AssetAt(ConfigA, "d00d", "b.heic", softDeleted: true));
-        trashedPhoto.PairedAssetId = orphan.Id;
-        await using var db = await SeededAsync([video, photo, orphan, trashedPhoto]);
+        await using var db = await SeededAsync([video, photo]);
 
         var result = await new EfMediaAssetRepository(db).GetActivePathsAsync(ConfigA, ct);
 
-        result.Should().BeEquivalentTo([
-            new AssetPath(video.Id, "a.mov"),
-            new AssetPath(photo.Id, "a.heic", PairedAssetId: video.Id),
-            new AssetPath(orphan.Id, "b.mov", IsVideoOfASoftDeletedPhoto: true),
-        ]);
+        result.Should().BeEquivalentTo([new AssetPath(video.Id, "a.mov"), new AssetPath(photo.Id, "a.heic", PairedAssetId: video.Id)]);
     }
 
     [Fact]
@@ -344,19 +338,80 @@ public sealed class MediaAssetRepositoryTests
         sql.Should().Contain("""WHERE m."StorageConfigId" = @storageConfigId AND NOT (m."IsSoftDeleted")""");
     }
 
+    // ==========================================================================
+    // FindAsync
+    // ==========================================================================
+
     [Fact]
-    public void GetActivePaths_AsksOnlyForSoftDeletedPhotosPointingAtARow()
+    public async Task FindAsync_ActiveStoredRow_IsLoadedAndTracked()
     {
-        using var db = AnichronDbContexts.NpgsqlModel();
+        var ct = TestContext.Current.CancellationToken;
+        var video = AssetAt(ConfigA, "cafe", "a.mov");
+        await using var db = await SeededAsync([video]);
 
-        var sql = EfMediaAssetRepository.ActivePathsQuery(db, ConfigA).ToQueryString();
+        var found = await new EfMediaAssetRepository(db).FindAsync(video.Id, ct);
 
-        sql.Should().Contain("""
-            EXISTS (
-                SELECT 1
-                FROM "MediaAssets" AS m0
-                WHERE m0."IsSoftDeleted" AND m0."PairedAssetId" = m."Id")
-            """);
+        found.Should().NotBeNull();
+        found.FilePath.Should().Be("a.mov");
+        db.Entry(found).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
+    public async Task FindAsync_SoftDeletedStoredRow_IsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var video = AssetAt(ConfigA, "cafe", "a.mov", softDeleted: true);
+        await using var db = await SeededAsync([video]);
+
+        (await new EfMediaAssetRepository(db).FindAsync(video.Id, ct)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FindAsync_RowAddedButNotSaved_IsThatInstance()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = AnichronDbContexts.InMemory();
+        var video = AssetAt(ConfigA, "cafe", "a.mov");
+        db.MediaAssets.Add(video);
+
+        (await new EfMediaAssetRepository(db).FindAsync(video.Id, ct)).Should().BeSameAs(video);
+    }
+
+    // ==========================================================================
+    // FindPhotosOfAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task FindPhotosOfAsync_ReturnsTheActiveAndSoftDeletedRowsPointingAtTheVideoTracked()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (video, other) = (AssetAt(ConfigA, "cafe", "a.mov"), AssetAt(ConfigA, "f00d", "b.mov"));
+        var (photo, trashed, unrelated) = (
+            AssetAt(ConfigA, "beef", "a.heic"), AssetAt(ConfigA, "d00d", "c.heic", softDeleted: true), AssetAt(ConfigA, "babe", "b.heic"));
+        (photo.PairedAssetId, trashed.PairedAssetId, unrelated.PairedAssetId) = (video.Id, video.Id, other.Id);
+        await using var db = await SeededAsync([video, other, photo, trashed, unrelated]);
+
+        var found = await new EfMediaAssetRepository(db).FindPhotosOfAsync(video.Id, ct);
+
+        found.Select(row => row.Id).Should().BeEquivalentTo([photo.Id, trashed.Id]);
+        found.Should().AllSatisfy(row => db.Entry(row).State.Should().Be(EntityState.Unchanged));
+    }
+
+    [Fact]
+    public async Task FindPhotosOfAsync_RowAlreadyTracked_ComesBackAsThatInstanceWithItsCurrentPointer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var video = AssetAt(ConfigA, "cafe", "a.mov");
+        var photo = AssetAt(ConfigA, "beef", "a.heic");
+        photo.PairedAssetId = video.Id;
+        await using var db = await SeededAsync([video, photo]);
+        var tracked = await db.MediaAssets.SingleAsync(row => row.Id == photo.Id, ct);
+        tracked.PairedAssetId = null;
+
+        var found = await new EfMediaAssetRepository(db).FindPhotosOfAsync(video.Id, ct);
+
+        found.Should().ContainSingle().Which.Should().BeSameAs(tracked);
+        tracked.PairedAssetId.Should().BeNull();
     }
 
     // ==========================================================================
