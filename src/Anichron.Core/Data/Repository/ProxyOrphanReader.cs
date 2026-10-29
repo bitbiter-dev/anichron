@@ -26,7 +26,12 @@ public sealed record ProxyOrphanPage(IReadOnlyList<ProxyOrphanView> Items, int T
 /// <summary>An orphan's id and the live storage config its directory names.</summary>
 /// <param name="Id">The orphan.</param>
 /// <param name="LiveStorageConfigId">The config, or null when its path names none or the config no longer exists.</param>
-public sealed record ProxyOrphanScope(Guid Id, Guid? LiveStorageConfigId);
+public sealed record ProxyOrphanScope(Guid Id, Guid? LiveStorageConfigId)
+{
+    /// <summary>The ids of the storage configs that still exist, active or not: the configs an orphan's scope can be.</summary>
+    /// <param name="db">The context to query.</param>
+    public static IQueryable<Guid?> LiveConfigIds(AnichronDbContext db) => db.StorageConfigs.Select(c => (Guid?)c.Id);
+}
 
 public interface IProxyOrphanReader
 {
@@ -71,15 +76,21 @@ public sealed class EfProxyOrphanReader(AnichronDbContext db) : IProxyOrphanRead
     }
 
     public async Task<IReadOnlyList<ProxyOrphanScope>> FindAsync(Guid sweepId, IReadOnlyCollection<Guid> ids, CancellationToken ct)
-        => await db.ProxyOrphans
+    {
+        var live = ProxyOrphanScope.LiveConfigIds(db);
+        return await db.ProxyOrphans
             .Where(o => o.SweepId == sweepId && ids.Contains(o.Id))
-            .Select(o => new ProxyOrphanScope(o.Id, db.StorageConfigs.Any(c => c.Id == o.StorageConfigId) ? o.StorageConfigId : null))
+            .Select(o => new ProxyOrphanScope(o.Id, live.Contains(o.StorageConfigId) ? o.StorageConfigId : null))
             .ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<Guid?>> PendingConfigsAsync(Guid sweepId, CancellationToken ct)
-        => await db.ProxyOrphans
+    {
+        var live = ProxyOrphanScope.LiveConfigIds(db);
+        return await db.ProxyOrphans
             .Where(o => o.SweepId == sweepId && o.DeletionOutcome == null)
-            .Select(o => db.StorageConfigs.Any(c => c.Id == o.StorageConfigId) ? o.StorageConfigId : null)
+            .Select(o => live.Contains(o.StorageConfigId) ? o.StorageConfigId : null)
             .Distinct()
             .ToListAsync(ct);
+    }
 }
