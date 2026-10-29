@@ -29,9 +29,16 @@ internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetReposito
             await SaveAsync(context, retiredFirst, ct);
             return true;
         }
-        catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex) && (processed is not null || retiredFirst.Count > 0))
+        catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex))
         {
-            if (processed is not null && await repository.FindByHashAsync(processed.ContentHash, processed.StorageConfigId, ct) is null)
+            if (processed is not null)
+            {
+                if (await repository.FindByHashAsync(processed.ContentHash, processed.StorageConfigId, ct) is null)
+                    throw;
+                return false;
+            }
+
+            if (retiredFirst.Count == 0)
                 throw;
             return false;
         }

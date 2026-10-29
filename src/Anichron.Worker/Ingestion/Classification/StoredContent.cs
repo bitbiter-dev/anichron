@@ -17,6 +17,8 @@ internal sealed record AssetContent(
     public static AssetContent Of(MediaAsset source, IReadOnlyList<ProxyFile> proxies)
         => new(source.ContentHash, source.DateCaptured, source.MediaType, source.Metadata ?? new Metadata(), proxies);
 
+    public AssetContent Undated() => this with { DateCaptured = null };
+
     public void ApplyTo(MediaAsset asset)
     {
         asset.ContentHash = ContentHash;

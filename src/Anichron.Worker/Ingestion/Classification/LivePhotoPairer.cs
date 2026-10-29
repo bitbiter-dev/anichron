@@ -9,19 +9,21 @@ internal sealed partial class LivePhotoPairer(
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<LivePhotoPairer> logger)
 {
-    public Task PairAsync(IngestionContext context, IngestionClassification classification, CancellationToken ct)
-        => classification.Pairing switch
+    public async Task PairAsync(IngestionContext context, IngestionClassification classification, CancellationToken ct)
+    {
+        if (classification.Pairing is PairingAction.AttachMov or PairingAction.PointAtMov)
         {
-            PairingAction.AttachMov => AttachMovAsync(context, classification, ct),
-            PairingAction.PointAtMov => Task.FromResult(PointAtMov(context, classification)),
-            PairingAction.BackfillMovProxy => pairedMovProxyWriter.WriteMissingAsync(context, classification.Secondary!.Stored!, ct),
-            _ => Task.CompletedTask,
-        };
+            var mov = PointPhotoAtMov(context, classification);
+            if (classification.Pairing == PairingAction.AttachMov)
+                await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
+        }
+        else if (classification.Pairing == PairingAction.BackfillMovProxy)
+        {
+            await pairedMovProxyWriter.WriteMissingAsync(context, classification.Secondary!.Stored!, ct);
+        }
+    }
 
-    private async Task AttachMovAsync(IngestionContext context, IngestionClassification classification, CancellationToken ct)
-        => await pairedMovProxyWriter.WriteMissingAsync(context, PointAtMov(context, classification), ct);
-
-    private MediaAsset PointAtMov(IngestionContext context, IngestionClassification classification)
+    private MediaAsset PointPhotoAtMov(IngestionContext context, IngestionClassification classification)
     {
         var heic = classification.Primary.Row!;
         heic.MediaType = context.Item.PrimaryMediaType;
