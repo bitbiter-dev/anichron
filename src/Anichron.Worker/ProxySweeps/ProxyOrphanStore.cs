@@ -1,5 +1,6 @@
 using Anichron.Core;
 using Anichron.Core.Data;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Worker.Ingestion.Proxy;
@@ -78,12 +79,13 @@ internal sealed class EfProxyOrphanStore(AnichronDbContext db, IGuidFactory guid
     public async Task<ProxySweepResult> SummariseAsync(Guid sweepId, CancellationToken ct)
     {
         var report = db.ProxyOrphans.Where(o => o.SweepId == sweepId);
+        var live = ProxyOrphanScope.LiveConfigIds(db);
         return new ProxySweepResult(
             await report.CountAsync(ct),
             await report.SumAsync(o => o.SizeBytes, ct),
             await report.CountAsync(o => o.ProxyPath.EndsWith(ProxyStagingWriter.TemporaryFileSuffix), ct),
             await report
-                .Where(o => o.StorageConfigId != null && !db.StorageConfigs.Any(c => c.Id == o.StorageConfigId))
+                .Where(o => o.StorageConfigId != null && !live.Contains(o.StorageConfigId))
                 .Select(o => o.StorageConfigId)
                 .Distinct()
                 .CountAsync(ct));
@@ -92,9 +94,10 @@ internal sealed class EfProxyOrphanStore(AnichronDbContext db, IGuidFactory guid
     public async Task<IReadOnlyList<ProxyOrphan>> GetPendingAsync(ProxyDeletionPayload deletion, int take, CancellationToken ct)
     {
         var pending = db.ProxyOrphans.Where(o => o.SweepId == deletion.SweepId && o.DeletionOutcome == null);
+        var live = ProxyOrphanScope.LiveConfigIds(db);
         pending = deletion.StorageConfigId is { } configId
             ? pending.Where(o => o.StorageConfigId == configId)
-            : pending.Where(o => o.StorageConfigId == null || !db.StorageConfigs.Any(c => c.Id == o.StorageConfigId));
+            : pending.Where(o => o.StorageConfigId == null || !live.Contains(o.StorageConfigId));
         if (deletion.OrphanIds is { } selected)
             pending = pending.Where(o => selected.Contains(o.Id));
         return await pending.OrderBy(o => o.Id).Take(take).ToListAsync(ct);

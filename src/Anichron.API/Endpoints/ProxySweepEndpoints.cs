@@ -123,25 +123,22 @@ public static class ProxySweepEndpoints
         if (sweep == SweepState.Unfinished)
             return TypedResults.Conflict();
 
-        IEnumerable<(Guid? Config, Guid? Orphan)> scopes;
+        IReadOnlyList<ProxyDeletionPayload> deletions;
         if (selected is null)
         {
-            scopes = (await orphans.PendingConfigsAsync(sweepId, ct)).Select(config => (config, (Guid?)null));
+            deletions = ProxyDeletionPlan.ForAll(sweepId, await orphans.PendingConfigsAsync(sweepId, ct));
         }
         else
         {
             var found = await orphans.FindAsync(sweepId, selected, ct);
             if (found.Count < selected.Count)
                 return Invalid(nameof(request.OrphanIds), "Some ids are not orphans of this sweep.");
-            scopes = found.Select(o => (o.LiveStorageConfigId, (Guid?)o.Id));
+            deletions = ProxyDeletionPlan.ForSelection(sweepId, found);
         }
 
         var queued = new List<Guid>();
-        foreach (var group in scopes.GroupBy(s => s.Config).OrderBy(g => g.Key is null).ThenBy(g => g.Key))
-        {
-            var deletion = new ProxyDeletionPayload(sweepId, group.Key, selected is null ? null : [.. group.Select(s => s.Orphan!.Value)]);
+        foreach (var deletion in deletions)
             queued.Add(await queue.EnqueueAsync(deletion, callerId, ct));
-        }
 
         return TypedResults.Accepted((string?)null, new ProxyDeletionsRequestedDto(queued));
     }
