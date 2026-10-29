@@ -15,8 +15,8 @@ internal sealed partial class PairedMovResolver(
     ILogger<PairedMovResolver> logger)
 {
     /// <summary>
-    /// Points <paramref name="photo"/> at the item's MOV row, stored or added now. A video has one photo, so every other
-    /// photo still pointing at a stored one lets go of it.
+    /// Points <paramref name="photo"/> at the item's MOV row, stored or added now; every other photo still pointing at a
+    /// stored one lets go of it.
     /// </summary>
     /// <param name="context">The classified Live Photo item.</param>
     /// <param name="photo">The row that becomes the video's photo.</param>

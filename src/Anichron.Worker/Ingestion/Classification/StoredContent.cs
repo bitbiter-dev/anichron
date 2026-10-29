@@ -66,8 +66,8 @@ internal sealed partial class StoredContent(
     }
 
     /// <summary>
-    /// Soft-deletes the row and, when it is a Live Photo's photo, its video: a video has one photo, so it goes with it.
-    /// A row already soft-deleted is left alone and not counted again.
+    /// Soft-deletes the row and, when it is a Live Photo's photo, its video. A row already soft-deleted is left alone
+    /// and not counted again.
     /// </summary>
     /// <param name="context">The item that stages the soft-delete counts.</param>
     /// <param name="asset">A tracked row.</param>

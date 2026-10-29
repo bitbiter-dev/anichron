@@ -130,12 +130,7 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
         => await db.MediaAssets.FindAsync([id], ct);
 
     public async Task<IReadOnlyList<MediaAsset>> FindPhotosOfAsync(Guid videoId, CancellationToken ct)
-        => await PhotosOfQuery(db, videoId).ToListAsync(ct);
-
-    internal static IQueryable<MediaAsset> PhotosOfQuery(AnichronDbContext db, Guid videoId)
-        => db.MediaAssets
-            .IgnoreQueryFilters()
-            .Where(a => a.PairedAssetId == videoId);
+        => await db.MediaAssets.IgnoreQueryFilters().Where(a => a.PairedAssetId == videoId).ToListAsync(ct);
 
     public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
         => db.Entry(asset).Reference(a => a.Metadata).Query().IgnoreQueryFilters().LoadAsync(ct);
