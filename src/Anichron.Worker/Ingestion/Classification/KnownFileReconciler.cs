@@ -23,12 +23,12 @@ internal sealed partial class KnownFileReconciler(
             FileOutcome.Unchanged => Task.FromResult(Refresh(file.Stored!, relativePath)),
             FileOutcome.Moved => Task.FromResult(Move(file.Stored!, relativePath)),
             FileOutcome.DuplicateCopy => Task.FromResult(SkipDuplicate(file.Stored!, relativePath)),
-            FileOutcome.OverwrittenByCopy => Task.FromResult(RetireOverwritten(context, file.Stored!, file.Retired!, relativePath)),
+            FileOutcome.OverwrittenByCopy => RetireOverwrittenAsync(context, file.Stored!, file.Retired!, relativePath, ct),
             FileOutcome.OverwrittenByMove => TakeMovedContentAsync(context, file.Stored!, file.Retired!, relativePath, ct),
             FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged
                 => TakeVideoContentAsync(context, file.Stored!, relativePath, ct),
             FileOutcome.AutoRestored or FileOutcome.AutoRestoredMoved => AutoRestoreAsync(context, file.Stored!, relativePath, ct),
-            FileOutcome.LoneLivePhotoVideo => Task.FromResult(LeaveLivePhotoVideo(context, file.Stored!, file.Retired, relativePath)),
+            FileOutcome.LoneLivePhotoVideo => LeaveLivePhotoVideoAsync(context, file.Stored!, file.Retired, relativePath, ct),
             _ => Task.FromResult(false),
         };
 
@@ -53,16 +53,17 @@ internal sealed partial class KnownFileReconciler(
         return false;
     }
 
-    private bool RetireOverwritten(IngestionContext context, MediaAsset copied, MediaAsset atPath, string relativePath)
+    private async Task<bool> RetireOverwrittenAsync(
+        IngestionContext context, MediaAsset copied, MediaAsset atPath, string relativePath, CancellationToken ct)
     {
         SkipDuplicate(copied, relativePath);
-        atPath.IsSoftDeleted = true;
-        context.StageSoftDeleted();
+        await storedContent.RetireAsync(context, atPath, ct);
         Log.OverwrittenByCopy(logger, atPath.Id, relativePath, copied.FilePath);
         return true;
     }
 
-    private bool LeaveLivePhotoVideo(IngestionContext context, MediaAsset video, MediaAsset? atPath, string relativePath)
+    private async Task<bool> LeaveLivePhotoVideoAsync(
+        IngestionContext context, MediaAsset video, MediaAsset? atPath, string relativePath, CancellationToken ct)
     {
         if (atPath is null)
         {
@@ -70,8 +71,7 @@ internal sealed partial class KnownFileReconciler(
             return false;
         }
 
-        atPath.IsSoftDeleted = true;
-        context.StageSoftDeleted();
+        await storedContent.RetireAsync(context, atPath, ct);
         Log.OverwrittenByLivePhotoVideo(logger, atPath.Id, relativePath, video.Id, video.FilePath);
         return true;
     }
@@ -84,10 +84,7 @@ internal sealed partial class KnownFileReconciler(
         await storedContent.TakeAsync(
             context, atPath, UndatedWhenProcessingDates(context, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))])), ct);
 
-        moved.IsSoftDeleted = true;
-        if (moved.PairedAssetId == atPath.PairedAssetId)
-            moved.PairedAssetId = null;
-        context.StageSoftDeleted();
+        await storedContent.RetireAsync(context, moved, ct);
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
         return true;
     }

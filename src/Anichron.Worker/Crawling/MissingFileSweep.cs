@@ -42,8 +42,7 @@ internal sealed partial class MissingFileSweep(
         var missingIds = missing.Select(row => row.Id).ToHashSet();
         var videosOfMissingPhotos = missing.Select(row => row.PairedAssetId).OfType<Guid>().ToHashSet();
         var videosLeftBehind = active
-            .Where(row => !missingIds.Contains(row.Id)
-                && (row.IsVideoOfASoftDeletedPhoto || videosOfMissingPhotos.Contains(row.Id)))
+            .Where(row => !missingIds.Contains(row.Id) && videosOfMissingPhotos.Contains(row.Id))
             .ToList();
         if (missing.Count + videosLeftBehind.Count == 0)
             return new MissingFiles(0, null);
@@ -72,7 +71,7 @@ internal sealed partial class MissingFileSweep(
 
         [LoggerMessage(
             Level = LogLevel.Debug,
-            Message = "Soft-deleting asset {AssetId} at {FilePath}: it is the video of a Live Photo whose photo is soft-deleted or missing.")]
+            Message = "Soft-deleting asset {AssetId} at {FilePath}: it is the video of a Live Photo whose photo is missing.")]
         public static partial void SoftDeletingLeftBehindVideo(ILogger logger, Guid assetId, string filePath);
 
         [LoggerMessage(

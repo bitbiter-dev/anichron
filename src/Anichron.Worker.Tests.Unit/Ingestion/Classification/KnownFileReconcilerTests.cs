@@ -68,7 +68,7 @@ public sealed class KnownFileReconcilerTests
                 Repository,
                 new FakeLogger<PairedMovProxyWriter>());
             return new KnownFileReconciler(
-                    clock, Repository, new StoredContent(Repository, Bursts, clock), guids, movProxyWriter, FileSystem, Logger)
+                    clock, Repository, new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>()), guids, movProxyWriter, FileSystem, Logger)
                 .ReconcileAsync(Context, file, relativePath, CancellationToken.None);
         }
     }
@@ -147,6 +147,46 @@ public sealed class KnownFileReconcilerTests
             "Soft-deleted asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at 2024/taken.jpg: the path now holds a copy of 2023/photo.jpg.");
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Debug).Which.Message.Should().Be(
             "Duplicate content abc123 in storage config 00000000-0000-0000-0000-000000000000: 2024/taken.jpg is a copy of 2023/photo.jpg.");
+    }
+
+    private static readonly Guid VideoId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+    private static MediaAsset StoredVideo(TestFixture fx)
+    {
+        var video = Row(VideoId, "2024/taken.mov", "cafebabe");
+        video.MediaType = MediaType.Video;
+        fx.Repository.FindAsync(VideoId, Arg.Any<CancellationToken>()).Returns(video);
+        return video;
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_LivePhotosPhotoOverwrittenByCopy_ItsVideoIsSoftDeletedWithItThoughTheItemDidNotLoadItAsync()
+    {
+        var fx = new TestFixture();
+        var video = StoredVideo(fx);
+        var atPath = Row(PathRowId, "2024/taken.jpg", "f00d");
+        atPath.PairedAssetId = VideoId;
+
+        await fx.ReconcileAsync(
+            new FileClassification(FileOutcome.OverwrittenByCopy, Row(MovedRowId, "2023/photo.jpg", "abc123"), Retired: atPath));
+
+        (atPath.IsSoftDeleted, video.IsSoftDeleted).Should().Be((true, true));
+        fx.Context.StagedSoftDeleted.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_LoneLivePhotoVideoOverAnotherLivePhotosPhoto_SoftDeletesThatPhotoWithItsVideoAsync()
+    {
+        var fx = new TestFixture();
+        var video = StoredVideo(fx);
+        var atPath = Row(PathRowId, "X.heic", "f00d");
+        atPath.PairedAssetId = VideoId;
+
+        await fx.ReconcileAsync(
+            new FileClassification(FileOutcome.LoneLivePhotoVideo, Row(MovedRowId, "LP/A.mov", "b1b1"), Retired: atPath), "X.heic");
+
+        (atPath.IsSoftDeleted, video.IsSoftDeleted).Should().Be((true, true));
+        fx.Context.StagedSoftDeleted.Should().Be(2);
     }
 
     // ==========================================================================
@@ -293,6 +333,22 @@ public sealed class KnownFileReconcilerTests
         });
         moved.ProxyFiles.Select(p => (p.AssetId, p.ProxyPath)).Should().Equal(
             (MovedRowId, "ab/new/thumbnail.jpg"), (MovedRowId, "ab/new/preview.jpg"));
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_MovedLivePhotosPhotoOverwritingAnotherRow_ItsVideoIsSoftDeletedWithItAsync()
+    {
+        var fx = new TestFixture();
+        var (atPath, moved) = MoveOntoAnotherRow(fx);
+        atPath.PairedAssetId = null;
+        var video = StoredVideo(fx);
+        moved.PairedAssetId = VideoId;
+
+        await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
+
+        (moved.IsSoftDeleted, moved.PairedAssetId, video.IsSoftDeleted).Should().Be((true, VideoId, true));
+        (atPath.IsSoftDeleted, atPath.PairedAssetId).Should().Be((false, null));
+        fx.Context.StagedSoftDeleted.Should().Be(2);
     }
 
     [Fact]

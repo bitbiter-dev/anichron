@@ -3,6 +3,8 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Classification;
@@ -12,11 +14,13 @@ public sealed class StoredContentTests
     private static readonly Instant FirstSeen = Instant.FromUtc(2025, 1, 1, 0, 0);
     private static readonly Instant Now = Instant.FromUtc(2026, 10, 26, 9, 0);
     private static readonly Guid AssetId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    private static readonly Guid VideoId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     private sealed class TestFixture
     {
         public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
         public IBurstRepository Bursts { get; } = Substitute.For<IBurstRepository>();
+        public FakeLogger<StoredContent> Logger { get; } = new();
         public List<ProxyFile> Added { get; } = [];
         public List<ProxyFile> Removed { get; } = [];
         public IngestionContext Context { get; } = new()
@@ -36,7 +40,7 @@ public sealed class StoredContentTests
         {
             var clock = Substitute.For<IClock>();
             clock.GetCurrentInstant().Returns(Now);
-            return new StoredContent(Repository, Bursts, clock);
+            return new StoredContent(Repository, Bursts, clock, Logger);
         }
     }
 
@@ -177,5 +181,102 @@ public sealed class StoredContentTests
 
         wasSoftDeleted.Should().BeFalse();
         fx.Context.StagedAutoRestored.Should().Be(0);
+    }
+
+    // ==========================================================================
+    // RetireAsync
+    // ==========================================================================
+
+    private static MediaAsset LivePhoto(TestFixture fx, MediaAsset? video)
+    {
+        var photo = Row();
+        photo.PairedAssetId = VideoId;
+        fx.Repository.FindAsync(VideoId, Arg.Any<CancellationToken>()).Returns(video);
+        return photo;
+    }
+
+    private static MediaAsset Video(bool softDeleted = false) => new()
+    {
+        Id = VideoId,
+        FilePath = "a.mov",
+        FileName = "a.mov",
+        ContentHash = "m0v",
+        MediaType = MediaType.Video,
+        IsSoftDeleted = softDeleted,
+        LastSeenOnNas = FirstSeen,
+    };
+
+    [Fact]
+    public async Task RetireAsync_ActiveRowWithoutVideo_IsSoftDeletedAndCountedOnceAsync()
+    {
+        var fx = new TestFixture();
+        var asset = Row();
+
+        await fx.Build().RetireAsync(fx.Context, asset, CancellationToken.None);
+
+        asset.Should().BeEquivalentTo(new { IsSoftDeleted = true, LastSeenOnNas = FirstSeen, ContentHash = "0ld" });
+        fx.Context.StagedSoftDeleted.Should().Be(1);
+        await fx.Repository.DidNotReceive().FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        fx.Logger.Collector.Count.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RetireAsync_LivePhotosPhoto_TakesItsActiveVideoAlongAndCountsBothAsync()
+    {
+        var fx = new TestFixture();
+        var video = Video();
+        var photo = LivePhoto(fx, video);
+
+        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+
+        (photo.IsSoftDeleted, photo.PairedAssetId).Should().Be((true, VideoId));
+        video.Should().BeEquivalentTo(new { IsSoftDeleted = true, LastSeenOnNas = FirstSeen, FilePath = "a.mov" });
+        fx.Context.StagedSoftDeleted.Should().Be(2);
+        fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Level = LogLevel.Information,
+            Message = "Soft-deleted asset aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa at a.mov with its photo, asset "
+                + "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee: it is that Live Photo's video.",
+        });
+    }
+
+    [Fact]
+    public async Task RetireAsync_VideoAlreadySoftDeleted_CountsOnlyThePhotoAsync()
+    {
+        var fx = new TestFixture();
+        var photo = LivePhoto(fx, Video(softDeleted: true));
+
+        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+
+        photo.IsSoftDeleted.Should().BeTrue();
+        fx.Context.StagedSoftDeleted.Should().Be(1);
+        fx.Logger.Collector.Count.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RetireAsync_VideoNeitherTrackedNorActive_CountsOnlyThePhotoAsync()
+    {
+        var fx = new TestFixture();
+        var photo = LivePhoto(fx, video: null);
+
+        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+
+        photo.IsSoftDeleted.Should().BeTrue();
+        fx.Context.StagedSoftDeleted.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RetireAsync_RowAlreadySoftDeleted_ChangesAndCountsNothingAsync()
+    {
+        var fx = new TestFixture();
+        var video = Video();
+        var photo = LivePhoto(fx, video);
+        photo.IsSoftDeleted = true;
+
+        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+
+        video.IsSoftDeleted.Should().BeFalse();
+        fx.Context.StagedSoftDeleted.Should().Be(0);
+        await fx.Repository.DidNotReceive().FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 }

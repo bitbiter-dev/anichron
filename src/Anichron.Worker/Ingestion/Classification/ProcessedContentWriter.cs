@@ -18,11 +18,10 @@ internal abstract class ProcessedContentWriter(
         var classification = context.Classification!;
         if (classification.Secondary is { DefersToAnotherRow: false })
         {
-            var mov = pairedMovResolver.Resolve(context, context.Exif!.DateCaptured);
+            var mov = await pairedMovResolver.PairAsync(context, asset, context.Exif!.DateCaptured, ct);
             if (classification.DatesMovAfterProcessing)
                 mov.DateCaptured = asset.DateCaptured;
             await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
-            asset.PairedAssetId = mov.Id;
         }
 
         return asset;

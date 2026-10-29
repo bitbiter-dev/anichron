@@ -208,7 +208,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<Guid?>("PairedAssetId")
                         .HasColumnType("uuid")
-                        .HasComment("Live Photo pairing: the photo points at its video. The video is part of the photo, never a memory of its own: reconciliation soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo is shown as a still photo, so SetNull on delete.");
+                        .HasComment("Live Photo pairing: the photo points at its video. The video is part of the photo, never a memory of its own, and has at most one photo (unique): pairing hands it over, reconciliation soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo is shown as a still photo, so SetNull on delete.");
 
                     b.Property<Guid>("StorageConfigId")
                         .HasColumnType("uuid");
@@ -224,7 +224,9 @@ namespace Anichron.Core.Migrations
                         .HasDatabaseName("IX_MediaAssets_Active")
                         .HasFilter("\"IsSoftDeleted\" = false");
 
-                    b.HasIndex("PairedAssetId");
+                    b.HasIndex("PairedAssetId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_MediaAssets_PairedAssetId");
 
                     b.HasIndex("Month", "Day")
                         .HasDatabaseName("IX_MediaAsset_Flashback");
