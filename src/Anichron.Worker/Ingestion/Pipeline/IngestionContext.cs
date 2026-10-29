@@ -93,7 +93,7 @@ internal sealed class IngestionContext
     /// <param name="movId">The video that owns the proxies.</param>
     public void StageMovProxies(Guid movId) => stagedMovs.Add(movId);
 
-    /// <summary>Releases the proxies of every staged video, so compensation leaves them to the rows that point at them.</summary>
+    /// <summary>Releases the proxies of every staged video, so compensation leaves them in place.</summary>
     public void ReleaseStagedMovProxies()
     {
         foreach (var movId in stagedMovs)

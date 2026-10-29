@@ -7,7 +7,7 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 /// <summary>The content a row takes, from processing a file or from another row.</summary>
 /// <param name="ContentHash">The content's hash.</param>
-/// <param name="DateCaptured">The content's capture date; null leaves the row's date alone, for a row a later step dates.</param>
+/// <param name="DateCaptured">The content's capture date; null leaves the row's date alone.</param>
 /// <param name="MediaType">The content's media type.</param>
 /// <param name="Description">The metadata values; a stored row copies them, a new row takes this row as its own.</param>
 /// <param name="Proxies">The content's proxies, owned by the row that takes it.</param>

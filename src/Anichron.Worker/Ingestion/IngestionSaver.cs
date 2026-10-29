@@ -11,9 +11,8 @@ internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetReposito
 {
     /// <summary>
     /// Saves everything the item staged, in its one save: when the classification has
-    /// <see cref="IngestionClassification.RetiredFirst"/> rows, they are soft-deleted first, in one transaction, so rows
-    /// can take the content they held in the active content-hash index. After a commit, and on a lost race, the proxies of
-    /// every staged video are released.
+    /// <see cref="IngestionClassification.RetiredFirst"/> rows, they are soft-deleted first, in one transaction. After a
+    /// commit, and on a lost race, the proxies of every staged video are released.
     /// </summary>
     /// <param name="context">The classified item whose staged changes and counts the save commits.</param>
     /// <param name="processed">The row with newly processed content; null when the item only reconciled stored rows.</param>

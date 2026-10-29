@@ -50,10 +50,7 @@ internal sealed record IngestionClassification(
     public bool NeedsProcessing
         => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged;
 
-    /// <summary>
-    /// Whether the video takes content whose capture date is the processed photo's, known only once the photo is
-    /// processed, so the video's row is dated then rather than when it takes the content.
-    /// </summary>
+    /// <summary>Whether the video takes content and is dated from the processed photo, once the photo is processed.</summary>
     public bool DatesMovAfterProcessing => NeedsProcessing && Secondary is { TakesContent: true };
 
     /// <summary>
