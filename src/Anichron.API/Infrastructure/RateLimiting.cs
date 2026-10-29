@@ -21,10 +21,7 @@ internal static class RateLimiting
     }
 }
 
-/// <summary>
-/// A per-client sliding window. A rejection asks the client to wait one whole window, because a
-/// sliding window's lease reports no retry time and every permit is back once a window has passed.
-/// </summary>
+/// <summary>A per-client sliding window whose rejection asks the client to wait one whole window.</summary>
 /// <param name="permitLimit">The requests one client may make per window.</param>
 /// <param name="window">The window.</param>
 /// <param name="segmentsPerWindow">The segments the window slides by.</param>

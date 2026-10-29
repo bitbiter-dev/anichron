@@ -176,7 +176,7 @@ public sealed class AuthResponseMapperTests
             AuthResult.Fail<AuthTokens>((AuthError)999),
             NewHttp(), new PasswordPolicy(), new UsernamePolicy());
 
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
+        act.Should().Throw<System.Diagnostics.UnreachableException>().WithMessage("Unexpected AuthError in Register: 999");
     }
 
     [Fact]
@@ -311,7 +311,7 @@ public sealed class AuthResponseMapperTests
 
         var act = () => testee.GetChangePasswordResult(AuthResult.Fail((AuthError)999), new PasswordPolicy());
 
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
+        act.Should().Throw<System.Diagnostics.UnreachableException>().WithMessage("Unexpected AuthError in ChangePassword: 999");
     }
 
     // ==========================================================================

@@ -4,7 +4,6 @@ using Anichron.API.Settings;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -58,14 +57,21 @@ public sealed class AuthErrorContractTests
     private static Task<HttpResponseMessage> PostAsync(AuthenticatedTestApp app, string path, object body)
         => app.Client.PostAsJsonAsync(path, body, TestContext.Current.CancellationToken);
 
-    private static async Task AssertFieldProblemAsync(
-        HttpResponseMessage response, int status, string code, string field, string detail)
+    private static async Task<JsonElement> AssertProblemAsync(
+        HttpResponseMessage response, int status, string code, string detail)
     {
         ((int)response.StatusCode).Should().Be(status);
         var problem = await ProblemAsync(response);
         problem.GetProperty("code").GetString().Should().Be(code);
         problem.GetProperty("status").GetInt32().Should().Be(status);
         problem.GetProperty("detail").GetString().Should().Be(detail);
+        return problem;
+    }
+
+    private static async Task AssertFieldProblemAsync(
+        HttpResponseMessage response, int status, string code, string field, string detail)
+    {
+        var problem = await AssertProblemAsync(response, status, code, detail);
         var errors = problem.GetProperty("errors").EnumerateObject().ToList();
         errors.Should().ContainSingle().Which.Name.Should().Be(field);
         errors[0].Value.EnumerateArray().Select(e => e.GetString()).Should().Equal(code);
@@ -78,19 +84,17 @@ public sealed class AuthErrorContractTests
         return body.RootElement.Clone();
     }
 
-    [Fact]
-    public async Task Login_WrongCredentials_Is401InvalidCredentialsAsync()
+    [Theory]
+    [InlineData(LoginPath)]
+    [InlineData(LoginMobilePath)]
+    public async Task Login_WrongCredentials_Is401InvalidCredentialsAsync(string path)
     {
         LoginFails(AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials));
         await using var app = await StartAsync();
 
-        using var response = await PostAsync(app, LoginPath, new { usernameOrEmail = "alice", password = "wrong" });
+        using var response = await PostAsync(app, path, new { usernameOrEmail = "alice", password = "wrong" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("invalid_credentials");
-        problem.GetProperty("status").GetInt32().Should().Be(401);
-        problem.GetProperty("detail").GetString().Should().Be("The username, email, or password is incorrect.");
+        await AssertProblemAsync(response, 401, "invalid_credentials", "The username, email, or password is incorrect.");
     }
 
     [Theory]
@@ -103,26 +107,21 @@ public sealed class AuthErrorContractTests
 
         using var response = await PostAsync(app, path, new { usernameOrEmail = "alice", password = "SecurePass1!" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("account_disabled");
-        problem.GetProperty("detail").GetString().Should().Be("This account has been disabled. Please contact an administrator.");
+        await AssertProblemAsync(response, 401, "account_disabled", "This account has been disabled. Please contact an administrator.");
     }
 
-    [Fact]
-    public async Task Login_LockedAccount_Is429AccountLockedWithRetryAfterAsync()
+    [Theory]
+    [InlineData(LoginPath)]
+    [InlineData(LoginMobilePath)]
+    public async Task Login_LockedAccount_Is429AccountLockedWithRetryAfterAsync(string path)
     {
         LoginFails(AuthResult.Locked<AuthTokens>(60));
         await using var app = await StartAsync();
 
-        using var response = await PostAsync(app, LoginPath, new { usernameOrEmail = "alice", password = "wrong" });
+        using var response = await PostAsync(app, path, new { usernameOrEmail = "alice", password = "wrong" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(60));
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("account_locked");
-        problem.GetProperty("status").GetInt32().Should().Be(429);
-        problem.GetProperty("detail").GetString().Should().Be("Too many failed login attempts. Please try again in 60 seconds.");
+        await AssertProblemAsync(response, 429, "account_locked", "Too many failed login attempts. Please try again in 60 seconds.");
     }
 
     [Fact]
@@ -132,10 +131,7 @@ public sealed class AuthErrorContractTests
 
         using var response = await app.Client.PostAsync(RefreshPath, content: null, TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("refresh_token_required");
-        problem.GetProperty("detail").GetString().Should().Be("Refresh token is required.");
+        await AssertProblemAsync(response, 401, "refresh_token_required", "Refresh token is required.");
     }
 
     [Theory]
@@ -148,11 +144,7 @@ public sealed class AuthErrorContractTests
 
         using var response = await PostAsync(app, RefreshPath, new { refreshToken = "tok" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be(code);
-        problem.GetProperty("status").GetInt32().Should().Be(401);
-        problem.GetProperty("detail").GetString().Should().Be(detail);
+        await AssertProblemAsync(response, 401, code, detail);
     }
 
     [Fact]
@@ -163,11 +155,8 @@ public sealed class AuthErrorContractTests
 
         using var response = await PostAsync(app, RefreshPath, new { refreshToken = "tok" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(1));
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("account_locked");
-        problem.GetProperty("detail").GetString().Should().Be("Too many failed login attempts. Please try again in 1 second.");
+        await AssertProblemAsync(response, 429, "account_locked", "Too many failed login attempts. Please try again in 1 second.");
     }
 
     [Fact]
@@ -180,12 +169,8 @@ public sealed class AuthErrorContractTests
 
         using var response = await PostAsync(app, LoginPath, new { usernameOrEmail = "alice", password = "wrong" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(60));
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("rate_limited");
-        problem.GetProperty("status").GetInt32().Should().Be(429);
-        problem.GetProperty("detail").GetString().Should().Be("Too many requests. Please try again later.");
+        await AssertProblemAsync(response, 429, "rate_limited", "Too many requests. Please try again later.");
     }
 
     [Fact]
@@ -198,10 +183,8 @@ public sealed class AuthErrorContractTests
 
         using var response = await PostAsync(app, RefreshPath, new { refreshToken = "tok" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromMinutes(15));
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("rate_limited");
+        await AssertProblemAsync(response, 429, "rate_limited", "Too many requests. Please try again later.");
     }
 
     [Theory]
@@ -235,10 +218,8 @@ public sealed class AuthErrorContractTests
 
         using var response = await PostAsync(app, RegisterPath, RegisterBody);
 
-        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be("invite_token_invalid");
-        problem.GetProperty("detail").GetString().Should().Be("The invite token is invalid, expired, or has already been used.");
+        var problem = await AssertProblemAsync(
+            response, 422, "invite_token_invalid", "The invite token is invalid, expired, or has already been used.");
         problem.TryGetProperty("errors", out _).Should().BeFalse();
     }
 

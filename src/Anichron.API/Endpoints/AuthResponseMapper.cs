@@ -43,8 +43,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                     StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.InvalidEmail, Fields.Email, AuthMessages.InvalidEmail),
                 AuthError.InviteTokenInvalid => AuthProblems.Problem(
                     StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.InviteTokenInvalid, AuthMessages.InviteTokenInvalid),
-                _ => PasswordRejectedResult(result.Error, Fields.Password, passwordPolicy)
-                    ?? throw new UnreachableException($"Unexpected AuthError in Register: {result.Error}"),
+                _ => PasswordRejectedResult(result.Error, Fields.Password, passwordPolicy, "Register"),
             };
         }
 
@@ -95,8 +94,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         {
             AuthError.InvalidCredentials => AuthProblems.FieldProblem(
                 StatusCodes.Status400BadRequest, AuthErrorCodes.InvalidCredentials, Fields.CurrentPassword, AuthMessages.InvalidCredentials),
-            _ => PasswordRejectedResult(result.Error, Fields.NewPassword, passwordPolicy)
-                ?? throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
+            _ => PasswordRejectedResult(result.Error, Fields.NewPassword, passwordPolicy, "ChangePassword"),
         };
     }
 
@@ -218,7 +216,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             StatusCodes.Status429TooManyRequests, AuthErrorCodes.AccountLocked, AuthMessages.AccountTemporarilyLocked(secondsRemaining));
     }
 
-    private static IResult? PasswordRejectedResult(AuthError? error, string field, PasswordPolicy passwordPolicy)
+    private static IResult PasswordRejectedResult(AuthError? error, string field, PasswordPolicy passwordPolicy, string operation)
         => error switch
         {
             AuthError.PasswordTooShort => AuthProblems.FieldProblem(
@@ -227,7 +225,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
                 StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.PasswordTooLong, field, passwordPolicy.TooLongMessage),
             AuthError.PasswordPwned => AuthProblems.FieldProblem(
                 StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.PasswordPwned, field, AuthMessages.PasswordPwned),
-            _ => null,
+            _ => throw new UnreachableException($"Unexpected AuthError in {operation}: {error}"),
         };
 
     private static IResult AccountDisabledResult()

@@ -1,9 +1,6 @@
 namespace Anichron.API.Endpoints;
 
-/// <summary>
-/// Auth failures as Problem Details: a stable <c>code</c> extension a client branches on, and the
-/// English text in <c>detail</c> for people reading the raw response.
-/// </summary>
+/// <summary>Auth failures as Problem Details: a stable <c>code</c> extension, and the English text in <c>detail</c>.</summary>
 internal static class AuthProblems
 {
     internal const string CodeExtension = "code";
