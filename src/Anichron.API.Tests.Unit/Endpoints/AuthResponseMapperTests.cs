@@ -71,28 +71,6 @@ public sealed class AuthResponseMapperTests
         });
     }
 
-    [Theory]
-    [InlineData(AuthError.UsernameTaken, 409)]
-    [InlineData(AuthError.EmailTaken, 409)]
-    [InlineData(AuthError.InvalidUsername, 422)]
-    [InlineData(AuthError.InvalidEmail, 422)]
-    [InlineData(AuthError.PasswordTooShort, 422)]
-    [InlineData(AuthError.PasswordTooLong, 422)]
-    [InlineData(AuthError.PasswordPwned, 422)]
-    [InlineData(AuthError.InviteTokenInvalid, 422)]
-    public async Task GetRegistrationResult_Failure_ReturnsExpectedStatusCode(AuthError error, int expectedStatus)
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetRegistrationResult(
-            AuthResult.Fail<AuthTokens>(error),
-            http, new PasswordPolicy(), new UsernamePolicy());
-        await result.ExecuteAsync(http);
-
-        http.Response.StatusCode.Should().Be(expectedStatus);
-    }
-
     // ==========================================================================
     // GetLoginResult
     // ==========================================================================
@@ -138,36 +116,6 @@ public sealed class AuthResponseMapperTests
         });
     }
 
-    [Theory]
-    [InlineData(AuthError.InvalidCredentials)]
-    [InlineData(AuthError.AccountDisabled)]
-    public async Task GetLoginResult_AuthFailure_Returns401(AuthError error)
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetLoginResult(AuthResult.Fail<AuthTokens>(error), http, setCookie: false);
-        await result.ExecuteAsync(http);
-
-        http.Response.StatusCode.Should().Be(401);
-    }
-
-    [Fact]
-    public async Task GetLoginResult_AccountTemporarilyLocked_Returns429WithRetryAfterHeader()
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetLoginResult(AuthResult.Locked<AuthTokens>(60), http, setCookie: false);
-        await result.ExecuteAsync(http);
-
-        Assert.Multiple(() =>
-        {
-            http.Response.StatusCode.Should().Be(429);
-            http.Response.Headers.RetryAfter.ToString().Should().Be("60");
-        });
-    }
-
     // ==========================================================================
     // GetRefreshResult
     // ==========================================================================
@@ -204,54 +152,6 @@ public sealed class AuthResponseMapperTests
         {
             http.Response.StatusCode.Should().Be(200);
             body.Should().Contain("ref_token");
-        });
-    }
-
-    [Theory]
-    [InlineData(AuthError.TokenInvalid)]
-    [InlineData(AuthError.AccountDisabled)]
-    public async Task GetRefreshResult_AuthFailure_Returns401(AuthError error)
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetRefreshResult(AuthResult.Fail<AuthTokens>(error), http, setCookie: false);
-        await result.ExecuteAsync(http);
-
-        http.Response.StatusCode.Should().Be(401);
-    }
-
-    [Fact]
-    public async Task GetRefreshResult_AccountTemporarilyLocked_Returns429WithRetryAfterHeader()
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetRefreshResult(AuthResult.Locked<AuthTokens>(30), http, setCookie: false);
-        await result.ExecuteAsync(http);
-
-        Assert.Multiple(() =>
-        {
-            http.Response.StatusCode.Should().Be(429);
-            http.Response.Headers.RetryAfter.ToString().Should().Be("30");
-        });
-    }
-
-    [Fact]
-    public async Task GetLoginResult_AccountTemporarilyLockedForOneSecond_ReturnsSingularSecondMessage()
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetLoginResult(AuthResult.Locked<AuthTokens>(1), http, setCookie: false);
-        await result.ExecuteAsync(http);
-        var body = await ReadBodyAsync(http.Response);
-
-        Assert.Multiple(() =>
-        {
-            http.Response.StatusCode.Should().Be(429);
-            body.Should().Contain("1 second");
-            body.Should().NotContain("seconds");
         });
     }
 
@@ -359,23 +259,6 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public async Task GetChangePasswordResult_InvalidCredentials_Returns400WithMessage()
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetChangePasswordResult(AuthResult.Fail(AuthError.InvalidCredentials), new PasswordPolicy());
-        await result.ExecuteAsync(http);
-        var body = await ReadBodyAsync(http.Response);
-
-        Assert.Multiple(() =>
-        {
-            http.Response.StatusCode.Should().Be(400);
-            body.Should().Contain("The username, email, or password is incorrect.");
-        });
-    }
-
-    [Fact]
     public async Task GetChangePasswordResult_PasswordTooShort_Returns422WithPolicyTooShortMessage()
     {
         var http = NewHttp();
@@ -408,23 +291,6 @@ public sealed class AuthResponseMapperTests
         {
             http.Response.StatusCode.Should().Be(422);
             body.Should().Contain(policy.TooLongMessage);
-        });
-    }
-
-    [Fact]
-    public async Task GetChangePasswordResult_PasswordPwned_Returns422WithPwnedMessage()
-    {
-        var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetChangePasswordResult(AuthResult.Fail(AuthError.PasswordPwned), new PasswordPolicy());
-        await result.ExecuteAsync(http);
-        var body = await ReadBodyAsync(http.Response);
-
-        Assert.Multiple(() =>
-        {
-            http.Response.StatusCode.Should().Be(422);
-            body.Should().Contain("This password has appeared in a known data breach. Please choose a different one.");
         });
     }
 

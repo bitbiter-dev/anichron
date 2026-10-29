@@ -1,3 +1,4 @@
+using Anichron.API.Endpoints;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using static System.Globalization.CultureInfo;
@@ -11,16 +12,36 @@ internal static class RateLimiting
     internal static string PartitionKey(HttpContext httpContext)
         => httpContext.Connection.RemoteIpAddress?.ToString() ?? "unresolved";
 
-    internal static async ValueTask OnRejectedAsync(OnRejectedContext context, CancellationToken token)
+    internal static Task RejectAsync(HttpContext httpContext, TimeSpan retryAfter)
     {
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-        {
-            context.HttpContext.Response.Headers.RetryAfter =
-                ((int)retryAfter.TotalSeconds).ToString(InvariantCulture);
-        }
-
-        await context.HttpContext.Response.WriteAsJsonAsync(
-            new { error = AuthMessages.TooManyRequests }, token);
+        httpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString(InvariantCulture);
+        return AuthProblems.Problem(
+                StatusCodes.Status429TooManyRequests, AuthErrorCodes.RateLimited, AuthMessages.TooManyRequests)
+            .ExecuteAsync(httpContext);
     }
+}
+
+/// <summary>
+/// A per-client sliding window. A rejection asks the client to wait one whole window, because a
+/// sliding window's lease reports no retry time and every permit is back once a window has passed.
+/// </summary>
+/// <param name="permitLimit">The requests one client may make per window.</param>
+/// <param name="window">The window.</param>
+/// <param name="segmentsPerWindow">The segments the window slides by.</param>
+internal sealed class SlidingWindowPolicy(int permitLimit, TimeSpan window, int segmentsPerWindow) : IRateLimiterPolicy<string>
+{
+    public Func<OnRejectedContext, CancellationToken, ValueTask> OnRejected
+        => (context, _) => new ValueTask(RateLimiting.RejectAsync(context.HttpContext, window));
+
+    public RateLimitPartition<string> GetPartition(HttpContext httpContext)
+        => RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: RateLimiting.PartitionKey(httpContext),
+            factory: _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = window,
+                SegmentsPerWindow = segmentsPerWindow,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+            });
 }
