@@ -59,7 +59,7 @@ internal sealed class ClassificationFixture
         var movProxyWriter = new PairedMovProxyWriter(
             [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository, new FakeLogger<PairedMovProxyWriter>());
         var pairer = new LivePhotoPairer(
-            new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory), movProxyWriter, saver, new FakeLogger<LivePhotoPairer>());
+            new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory), movProxyWriter, new FakeLogger<LivePhotoPairer>());
         return new(
             new IngestionClassifier(Repository, FileSystem),
             pairer,

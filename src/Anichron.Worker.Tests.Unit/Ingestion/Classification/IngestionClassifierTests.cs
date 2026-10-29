@@ -398,6 +398,19 @@ public sealed class IngestionClassifierTests
     }
 
     [Fact]
+    public async Task ClassifyAsync_StoredHeicWithoutAPairedMovBesideAnEditedMov_PointsThePhotoAtThatMov()
+    {
+        var fx = new TestFixture();
+        var mov = Row("0ldm0v", "live.mov");
+        fx.Store(Row("abc123", "live.heic"), mov);
+
+        var result = await fx.ClassifyAsync(Pair());
+
+        result.Secondary.Should().Be(new FileClassification(FileOutcome.ContentChanged, mov));
+        result.Pairing.Should().Be(PairingAction.PointAtMov);
+    }
+
+    [Fact]
     public async Task ClassifyAsync_PairedRowNotAmongTheResultsButAnotherRowAtTheVideosPath_RepointsThePhotoToIt()
     {
         var fx = new TestFixture();
@@ -571,7 +584,7 @@ public sealed class IngestionClassifierTests
 
         result.Primary.Should().Be(new FileClassification(FileOutcome.Moved, bHeic));
         result.Secondary.Should().Be(new FileClassification(FileOutcome.OverwrittenByMove, standalone, Retired: bMov));
-        result.Pairing.Should().Be(PairingAction.AttachMov);
+        result.Pairing.Should().Be(PairingAction.PointAtMov);
         result.RetiredFirst.Should().Equal(bMov);
     }
 
@@ -586,7 +599,7 @@ public sealed class IngestionClassifierTests
         var result = await fx.ClassifyAsync(Pair());
 
         result.Secondary.Should().Be(new FileClassification(FileOutcome.ContentChanged, holder));
-        result.Pairing.Should().Be(PairingAction.AttachMov);
+        result.Pairing.Should().Be(PairingAction.PointAtMov);
     }
 
     [Fact]

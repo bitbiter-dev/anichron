@@ -1,3 +1,4 @@
+using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 
@@ -6,39 +7,28 @@ namespace Anichron.Worker.Ingestion.Classification;
 internal sealed partial class LivePhotoPairer(
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter,
-    IngestionSaver saver,
     ILogger<LivePhotoPairer> logger)
 {
     public Task PairAsync(IngestionContext context, IngestionClassification classification, CancellationToken ct)
         => classification.Pairing switch
         {
             PairingAction.AttachMov => AttachMovAsync(context, classification, ct),
-            PairingAction.BackfillMovProxy => BackfillMovProxyAsync(context, classification, ct),
+            PairingAction.PointAtMov => Task.FromResult(PointAtMov(context, classification)),
+            PairingAction.BackfillMovProxy => pairedMovProxyWriter.WriteMissingAsync(context, classification.Secondary!.Stored!, ct),
             _ => Task.CompletedTask,
         };
 
     private async Task AttachMovAsync(IngestionContext context, IngestionClassification classification, CancellationToken ct)
+        => await pairedMovProxyWriter.WriteMissingAsync(context, PointAtMov(context, classification), ct);
+
+    private MediaAsset PointAtMov(IngestionContext context, IngestionClassification classification)
     {
         var heic = classification.Primary.Row!;
         heic.MediaType = context.Item.PrimaryMediaType;
         var mov = pairedMovResolver.Resolve(context, heic.DateCaptured);
         heic.PairedAssetId = mov.Id;
-        if (classification.Secondary!.TakesContent)
-            return;
-
-        await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
-        if (classification.RetiredFirst.Count > 0)
-            return;
-
-        await saver.SaveAsync(context, mov.Id, ct);
         Log.Paired(logger, context.Item.RelativePath, heic.Id);
-    }
-
-    private async Task BackfillMovProxyAsync(IngestionContext context, IngestionClassification classification, CancellationToken ct)
-    {
-        var mov = classification.Secondary!.Stored!;
-        if (await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct))
-            await saver.SaveAsync(context, mov.Id, ct);
+        return mov;
     }
 
     private static partial class Log

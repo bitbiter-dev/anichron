@@ -22,6 +22,7 @@ internal enum PairingAction
     None = 0,
     AttachMov = 1,
     BackfillMovProxy = 2,
+    PointAtMov = 3,
 }
 
 /// <summary>What one crawled file is, and the stored rows its outcome acts on.</summary>
@@ -48,6 +49,12 @@ internal sealed record IngestionClassification(
 {
     public bool NeedsProcessing
         => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged;
+
+    /// <summary>
+    /// Whether the video takes content whose capture date is the processed photo's, known only once the photo is
+    /// processed, so the video's row is dated then rather than when it takes the content.
+    /// </summary>
+    public bool DatesMovAfterProcessing => NeedsProcessing && Secondary is { TakesContent: true };
 
     /// <summary>
     /// The rows soft-deleted before the item's save, so another row can take their content: every half's retired

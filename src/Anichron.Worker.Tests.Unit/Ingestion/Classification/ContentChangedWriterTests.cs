@@ -5,6 +5,7 @@ using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
+using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Microsoft.EntityFrameworkCore;
@@ -88,7 +89,7 @@ public sealed class ContentChangedWriterTests
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
             var stagingWriter = new ProxyStagingWriter(FileSystem, clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());
-            return new(new StoredContent(Repository, Bursts, clock), new IngestionSaver(UnitOfWork, Repository), FileSystem,
+            return new(new StoredContent(Repository, Bursts, clock), FileSystem,
                 new PairedMovResolver(Repository, FileSystem, clock, GuidFactory),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
@@ -117,8 +118,12 @@ public sealed class ContentChangedWriterTests
             };
         }
 
-        public Task<MediaAsset?> WriteAsync(IngestionContext context)
-            => Build().TryWriteAsync(context, CancellationToken.None);
+        public async Task<MediaAsset?> WriteAsync(IngestionContext context)
+        {
+            await new PersistenceMiddleware([Build()], new IngestionSaver(UnitOfWork, Repository), new FakeLogger<PersistenceMiddleware>())
+                .InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+            return context.Asset;
+        }
 
         private static ProxyFile OldProxy(ProxyType type, string path) => new()
         {
@@ -150,7 +155,7 @@ public sealed class ContentChangedWriterTests
     // ==========================================================================
 
     [Fact]
-    public async Task TryWriteAsync_KeepsTheStoredRowAndItsIdentityAsync()
+    public async Task WriteAsync_KeepsTheStoredRowAndItsIdentityAsync()
     {
         var fx = new TestFixture();
         var interactions = fx.Stored.Interactions.ToList();
@@ -165,7 +170,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_SoftDeletedRowAtThePath_IsAutoRestoredWithTheNewContentAsync()
+    public async Task WriteAsync_SoftDeletedRowAtThePath_IsAutoRestoredWithTheNewContentAsync()
     {
         var fx = new TestFixture();
         fx.Stored.IsSoftDeleted = true;
@@ -180,7 +185,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_ActiveRow_CountsNoAutoRestoreAsync()
+    public async Task WriteAsync_ActiveRow_CountsNoAutoRestoreAsync()
     {
         var fx = new TestFixture();
         var context = fx.Context();
@@ -192,7 +197,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_ClearsTheBurstMarkSoTheEditedPhotoIsCheckedAgainAsync()
+    public async Task WriteAsync_ClearsTheBurstMarkSoTheEditedPhotoIsCheckedAgainAsync()
     {
         var fx = new TestFixture();
 
@@ -203,7 +208,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_DescribesTheNewContentAsync()
+    public async Task WriteAsync_DescribesTheNewContentAsync()
     {
         var fx = new TestFixture();
 
@@ -217,7 +222,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_RewritesEveryMetadataFieldOnTheLoadedRowAsync()
+    public async Task WriteAsync_RewritesEveryMetadataFieldOnTheLoadedRowAsync()
     {
         var fx = new TestFixture();
 
@@ -241,7 +246,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_RowWithoutMetadata_GivesItAMetadataRowAsync()
+    public async Task WriteAsync_RowWithoutMetadata_GivesItAMetadataRowAsync()
     {
         var fx = new TestFixture();
         fx.Repository.LoadMetadataAsync(fx.Stored, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -258,7 +263,7 @@ public sealed class ContentChangedWriterTests
     // ==========================================================================
 
     [Fact]
-    public async Task TryWriteAsync_RegeneratedType_UpdatesTheExistingRowInPlaceAsync()
+    public async Task WriteAsync_RegeneratedType_UpdatesTheExistingRowInPlaceAsync()
     {
         var fx = new TestFixture();
         var context = fx.Context();
@@ -278,7 +283,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_TypeTheRowLacked_IsAddedAsync()
+    public async Task WriteAsync_TypeTheRowLacked_IsAddedAsync()
     {
         var fx = new TestFixture();
         var context = fx.Context();
@@ -293,7 +298,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_TypeNoLongerGenerated_IsRemovedAsync()
+    public async Task WriteAsync_TypeNoLongerGenerated_IsRemovedAsync()
     {
         var fx = new TestFixture();
         var context = fx.Context();
@@ -306,7 +311,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_ProxiesOfAnotherOwner_AreNotAttachedToTheRowAsync()
+    public async Task WriteAsync_ProxiesOfAnotherOwner_AreNotAttachedToTheRowAsync()
     {
         var fx = new TestFixture();
         var context = fx.Context();
@@ -326,7 +331,7 @@ public sealed class ContentChangedWriterTests
     // ==========================================================================
 
     [Fact]
-    public async Task TryWriteAsync_EditedHeic_StaysPairedToItsStoredMovAsync()
+    public async Task WriteAsync_EditedHeic_StaysPairedToItsStoredMovAsync()
     {
         var fx = new TestFixture();
         fx.Stored.PairedAssetId = MovId;
@@ -352,7 +357,7 @@ public sealed class ContentChangedWriterTests
     // ==========================================================================
 
     [Fact]
-    public async Task TryWriteAsync_SavesOnceAsync()
+    public async Task WriteAsync_SavesOnceAsync()
     {
         var fx = new TestFixture();
 
@@ -362,7 +367,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_AnotherConsumerCommittedTheNewContentFirst_SkipsWithoutThrowingAsync()
+    public async Task WriteAsync_AnotherConsumerCommittedTheNewContentFirst_SkipsWithoutThrowingAsync()
     {
         var fx = new TestFixture();
         var context = fx.Context();
@@ -377,7 +382,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_SoftDeletedRowLosesTheRaceForTheNewContent_CountsNoAutoRestoreAsync()
+    public async Task WriteAsync_SoftDeletedRowLosesTheRaceForTheNewContent_CountsNoAutoRestoreAsync()
     {
         var fx = new TestFixture();
         fx.Stored.IsSoftDeleted = true;
@@ -393,7 +398,7 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_SaveFailsForAnotherReason_RethrowsAsync()
+    public async Task WriteAsync_SaveFailsForAnotherReason_RethrowsAsync()
     {
         var fx = new TestFixture();
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())

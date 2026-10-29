@@ -85,7 +85,7 @@ public sealed class KnownFileReconcilerTests
             ContentHash = "abc123",
             SecondaryHash = "cafebabe",
             Classification = new(
-                new FileClassification(photo is null ? FileOutcome.New : FileOutcome.Unchanged, photo),
+                new FileClassification(photo is null ? FileOutcome.DuplicateCopy : FileOutcome.Unchanged, photo),
                 new FileClassification(outcome, video),
                 PairingAction.None),
         };
@@ -453,6 +453,41 @@ public sealed class KnownFileReconcilerTests
         await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
 
         mov.DateCaptured.Should().Be(new LocalDateTime(2021, 2, 3, 4, 5, 6));
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_VideoContentChangedBesideAProcessedPhoto_LeavesTheVideosDateToProcessingAsync()
+    {
+        var fx = new TestFixture();
+        var mov = Row(MovedRowId, "2024/live.mov", "0ldm0v");
+        mov.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
+        fx.Context = VideoContext(FileOutcome.ContentChanged, mov);
+        fx.Context.Classification = fx.Context.Classification! with
+        {
+            Primary = fx.Context.Classification.Primary with { Outcome = FileOutcome.ContentChanged },
+        };
+
+        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
+
+        (mov.ContentHash, mov.DateCaptured).Should().Be(("cafebabe", new LocalDateTime(2019, 1, 2, 3, 4)));
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_VideoOverwrittenByMoveBesideAProcessedPhoto_LeavesTheVideosDateToProcessingAsync()
+    {
+        var fx = new TestFixture();
+        var (atPath, moved) = MoveOntoAnotherRow(fx);
+        atPath.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
+        fx.Context = VideoContext(FileOutcome.OverwrittenByMove, atPath);
+        fx.Context.Classification = fx.Context.Classification! with
+        {
+            Primary = fx.Context.Classification.Primary with { Outcome = FileOutcome.New },
+            Secondary = new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved),
+        };
+
+        await fx.ReconcileAsync(fx.Context.Classification.Secondary);
+
+        (atPath.ContentHash, atPath.DateCaptured).Should().Be(("abc123", new LocalDateTime(2019, 1, 2, 3, 4)));
     }
 
     [Fact]

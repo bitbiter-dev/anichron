@@ -5,34 +5,27 @@ using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
-internal abstract partial class ProcessedContentWriter(
-    IngestionSaver saver,
+internal abstract class ProcessedContentWriter(
     IFileSystem fileSystem,
     PairedMovResolver pairedMovResolver,
-    PairedMovProxyWriter pairedMovProxyWriter,
-    ILogger logger) : IOutcomeWriter
+    PairedMovProxyWriter pairedMovProxyWriter) : IOutcomeWriter
 {
     public abstract IReadOnlyCollection<FileOutcome> Outcomes { get; }
 
-    public async Task<MediaAsset?> TryWriteAsync(IngestionContext context, CancellationToken ct)
+    public async Task<MediaAsset> WriteAsync(IngestionContext context, CancellationToken ct)
     {
         var asset = await WriteAssetAsync(context, ct);
-        MediaAsset? mov = null;
-
-        if (context.Classification!.Secondary is { DefersToAnotherRow: false })
+        var classification = context.Classification!;
+        if (classification.Secondary is { DefersToAnotherRow: false })
         {
-            mov = pairedMovResolver.Resolve(context, context.Exif!.DateCaptured);
-            if (context.Classification.Secondary.TakesContent)
+            var mov = pairedMovResolver.Resolve(context, context.Exif!.DateCaptured);
+            if (classification.DatesMovAfterProcessing)
                 mov.DateCaptured = asset.DateCaptured;
             await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
             asset.PairedAssetId = mov.Id;
         }
 
-        if (await saver.TrySaveNewAsync(context, asset, mov?.Id, ct))
-            return asset;
-
-        Log.AlreadyPersisted(logger, context.Item.RelativePath);
-        return null;
+        return asset;
     }
 
     protected abstract Task<MediaAsset> WriteAssetAsync(IngestionContext context, CancellationToken ct);
@@ -61,11 +54,5 @@ internal abstract partial class ProcessedContentWriter(
                 Blurhash = context.Blurhash,
             },
             context.ProxyFilesOf(assetId));
-    }
-
-    private static partial class Log
-    {
-        [LoggerMessage(Level = LogLevel.Debug, Message = "Content of {RelativePath} was persisted concurrently by another consumer, skipping.")]
-        public static partial void AlreadyPersisted(ILogger logger, string relativePath);
     }
 }

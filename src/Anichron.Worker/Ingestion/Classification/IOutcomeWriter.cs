@@ -7,5 +7,5 @@ internal interface IOutcomeWriter
 {
     IReadOnlyCollection<FileOutcome> Outcomes { get; }
 
-    Task<MediaAsset?> TryWriteAsync(IngestionContext context, CancellationToken ct);
+    Task<MediaAsset> WriteAsync(IngestionContext context, CancellationToken ct);
 }

@@ -59,15 +59,14 @@ public sealed class ImageIngestionBlurhashTests
                 [
                     new NewContentWriter(
                         repository,
-                        new IngestionSaver(Substitute.For<IUnitOfWork>(), repository),
                         fileSystem,
                         clock,
                         new PairedMovResolver(repository, fileSystem, clock, guids),
                         new PairedMovProxyWriter(
                             [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
-                            new FakeLogger<PairedMovProxyWriter>()),
-                        new FakeLogger<NewContentWriter>()),
+                            new FakeLogger<PairedMovProxyWriter>())),
                 ],
+                new IngestionSaver(Substitute.For<IUnitOfWork>(), repository),
                 new FakeLogger<PersistenceMiddleware>()),
         ];
         var context = new IngestionContext

@@ -52,6 +52,7 @@ internal sealed partial class PairedMovProxyWriter(
                 ct);
         }
 
+        context.StageMovProxies(mov.Id);
         Log.ProxiesGenerated(logger, pending.Length, context.Item.SecondaryFile.RelativePath);
     }
 

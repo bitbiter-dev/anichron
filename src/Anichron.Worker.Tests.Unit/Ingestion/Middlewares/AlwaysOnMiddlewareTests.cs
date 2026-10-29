@@ -24,7 +24,7 @@ public sealed class AlwaysOnMiddlewareTests
         {
             "Classification" => new ClassificationMiddleware(
                 new IngestionClassifier(repository, fileSystem),
-                new LivePhotoPairer(null!, null!, saver, new FakeLogger<LivePhotoPairer>()),
+                new LivePhotoPairer(null!, null!, new FakeLogger<LivePhotoPairer>()),
                 new KnownFileReconciler(
                     Substitute.For<IClock>(), repository,
                     new StoredContent(repository, Substitute.For<IBurstRepository>(), Substitute.For<IClock>()), Substitute.For<IGuidFactory>(),
@@ -33,7 +33,7 @@ public sealed class AlwaysOnMiddlewareTests
                 new FakeLogger<ClassificationMiddleware>()),
             "ContentHashing" => new ContentHashingMiddleware(fileSystem),
             "Logging" => new LoggingMiddleware(new FakeLogger<LoggingMiddleware>()),
-            "Persistence" => new PersistenceMiddleware([], new FakeLogger<PersistenceMiddleware>()),
+            "Persistence" => new PersistenceMiddleware([], saver, new FakeLogger<PersistenceMiddleware>()),
             _ => throw new ArgumentOutOfRangeException(nameof(name)),
         };
     }

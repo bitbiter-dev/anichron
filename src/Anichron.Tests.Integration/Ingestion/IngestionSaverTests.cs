@@ -65,7 +65,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
         var atPath = await db.MediaAssets.SingleAsync(a => a.Id == AtPath, Ct);
         moved.IsSoftDeleted = true;
         atPath.ContentHash = hash;
-        return await new IngestionSaver(db, new EfMediaAssetRepository(db)).TrySaveRetiringFirstAsync(Taking((atPath, moved)), Ct);
+        return await new IngestionSaver(db, new EfMediaAssetRepository(db)).TrySaveItemAsync(Taking((atPath, moved)), null, Ct);
     }
 
     private static async Task<bool> TakeLivePhotoAsync(string connectionString, string videoHash)
@@ -76,11 +76,11 @@ public sealed class IngestionSaverTests(PostgresServer server)
         (moved.IsSoftDeleted, movedVideo.IsSoftDeleted) = (true, true);
         (atPath.ContentHash, atPathVideo.ContentHash) = ("abc123", videoHash);
         return await new IngestionSaver(db, new EfMediaAssetRepository(db))
-            .TrySaveRetiringFirstAsync(Taking((atPath, moved), (atPathVideo, movedVideo)), Ct);
+            .TrySaveItemAsync(Taking((atPath, moved), (atPathVideo, movedVideo)), null, Ct);
     }
 
     [Fact]
-    public async Task TrySaveRetiringFirstAsync_ThePathsRowTakesTheRetiredRowsContentAsync()
+    public async Task TrySaveItemAsync_RetiringFirst_ThePathsRowTakesTheRetiredRowsContentAsync()
     {
         var connectionString = await LibraryAsync();
 
@@ -98,7 +98,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
     }
 
     [Fact]
-    public async Task TrySaveRetiringFirstAsync_ContentHeldByAnotherActiveRow_RollsBackTheSoftDeleteAsync()
+    public async Task TrySaveItemAsync_RetiringFirst_ContentHeldByAnotherActiveRow_RollsBackTheSoftDeleteAsync()
     {
         var connectionString = await LibraryAsync();
 
@@ -116,7 +116,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
     }
 
     [Fact]
-    public async Task TrySaveRetiringFirstAsync_BothHalvesOfALivePhoto_TakeTheRetiredRowsContentAsync()
+    public async Task TrySaveItemAsync_RetiringFirst_BothHalvesOfALivePhoto_TakeTheRetiredRowsContentAsync()
     {
         var connectionString = await LibraryAsync();
 
@@ -134,7 +134,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
     }
 
     [Fact]
-    public async Task TrySaveRetiringFirstAsync_LivePhotoWhoseVideoLosesTheRace_RollsBackBothSoftDeletesAsync()
+    public async Task TrySaveItemAsync_RetiringFirst_LivePhotoWhoseVideoLosesTheRace_RollsBackBothSoftDeletesAsync()
     {
         var connectionString = await LibraryAsync();
 

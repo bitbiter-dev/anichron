@@ -5,6 +5,7 @@ namespace Anichron.Worker.Ingestion.Middlewares;
 
 internal sealed partial class PersistenceMiddleware(
     IEnumerable<IOutcomeWriter> writers,
+    IngestionSaver saver,
     ILogger<PersistenceMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.Persistence;
@@ -14,9 +15,12 @@ internal sealed partial class PersistenceMiddleware(
     {
         var outcome = context.Classification!.Primary.Outcome;
         var writer = writers.Single(candidate => candidate.Outcomes.Contains(outcome));
-        var asset = await writer.TryWriteAsync(context, ct);
-        if (asset is null)
+        var asset = await writer.WriteAsync(context, ct);
+        if (!await saver.TrySaveItemAsync(context, asset, ct))
+        {
+            Log.AlreadyPersisted(logger, context.Item.RelativePath);
             return;
+        }
 
         context.Asset = asset;
         Log.Persisted(logger, context.Item.RelativePath, asset.Id);
@@ -27,5 +31,8 @@ internal sealed partial class PersistenceMiddleware(
     {
         [LoggerMessage(Level = LogLevel.Information, Message = "Persisted {RelativePath} as asset {AssetId}")]
         public static partial void Persisted(ILogger logger, string relativePath, Guid assetId);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Content of {RelativePath} was persisted concurrently by another consumer, skipping.")]
+        public static partial void AlreadyPersisted(ILogger logger, string relativePath);
     }
 }

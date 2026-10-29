@@ -106,7 +106,7 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
         }
 
         if (video.Row is not { } videoRow || photoRow.PairedAssetId != videoRow.Id)
-            return PairingAction.AttachMov;
+            return video.TakesContent ? PairingAction.PointAtMov : PairingAction.AttachMov;
         return video.TakesContent ? PairingAction.None : PairingAction.BackfillMovProxy;
     }
 }

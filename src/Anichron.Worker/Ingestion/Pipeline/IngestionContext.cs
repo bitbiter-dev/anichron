@@ -8,6 +8,7 @@ internal sealed class IngestionContext
     private readonly List<ProxyFile> proxyFiles = [];
     private readonly HashSet<ProxyFile> replacedFiles = [];
     private readonly Lock proxyFilesLock = new();
+    private readonly HashSet<Guid> stagedMovs = [];
 
     public required IngestionItem Item { get; init; }
     public required UserStorageConfig Config { get; init; }
@@ -86,5 +87,16 @@ internal sealed class IngestionContext
     {
         lock (proxyFilesLock)
             proxyFiles.RemoveAll(proxy => proxy.AssetId == ownerAssetId);
+    }
+
+    /// <summary>Notes a video whose registered proxies the item's save hands to the database.</summary>
+    /// <param name="movId">The video that owns the proxies.</param>
+    public void StageMovProxies(Guid movId) => stagedMovs.Add(movId);
+
+    /// <summary>Releases the proxies of every staged video, so compensation leaves them to the rows that point at them.</summary>
+    public void ReleaseStagedMovProxies()
+    {
+        foreach (var movId in stagedMovs)
+            ReleaseProxyFiles(movId);
     }
 }

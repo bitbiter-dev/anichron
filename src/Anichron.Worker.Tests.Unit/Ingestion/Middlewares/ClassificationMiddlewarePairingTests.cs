@@ -87,25 +87,59 @@ public sealed class ClassificationMiddlewarePairingTests
     }
 
     [Fact]
-    public async Task InvokeAsync_LatePairing_CommitsBeforeRefreshingTheHalvesAsync()
+    public async Task InvokeAsync_LatePairing_SavesThePairingWithTheRefreshedHalvesInOneSaveAsync()
     {
         var fx = new ClassificationFixture();
         var heic = StoredHeic();
         fx.Store(heic);
         fx.GuidFactory.NewGuid().Returns(NewMovId);
-        Guid? pairedAtFirstSave = null;
+        (Guid?, Instant?) heicAtSave = default;
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(
             _ =>
             {
-                pairedAtFirstSave ??= heic.PairedAssetId;
+                heicAtSave = (heic.PairedAssetId, heic.LastSeenOnNas);
                 return Task.FromResult(1);
             });
 
         await fx.Build().InvokeAsync(Pair(), NoOpNextAsync, CancellationToken.None);
 
-        pairedAtFirstSave.Should().Be(NewMovId);
-        await fx.UnitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
-        heic.LastSeenOnNas.Should().Be(Now);
+        heicAtSave.Should().Be((NewMovId, Now));
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_StoredHeicBesideAnEditedMov_PointsThePhotoAtItAndTranscodesTheMovOnceAsync()
+    {
+        var fx = new ClassificationFixture();
+        var heic = StoredHeic();
+        var mov = StoredMov(Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), ProxyType.WebVideo);
+        mov.ContentHash = "0ldm0v";
+        fx.Store(heic, mov);
+
+        await fx.Build().InvokeAsync(Pair(), NoOpNextAsync, CancellationToken.None);
+
+        (heic.PairedAssetId, heic.MediaType).Should().Be((mov.Id, MediaType.LivePhoto));
+        (mov.ContentHash, mov.DateCaptured).Should().Be(("cafebabe", HeicCaptured));
+        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_EditedMovOfAPairedHeicLosesTheRace_ReleasesItsProxiesBeforeRethrowingAsync()
+    {
+        var fx = new ClassificationFixture();
+        var mov = StoredMov(PairedMovId, ProxyType.WebVideo);
+        mov.ContentHash = "0ldm0v";
+        fx.Store(StoredHeic(PairedMovId), mov);
+        FailSaves(fx, DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
+        var context = Pair();
+
+        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+        await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        context.ProxyFiles.Should().BeEmpty();
     }
 
     [Fact]
@@ -137,7 +171,7 @@ public sealed class ClassificationMiddlewarePairingTests
 
         await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
         fx.AddedProxies.Should().ContainSingle().Which.AssetId.Should().Be(PairedMovId);
-        await fx.UnitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -164,7 +198,7 @@ public sealed class ClassificationMiddlewarePairingTests
 
         heic.PairedAssetId.Should().Be(other.Id);
         await fx.DidNotTranscodeAsync();
-        await fx.UnitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -205,23 +239,6 @@ public sealed class ClassificationMiddlewarePairingTests
         var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         await act.Should().ThrowAsync<DbUpdateException>();
-        context.ProxyFiles.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_BackfillCommittedThenALaterSaveThrows_LeavesTheCommittedProxyToTheDatabaseAsync()
-    {
-        var fx = new ClassificationFixture();
-        fx.Store(StoredHeic(PairedMovId), StoredMov(PairedMovId));
-        fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(
-            _ => Task.FromResult(1),
-            _ => Task.FromException<int>(new DbUpdateException("later save")));
-        var context = Pair();
-
-        var act = () => fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
-
-        await act.Should().ThrowAsync<DbUpdateException>();
-        await fx.UnitOfWork.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
         context.ProxyFiles.Should().BeEmpty();
     }
 
