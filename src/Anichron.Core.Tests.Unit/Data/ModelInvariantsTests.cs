@@ -38,6 +38,19 @@ public sealed class ModelInvariantsTests
     }
 
     [Fact]
+    public void PairedAssetId_IsUniqueAcrossActiveAndSoftDeletedRows()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var mediaAsset = context.Model.FindEntityType(typeof(MediaAsset))!;
+
+        var index = mediaAsset.GetIndexes()
+            .Should().ContainSingle(index => index.GetDatabaseName() == "IX_MediaAssets_PairedAssetId").Which;
+        index.IsUnique.Should().BeTrue("a Live Photo's video has at most one photo");
+        index.Properties.Select(p => p.Name).Should().Equal(nameof(MediaAsset.PairedAssetId));
+        index.GetFilter().Should().BeNull("a soft-deleted photo keeps its pointer, so it holds its video too");
+    }
+
+    [Fact]
     public void Interactions_AreUniquePerUserAndAssetUnderTheNameTheWriterRetriesOn()
     {
         using var context = AnichronDbContexts.NpgsqlModel();

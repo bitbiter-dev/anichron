@@ -13,7 +13,7 @@ internal sealed partial class LivePhotoPairer(
     {
         if (classification.Pairing is PairingAction.AttachMov or PairingAction.PointAtMov)
         {
-            var mov = PointPhotoAtMov(context, classification);
+            var mov = await PointPhotoAtMovAsync(context, classification, ct);
             if (classification.Pairing == PairingAction.AttachMov)
                 await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
         }
@@ -23,12 +23,12 @@ internal sealed partial class LivePhotoPairer(
         }
     }
 
-    private MediaAsset PointPhotoAtMov(IngestionContext context, IngestionClassification classification)
+    private async Task<MediaAsset> PointPhotoAtMovAsync(
+        IngestionContext context, IngestionClassification classification, CancellationToken ct)
     {
         var heic = classification.Primary.Row!;
         heic.MediaType = context.Item.PrimaryMediaType;
-        var mov = pairedMovResolver.Resolve(context, heic.DateCaptured);
-        heic.PairedAssetId = mov.Id;
+        var mov = await pairedMovResolver.PairAsync(context, heic, heic.DateCaptured, ct);
         Log.Paired(logger, context.Item.RelativePath, heic.Id);
         return mov;
     }

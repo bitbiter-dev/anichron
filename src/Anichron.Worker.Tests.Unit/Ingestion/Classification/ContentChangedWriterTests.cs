@@ -89,8 +89,8 @@ public sealed class ContentChangedWriterTests
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
             var stagingWriter = new ProxyStagingWriter(FileSystem, clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());
-            return new(new StoredContent(Repository, Bursts, clock), FileSystem,
-                new PairedMovResolver(Repository, FileSystem, clock, GuidFactory),
+            return new(new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>()), FileSystem,
+                new PairedMovResolver(Repository, FileSystem, clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),

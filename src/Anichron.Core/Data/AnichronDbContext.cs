@@ -111,8 +111,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 "See Month — the pair backs IX_MediaAsset_Flashback.");
             entity.Property(m => m.PairedAssetId).HasComment(
                 "Live Photo pairing: the photo points at its video. The video is part of the photo, never a "
-                + "memory of its own: reconciliation soft-deletes it with its photo and leaves a lone copy of it "
-                + "alone. Without its video the photo is shown as a still photo, so SetNull on delete.");
+                + "memory of its own, and has at most one photo (unique): pairing hands it over, reconciliation "
+                + "soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo "
+                + "is shown as a still photo, so SetNull on delete.");
             entity.Property(m => m.IsSoftDeleted).HasComment(
                 "Set by reconciliation when a complete crawl did not find the file, or when its path "
                 + "now holds content stored at another path. Soft rather than hard so the user's "
@@ -135,6 +136,10 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .HasDatabaseName(MediaAssetIndexNames.FilePathUnique);
 
             entity.HasIndex(m => new { m.StorageConfigId, m.DateCaptured });
+
+            entity.HasIndex(m => m.PairedAssetId)
+                  .IsUnique()
+                  .HasDatabaseName(MediaAssetIndexNames.PairedAssetIdUnique);
 
             // Self-Reference (Paired Asset)
             entity.HasOne(m => m.PairedAsset)

@@ -399,13 +399,15 @@ public sealed class ClassificationMiddlewareTests
         var atPath = PathRow("2024/live.heic", "f00d");
         heic.PairedAssetId = mov.Id;
         fx.Store(heic, mov, atPath);
+        var context = Pair("2024/live.heic", "2024/live.mov");
 
-        await fx.Build().InvokeAsync(Pair("2024/live.heic", "2024/live.mov"), NoOpNextAsync, CancellationToken.None);
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         atPath.ContentHash.Should().Be("abc123");
         atPath.PairedAssetId.Should().Be(mov.Id);
         (heic.IsSoftDeleted, heic.PairedAssetId).Should().Be((true, null));
-        mov.FilePath.Should().Be("2024/live.mov");
+        (mov.FilePath, mov.IsSoftDeleted).Should().Be(("2024/live.mov", false));
+        context.SoftDeleted.Should().Be(1, "the pairer hands the video over before the reconciler retires its previous photo");
         await fx.Repository.Received(1).SoftDeleteAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { heic.Id })), Arg.Any<CancellationToken>());
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
@@ -624,7 +626,7 @@ public sealed class ClassificationMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_LivePhotoCopiedOverAnother_LeavesTheCopiedRowsAndRetiresOnlyTheOverwrittenPhotoAsync()
+    public async Task InvokeAsync_LivePhotoCopiedOverAnother_LeavesTheCopiedRowsAndRetiresTheOverwrittenLivePhotoAsync()
     {
         var fx = new ClassificationFixture();
         fx.FileSystem.AddEmptyFile("/abs/B.heic");
@@ -634,13 +636,50 @@ public sealed class ClassificationMiddlewareTests
             new MatchedAsset(aHeic, IsLivePhotoVideo: false),
             new MatchedAsset(aVideo, IsLivePhotoVideo: true),
             new MatchedAsset(bHeic, IsLivePhotoVideo: false));
+        var context = LivePhoto("A");
 
-        await fx.Build().InvokeAsync(LivePhoto("A"), NoOpNextAsync, CancellationToken.None);
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        aHeic.IsSoftDeleted.Should().BeTrue();
-        (aVideo.IsSoftDeleted, aVideo.LastSeenOnNas).Should().Be((false, FirstSeen));
+        (aHeic.IsSoftDeleted, aHeic.PairedAssetId).Should().Be((true, AVideoId));
+        (aVideo.IsSoftDeleted, aVideo.LastSeenOnNas).Should().Be((true, FirstSeen));
+        context.SoftDeleted.Should().Be(2);
         (bHeic.PairedAssetId, bHeic.FilePath, bHeic.LastSeenOnNas).Should().Be((BVideoId, "B.heic", FirstSeen));
         fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LivePhotosPhotoCopiedOverWithItsVideoUnread_RetiresTheVideoWithThePhotoAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.FileSystem.AddEmptyFile("/abs/B.heic");
+        var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "a0a0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
+        fx.Store(aHeic, Half(BHeicId, "B.heic", "abc123"));
+        fx.Repository.FindAsync(AVideoId, Arg.Any<CancellationToken>()).Returns(aVideo);
+        var context = Single("A.heic");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        (aHeic.IsSoftDeleted, aVideo.IsSoftDeleted).Should().Be((true, true));
+        context.SoftDeleted.Should().Be(2);
+        await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_CopyOverARetiredLivePhotoCrawledAgain_LeavesBothRowsSoftDeletedAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.FileSystem.AddEmptyFile("/abs/B.heic");
+        var aHeic = Half(AHeicId, "A.heic", "a0a0", AVideoId);
+        var aVideo = Half(AVideoId, "A.mov", "a1a1");
+        (aHeic.IsSoftDeleted, aVideo.IsSoftDeleted) = (true, true);
+        fx.Store(aHeic, Half(BHeicId, "B.heic", "abc123"));
+        var context = Single("A.heic");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Classification!.Primary.Outcome.Should().Be(FileOutcome.DuplicateCopy);
+        (aHeic.IsSoftDeleted, aVideo.IsSoftDeleted).Should().Be((true, true));
+        await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

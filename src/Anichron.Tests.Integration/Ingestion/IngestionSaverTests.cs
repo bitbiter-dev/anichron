@@ -1,9 +1,13 @@
+using Anichron.Core;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using System.IO.Abstractions;
 
 namespace Anichron.Tests.Integration.Ingestion;
 
@@ -149,5 +153,77 @@ public sealed class IngestionSaverTests(PostgresServer server)
             [MovedVideo] = ("cafebabe", false),
             [AtPathVideo] = ("0ldm0v", false),
         });
+    }
+
+    // ==========================================================================
+    // A Live Photo moved onto a still photo hands its video over in the same save
+    // ==========================================================================
+
+    private static readonly Guid Video = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000000");
+
+    private async Task<string> LivePhotoAndStillPhotoAsync(Guid livePhoto, Guid stillPhoto)
+    {
+        var connectionString = await server.CreateMigratedDatabaseAsync(Ct);
+        var (user, config) = (Guid.NewGuid(), Guid.NewGuid());
+        MediaAsset Row(Guid id, string path, string hash, Guid? pairedAssetId = null) => new()
+        {
+            Id = id,
+            StorageConfigId = config,
+            FilePath = path,
+            FileName = path,
+            ContentHash = hash,
+            MediaType = pairedAssetId is null ? MediaType.Image : MediaType.LivePhoto,
+            PairedAssetId = pairedAssetId,
+        };
+
+        await using var db = PostgresServer.Context(connectionString);
+        db.Users.Add(new User { Id = user, Username = "mira", Email = "mira@example.com", PasswordHash = "hash" });
+        db.StorageConfigs.Add(new UserStorageConfig { Id = config, UserId = user, RootPath = "/data/originals/mira", IsActive = true });
+        db.MediaAssets.AddRange(
+            Row(Video, "B.mov", "b1b1"), Row(livePhoto, "B.heic", "b0b0", Video), Row(stillPhoto, "A.heic", "a0a0"));
+        await db.SaveChangesAsync(Ct);
+        return connectionString;
+    }
+
+    [Theory]
+    [InlineData("11111111-0000-0000-0000-000000000000", "99999999-0000-0000-0000-000000000000")]
+    [InlineData("99999999-0000-0000-0000-000000000000", "11111111-0000-0000-0000-000000000000")]
+    public async Task TrySaveItemAsync_LivePhotoMovedOntoAStillPhoto_HandsTheVideoOverAfterRetiringFirstAsync(
+        string livePhotoId, string stillPhotoId)
+    {
+        var (livePhoto, stillPhoto) = (Guid.Parse(livePhotoId), Guid.Parse(stillPhotoId));
+        var connectionString = await LivePhotoAndStillPhotoAsync(livePhoto, stillPhoto);
+        await using (var db = PostgresServer.Context(connectionString))
+        {
+            var rows = await db.MediaAssets.ToDictionaryAsync(a => a.Id, Ct);
+            var (moved, atPath, video) = (rows[livePhoto], rows[stillPhoto], rows[Video]);
+            var context = new IngestionContext
+            {
+                Classification = new(
+                    new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved),
+                    new FileClassification(FileOutcome.Moved, video),
+                    PairingAction.AttachMov),
+                Item = new LivePhotoPairItem("/data/originals/mira/A.heic", "A.heic", "/data/originals/mira/A.mov", "A.mov"),
+                Config = new UserStorageConfig { Id = atPath.StorageConfigId, RootPath = "/data/originals/mira" },
+                AttemptId = Guid.NewGuid(),
+            };
+            var repository = new EfMediaAssetRepository(db);
+            await new PairedMovResolver(
+                    repository, Substitute.For<IFileSystem>(), Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
+                    NullLogger<PairedMovResolver>.Instance)
+                .PairAsync(context, atPath, null, Ct);
+            (moved.IsSoftDeleted, atPath.ContentHash, video.FilePath) = (true, "b0b0", "A.mov");
+
+            (await new IngestionSaver(db, repository).TrySaveItemAsync(context, null, Ct)).Should().BeTrue();
+        }
+
+        await using var read = PostgresServer.Context(connectionString);
+        (await read.MediaAssets.IgnoreQueryFilters().ToDictionaryAsync(a => a.Id, a => (a.PairedAssetId, a.IsSoftDeleted), Ct))
+            .Should().BeEquivalentTo(new Dictionary<Guid, (Guid?, bool)>
+            {
+                [livePhoto] = (null, true),
+                [stillPhoto] = (Video, false),
+                [Video] = (null, false),
+            });
     }
 }
