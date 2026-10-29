@@ -5,6 +5,7 @@ using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
+using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Microsoft.EntityFrameworkCore;
@@ -56,12 +57,18 @@ public sealed class NewContentWriterTests
                 Clock,
                 GuidFactory,
                 new FakeLogger<ProxyStagingWriter>());
-            return new(Repository, new IngestionSaver(UnitOfWork, Repository), FileSystem, Clock,
+            return new(Repository, FileSystem, Clock,
                 new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
-                    new FakeLogger<PairedMovProxyWriter>()),
-                new FakeLogger<NewContentWriter>());
+                    new FakeLogger<PairedMovProxyWriter>()));
+        }
+
+        public async Task<MediaAsset?> WriteAsync(IngestionContext context)
+        {
+            await new PersistenceMiddleware([Build()], new IngestionSaver(UnitOfWork, Repository), new FakeLogger<PersistenceMiddleware>())
+                .InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+            return context.Asset;
         }
     }
 
@@ -98,49 +105,49 @@ public sealed class NewContentWriterTests
         => new TestFixture().Build().Outcomes.Should().Equal(FileOutcome.New);
 
     // ==========================================================================
-    // TryWriteAsync
+    // WriteAsync
     // ==========================================================================
 
     [Fact]
-    public async Task TryWriteAsync_Always_AddsAssetToRepositoryAsync()
+    public async Task WriteAsync_Always_AddsAssetToRepositoryAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
 
-        await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.WriteAsync(context);
 
         fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_CallsSaveChangesAsync()
+    public async Task WriteAsync_Always_CallsSaveChangesAsync()
     {
         var fx = new TestFixture();
 
-        await fx.Build().TryWriteAsync(MakeContext(), CancellationToken.None);
+        await fx.WriteAsync(MakeContext());
 
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task TryWriteAsync_Committed_ReturnsTheAddedAssetAsync()
+    public async Task WriteAsync_Committed_ReturnsTheAddedAssetAsync()
     {
         var fx = new TestFixture();
         MediaAsset? added = null;
         fx.Repository.When(r => r.Add(Arg.Any<MediaAsset>())).Do(call => added = call.Arg<MediaAsset>());
 
-        var asset = await fx.Build().TryWriteAsync(MakeContext(), CancellationToken.None);
+        var asset = await fx.WriteAsync(MakeContext());
 
         asset.Should().NotBeNull().And.BeSameAs(added);
     }
 
     [Fact]
-    public async Task TryWriteAsync_WithExifDateCaptured_SetsMonthDayYearFromExifAsync()
+    public async Task WriteAsync_WithExifDateCaptured_SetsMonthDayYearFromExifAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.Month.Should().Be(6);
         asset.Day.Should().Be(15);
@@ -148,36 +155,36 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_ExifDateDiffersFromTheFileDate_TheExifDateWinsAsync()
+    public async Task WriteAsync_ExifDateDiffersFromTheFileDate_TheExifDateWinsAsync()
     {
         var fx = new TestFixture();
         var exifDate = new LocalDateTime(2020, 1, 2, 3, 4, 5);
         var context = MakeContext(exif: DefaultExif with { DateCaptured = exifDate });
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.DateCaptured.Should().Be(exifDate);
         (asset.Year, asset.Month, asset.Day).Should().Be((2020, 1, 2));
     }
 
     [Fact]
-    public async Task TryWriteAsync_NewAsset_IsNotSoftDeletedAsync()
+    public async Task WriteAsync_NewAsset_IsNotSoftDeletedAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.IsSoftDeleted.Should().BeFalse();
     }
 
     [Fact]
-    public async Task TryWriteAsync_WithNullDateCaptured_FallsBackToFileLastWriteTimeAsync()
+    public async Task WriteAsync_WithNullDateCaptured_FallsBackToFileLastWriteTimeAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(exif: DefaultExif with { DateCaptured = null });
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.Year.Should().Be(2023);
         asset.Month.Should().Be(6);
@@ -185,88 +192,88 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_SetsLastSeenOnNasFromClockAsync()
+    public async Task WriteAsync_Always_SetsLastSeenOnNasFromClockAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.LastSeenOnNas.Should().Be(fx.Now);
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_SetsMetadataFromExifAsync()
+    public async Task WriteAsync_Always_SetsMetadataFromExifAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.Metadata!.Width.Should().Be(100);
         asset.Metadata.Height.Should().Be(200);
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_SetsMetadataBlurhashFromContextAsync()
+    public async Task WriteAsync_Always_SetsMetadataBlurhashFromContextAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
         context.Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj";
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.Metadata!.Blurhash.Should().Be("LEHV6nWB2yk8pyo0adR*.7kCMdnj");
     }
 
     [Fact]
-    public async Task TryWriteAsync_SingleFileItem_UsesItemMediaTypeAsync()
+    public async Task WriteAsync_SingleFileItem_UsesItemMediaTypeAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(item: new SingleFileItem("/abs/video.mp4", "video.mp4", MediaType.Video));
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.MediaType.Should().Be(MediaType.Video);
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_SetsContentHashFromContextAsync()
+    public async Task WriteAsync_Always_SetsContentHashFromContextAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(contentHash: "deadbeef");
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.ContentHash.Should().Be("deadbeef");
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairItem_HeicHasLivePhotoMediaTypeAsync()
+    public async Task WriteAsync_LivePhotoPairItem_HeicHasLivePhotoMediaTypeAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.MediaType.Should().Be(MediaType.LivePhoto);
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairItem_AddsTwoAssetsToRepositoryAsync()
+    public async Task WriteAsync_LivePhotoPairItem_AddsTwoAssetsToRepositoryAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
-        await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.WriteAsync(context);
 
         fx.Repository.Received(2).Add(Arg.Any<MediaAsset>());
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairItem_MovHasVideoMediaTypeAsync()
+    public async Task WriteAsync_LivePhotoPairItem_MovHasVideoMediaTypeAsync()
     {
         MediaAsset? movAsset = null;
         var fx = new TestFixture();
@@ -275,7 +282,7 @@ public sealed class NewContentWriterTests
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
-        await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.WriteAsync(context);
 
         movAsset.Should().NotBeNull();
         movAsset.ContentHash.Should().Be("cafebabe");
@@ -283,7 +290,7 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairWithoutExifDate_DatesEachHalfByItsOwnFileAsync()
+    public async Task WriteAsync_LivePhotoPairWithoutExifDate_DatesEachHalfByItsOwnFileAsync()
     {
         MediaAsset? movAsset = null;
         var fx = new TestFixture();
@@ -301,7 +308,7 @@ public sealed class NewContentWriterTests
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
             exif: DefaultExif with { DateCaptured = null });
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.DateCaptured.Should().Be(new LocalDateTime(2021, 3, 4, 8, 0));
         movAsset!.DateCaptured.Should().Be(new LocalDateTime(2021, 3, 5, 9, 0));
@@ -309,7 +316,7 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairItem_HeicPairedAssetIdPointsToMovAsync()
+    public async Task WriteAsync_LivePhotoPairItem_HeicPairedAssetIdPointsToMovAsync()
     {
         MediaAsset? movAsset = null;
         var fx = new TestFixture();
@@ -318,24 +325,24 @@ public sealed class NewContentWriterTests
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.PairedAssetId.Should().Be(movAsset!.Id);
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_UsesContextAssetIdForPrimaryAssetAsync()
+    public async Task WriteAsync_Always_UsesContextAssetIdForPrimaryAssetAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.Id.Should().Be(context.AssetId);
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_AddsTheContextsProxyFilesToTheRepositoryAsync()
+    public async Task WriteAsync_Always_AddsTheContextsProxyFilesToTheRepositoryAsync()
     {
         var fx = new TestFixture();
         var added = new List<ProxyFile>();
@@ -344,13 +351,13 @@ public sealed class NewContentWriterTests
         var proxyFile = new ProxyFile { Id = Guid.NewGuid(), AssetId = context.AssetId, ProxyType = ProxyType.Thumbnail };
         context.AddProxyFile(proxyFile);
 
-        await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.WriteAsync(context);
 
         added.Should().ContainSingle(p => p.Id == proxyFile.Id);
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairItem_UsesGuidFactoryForSecondaryAssetIdAsync()
+    public async Task WriteAsync_LivePhotoPairItem_UsesGuidFactoryForSecondaryAssetIdAsync()
     {
         var fx = new TestFixture();
         var expectedId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -361,13 +368,13 @@ public sealed class NewContentWriterTests
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
-        await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.WriteAsync(context);
 
         movAsset!.Id.Should().Be(expectedId);
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairWithMovAlreadyPersisted_PairsHeicToExistingMovAsync()
+    public async Task WriteAsync_LivePhotoPairWithMovAlreadyPersisted_PairsHeicToExistingMovAsync()
     {
         var fx = new TestFixture();
         var existingMov = new MediaAsset
@@ -380,7 +387,7 @@ public sealed class NewContentWriterTests
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
             storedMov: existingMov);
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
         fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(a => a.Id == context.AssetId));
@@ -392,7 +399,7 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoWhoseVideoCopiesAnotherRow_LeavesThePhotoUnpairedAsync()
+    public async Task WriteAsync_LivePhotoWhoseVideoCopiesAnotherRow_LeavesThePhotoUnpairedAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
@@ -401,7 +408,7 @@ public sealed class NewContentWriterTests
             Secondary = new FileClassification(FileOutcome.DuplicateCopy, new MediaAsset { Id = Guid.NewGuid(), ContentHash = "cafebabe" }),
         };
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.PairedAssetId.Should().BeNull();
         fx.Repository.Received(1).Add(Arg.Any<MediaAsset>());
@@ -409,7 +416,7 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_VideoOverwrittenByAMove_RetiresTheMovedRowBeforeSavingAsync()
+    public async Task WriteAsync_VideoOverwrittenByAMove_RetiresTheMovedRowBeforeSavingAsync()
     {
         var fx = new TestFixture();
         fx.UnitOfWork.ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
@@ -422,7 +429,7 @@ public sealed class NewContentWriterTests
             Secondary = new FileClassification(FileOutcome.OverwrittenByMove, holder, Retired: moved),
         };
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset!.PairedAssetId.Should().Be(holder.Id);
         holder.DateCaptured.Should().Be(new LocalDateTime(2023, 6, 15, 10, 0));
@@ -431,7 +438,7 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_LivePhotoPairItem_TranscodesTheMovAsTheMovsOwnProxyAsync()
+    public async Task WriteAsync_LivePhotoPairItem_TranscodesTheMovAsTheMovsOwnProxyAsync()
     {
         var fx = new TestFixture();
         var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -441,7 +448,7 @@ public sealed class NewContentWriterTests
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
         var row = added.Should().ContainSingle().Which;
@@ -451,7 +458,7 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task TryWriteAsync_Always_AddsOnlyTheAssetsOwnProxyFilesAsync()
+    public async Task WriteAsync_Always_AddsOnlyTheAssetsOwnProxyFilesAsync()
     {
         var fx = new TestFixture();
         var added = new List<ProxyFile>();
@@ -461,17 +468,17 @@ public sealed class NewContentWriterTests
         context.AddProxyFile(own);
         context.AddProxyFile(new ProxyFile { Id = Guid.NewGuid(), AssetId = Guid.NewGuid(), ProxyType = ProxyType.WebVideo });
 
-        await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        await fx.WriteAsync(context);
 
         added.Should().ContainSingle().Which.Should().BeSameAs(own);
     }
 
     // ==========================================================================
-    // TryWriteAsync — unique violations
+    // WriteAsync — unique violations
     // ==========================================================================
 
     [Fact]
-    public async Task TryWriteAsync_ActiveHashConflictWithPersistedPrimary_SkipsWithoutThrowingAsync()
+    public async Task WriteAsync_ActiveHashConflictWithPersistedPrimary_SkipsWithoutThrowingAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
@@ -480,13 +487,13 @@ public sealed class NewContentWriterTests
         fx.Repository.FindByHashAsync("deadbeef", context.Config.Id, Arg.Any<CancellationToken>())
             .Returns(new MediaAsset { ContentHash = "deadbeef" });
 
-        var asset = await fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var asset = await fx.WriteAsync(context);
 
         asset.Should().BeNull();
     }
 
     [Fact]
-    public async Task TryWriteAsync_ActiveHashConflictWithoutPersistedPrimary_RethrowsAsync()
+    public async Task WriteAsync_ActiveHashConflictWithoutPersistedPrimary_RethrowsAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(
@@ -496,7 +503,7 @@ public sealed class NewContentWriterTests
         fx.Repository.FindByHashAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((MediaAsset?)null);
 
-        var act = () => fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var act = () => fx.WriteAsync(context);
 
         await act.Should().ThrowAsync<DbUpdateException>();
     }
@@ -504,7 +511,7 @@ public sealed class NewContentWriterTests
     [Theory]
     [InlineData(MediaAssetIndexNames.ActiveContentHashUnique)]
     [InlineData(ProxyFileIndexNames.OnePerAssetAndType)]
-    public async Task TryWriteAsync_PairLosesTheRaceForItsMov_ReleasesTheMovsProxiesBeforeRethrowingAsync(string constraintName)
+    public async Task WriteAsync_PairLosesTheRaceForItsMov_ReleasesTheMovsProxiesBeforeRethrowingAsync(string constraintName)
     {
         var fx = new TestFixture();
         var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -515,14 +522,14 @@ public sealed class NewContentWriterTests
         context.AddProxyFile(heicProxy);
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(DatabaseErrors.UniqueViolation(constraintName));
 
-        var act = () => fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var act = () => fx.WriteAsync(context);
 
         await act.Should().ThrowAsync<DbUpdateException>();
         context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(heicProxy);
     }
 
     [Fact]
-    public async Task TryWriteAsync_PairFailsForAnotherReason_KeepsTheMovsProxiesForCompensationAsync()
+    public async Task WriteAsync_PairFailsForAnotherReason_KeepsTheMovsProxiesForCompensationAsync()
     {
         var fx = new TestFixture();
         var movId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -532,21 +539,21 @@ public sealed class NewContentWriterTests
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(DatabaseErrors.UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
 
-        var act = () => fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var act = () => fx.WriteAsync(context);
 
         await act.Should().ThrowAsync<DbUpdateException>();
         context.ProxyFiles.Should().ContainSingle(p => p.AssetId == movId);
     }
 
     [Fact]
-    public async Task TryWriteAsync_OtherUniqueViolation_RethrowsWithoutLookupAsync()
+    public async Task WriteAsync_OtherUniqueViolation_RethrowsWithoutLookupAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext();
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(DatabaseErrors.UniqueViolation("IX_MediaAssets_StorageConfigId_FilePath"));
 
-        var act = () => fx.Build().TryWriteAsync(context, CancellationToken.None);
+        var act = () => fx.WriteAsync(context);
 
         await act.Should().ThrowAsync<DbUpdateException>();
         await fx.Repository.DidNotReceive()

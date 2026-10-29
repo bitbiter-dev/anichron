@@ -9,13 +9,11 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 internal sealed class NewContentWriter(
     IMediaAssetRepository repository,
-    IngestionSaver saver,
     IFileSystem fileSystem,
     IClock clock,
     PairedMovResolver pairedMovResolver,
-    PairedMovProxyWriter pairedMovProxyWriter,
-    ILogger<NewContentWriter> logger)
-    : ProcessedContentWriter(saver, fileSystem, pairedMovResolver, pairedMovProxyWriter, logger)
+    PairedMovProxyWriter pairedMovProxyWriter)
+    : ProcessedContentWriter(fileSystem, pairedMovResolver, pairedMovProxyWriter)
 {
     public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.New];
 

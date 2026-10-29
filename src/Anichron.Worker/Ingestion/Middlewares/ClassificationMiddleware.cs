@@ -31,17 +31,8 @@ internal sealed partial class ClassificationMiddleware(
         if (await ReconcileSecondaryAsync(context, classification, ct))
             changed = true;
 
-        if (!changed)
-            return;
-        if (classification.RetiredFirst.Count > 0)
-        {
-            if (!await saver.TrySaveRetiringFirstAsync(context, ct))
-                Log.ContentTakenConcurrently(logger, context.Item.RelativePath);
-
-            return;
-        }
-
-        await saver.SaveAsync(context, null, ct);
+        if (changed && !await saver.TrySaveItemAsync(context, null, ct))
+            Log.ContentTakenConcurrently(logger, context.Item.RelativePath);
     }
 
     private async Task<bool> ReconcileSecondaryAsync(

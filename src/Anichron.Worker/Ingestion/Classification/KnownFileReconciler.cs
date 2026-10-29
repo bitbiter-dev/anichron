@@ -82,7 +82,7 @@ internal sealed partial class KnownFileReconciler(
         await repository.LoadMetadataAsync(moved, ct);
         MoveTo(atPath, relativePath);
         await storedContent.TakeAsync(
-            context, atPath, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))]), ct);
+            context, atPath, UndatedWhenProcessingDates(context, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))])), ct);
 
         moved.IsSoftDeleted = true;
         if (moved.PairedAssetId == atPath.PairedAssetId)
@@ -101,7 +101,7 @@ internal sealed partial class KnownFileReconciler(
         var captured = context.Classification!.Primary.Row?.DateCaptured
             ?? CaptureDate.FromExifOrLastWrite(null, fileSystem, context.Item.SecondaryFile!.AbsolutePath);
         await storedContent.TakeAsync(
-            context, video, new AssetContent(context.SecondaryHash!, captured, MediaType.Video, new Metadata(), proxies), ct);
+            context, video, UndatedWhenProcessingDates(context, new AssetContent(context.SecondaryHash!, captured, MediaType.Video, new Metadata(), proxies)), ct);
         return true;
     }
 
@@ -119,6 +119,9 @@ internal sealed partial class KnownFileReconciler(
 
         return true;
     }
+
+    private static AssetContent UndatedWhenProcessingDates(IngestionContext context, AssetContent content)
+        => context.Classification?.DatesMovAfterProcessing == true ? content.Undated() : content;
 
     private ProxyFile ProxyOf(MediaAsset owner, ProxyFile source) => new()
     {

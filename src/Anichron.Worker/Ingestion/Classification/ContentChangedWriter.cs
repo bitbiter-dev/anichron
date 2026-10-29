@@ -7,12 +7,11 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 internal sealed partial class ContentChangedWriter(
     StoredContent storedContent,
-    IngestionSaver saver,
     IFileSystem fileSystem,
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<ContentChangedWriter> logger)
-    : ProcessedContentWriter(saver, fileSystem, pairedMovResolver, pairedMovProxyWriter, logger)
+    : ProcessedContentWriter(fileSystem, pairedMovResolver, pairedMovProxyWriter)
 {
     public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.ContentChanged, FileOutcome.AutoRestoredContentChanged];
 

@@ -9,55 +9,42 @@ namespace Anichron.Worker.Ingestion;
 
 internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetRepository repository)
 {
-    public Task SaveAsync(IngestionContext context, Guid? pairedMovId, CancellationToken ct)
-        => SaveAsync(context, [], pairedMovId, ct);
-
     /// <summary>
-    /// Saves a row with newly processed content, after the classification's <see cref="IngestionClassification.RetiredFirst"/> rows.
+    /// Saves everything the item staged, in its one save: when the classification has
+    /// <see cref="IngestionClassification.RetiredFirst"/> rows, they are soft-deleted first, in one transaction. After a
+    /// commit, and on a lost race, the proxies of every staged video are released.
     /// </summary>
-    /// <param name="context">The classified item whose staged counts the save commits.</param>
-    /// <param name="asset">The row with the processed content.</param>
-    /// <param name="pairedMovId">The paired video, whose proxies the attempt releases.</param>
+    /// <param name="context">The classified item whose staged changes and counts the save commits.</param>
+    /// <param name="processed">The row with newly processed content; null when the item only reconciled stored rows.</param>
     /// <param name="ct">Cancels the save.</param>
-    /// <returns>False when another consumer saved the same content first; nothing is saved then.</returns>
-    public async Task<bool> TrySaveNewAsync(IngestionContext context, MediaAsset asset, Guid? pairedMovId, CancellationToken ct)
+    /// <returns>
+    /// False when another consumer took the content first, for a processed row whose content another row committed or
+    /// for an item that retires rows first; nothing is saved then.
+    /// </returns>
+    public async Task<bool> TrySaveItemAsync(IngestionContext context, MediaAsset? processed, CancellationToken ct)
     {
+        var retiredFirst = context.Classification!.RetiredFirst;
         try
         {
-            await SaveAsync(context, context.Classification!.RetiredFirst, pairedMovId, ct);
+            await SaveAsync(context, retiredFirst, ct);
             return true;
         }
         catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex))
         {
-            if (await repository.FindByHashAsync(asset.ContentHash, asset.StorageConfigId, ct) is null)
+            if (processed is not null)
+            {
+                if (await repository.FindByHashAsync(processed.ContentHash, processed.StorageConfigId, ct) is null)
+                    throw;
+                return false;
+            }
+
+            if (retiredFirst.Count == 0)
                 throw;
             return false;
         }
     }
 
-    /// <summary>
-    /// Soft-deletes the classification's <see cref="IngestionClassification.RetiredFirst"/> rows before saving the
-    /// tracked changes, in one transaction, so rows can take the content the retired rows held in the active
-    /// content-hash index.
-    /// </summary>
-    /// <param name="context">The item whose staged counts the save commits.</param>
-    /// <param name="ct">Cancels the save.</param>
-    /// <returns>False when another consumer took the content first; nothing is saved then.</returns>
-    public async Task<bool> TrySaveRetiringFirstAsync(IngestionContext context, CancellationToken ct)
-    {
-        try
-        {
-            await SaveAsync(context, context.Classification!.RetiredFirst, null, ct);
-            return true;
-        }
-        catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex))
-        {
-            return false;
-        }
-    }
-
-    private async Task SaveAsync(
-        IngestionContext context, IReadOnlyList<MediaAsset> retiredFirst, Guid? pairedMovId, CancellationToken ct)
+    private async Task SaveAsync(IngestionContext context, IReadOnlyList<MediaAsset> retiredFirst, CancellationToken ct)
     {
         try
         {
@@ -68,12 +55,12 @@ internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetReposito
         }
         catch (DbUpdateException ex) when (LostIngestionRace.Matches(ex))
         {
-            Release(context, pairedMovId);
+            context.ReleaseStagedMovProxies();
             throw;
         }
 
         context.CommitCounts();
-        Release(context, pairedMovId);
+        context.ReleaseStagedMovProxies();
     }
 
     private Task SaveRetiringFirstAsync(IReadOnlyList<MediaAsset> retired, CancellationToken ct)
@@ -84,10 +71,4 @@ internal sealed class IngestionSaver(IUnitOfWork unitOfWork, IMediaAssetReposito
                 await unitOfWork.SaveChangesAsync(ct);
             },
             ct);
-
-    private static void Release(IngestionContext context, Guid? pairedMovId)
-    {
-        if (pairedMovId.HasValue)
-            context.ReleaseProxyFiles(pairedMovId.Value);
-    }
 }

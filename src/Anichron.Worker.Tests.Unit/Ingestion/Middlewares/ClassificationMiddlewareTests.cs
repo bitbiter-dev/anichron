@@ -133,7 +133,7 @@ public sealed class ClassificationMiddlewareTests
         });
         webVideo.ProxyPath.Should().Be("ca/11111111111111111111111111111111-cafebabe/video_720p.mp4");
         await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
-        context.ProxyFiles.Should().ContainSingle().Which.AssetId.Should().Be(mov.Id);
+        context.ProxyFiles.Should().BeEmpty();
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
