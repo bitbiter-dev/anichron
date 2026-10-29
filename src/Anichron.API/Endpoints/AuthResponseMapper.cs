@@ -33,15 +33,17 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         {
             return result.Error switch
             {
-                AuthError.UsernameTaken => Results.Conflict(new { error = AuthMessages.UsernameTaken }),
-                AuthError.EmailTaken => Results.Conflict(new { error = AuthMessages.EmailTaken }),
-                AuthError.InvalidUsername => Results.UnprocessableEntity(new { error = usernamePolicy.InvalidFormatMessage }),
-                AuthError.InvalidEmail => Results.UnprocessableEntity(new { error = AuthMessages.InvalidEmail }),
-                AuthError.PasswordTooShort => Results.UnprocessableEntity(new { error = passwordPolicy.TooShortMessage }),
-                AuthError.PasswordTooLong => Results.UnprocessableEntity(new { error = passwordPolicy.TooLongMessage }),
-                AuthError.PasswordPwned => Results.UnprocessableEntity(new { error = AuthMessages.PasswordPwned }),
-                AuthError.InviteTokenInvalid => Results.UnprocessableEntity(new { error = AuthMessages.InviteTokenInvalid }),
-                _ => throw new UnreachableException($"Unexpected AuthError in Register: {result.Error}"),
+                AuthError.UsernameTaken => AuthProblems.FieldProblem(
+                    StatusCodes.Status409Conflict, AuthErrorCodes.UsernameTaken, Fields.Username, AuthMessages.UsernameTaken),
+                AuthError.EmailTaken => AuthProblems.FieldProblem(
+                    StatusCodes.Status409Conflict, AuthErrorCodes.EmailTaken, Fields.Email, AuthMessages.EmailTaken),
+                AuthError.InvalidUsername => AuthProblems.FieldProblem(
+                    StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.InvalidUsername, Fields.Username, usernamePolicy.InvalidFormatMessage),
+                AuthError.InvalidEmail => AuthProblems.FieldProblem(
+                    StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.InvalidEmail, Fields.Email, AuthMessages.InvalidEmail),
+                AuthError.InviteTokenInvalid => AuthProblems.Problem(
+                    StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.InviteTokenInvalid, AuthMessages.InviteTokenInvalid),
+                _ => PasswordRejectedResult(result.Error, Fields.Password, passwordPolicy, "Register"),
             };
         }
 
@@ -56,12 +58,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             return result.Error switch
             {
                 AuthError.AccountTemporarilyLocked => LockedResult(http, result.RetryAfterSeconds!.Value),
-                AuthError.AccountDisabled => Results.Json(
-                    data: new { error = AuthMessages.AccountDisabled },
-                    statusCode: StatusCodes.Status401Unauthorized),
-                AuthError.InvalidCredentials => Results.Json(
-                    data: new { error = AuthMessages.InvalidCredentials },
-                    statusCode: StatusCodes.Status401Unauthorized),
+                AuthError.AccountDisabled => AccountDisabledResult(),
+                AuthError.InvalidCredentials => AuthProblems.Problem(
+                    StatusCodes.Status401Unauthorized, AuthErrorCodes.InvalidCredentials, AuthMessages.InvalidCredentials),
                 _ => throw new UnreachableException($"Unexpected AuthError in Login: {result.Error}"),
             };
         }
@@ -75,12 +74,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         {
             return result.Error switch
             {
-                AuthError.TokenInvalid => Results.Json(
-                    data: new { error = AuthMessages.RefreshTokenInvalid },
-                    statusCode: StatusCodes.Status401Unauthorized),
-                AuthError.AccountDisabled => Results.Json(
-                    data: new { error = AuthMessages.AccountDisabled },
-                    statusCode: StatusCodes.Status401Unauthorized),
+                AuthError.TokenInvalid => AuthProblems.Problem(
+                    StatusCodes.Status401Unauthorized, AuthErrorCodes.RefreshTokenInvalid, AuthMessages.RefreshTokenInvalid),
+                AuthError.AccountDisabled => AccountDisabledResult(),
                 AuthError.AccountTemporarilyLocked => LockedResult(http, result.RetryAfterSeconds!.Value),
                 _ => throw new UnreachableException($"Unexpected AuthError in Refresh: {result.Error}"),
             };
@@ -96,19 +92,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
 
         return result.Error switch
         {
-            AuthError.InvalidCredentials => Results.Json(
-                data: new { error = AuthMessages.InvalidCredentials },
-                statusCode: StatusCodes.Status400BadRequest),
-            AuthError.PasswordTooShort => Results.Json(
-                data: new { error = passwordPolicy.TooShortMessage },
-                statusCode: StatusCodes.Status422UnprocessableEntity),
-            AuthError.PasswordTooLong => Results.Json(
-                data: new { error = passwordPolicy.TooLongMessage },
-                statusCode: StatusCodes.Status422UnprocessableEntity),
-            AuthError.PasswordPwned => Results.Json(
-                data: new { error = AuthMessages.PasswordPwned },
-                statusCode: StatusCodes.Status422UnprocessableEntity),
-            _ => throw new UnreachableException($"Unexpected AuthError in ChangePassword: {result.Error}"),
+            AuthError.InvalidCredentials => AuthProblems.FieldProblem(
+                StatusCodes.Status400BadRequest, AuthErrorCodes.InvalidCredentials, Fields.CurrentPassword, AuthMessages.InvalidCredentials),
+            _ => PasswordRejectedResult(result.Error, Fields.NewPassword, passwordPolicy, "ChangePassword"),
         };
     }
 
@@ -199,6 +185,15 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     public void ClearRefreshCookie(HttpContext http)
         => http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);
 
+    private static class Fields
+    {
+        internal const string Username = "username";
+        internal const string Email = "email";
+        internal const string Password = "password";
+        internal const string CurrentPassword = "currentPassword";
+        internal const string NewPassword = "newPassword";
+    }
+
     private static AdminUserResponse ToAdminUserResponse(User user)
         => new(user.Id, user.Username, user.Email, user.IsAdmin, user.IsDisabled, user.StorageConfigs.Count);
 
@@ -217,10 +212,24 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     private static IResult LockedResult(HttpContext http, int secondsRemaining)
     {
         http.Response.Headers.RetryAfter = secondsRemaining.ToString(InvariantCulture);
-        return Results.Json(
-            new { error = AuthMessages.AccountTemporarilyLocked(secondsRemaining) },
-            statusCode: StatusCodes.Status429TooManyRequests);
+        return AuthProblems.Problem(
+            StatusCodes.Status429TooManyRequests, AuthErrorCodes.AccountLocked, AuthMessages.AccountTemporarilyLocked(secondsRemaining));
     }
+
+    private static IResult PasswordRejectedResult(AuthError? error, string field, PasswordPolicy passwordPolicy, string operation)
+        => error switch
+        {
+            AuthError.PasswordTooShort => AuthProblems.FieldProblem(
+                StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.PasswordTooShort, field, passwordPolicy.TooShortMessage),
+            AuthError.PasswordTooLong => AuthProblems.FieldProblem(
+                StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.PasswordTooLong, field, passwordPolicy.TooLongMessage),
+            AuthError.PasswordPwned => AuthProblems.FieldProblem(
+                StatusCodes.Status422UnprocessableEntity, AuthErrorCodes.PasswordPwned, field, AuthMessages.PasswordPwned),
+            _ => throw new UnreachableException($"Unexpected AuthError in {operation}: {error}"),
+        };
+
+    private static IResult AccountDisabledResult()
+        => AuthProblems.Problem(StatusCodes.Status401Unauthorized, AuthErrorCodes.AccountDisabled, AuthMessages.AccountDisabled);
 
     private void SetRefreshCookie(HttpContext http, string rawToken)
     {

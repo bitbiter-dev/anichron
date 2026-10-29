@@ -14,7 +14,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.IO.Abstractions;
 using System.Net;
 using System.Text;
-using System.Threading.RateLimiting;
 
 namespace Anichron.API.Infrastructure;
 
@@ -49,32 +48,16 @@ public static class ServiceCollectionExtensions
         {
             return services.AddRateLimiter(options =>
             {
-                options.OnRejected = RateLimiting.OnRejectedAsync;
-
-                options.AddPolicy(AuthRateLimitPolicies.Sensitive, httpContext =>
-                    RateLimitPartition.GetSlidingWindowLimiter(
-                        partitionKey: RateLimiting.PartitionKey(httpContext),
-                        factory: _ => new SlidingWindowRateLimiterOptions
-                        {
-                            PermitLimit = AppDefaults.RateLimit.Sensitive.PermitLimit,
-                            Window = TimeSpan.FromSeconds(AppDefaults.RateLimit.Sensitive.WindowSeconds),
-                            SegmentsPerWindow = AppDefaults.RateLimit.Sensitive.Segments,
-                            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                            QueueLimit = 0,
-                        }));
+                options.AddPolicy(AuthRateLimitPolicies.Sensitive, new SlidingWindowPolicy(
+                    AppDefaults.RateLimit.Sensitive.PermitLimit,
+                    TimeSpan.FromSeconds(AppDefaults.RateLimit.Sensitive.WindowSeconds),
+                    AppDefaults.RateLimit.Sensitive.Segments));
 
                 // Refresh tokens rotate on every use. Tighter policy required.
-                options.AddPolicy(AuthRateLimitPolicies.Refresh, httpContext =>
-                    RateLimitPartition.GetSlidingWindowLimiter(
-                        partitionKey: RateLimiting.PartitionKey(httpContext),
-                        factory: _ => new SlidingWindowRateLimiterOptions
-                        {
-                            PermitLimit = AppDefaults.RateLimit.Refresh.PermitLimit,
-                            Window = TimeSpan.FromMinutes(AppDefaults.RateLimit.Refresh.WindowMinutes),
-                            SegmentsPerWindow = AppDefaults.RateLimit.Refresh.Segments,
-                            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                            QueueLimit = 0,
-                        }));
+                options.AddPolicy(AuthRateLimitPolicies.Refresh, new SlidingWindowPolicy(
+                    AppDefaults.RateLimit.Refresh.PermitLimit,
+                    TimeSpan.FromMinutes(AppDefaults.RateLimit.Refresh.WindowMinutes),
+                    AppDefaults.RateLimit.Refresh.Segments));
             });
         }
 

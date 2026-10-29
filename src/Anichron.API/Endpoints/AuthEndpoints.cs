@@ -63,9 +63,8 @@ public static class AuthEndpoints
         var rawToken = http.Request.Cookies[AuthMessages.RefreshTokenCookieName] ?? request?.RefreshToken;
         if (rawToken is null)
         {
-            return Results.Json(
-                data: new { error = AuthMessages.RefreshTokenRequired },
-                statusCode: StatusCodes.Status401Unauthorized);
+            return AuthProblems.Problem(
+                StatusCodes.Status401Unauthorized, AuthErrorCodes.RefreshTokenRequired, AuthMessages.RefreshTokenRequired);
         }
 
         var result = await auth.RefreshAsync(rawToken, ct);
