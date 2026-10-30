@@ -93,7 +93,7 @@ Mutants that flip between runs come from `static readonly` initialisers, EF's ca
 
 ## The UI (`src/Anichron.UI`)
 
-Commands are the `package.json` scripts, run from `src/Anichron.UI` (`pnpm dev`, `typecheck`, `lint`, `format`, `depcruise`, `test`, `build`, `size`, `mutate`). `pnpm dev` proxies `/api` to the API on `http://localhost:5207`. The hooks run `format`, `lint`, `typecheck` and `depcruise` before a commit that stages a UI file, and `scripts/ui-pre-push.sh` before a push (a frozen install, then `test`, when the branch changes the UI); CI's `UI` job runs all of them plus the scoped mutation run and the bundle budget (150 kB gzip initial JS, 15 kB CSS in `.size-limit.json`; a PR that raises one says why).
+Commands are the `package.json` scripts, run from `src/Anichron.UI` (`pnpm dev`, `typecheck`, `lint`, `format`, `depcruise`, `test`, `build`, `size`, `mutate`, `e2e`). `pnpm dev` proxies `/api` to the API on `http://localhost:5207`. The hooks run `format`, `lint`, `typecheck` and `depcruise` before a commit that stages a UI file, and `scripts/ui-pre-push.sh` before a push (a frozen install, then `test`, when the branch changes the UI); CI's `UI` job runs all of them plus the scoped mutation run and the bundle budget (150 kB gzip initial JS, 15 kB CSS in `.size-limit.json`; a PR that raises one says why). CI's `E2E` job runs `pnpm e2e` (Playwright in `e2e/`: WebKit on an iPhone, Chromium on a Pixel, Firefox at a phone viewport) against the API image built from the PR; locally, build it as `anichron-api:e2e` and start `src/docker-compose.e2e.yml` first (its header lists the commands).
 
 **Layout.** `src/app/` (entry, providers, the code-based route tree in `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, and `src/test/` for test support. dependency-cruiser (`.dependency-cruiser.cjs`) fails the build when a feature imports another feature, when `shared/` or `api/` import `features/` or `app/`, when anything but `app/` imports a feature, on an import cycle, when production code imports test code, and when a `.ts` file imports a `.tsx` file. Only `src/api/` touches the network: ESLint's `no-restricted-globals` forbids `fetch`, `EventSource`, `XMLHttpRequest` and `WebSocket` elsewhere, since dependency-cruiser cannot see globals.
 
@@ -123,7 +123,7 @@ The API's HTTP surface is `AddApiSurface` plus `MapApiEndpoints`; `Program.cs` a
 - **Proxy orphans** (`ProxyOrphans`, a proxy sweep's report) are written only by the Worker; outside it only `EfProxyOrphanReader` depends on the entity (`only-worker-writes-proxy-orphans`). See `docs/architecture/work-queue.md`, "Proxy sweeps".
 - Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
-`Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is a React + TypeScript single-page app built with Vite, to be served by the API on the same origin (ADR 0012). It is a pnpm project, not part of the .NET solution; so far it has a translated placeholder page. The work is planned in parent issues #344–#349; see "The UI" below.
+`Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is a React + TypeScript single-page app built with Vite. The API image builds it and serves it on the same origin as `/api/v1`, with immutable hashed assets, an `index.html` fallback that never answers `/api`, and a strict CSP with Trusted Types (ADR 0012, `docs/architecture/ui-serving.md`). It is a pnpm project, not part of the .NET solution; so far it has a translated placeholder page. The work is planned in parent issues #344–#349; see "The UI" below.
 
 ### Storage Layout
 
@@ -144,6 +144,7 @@ Each file is the reference for its area. Read it before changing that area, and 
 - **Data model** (`data-model.md`): the twelve entities, indexes, query filters, value converters, NodaTime. Read before adding an entity, column, index or migration; `docs/schema.sql` stays the authority on columns.
 - **Ingestion** (`ingestion.md`): crawl, classification outcomes, reconciliation (soft-delete, auto-restore, Live Photo as one unit), proxies, burst detection, duplicate reports, failure ownership. Read before touching `Anichron.Worker/Ingestion`, `Crawling` or `Bursts`.
 - **Work queue** (`work-queue.md`): producing, scope, scheduling, executing, cancelling, the admin view, adding a kind, the handler contract, and proxy sweeps. Read before adding a work kind or touching `Anichron.Core/Work` or `Anichron.Worker/Work`.
+- **UI serving** (`ui-serving.md`): how the API image serves the UI, the cache and fallback rules, the security headers, and the end-to-end setup. Read before touching `UiServing`, `SecurityHeaders`, the API Dockerfile's UI stage or `e2e/`.
 - **Media reads** (`media-reads.md`): `IAssetViewReader`, selections, burst covers, published media types, and the hidden/starred/liked rules. Read before adding or changing a media endpoint.
 
 ## Conventions

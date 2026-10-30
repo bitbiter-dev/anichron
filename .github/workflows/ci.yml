@@ -181,6 +181,63 @@ jobs:
       - name: Bundle budget
         run: pnpm size
 
+  # The API image built from this PR, started with PostgreSQL and no Worker,
+  # in WebKit, Chromium and Firefox (src/Anichron.UI/e2e).
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      E2E_API_IMAGE: anichron-api:e2e
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build the API image
+        uses: docker/build-push-action@v7
+        with:
+          context: src
+          file: src/Anichron.API/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.E2E_API_IMAGE }}
+          cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/anichron-api:edge
+          provenance: false
+
+      - name: Start the API and PostgreSQL
+        run: docker compose -f src/docker-compose.e2e.yml up --detach --wait
+
+      - uses: pnpm/setup@v3
+        with:
+          working-directory: src/Anichron.UI
+          require-lockfile: true
+          cache: true
+
+      - name: Install browsers
+        working-directory: src/Anichron.UI
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      - name: End-to-end tests
+        working-directory: src/Anichron.UI
+        run: pnpm e2e
+
+      - name: API logs
+        if: failure()
+        run: docker compose -f src/docker-compose.e2e.yml logs
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            src/Anichron.UI/playwright-report/
+            src/Anichron.UI/test-results/
+          retention-days: 7
+
   # One Stryker run per mutation target project, in parallel (ADR 0010): in
   # solution mode Stryker captures the same coverage once per project. The list
   # comes from the IsMutationTarget convention, so a new project is mutated
@@ -389,7 +446,7 @@ jobs:
   gate:
     name: CI gate
     runs-on: ubuntu-latest
-    needs: [checks, integration, mutation, ui, docker]
+    needs: [checks, integration, mutation, ui, e2e, docker]
     if: always()
     permissions:
       contents: read
