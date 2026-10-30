@@ -41,6 +41,7 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
             builder.Services.AddRateLimiting();
         configureServices(builder.Services);
         var app = builder.Build();
+        app.UseExceptionHandler();
         app.UseStatusCodePages();
         if (rateLimited)
             app.UseRateLimiter();
