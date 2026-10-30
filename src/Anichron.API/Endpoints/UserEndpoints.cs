@@ -13,10 +13,15 @@ public static class UserEndpoints
     {
         var group = app.MapGroup(ApiPaths.Users.Group).WithTags("Users");
         group.MapGet(ApiPaths.Users.Me, GetMeAsync)
-             .RequireAuthorization();
+             .RequireUserAllowedWhileMustChangePassword()
+             .Produces<UserProfileResponse>()
+             .Produces(StatusCodes.Status404NotFound);
         group.MapPost(ApiPaths.Users.ChangePassword, ChangePasswordAsync)
-             .RequireAuthorization()
-             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+             .RequireUserAllowedWhileMustChangePassword()
+             .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces(StatusCodes.Status204NoContent)
+             .ProducesValidationProblem()
+             .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
         return app;
     }
 

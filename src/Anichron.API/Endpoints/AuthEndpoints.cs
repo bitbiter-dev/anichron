@@ -3,6 +3,7 @@ using Anichron.API.Services;
 using Anichron.API.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using System.Text.Json.Serialization;
 
 namespace Anichron.API.Endpoints;
 
@@ -12,13 +13,25 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup(ApiPaths.Auth.Group).WithTags("Auth");
 
-        group.MapPost(ApiPaths.Auth.Register, RegisterAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost(ApiPaths.Auth.Login, LoginWebAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost(ApiPaths.Auth.LoginMobile, LoginMobileAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost(ApiPaths.Auth.Refresh, RefreshAsync).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Refresh);
-        group.MapPost(ApiPaths.Auth.Logout, LogoutAsync).RequireAuthorization();
-        group.MapPost(ApiPaths.Auth.PasswordResetRequest, PasswordResetRequest).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapPost(ApiPaths.Auth.PasswordResetConfirm, PasswordResetConfirm).AllowAnonymous().RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+        group.MapPost(ApiPaths.Auth.Register, RegisterAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces<TokenResponse>()
+             .ProducesValidationProblem(StatusCodes.Status409Conflict)
+             .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
+        group.MapPost(ApiPaths.Auth.Login, LoginWebAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces<TokenResponse>()
+             .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapPost(ApiPaths.Auth.LoginMobile, LoginMobileAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces<TokenResponse>()
+             .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapPost(ApiPaths.Auth.Refresh, RefreshAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Refresh)
+             .Produces<TokenResponse>()
+             .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapPost(ApiPaths.Auth.Logout, LogoutAsync).RequireUserAllowedWhileMustChangePassword()
+             .Produces(StatusCodes.Status204NoContent);
+        group.MapPost(ApiPaths.Auth.PasswordResetRequest, PasswordResetRequest).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces(StatusCodes.Status501NotImplemented);
+        group.MapPost(ApiPaths.Auth.PasswordResetConfirm, PasswordResetConfirm).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces(StatusCodes.Status501NotImplemented);
 
         return app;
     }
@@ -91,3 +104,10 @@ public static class AuthEndpoints
 public sealed record RegisterRequest(string Username, string Email, string Password, string InviteToken);
 public sealed record LoginRequest(string UsernameOrEmail, string Password);
 public sealed record RefreshRequest(string RefreshToken);
+
+/// <summary>The access token, with the refresh token only when it is not set as a cookie.</summary>
+/// <param name="AccessToken">The access token.</param>
+/// <param name="RefreshToken">The refresh token, for a client that keeps it itself.</param>
+public sealed record TokenResponse(
+    string AccessToken,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RefreshToken = null);

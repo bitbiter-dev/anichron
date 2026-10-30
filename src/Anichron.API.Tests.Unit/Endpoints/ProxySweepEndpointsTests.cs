@@ -54,9 +54,8 @@ public sealed class ProxySweepEndpointsTests
         int? page = null, int? pageSize = null, ProxyDeletionOutcome? outcome = null, bool? pending = null, Guid? storageConfigId = null)
         => ProxySweepEndpoints.ListOrphansAsync(SweepId, outcome, pending, storageConfigId, page, pageSize, items, orphans, Ct);
 
-    private static void ShouldBeInvalid(object result, string field, string message)
-        => result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails.Errors
-            .Should().ContainKey(field).WhoseValue.Should().Equal(message);
+    private static void ShouldBeInvalid(object result, string field, string code, string message)
+        => ProblemAssertions.AssertInvalidField(result, field, code, message);
 
     // ==========================================================================
     // RequestSweepAsync
@@ -137,7 +136,7 @@ public sealed class ProxySweepEndpointsTests
     public async Task ListOrphansAsync_PendingAndAnOutcome_IsInvalidAsync()
         => ShouldBeInvalid(
             (await ListAsync(outcome: ProxyDeletionOutcome.Deleted, pending: true)).Result,
-            "pending", "Give either pending or outcome, not both.");
+            "pending", "pending_or_outcome", "Give either pending or outcome, not both.");
 
     [Fact]
     public async Task ListOrphansAsync_NotPendingAndAnOutcome_IsReadAsync()
@@ -165,13 +164,13 @@ public sealed class ProxySweepEndpointsTests
     [InlineData(0)]
     [InlineData(1001)]
     public async Task ListOrphansAsync_PageSizeOutOfRange_IsInvalidAsync(int pageSize)
-        => ShouldBeInvalid((await ListAsync(pageSize: pageSize)).Result, "pageSize", "pageSize must be from 1 to 1000.");
+        => ShouldBeInvalid((await ListAsync(pageSize: pageSize)).Result, "pageSize", "invalid_page_size", "pageSize must be from 1 to 1000.");
 
     [Theory]
     [InlineData(0)]
     [InlineData(21_474_837)]
     public async Task ListOrphansAsync_PageOutOfRange_IsInvalidAsync(int page)
-        => ShouldBeInvalid((await ListAsync(page: page)).Result, "page", "page is out of range.");
+        => ShouldBeInvalid((await ListAsync(page: page)).Result, "page", "invalid_page", "page is out of range.");
 
     [Fact]
     public async Task ListOrphansAsync_LastPageInRange_IsReadAsync()
@@ -218,21 +217,21 @@ public sealed class ProxySweepEndpointsTests
 
     [Fact]
     public async Task RequestDeletionsAsync_NeitherIdsNorAll_IsInvalidAsync()
-        => ShouldBeInvalid((await DeleteAsync(new ProxyDeletionRequest(null, false))).Result, "OrphanIds", "Give either orphanIds or all, not both.");
+        => ShouldBeInvalid((await DeleteAsync(new ProxyDeletionRequest(null, false))).Result, "orphanIds", "orphan_ids_or_all", "Give either orphanIds or all, not both.");
 
     [Fact]
     public async Task RequestDeletionsAsync_BothIdsAndAll_IsInvalidAsync()
-        => ShouldBeInvalid((await DeleteAsync(new ProxyDeletionRequest([Id(1)], true))).Result, "OrphanIds", "Give either orphanIds or all, not both.");
+        => ShouldBeInvalid((await DeleteAsync(new ProxyDeletionRequest([Id(1)], true))).Result, "orphanIds", "orphan_ids_or_all", "Give either orphanIds or all, not both.");
 
     [Fact]
     public async Task RequestDeletionsAsync_NoIds_IsInvalidAsync()
-        => ShouldBeInvalid((await DeleteAsync(new ProxyDeletionRequest([], false))).Result, "OrphanIds", "orphanIds must hold from 1 to 1000 ids.");
+        => ShouldBeInvalid((await DeleteAsync(new ProxyDeletionRequest([], false))).Result, "orphanIds", "invalid_orphan_count", "orphanIds must hold from 1 to 1000 ids.");
 
     [Fact]
     public async Task RequestDeletionsAsync_MoreThanAThousandIds_IsInvalidAsync()
         => ShouldBeInvalid(
             (await DeleteAsync(new ProxyDeletionRequest([.. Enumerable.Range(1, 1001).Select(Id)], false))).Result,
-            "OrphanIds", "orphanIds must hold from 1 to 1000 ids.");
+            "orphanIds", "invalid_orphan_count", "orphanIds must hold from 1 to 1000 ids.");
 
     [Fact]
     public async Task RequestDeletionsAsync_AThousandIds_IsQueuedAsync()
@@ -265,7 +264,7 @@ public sealed class ProxySweepEndpointsTests
 
         var result = await DeleteAsync(new ProxyDeletionRequest([Id(1), Id(2)], false));
 
-        ShouldBeInvalid(result.Result, "OrphanIds", "Some ids are not orphans of this sweep.");
+        ShouldBeInvalid(result.Result, "orphanIds", "unknown_orphans", "Some ids are not orphans of this sweep.");
         enqueued.Should().BeEmpty();
     }
 

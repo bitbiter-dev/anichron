@@ -30,11 +30,12 @@ public static class ProxySweepEndpoints
     internal const int DefaultPageSize = 100;
     internal const int MaxPageSize = 1000;
     internal const int MaxSelectedOrphans = 1000;
+    internal const string OrphanIdsField = "orphanIds";
 
     public static IEndpointRouteBuilder MapProxySweepEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup(ApiPaths.ProxySweeps.Group).WithTags("Proxy sweeps")
-                       .RequireAuthorization(AuthPolicies.Admin);
+                       .RequireAdmin();
         group.MapPost(string.Empty, RequestSweepAsync);
         group.MapGet(ApiPaths.ProxySweeps.Orphans, ListOrphansAsync);
         group.MapPost(ApiPaths.ProxySweeps.Deletions, RequestDeletionsAsync);
@@ -72,11 +73,11 @@ public static class ProxySweepEndpoints
         var number = page ?? 1;
         var size = pageSize ?? DefaultPageSize;
         if (size is < 1 or > MaxPageSize)
-            return Invalid(nameof(pageSize), $"pageSize must be from 1 to {MaxPageSize}.");
+            return ApiProblems.InvalidField(ErrorCodes.InvalidPageSize, nameof(pageSize), $"pageSize must be from 1 to {MaxPageSize}.");
         if (number < 1 || number > int.MaxValue / size)
-            return Invalid(nameof(page), "page is out of range.");
+            return ApiProblems.InvalidField(ErrorCodes.InvalidPage, nameof(page), "page is out of range.");
         if (pending is true && outcome is not null)
-            return Invalid(nameof(pending), "Give either pending or outcome, not both.");
+            return ApiProblems.InvalidField(ErrorCodes.PendingOrOutcome, nameof(pending), "Give either pending or outcome, not both.");
 
         var sweep = await StateOfAsync(sweepId, items, ct);
         if (sweep == SweepState.Unknown)
@@ -112,10 +113,10 @@ public static class ProxySweepEndpoints
         if (!Guid.TryParse(caller.FindFirstValue(ClaimTypes.NameIdentifier), out var callerId))
             return TypedResults.Unauthorized();
         if (request.All == (request.OrphanIds is not null))
-            return Invalid(nameof(request.OrphanIds), "Give either orphanIds or all, not both.");
+            return ApiProblems.InvalidField(ErrorCodes.OrphanIdsOrAll, OrphanIdsField, "Give either orphanIds or all, not both.");
         var selected = request.OrphanIds?.Distinct().ToList();
         if (selected is { Count: 0 or > MaxSelectedOrphans })
-            return Invalid(nameof(request.OrphanIds), $"orphanIds must hold from 1 to {MaxSelectedOrphans} ids.");
+            return ApiProblems.InvalidField(ErrorCodes.InvalidOrphanCount, OrphanIdsField, $"orphanIds must hold from 1 to {MaxSelectedOrphans} ids.");
 
         var sweep = await StateOfAsync(sweepId, items, ct);
         if (sweep == SweepState.Unknown)
@@ -132,7 +133,7 @@ public static class ProxySweepEndpoints
         {
             var found = await orphans.FindAsync(sweepId, selected, ct);
             if (found.Count < selected.Count)
-                return Invalid(nameof(request.OrphanIds), "Some ids are not orphans of this sweep.");
+                return ApiProblems.InvalidField(ErrorCodes.UnknownOrphans, OrphanIdsField, "Some ids are not orphans of this sweep.");
             deletions = ProxyDeletionPlan.ForSelection(sweepId, found);
         }
 
@@ -167,7 +168,4 @@ public static class ProxySweepEndpoints
             WorkItemDtoMapper.Format(view.LastWriteTime),
             view.DeletionOutcome?.ToString(),
             view.ProcessedAt is { } processed ? WorkItemDtoMapper.Format(processed) : null);
-
-    private static ValidationProblem Invalid(string field, string message)
-        => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 }

@@ -36,10 +36,12 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthHandler>("Test", null);
         builder.Services.AddAuthorizationPolicies();
+        builder.Services.AddProblemDetails();
         if (rateLimited)
             builder.Services.AddRateLimiting(builder.Configuration);
         configureServices(builder.Services);
         var app = builder.Build();
+        app.UseApiProblems();
         if (rateLimited)
             app.UseRateLimiter();
         app.UseAuthentication();
