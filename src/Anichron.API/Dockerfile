@@ -3,7 +3,19 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS base
 WORKDIR /app
 EXPOSE 8080
 
-# 2. Build Stage
+# 2. UI Stage
+# Built on $BUILDPLATFORM like the .NET stage: the bundle is plain files, the
+# same for every target arch. The tag matches .nvmrc so pnpm (devEngines)
+# does not download a different Node.
+FROM --platform=$BUILDPLATFORM node:26.13.0-alpine AS ui
+WORKDIR /ui
+RUN npm install --global pnpm@12.16.1
+COPY ["Anichron.UI/package.json", "Anichron.UI/pnpm-lock.yaml", "Anichron.UI/pnpm-workspace.yaml", "./"]
+RUN pnpm install --frozen-lockfile
+COPY ["Anichron.UI/", "./"]
+RUN pnpm build
+
+# 3. Build Stage
 # $BUILDPLATFORM = CI runner arch (amd64). dotnet publish produces arch-neutral IL,
 # so compiling natively avoids QEMU emulation overhead without affecting the output.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
@@ -31,15 +43,19 @@ COPY . .
 WORKDIR "/src/Anichron.API"
 RUN dotnet build "Anichron.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# 3. Publish Stage
+# 4. Publish Stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "Anichron.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish
 
-# 4. Final Production Stage
+# 5. Final Production Stage
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+COPY --from=ui /ui/dist ./wwwroot
+
+# AddAppConfiguration writes configuration/app.ini under the content root at start.
+RUN mkdir configuration && chown $APP_UID configuration
 
 # Use the non-privileged user provided by the base image
 USER $APP_UID
