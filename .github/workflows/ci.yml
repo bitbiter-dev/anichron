@@ -76,6 +76,7 @@ jobs:
           scripts/publish-badges.test.sh
           scripts/assemble-pages.test.sh
           scripts/derive-db-docs.test.sh
+          scripts/derive-openapi.test.sh
           scripts/ci-gate.test.sh
           scripts/mutation-changed.test.sh
           scripts/mutation-targets.test.sh
@@ -96,6 +97,11 @@ jobs:
       # See docs/adr/0004-schema-documentation.md.
       - name: Schema documentation is current
         run: scripts/derive-db-docs.sh --check
+
+      # Regenerates docs/openapi/v1.json from the API surface and fails if anything moved. No
+      # host is started, so it needs no database and no secrets.
+      - name: OpenAPI document is current
+        run: scripts/derive-openapi.sh --check
 
   integration:
     name: Integration tests

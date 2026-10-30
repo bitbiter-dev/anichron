@@ -275,22 +275,116 @@ public sealed class ApiServiceRegistrationTests
     }
 
     // ==========================================================================
+    // Start-up validation
+    // ==========================================================================
+
+    private const string ValidSecret = "0123456789abcdef0123456789abcdef";
+
+    private static Action StartAuthServices(Dictionary<string, string?> jwt)
+    {
+        var provider = AuthServices(Configuration(jwt)).BuildServiceProvider();
+        return () =>
+        {
+            using (provider)
+                provider.GetRequiredService<IStartupValidator>().Validate();
+        };
+    }
+
+    [Fact]
+    public void AddAuthServices_RegistersWithoutAnyJwtConfiguration()
+    {
+        var register = () => AuthServices(new ConfigurationBuilder().Build());
+
+        register.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AddAuthServices_ValidJwtConfiguration_PassesStartupValidation()
+        => StartAuthServices([]).Should().NotThrow();
+
+    [Theory]
+    [InlineData("Jwt:Secret", null, "Jwt:Secret configuration is missing.")]
+    [InlineData("Jwt:Secret", "", "Jwt:Secret configuration is missing.")]
+    [InlineData("Jwt:Issuer", null, "Jwt:Issuer is missing.")]
+    [InlineData("Jwt:Issuer", "", "Jwt:Issuer is missing.")]
+    [InlineData("Jwt:Audience", null, "Jwt:Audience is missing.")]
+    [InlineData("Jwt:Audience", "", "Jwt:Audience is missing.")]
+    public void AddAuthServices_MissingJwtSetting_FailsAtStart(string key, string? value, string failure)
+        => StartAuthServices(new() { [key] = value })
+            .Should().Throw<OptionsValidationException>().Which.Failures.Should().Equal(failure);
+
+    [Fact]
+    public void AddAuthServices_SecretOneByteShortOfMinimum_FailsAtStart()
+        => StartAuthServices(new() { ["Jwt:Secret"] = ValidSecret[1..] })
+            .Should().Throw<OptionsValidationException>().Which.Failures.Should().Equal("Jwt:Secret must be at least 32 bytes.");
+
+    [Fact]
+    public void AddAuthServices_SecretOfExactlyThirtyTwoBytes_PassesStartupValidation()
+        => StartAuthServices(new() { ["Jwt:Secret"] = ValidSecret }).Should().NotThrow();
+
+    [Fact]
+    public void AddAuthServices_SecretLengthCountedInUtf8Bytes_AcceptsSixteenTwoByteCharacters()
+        => StartAuthServices(new() { ["Jwt:Secret"] = new string('é', 16) }).Should().NotThrow();
+
+    [Fact]
+    public void AddAuthServices_EveryMissingJwtSetting_IsReportedAtOnce()
+        => StartAuthServices(new() { ["Jwt:Secret"] = null, ["Jwt:Issuer"] = null, ["Jwt:Audience"] = null })
+            .Should().Throw<OptionsValidationException>().Which.Failures.Should().Equal(
+                "Jwt:Secret configuration is missing.", "Jwt:Issuer is missing.", "Jwt:Audience is missing.");
+
+    private static Dictionary<string, string?> DatabaseValues() => new()
+    {
+        ["POSTGRES_CONNECTION:HOST"] = "db.internal",
+        ["POSTGRES_CONNECTION:DBNAME"] = "anichron",
+        ["POSTGRES_CONNECTION:USER"] = "app",
+        ["POSTGRES_CONNECTION:PASSWORD"] = "pw",
+    };
+
+    private static ServiceProvider DatabaseServices(Dictionary<string, string?> values)
+    {
+        var services = new ServiceCollection();
+        services.AddDatabase(new ConfigurationBuilder().AddInMemoryCollection(values).Build());
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public void AddDatabase_RegistersWithoutAnyConnectionConfiguration()
+    {
+        var register = () => new ServiceCollection().AddDatabase(new ConfigurationBuilder().Build());
+
+        register.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AddDatabase_CompleteConnection_PassesStartupValidation()
+    {
+        using var provider = DatabaseServices(DatabaseValues());
+
+        var start = () => provider.GetRequiredService<IStartupValidator>().Validate();
+
+        start.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AddDatabase_MissingHost_FailsAtStart()
+    {
+        var values = DatabaseValues();
+        values.Remove("POSTGRES_CONNECTION:HOST");
+        using var provider = DatabaseServices(values);
+
+        var start = () => provider.GetRequiredService<IStartupValidator>().Validate();
+
+        start.Should().Throw<InvalidOperationException>().WithMessage("Postgres Host missing");
+    }
+
+    // ==========================================================================
     // Database
     // ==========================================================================
 
     [Fact]
     public void AddDatabase_UsesNpgsqlWithTheConfiguredConnection()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["POSTGRES_CONNECTION:HOST"] = "db.internal",
-            ["POSTGRES_CONNECTION:DBNAME"] = "anichron",
-            ["POSTGRES_CONNECTION:USER"] = "app",
-            ["POSTGRES_CONNECTION:PASSWORD"] = "pw",
-        }).Build();
-        var services = new ServiceCollection();
-        services.AddDatabase(configuration);
-        using var provider = services.BuildServiceProvider();
+        using var provider = DatabaseServices(DatabaseValues());
         using var scope = provider.CreateScope();
 
         var database = scope.ServiceProvider.GetRequiredService<AnichronDbContext>().Database;

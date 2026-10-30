@@ -6,6 +6,7 @@
     "mutate": [
       "!**/Migrations/**",
       "!**/Anichron.Testing/**",
+      "!**/Anichron.OpenApiGenerator/**",
       "!**/Anichron.API/Program.cs",
       "!**/Anichron.Worker/Program.cs",
       "!**/Anichron.Core/Data/AnichronDbContextFactory.cs",
