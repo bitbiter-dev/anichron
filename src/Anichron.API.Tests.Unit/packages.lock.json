@@ -795,6 +795,12 @@
           "System.IO.Abstractions": "[22.3.0, )"
         }
       },
+      "anichron.openapigenerator": {
+        "type": "Project",
+        "dependencies": {
+          "Anichron.API": "[1.0.0, )"
+        }
+      },
       "anichron.testing": {
         "type": "Project",
         "dependencies": {

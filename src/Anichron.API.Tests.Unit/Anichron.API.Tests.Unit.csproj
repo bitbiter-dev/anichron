@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Anichron.API\Anichron.API.csproj" />
+    <ProjectReference Include="..\Anichron.OpenApiGenerator\Anichron.OpenApiGenerator.csproj" />
     <ProjectReference Include="..\Anichron.Testing\Anichron.Testing.csproj" />
   </ItemGroup>
 

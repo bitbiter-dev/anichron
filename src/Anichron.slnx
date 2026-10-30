@@ -8,6 +8,7 @@
   <Project Path="Anichron.Core/Anichron.Core.csproj" />
   <Project Path="Anichron.Infrastructure/Anichron.Infrastructure.csproj" />
   <Project Path="Anichron.Infrastructure.Tests.Unit/Anichron.Infrastructure.Tests.Unit.csproj" />
+  <Project Path="Anichron.OpenApiGenerator/Anichron.OpenApiGenerator.csproj" />
   <Project Path="Anichron.Testing/Anichron.Testing.csproj" />
   <Project Path="Anichron.Testing.Tests.Unit/Anichron.Testing.Tests.Unit.csproj" />
   <Project Path="Anichron.Tests.Integration/Anichron.Tests.Integration.csproj" />
