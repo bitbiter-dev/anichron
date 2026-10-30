@@ -202,6 +202,16 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
     }
 
     [Fact]
+    public void EveryProtectedRoute_DeclaresTheUnauthorizedItCauses()
+        => Routes.Where(r => r.Authenticated && !r.Anonymous && !r.Statuses.Contains(401))
+            .Select(r => $"{r.Method} {r.Pattern}").Should().BeEmpty();
+
+    [Fact]
+    public void EveryRateLimitedRoute_DeclaresTheTooManyRequestsItCauses()
+        => Routes.Where(r => r.RateLimit is not null && !r.Statuses.Contains(429))
+            .Select(r => $"{r.Method} {r.Pattern}").Should().BeEmpty();
+
+    [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
         => Routes.Should().HaveCount(30);
 }
