@@ -7,7 +7,6 @@ export function createI18n(): i18n {
   void instance.use(initReactI18next).init({
     lng: 'en',
     resources: { en: { translation: en } },
-    initAsync: false,
   });
   return instance;
 }

@@ -20,10 +20,48 @@
       "args": ["build", "src/", "--no-incremental", "-v", "q"]
     },
     {
+      "name": "ui-format",
+      "group": "pre-commit",
+      "command": "pnpm",
+      "args": ["--dir", "src/Anichron.UI", "format"],
+      "filteringRule": "staged",
+      "include": ["src/Anichron.UI/**"]
+    },
+    {
+      "name": "ui-lint",
+      "group": "pre-commit",
+      "command": "pnpm",
+      "args": ["--dir", "src/Anichron.UI", "lint"],
+      "filteringRule": "staged",
+      "include": ["src/Anichron.UI/**"]
+    },
+    {
+      "name": "ui-typecheck",
+      "group": "pre-commit",
+      "command": "pnpm",
+      "args": ["--dir", "src/Anichron.UI", "typecheck"],
+      "filteringRule": "staged",
+      "include": ["src/Anichron.UI/**"]
+    },
+    {
+      "name": "ui-depcruise",
+      "group": "pre-commit",
+      "command": "pnpm",
+      "args": ["--dir", "src/Anichron.UI", "depcruise"],
+      "filteringRule": "staged",
+      "include": ["src/Anichron.UI/**"]
+    },
+    {
       "name": "test",
       "group": "pre-push",
       "command": "dotnet",
       "args": ["test", "src/", "-v", "q"]
+    },
+    {
+      "name": "ui-test",
+      "group": "pre-push",
+      "command": "pnpm",
+      "args": ["--dir", "src/Anichron.UI", "test"]
     }
   ]
 }
