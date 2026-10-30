@@ -126,6 +126,38 @@ public sealed class MediaEndpointsTests
     }
 
     [Fact]
+    public async Task GetProxy_MismatchedIfMatch_IsAPreconditionFailedProblemAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1, 2, 3]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+        var request = Get("thumbnail");
+        request.Headers.IfMatch.Add(new EntityTagHeaderValue("\"other\""));
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        await ProblemAssertions.AssertStatusProblemAsync(response, 412);
+    }
+
+    [Fact]
+    public async Task GetProxy_RangeBeyondTheFile_IsRangeNotSatisfiableWithoutABodyAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.HasProxy(ProxyType.WebVideo, "01/video.mp4", [10, 11, 12]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+        var request = Get("video");
+        request.Headers.Range = new RangeHeaderValue(100, 200);
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.RequestedRangeNotSatisfiable);
+        response.Content.Headers.ContentRange!.ToString().Should().Be("bytes */3");
+        (await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetProxy_LooksUpTheCallerFromTheirClaimsAsync()
     {
         var fixture = new TestFixture();

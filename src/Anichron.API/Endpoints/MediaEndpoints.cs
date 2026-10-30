@@ -15,12 +15,24 @@ public static class MediaEndpoints
 
     public static IEndpointRouteBuilder MapMediaEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup(ApiPaths.Assets.Group).WithTags("Media");
+        var group = app.MapGroup(ApiPaths.Assets.Group).WithTags("Media").RequireUser();
         group.MapGet(ApiPaths.Assets.Proxy, GetProxyAsync)
-             .RequireAuthorization();
+             .ProducesProxy(StatusCodes.Status200OK)
+             .ProducesProxy(StatusCodes.Status206PartialContent)
+             .Produces(StatusCodes.Status304NotModified)
+             .Produces(StatusCodes.Status404NotFound)
+             .Produces(StatusCodes.Status412PreconditionFailed)
+             .ProducesWithoutBody(StatusCodes.Status416RangeNotSatisfiable);
         group.MapPatch(ApiPaths.Assets.Interaction, PatchInteractionAsync)
-             .RequireAuthorization();
+             .Produces<AssetInteractionDto>()
+             .Produces(StatusCodes.Status404NotFound);
         return app;
+    }
+
+    private static RouteHandlerBuilder ProducesProxy(this RouteHandlerBuilder builder, int statusCode)
+    {
+        var contentTypes = ProxyKinds.All.Select(kind => kind.ContentType).Distinct().ToArray();
+        return builder.Produces<Stream>(statusCode, contentTypes[0], contentTypes[1..]);
     }
 
     internal static async Task<IResult> GetProxyAsync(

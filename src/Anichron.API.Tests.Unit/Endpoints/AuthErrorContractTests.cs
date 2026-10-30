@@ -57,6 +57,40 @@ public sealed class AuthErrorContractTests
     private static Task<HttpResponseMessage> PostAsync(AuthenticatedTestApp app, string path, object body)
         => app.Client.PostAsJsonAsync(path, body, TestContext.Current.CancellationToken);
 
+    [Fact]
+    public async Task Login_BodyThatIsNotJson_IsAnUnsupportedMediaTypeProblemAsync()
+    {
+        await using var app = await StartAsync();
+
+        using var response = await app.Client.PostAsync(
+            LoginPath, new StringContent("alice"), TestContext.Current.CancellationToken);
+
+        await AssertStatusProblemAsync(response, 415);
+    }
+
+    [Fact]
+    public async Task Login_MalformedJson_IsABadRequestProblemAsync()
+    {
+        await using var app = await StartAsync();
+
+        using var response = await app.Client.PostAsync(
+            LoginPath, new StringContent("{", System.Text.Encoding.UTF8, "application/json"), TestContext.Current.CancellationToken);
+
+        await AssertStatusProblemAsync(response, 400);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/auth/password-reset/request")]
+    [InlineData("/api/v1/auth/password-reset/confirm")]
+    public async Task PasswordReset_IsANotImplementedProblemAsync(string path)
+    {
+        await using var app = await StartAsync();
+
+        using var response = await app.Client.PostAsync(path, null, TestContext.Current.CancellationToken);
+
+        await AssertStatusProblemAsync(response, 501);
+    }
+
     [Theory]
     [InlineData(LoginPath)]
     [InlineData(LoginMobilePath)]

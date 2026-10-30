@@ -16,6 +16,7 @@ public sealed class WorkItemEndpointsHttpTests
 {
     private static readonly Instant Start = Instant.FromUtc(2026, 10, 18, 9, 0);
     private static readonly Guid AdminId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+    private static readonly Guid UserId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
     private static readonly Guid ItemId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     private readonly IWorkItemReader reader = Substitute.For<IWorkItemReader>();
@@ -56,6 +57,27 @@ public sealed class WorkItemEndpointsHttpTests
         var item = body.RootElement.GetProperty("items")[0];
         item.GetProperty("status").GetString().Should().Be("Succeeded");
         item.GetProperty("result").GetProperty("found").GetInt32().Should().Be(8);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/admin/work-items?status=Sleeping", "admin", 400)]
+    [InlineData("/api/v1/admin/work-items", "anonymous", 401)]
+    [InlineData("/api/v1/admin/work-items", "user", 403)]
+    [InlineData("/api/v1/admin/work-items/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "admin", 404)]
+    public async Task AnErrorWithoutABody_IsAProblemAsync(string path, string caller, int status)
+    {
+        await using var app = await StartAsync();
+        using var client = app.Client;
+        using var request = caller switch
+        {
+            "admin" => AuthenticatedTestApp.GetAsAdmin(path, AdminId),
+            "user" => AuthenticatedTestApp.Get(path, UserId),
+            _ => new HttpRequestMessage(HttpMethod.Get, path),
+        };
+
+        using var response = await client.SendAsync(request, Ct);
+
+        await ProblemAssertions.AssertStatusProblemAsync(response, status);
     }
 
     [Fact]

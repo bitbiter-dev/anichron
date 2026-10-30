@@ -1,4 +1,5 @@
 using Anichron.API.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
@@ -113,6 +114,20 @@ public sealed class MustChangePasswordMiddlewareTests
     public async Task InvokeAsync_AuthenticatedWithClaim_GetMePath_CallsNext()
     {
         var context = BuildContext(Authenticated(MustChangeClaim()), HttpMethods.Get, "/api/v1/users/me");
+        var nextCalled = false;
+        var middleware = new MustChangePasswordMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context);
+
+        nextCalled.Should().BeTrue();
+        context.Response.StatusCode.Should().Be(200);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AuthenticatedWithClaim_AnonymousEndpoint_CallsNext()
+    {
+        var context = BuildContext(Authenticated(MustChangeClaim()), HttpMethods.Post, "/api/v1/auth/refresh");
+        context.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(new AllowAnonymousAttribute()), "refresh"));
         var nextCalled = false;
         var middleware = new MustChangePasswordMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
 
