@@ -6,6 +6,8 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const visibleAttributes =
+  '/^(alt|title|placeholder|aria-label|aria-description|aria-placeholder|aria-roledescription|aria-valuetext)$/';
 const networkGlobals = ['fetch', 'EventSource', 'XMLHttpRequest', 'WebSocket'];
 const onlyApi = (name) => ({
   name,
@@ -35,6 +37,13 @@ export default defineConfig([
     settings: { react: { version: 'detect' } },
     rules: {
       'react/jsx-no-literals': ['error', { noStrings: true, ignoreProps: true }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: `JSXAttribute[name.name=${visibleAttributes}] :matches(Literal, TemplateLiteral)`,
+          message: 'A user-visible attribute takes its text from the catalog through t(...).',
+        },
+      ],
     },
   },
   {

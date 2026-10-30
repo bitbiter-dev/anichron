@@ -52,8 +52,6 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
-      # Lint tooling apart from the rest, for the reason the nuget analyzers are: a lint bump
-      # fails the UI job with new findings against unchanged code, a runtime bump by changing an API.
       ui-lint:
         patterns:
           - "eslint"

@@ -81,6 +81,17 @@ echo '{ "mutate": ["src/**/*.ts"] }' > "$repo/src/Anichron.UI/stryker.config.jso
 check 'a changed config mutates the whole scope' "$repo" \
   'mutating the whole UI scope; changed outside it: stryker.config.json'
 
+repo=$(fixture deleted)
+echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/shared/a.ts"
+git -C "$repo" rm -q src/Anichron.UI/src/shared/a.test.ts
+check 'a deleted test mutates the whole scope' "$repo" \
+  'mutating the whole UI scope; changed outside it: src/shared/a.test.ts'
+
+repo=$(fixture deleted-logic)
+git -C "$repo" rm -q src/Anichron.UI/src/shared/b.ts
+check 'a deleted logic file mutates the whole scope' "$repo" \
+  'mutating the whole UI scope; changed outside it: src/shared/b.ts'
+
 repo=$(fixture all)
 out=$(cd "$repo" && "$script" --all --print 2>&1)
 if [ -z "$out" ]; then pass '--all mutates the whole scope with no changes'; else fail '--all mutates the whole scope with no changes' '(no arguments)' "$out"; fi

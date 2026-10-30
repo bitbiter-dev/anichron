@@ -2,20 +2,17 @@
 # Usage: scripts/ui-mutation-changed.sh [--base <ref>] [--all] [--print]
 #
 # Runs StrykerJS over the UI (src/Anichron.UI) for the files changed since the
-# merge-base with <ref> (default origin/master): committed, staged, unstaged
-# and untracked.
+# merge-base with <ref> (default origin/master): committed, staged, unstaged,
+# untracked and deleted.
 #   - No UI file changed: nothing to mutate, exit 0.
 #   - Every changed UI file is in the mutation scope (stryker.config.json's
 #     mutate list): only those files are mutated.
 #   - Anything else changed (a test, a view, a catalog, test support, config,
-#     dependencies): the whole scope is mutated, since such a change can stop
-#     a mutant anywhere from being killed. The scope is small.
+#     dependencies, a deleted file): the whole scope is mutated.
 # --all mutates the whole scope regardless. --print prints the Stryker
 # arguments instead of running it (none means the whole scope).
 #
-# StrykerJS needs no private TMPDIR: its sandboxes live in the project's own
-# .stryker-tmp, and the active mutant reaches the tests in process. See
-# docs/mutation-testing.md, "The UI".
+# See docs/mutation-testing.md, "The UI".
 set -euo pipefail
 
 base='origin/master'
@@ -27,7 +24,7 @@ while [ "$#" -gt 0 ]; do
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --all) all=true; shift ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -45,7 +42,7 @@ if ! $all; then
 
   changed=$(
     {
-      git diff --name-only --diff-filter=d "$merge_base" -- src/Anichron.UI
+      git diff --name-only "$merge_base" -- src/Anichron.UI
       git ls-files --others --exclude-standard -- src/Anichron.UI
     } | sed 's#^src/Anichron.UI/##' | sort -u
   )

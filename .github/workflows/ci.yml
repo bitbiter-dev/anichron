@@ -123,7 +123,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # The scoped mutation run diffs against the merge-base with the target branch.
           fetch-depth: 0
 
       # Installs pnpm from packageManager and Node from .nvmrc, then runs a frozen install.
@@ -148,7 +147,6 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      # Here rather than in Checks: the scoped run resolves its scope with this Node.
       - name: Test UI helper scripts
         working-directory: .
         run: |
