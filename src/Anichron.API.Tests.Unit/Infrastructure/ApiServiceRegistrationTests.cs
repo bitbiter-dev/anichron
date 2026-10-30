@@ -6,6 +6,7 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Work;
+using Anichron.Infrastructure.Configuration;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -280,15 +281,15 @@ public sealed class ApiServiceRegistrationTests
 
     private const string ValidSecret = "0123456789abcdef0123456789abcdef";
 
-    private static Action StartAuthServices(Dictionary<string, string?> jwt)
-    {
-        var provider = AuthServices(Configuration(jwt)).BuildServiceProvider();
-        return () =>
+    private static Action Start(ServiceProvider provider)
+        => () =>
         {
             using (provider)
                 provider.GetRequiredService<IStartupValidator>().Validate();
         };
-    }
+
+    private static Action StartAuthServices(Dictionary<string, string?> jwt)
+        => Start(AuthServices(Configuration(jwt)).BuildServiceProvider());
 
     [Fact]
     public void AddAuthServices_RegistersWithoutAnyJwtConfiguration()
@@ -353,6 +354,8 @@ public sealed class ApiServiceRegistrationTests
         return services.BuildServiceProvider();
     }
 
+    private static Action StartDatabase(Dictionary<string, string?> values) => Start(DatabaseServices(values));
+
     [Fact]
     public void AddDatabase_RegistersWithoutAnyConnectionConfiguration()
     {
@@ -363,25 +366,27 @@ public sealed class ApiServiceRegistrationTests
 
     [Fact]
     public void AddDatabase_CompleteConnection_PassesStartupValidation()
-    {
-        using var provider = DatabaseServices(DatabaseValues());
-
-        var start = () => provider.GetRequiredService<IStartupValidator>().Validate();
-
-        start.Should().NotThrow();
-    }
+        => StartDatabase(DatabaseValues()).Should().NotThrow();
 
     [Fact]
     public void AddDatabase_MissingHost_FailsAtStart()
     {
         var values = DatabaseValues();
         values.Remove("POSTGRES_CONNECTION:HOST");
-        using var provider = DatabaseServices(values);
 
-        var start = () => provider.GetRequiredService<IStartupValidator>().Validate();
-
-        start.Should().Throw<InvalidOperationException>().WithMessage("Postgres Host missing");
+        StartDatabase(values).Should().Throw<OptionsValidationException>()
+            .Which.Failures.Should().Equal("Postgres Host missing");
     }
+
+    [Fact]
+    public void AddDatabase_NothingConfigured_ReportsEveryMissingSettingAtOnce()
+        => StartDatabase([]).Should().Throw<OptionsValidationException>().Which.Failures.Should().HaveCount(4);
+
+    [Fact]
+    public void DatabaseSettingsValidator_CompleteSettings_Succeeds()
+        => new DatabaseSettingsValidator()
+            .Validate(null, new DatabaseConnectionSettings { Host = "h", Database = "d", Username = "u", Password = "p" })
+            .Succeeded.Should().BeTrue();
 
     // ==========================================================================
     // Database

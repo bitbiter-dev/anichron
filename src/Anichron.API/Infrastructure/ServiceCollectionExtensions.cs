@@ -36,12 +36,12 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddDatabase(IConfiguration configuration)
         {
-            services.AddOptions<DatabaseSettings>()
-                .Configure(settings => settings.ConnectionString =
-                    DatabaseConfiguration.GetConnectionString(configuration, new FileSystem()))
+            services.AddOptions<DatabaseConnectionSettings>()
+                .Configure(settings => DatabaseConfiguration.Bind(configuration, new FileSystem(), settings))
                 .ValidateOnStart();
+            services.AddSingleton<IValidateOptions<DatabaseConnectionSettings>, DatabaseSettingsValidator>();
             return services.AddDbContext<AnichronDbContext>((provider, options) =>
-                options.UseNpgsql(provider.GetRequiredService<IOptions<DatabaseSettings>>().Value.ConnectionString,
+                options.UseNpgsql(provider.GetRequiredService<IOptions<DatabaseConnectionSettings>>().Value.ToConnectionString(),
                     o => o.UseNodaTime()));
         }
 

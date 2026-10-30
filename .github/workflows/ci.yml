@@ -98,8 +98,6 @@ jobs:
       - name: Schema documentation is current
         run: scripts/derive-db-docs.sh --check
 
-      # Regenerates docs/openapi/v1.json from the API surface and fails if anything moved. No
-      # host is started, so it needs no database and no secrets.
       - name: OpenAPI document is current
         run: scripts/derive-openapi.sh --check
 

@@ -176,4 +176,70 @@ public sealed class DatabaseConfigurationTests
 
         parsed.Username.Should().Be("alice");
     }
+
+    [Fact]
+    public void GetConnectionString_MissingPasswordAndNoFile_ThrowsInvalidOperationException()
+    {
+        var entries = BaseConfig();
+        entries.Remove("POSTGRES_CONNECTION:PASSWORD");
+        var config = BuildConfig(entries);
+
+        var act = () => DatabaseConfiguration.GetConnectionString(config, new MockFileSystem());
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Configuration value for PASSWORD or secret file PASSWORD_FILE not found.");
+    }
+
+    // ==========================================================================
+    // Bind and MissingSettings
+    // ==========================================================================
+
+    private static DatabaseConnectionSettings Bind(Dictionary<string, string?> entries)
+    {
+        var settings = new DatabaseConnectionSettings();
+        DatabaseConfiguration.Bind(BuildConfig(entries), new MockFileSystem(), settings);
+        return settings;
+    }
+
+    [Fact]
+    public void Bind_NothingConfigured_LeavesEverySettingMissingWithoutThrowing()
+    {
+        var settings = Bind([]);
+
+        settings.MissingSettings().Should().Equal(
+            "Postgres Host missing",
+            "Postgres Database name missing",
+            "Configuration value for USER or secret file USER_FILE not found.",
+            "Configuration value for PASSWORD or secret file PASSWORD_FILE not found.");
+    }
+
+    [Fact]
+    public void Bind_AllConfigKeysPresent_MissesNothing()
+        => Bind(BaseConfig()).MissingSettings().Should().BeEmpty();
+
+    [Theory]
+    [InlineData("POSTGRES_CONNECTION:HOST", "Postgres Host missing")]
+    [InlineData("POSTGRES_CONNECTION:DBNAME", "Postgres Database name missing")]
+    [InlineData("POSTGRES_CONNECTION:USER", "Configuration value for USER or secret file USER_FILE not found.")]
+    [InlineData("POSTGRES_CONNECTION:PASSWORD", "Configuration value for PASSWORD or secret file PASSWORD_FILE not found.")]
+    public void Bind_OneKeyMissing_ReportsOnlyThatSetting(string key, string failure)
+    {
+        var entries = BaseConfig();
+        entries.Remove(key);
+
+        Bind(entries).MissingSettings().Should().Equal(failure);
+    }
+
+    [Fact]
+    public void ToConnectionString_UsesTheBoundValues()
+    {
+        var parsed = new NpgsqlConnectionStringBuilder(Bind(BaseConfig()).ToConnectionString());
+
+        parsed.Host.Should().Be("db-host");
+        parsed.Database.Should().Be("anichron_db");
+        parsed.Username.Should().Be("alice");
+        parsed.Password.Should().Be("secret");
+        parsed.Port.Should().Be(5432);
+        parsed.Pooling.Should().BeTrue();
+    }
 }
