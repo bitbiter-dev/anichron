@@ -39,10 +39,13 @@ export default defineConfig([
       'react/jsx-no-literals': ['error', { noStrings: true, ignoreProps: true }],
       'no-restricted-syntax': [
         'error',
-        {
-          selector: `JSXAttribute[name.name=${visibleAttributes}] :matches(Literal, TemplateLiteral)`,
+        ...[
+          `JSXAttribute[name.name=${visibleAttributes}] > Literal`,
+          `JSXAttribute[name.name=${visibleAttributes}] > JSXExpressionContainer > :matches(Literal, TemplateLiteral)`,
+        ].map((selector) => ({
+          selector,
           message: 'A user-visible attribute takes its text from the catalog through t(...).',
-        },
+        })),
       ],
     },
   },
