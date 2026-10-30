@@ -7,6 +7,8 @@ builder.Services.AddApiSurface(builder.Configuration);
 
 var app = builder.Build();
 
+app.UseSecurityHeaders();
+
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
@@ -15,6 +17,7 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseHttpsRedirection();
 app.UseCors();
+app.UseUi();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<MustChangePasswordMiddleware>();
