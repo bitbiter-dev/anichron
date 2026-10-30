@@ -45,7 +45,7 @@ describe('the login screen', () => {
   it('signs in with the trimmed username and lands on the signed-in page', async () => {
     const sent: LoginRequest[] = [];
     server.use(loginSucceeds((request) => sent.push(request)));
-    const { router } = await openLogin();
+    const { router, container } = await openLogin();
 
     signIn('  mira  ', 'correct horse battery staple');
 
@@ -53,6 +53,7 @@ describe('the login screen', () => {
       await screen.findByText("You're signed in. Your photo library is on its way."),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe('/');
+    expect(await axeResults(container)).toHaveNoViolations();
     expect(sent).toEqual([{ usernameOrEmail: 'mira', password: 'correct horse battery staple' }]);
   });
 

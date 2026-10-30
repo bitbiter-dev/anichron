@@ -24,8 +24,6 @@ export function loginFails(status: number, body: object, headers: Record<string,
 
 export function problem(status: number, code: string, extra: object = {}) {
   return {
-    type: 'https://tools.ietf.org/html/rfc9110#section-15.5.2',
-    title: 'Unauthorized',
     status,
     detail: 'Server text that is never shown.',
     code,

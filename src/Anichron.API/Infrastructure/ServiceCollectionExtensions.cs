@@ -70,17 +70,20 @@ public static class ServiceCollectionExtensions
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
             services.AddOptions<RateLimiterOptions>().Configure<IOptions<RateLimitSettings>>((options, settings) =>
+            {
                 options.AddPolicy(AuthRateLimitPolicies.Sensitive, new SlidingWindowPolicy(
                     settings.Value.SensitivePermitLimit,
                     TimeSpan.FromSeconds(AppDefaults.RateLimit.Sensitive.WindowSeconds),
-                    AppDefaults.RateLimit.Sensitive.Segments)));
+                    AppDefaults.RateLimit.Sensitive.Segments));
 
-            return services.AddRateLimiter(options =>
                 // Refresh tokens rotate on every use. Tighter policy required.
                 options.AddPolicy(AuthRateLimitPolicies.Refresh, new SlidingWindowPolicy(
                     AppDefaults.RateLimit.Refresh.PermitLimit,
                     TimeSpan.FromMinutes(AppDefaults.RateLimit.Refresh.WindowMinutes),
-                    AppDefaults.RateLimit.Refresh.Segments)));
+                    AppDefaults.RateLimit.Refresh.Segments));
+            });
+
+            return services.AddRateLimiter(_ => { });
         }
 
         public IServiceCollection AddWorkItemServices()

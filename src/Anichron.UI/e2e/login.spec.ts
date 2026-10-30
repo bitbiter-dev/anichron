@@ -42,6 +42,9 @@ test('a user signs in and lands on the signed-in page', async ({ page, request }
   await expect(page.getByText(signedIn)).toBeVisible();
   await expect(page).toHaveURL('/');
   await expectAccessible(page);
+
+  await page.reload();
+  await expect(page).toHaveURL('/login');
 });
 
 test('a wrong password is refused in the user’s language', async ({ page, request }) => {
@@ -64,6 +67,7 @@ test('a disabled account is told to ask the administrator', async ({ page, reque
     'This account is disabled. Ask your administrator to enable it.',
   );
   await expect(page).toHaveURL('/login');
+  await expectAccessible(page);
 });
 
 test('a locked account counts down, then signs in', async ({ page, request }) => {

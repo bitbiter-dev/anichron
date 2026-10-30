@@ -76,8 +76,8 @@ const pause = (seconds: number) => new Promise((resolve) => setTimeout(resolve, 
 // Failures 4, 5 and 6 lock for 2, 4 and 8 s; one during a lock is not counted.
 export async function lockOut(request: APIRequestContext, account: Account) {
   for (let attempt = 0; attempt < 4; attempt++) await failSignIn(request, account);
-  await pause(2);
+  await pause(2.5);
   await failSignIn(request, account);
-  await pause(4);
+  await pause(4.5);
   await failSignIn(request, account);
 }
