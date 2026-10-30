@@ -7,8 +7,11 @@ the headers every response carries.
 
 The API Dockerfile builds the UI in a Node stage on `$BUILDPLATFORM` (the bundle is the same files
 for every target arch) and copies `dist/` to `/app/wwwroot`, the web root. The Node tag matches
-`.nvmrc` exactly, so pnpm's `devEngines.runtime` never downloads another Node; Dependabot's
-`docker` entry for `src/Anichron.API` bumps that tag, so a Node bump moves both together. A
+`.nvmrc` exactly, so pnpm's `devEngines.runtime` never downloads another Node, and the stage
+installs the pnpm version in `packageManager`. These pins move together: a Node bump changes the
+`FROM` tag, `.nvmrc`, `engines` and `devEngines.runtime.version` in one change, and a pnpm bump
+changes `packageManager` and the Dockerfile's `pnpm@` version. Dependabot's `docker` entry rewrites
+only the `FROM` line, so its PR gets the rest added before it merges. A
 `dotnet run` without a built UI has no `wwwroot`: the API serves as usual and every UI path is a
 `404`. Development goes through `pnpm dev`, which proxies `/api` to the local API.
 
@@ -43,8 +46,10 @@ and the fallback `404`s.
 - **Under `/api`:** `X-Content-Type-Options: nosniff` and `Content-Security-Policy: frame-ancestors 'none'`.
 
 The policy has no `Development` branch: only the Vite dev server, which sends no CSP, is looser.
-Vite's built output runs under Trusted Types (its module-preload helper sets no sink), so
-`require-trusted-types-for 'script'` stays. A feature that needs a browser permission (fullscreen
+Today's bundle runs under Trusted Types in all three browsers, so
+`require-trusted-types-for 'script'` stays. It has no route chunks yet, so Vite's dynamic-import
+preload helper is not in it; the smoke test fails on any Trusted Types violation, so the first lazy
+route proves the helper too. A feature that needs a browser permission (fullscreen
 for the flashback player, say) adds it to `Permissions-Policy` in its own change.
 
 ## Tests

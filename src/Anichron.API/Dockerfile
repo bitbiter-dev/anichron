@@ -4,9 +4,6 @@ WORKDIR /app
 EXPOSE 8080
 
 # 2. UI Stage
-# Built on $BUILDPLATFORM like the .NET stage: the bundle is plain files, the
-# same for every target arch. The tag matches .nvmrc so pnpm (devEngines)
-# does not download a different Node.
 FROM --platform=$BUILDPLATFORM node:26.13.0-alpine AS ui
 WORKDIR /ui
 RUN npm install --global pnpm@12.16.1
@@ -53,8 +50,6 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 COPY --from=ui /ui/dist ./wwwroot
-
-# AddAppConfiguration writes configuration/app.ini under the content root at start.
 RUN mkdir configuration && chown $APP_UID configuration
 
 # Use the non-privileged user provided by the base image
