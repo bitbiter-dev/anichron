@@ -116,6 +116,71 @@ jobs:
       - name: Integration tests
         run: dotnet test src/ -p:TestSuite=Integration
 
+  ui:
+    name: UI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: src/Anichron.UI
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Installs pnpm from packageManager and Node from .nvmrc, then runs a frozen install.
+      - uses: pnpm/setup@v3
+        with:
+          working-directory: src/Anichron.UI
+          require-lockfile: true
+          cache: true
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format
+
+      - name: Dependency rules
+        run: pnpm depcruise
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Test UI helper scripts
+        working-directory: .
+        run: |
+          scripts/ui-mutation-changed.test.sh
+          scripts/ui-mutation-guard.test.sh
+          scripts/ui-pre-push.test.sh
+
+      - name: Mutation setup matches its rules
+        working-directory: .
+        run: scripts/ui-mutation-guard.sh
+
+      # A pull request mutates what it changed; master mutates the whole scope.
+      - name: Mutation test
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            scripts/ui-mutation-changed.sh --base "origin/$BASE"
+          else
+            scripts/ui-mutation-changed.sh --all
+          fi
+
+      - name: Build
+        run: pnpm build
+
+      - name: Bundle budget
+        run: pnpm size
+
   # One Stryker run per mutation target project, in parallel (ADR 0010): in
   # solution mode Stryker captures the same coverage once per project. The list
   # comes from the IsMutationTarget convention, so a new project is mutated
@@ -324,7 +389,7 @@ jobs:
   gate:
     name: CI gate
     runs-on: ubuntu-latest
-    needs: [checks, integration, mutation, docker]
+    needs: [checks, integration, mutation, ui, docker]
     if: always()
     permissions:
       contents: read
