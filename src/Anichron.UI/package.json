@@ -36,11 +36,14 @@
     "last 2 Edge versions"
   ],
   "dependencies": {
+    "@hookform/resolvers": "6.0.2",
     "@tanstack/react-router": "1.170.46",
     "i18next": "26.5.11",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "react-i18next": "17.1.9"
+    "react-hook-form": "7.91.0",
+    "react-i18next": "17.1.9",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
