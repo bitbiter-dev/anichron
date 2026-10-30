@@ -37,7 +37,7 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
         builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthHandler>("Test", null);
         builder.Services.AddAuthorizationPolicies();
         if (rateLimited)
-            builder.Services.AddRateLimiting();
+            builder.Services.AddRateLimiting(builder.Configuration);
         configureServices(builder.Services);
         var app = builder.Build();
         if (rateLimited)
