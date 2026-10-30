@@ -1,18 +1,9 @@
 using Anichron.API.Infrastructure;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddAppConfiguration();
-
-builder.Services
-    .AddOpenApi()
-    .AddDatabase(builder.Configuration)
-    .AddForwardedHeadersSupport(builder.Configuration)
-    .AddAuthServices(builder.Configuration)
-    .AddWorkItemServices()
-    .AddAuthorizationPolicies()
-    .AddRateLimiting()
-    .AddCorsPolicy(builder.Configuration)
-    .AddApiHealthChecks();
+builder.Services.AddApiSurface(builder.Configuration);
 
 var app = builder.Build();
 
@@ -29,5 +20,6 @@ app.UseAuthorization();
 
 app.MapApiEndpoints();
 
+app.Services.GetRequiredService<IStartupValidator>().Validate();
 await app.MigrateAndSeedDatabaseAsync(app.Lifetime.ApplicationStopping);
 await app.RunAsync();

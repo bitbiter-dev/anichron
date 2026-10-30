@@ -10,6 +10,7 @@ using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IO.Abstractions;
 using System.Net;
@@ -21,11 +22,27 @@ public static class ServiceCollectionExtensions
 {
     extension(IServiceCollection services)
     {
+        public IServiceCollection AddApiSurface(IConfiguration configuration)
+            => services
+                .AddOpenApi()
+                .AddDatabase(configuration)
+                .AddForwardedHeadersSupport(configuration)
+                .AddAuthServices(configuration)
+                .AddWorkItemServices()
+                .AddAuthorizationPolicies()
+                .AddRateLimiting()
+                .AddCorsPolicy(configuration)
+                .AddApiHealthChecks();
+
         public IServiceCollection AddDatabase(IConfiguration configuration)
         {
-            var connectionString = DatabaseConfiguration.GetConnectionString(configuration, new FileSystem());
-            return services.AddDbContext<AnichronDbContext>(options =>
-                options.UseNpgsql(connectionString, o => o.UseNodaTime()));
+            services.AddOptions<DatabaseConnectionSettings>()
+                .Configure(settings => DatabaseConfiguration.Bind(configuration, new FileSystem(), settings))
+                .ValidateOnStart();
+            services.AddSingleton<IValidateOptions<DatabaseConnectionSettings>, DatabaseSettingsValidator>();
+            return services.AddDbContext<AnichronDbContext>((provider, options) =>
+                options.UseNpgsql(provider.GetRequiredService<IOptions<DatabaseConnectionSettings>>().Value.ToConnectionString(),
+                    o => o.UseNodaTime()));
         }
 
         public IServiceCollection AddForwardedHeadersSupport(IConfiguration configuration)
@@ -87,7 +104,10 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddAuthServices(IConfiguration configuration)
         {
-            services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
+            services.AddOptions<JwtSettings>()
+                .Bind(configuration.GetSection("Jwt"))
+                .ValidateOnStart();
+            services.AddSingleton<IValidateOptions<JwtSettings>, JwtSettingsValidator>();
             services.Configure<PasswordPolicy>(configuration.GetSection("PasswordPolicy"));
             services.Configure<UsernamePolicy>(configuration.GetSection("UsernamePolicy"));
             services.AddSingleton<IClock>(SystemClock.Instance);
@@ -140,23 +160,20 @@ public static class ServiceCollectionExtensions
                 options.AttemptTimeout.Timeout = timeout;
             });
 
-            var jwt = JwtConfiguration.Read(configuration);
-
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
-                {
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+            services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+                .Configure<IOptions<JwtSettings>>((options, jwt) =>
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Secret)),
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Value.Secret)),
                         ValidateIssuer = true,
-                        ValidIssuer = jwt.Issuer,
+                        ValidIssuer = jwt.Value.Issuer,
                         ValidateAudience = true,
-                        ValidAudience = jwt.Audience,
+                        ValidAudience = jwt.Value.Audience,
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.Zero,
-                    };
-                });
+                    });
 
             return services;
         }

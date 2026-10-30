@@ -6,8 +6,7 @@ internal sealed class TimelineClock(Timeline timeline) : FakeTimeProvider
 {
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
-        timeline.Append(new TimerArmed(dueTime));
-        return base.CreateTimer(
+        var timer = base.CreateTimer(
             s =>
             {
                 timeline.Append(new TimerFired(dueTime));
@@ -16,5 +15,7 @@ internal sealed class TimelineClock(Timeline timeline) : FakeTimeProvider
             state,
             dueTime,
             period);
+        timeline.Append(new TimerArmed(dueTime));
+        return timer;
     }
 }
