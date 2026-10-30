@@ -131,9 +131,8 @@ public sealed class FlashbackEndpointsTests
 
         using var response = await client.SendAsync(Get($"?date={date}"), TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
-            .Should().Contain("YYYY-MM-DD");
+        await ProblemAssertions.AssertFieldProblemAsync(
+            response, 400, "invalid_date", "date", "date must be a calendar date in the form YYYY-MM-DD.");
         await fixture.Reader.DidNotReceiveWithAnyArgs().ReadAsync(Guid.Empty, null!, CancellationToken.None);
     }
 

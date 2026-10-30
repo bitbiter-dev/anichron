@@ -1,7 +1,7 @@
 namespace Anichron.API.Endpoints;
 
-/// <summary>Auth failures as Problem Details: a stable <c>code</c> extension, and the English text in <c>detail</c>.</summary>
-internal static class AuthProblems
+/// <summary>Failures as Problem Details: a stable <c>code</c> extension, and the English text in <c>detail</c>.</summary>
+internal static class ApiProblems
 {
     internal const string CodeExtension = "code";
 
@@ -23,7 +23,7 @@ internal static class AuthProblems
     private static Dictionary<string, object?> Extensions(string code) => new() { [CodeExtension] = code };
 }
 
-internal static class AuthErrorCodes
+internal static class ErrorCodes
 {
     internal const string InvalidCredentials = "invalid_credentials";
     internal const string AccountDisabled = "account_disabled";
@@ -39,4 +39,10 @@ internal static class AuthErrorCodes
     internal const string PasswordTooLong = "password_too_long";
     internal const string PasswordPwned = "password_pwned";
     internal const string InviteTokenInvalid = "invite_token_invalid";
+    internal const string PasswordChangeRequired = "password_change_required";
+    internal const string CannotModifySelf = "cannot_modify_self";
+    internal const string PathInvalid = "path_invalid";
+    internal const string PathAlreadyAssigned = "path_already_assigned";
+    internal const string PathOverlaps = "path_overlaps";
+    internal const string InvalidDate = "invalid_date";
 }

@@ -1,6 +1,8 @@
 using Anichron.API.Infrastructure;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
@@ -11,7 +13,11 @@ public sealed class MustChangePasswordMiddlewareTests
 
     private static DefaultHttpContext BuildContext(ClaimsPrincipal user, string method, string path)
     {
-        var context = new DefaultHttpContext { User = user };
+        var context = new DefaultHttpContext
+        {
+            User = user,
+            RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider(),
+        };
         context.Request.Method = method;
         context.Request.Path = path;
         context.Response.Body = new MemoryStream();
@@ -121,18 +127,21 @@ public sealed class MustChangePasswordMiddlewareTests
     // ==========================================================================
 
     [Fact]
-    public async Task InvokeAsync_AuthenticatedWithClaim_NonExemptGetPath_Returns403WithMessage()
+    public async Task InvokeAsync_AuthenticatedWithClaim_NonExemptGetPath_Returns403PasswordChangeRequiredProblem()
     {
         var context = BuildContext(Authenticated(MustChangeClaim()), HttpMethods.Get, "/api/v1/some/endpoint");
         var nextCalled = false;
         var middleware = new MustChangePasswordMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
 
         await middleware.InvokeAsync(context);
-        var body = await ReadBodyAsync(context.Response);
+        using var body = JsonDocument.Parse(await ReadBodyAsync(context.Response));
 
         nextCalled.Should().BeFalse();
         context.Response.StatusCode.Should().Be(403);
-        body.Should().Contain("Password change required before continuing.");
+        context.Response.ContentType.Should().Be("application/problem+json");
+        body.RootElement.GetProperty("code").GetString().Should().Be("password_change_required");
+        body.RootElement.GetProperty("status").GetInt32().Should().Be(403);
+        body.RootElement.GetProperty("detail").GetString().Should().Be("Password change required before continuing.");
     }
 
     [Fact]
