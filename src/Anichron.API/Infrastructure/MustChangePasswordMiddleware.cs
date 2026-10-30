@@ -1,5 +1,6 @@
 using Anichron.API.Endpoints;
 using Anichron.API.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Anichron.API.Infrastructure;
 
@@ -14,7 +15,8 @@ internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.User.Identity?.IsAuthenticated == true
+        if (context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null
+            && context.User.Identity?.IsAuthenticated == true
             && context.User.HasClaim(AppClaimTypes.MustChangePassword, "true")
             && !IsExemptRequest(context.Request))
         {

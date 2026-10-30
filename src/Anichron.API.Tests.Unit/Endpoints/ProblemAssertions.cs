@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http.HttpResults;
 using System.Text.Json;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
@@ -29,6 +30,14 @@ internal static class ProblemAssertions
         ((int)response.StatusCode).Should().Be(status);
         var problem = await ProblemAsync(response);
         problem.GetProperty("status").GetInt32().Should().Be(status);
+    }
+
+    public static void AssertInvalidField(object result, string field, string code, string detail)
+    {
+        var problem = result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails;
+        problem.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(KeyValuePair.Create(field, new[] { code }));
+        problem.Detail.Should().Be(detail);
+        problem.Extensions.Should().ContainKey("code").WhoseValue.Should().Be(code);
     }
 
     private static async Task<JsonElement> ProblemAsync(HttpResponseMessage response)

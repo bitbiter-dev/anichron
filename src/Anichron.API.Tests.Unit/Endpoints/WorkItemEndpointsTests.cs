@@ -118,11 +118,7 @@ public sealed class WorkItemEndpointsTests
 
         var result = await WorkItemEndpoints.ListAsync(null, null, page, pageSize, reader, Ct);
 
-        var problem = result.Result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails;
-        problem.Errors.Keys.Should().Equal(field);
-        problem.Errors[field].Should().Equal(code);
-        problem.Detail.Should().Be(message);
-        problem.Extensions.Should().ContainKey("code").WhoseValue.Should().Be(code);
+        ProblemAssertions.AssertInvalidField(result.Result, field, code, message);
         await reader.DidNotReceive().ListAsync(Arg.Any<WorkItemQuery>(), Arg.Any<CancellationToken>());
     }
 

@@ -55,12 +55,7 @@ public sealed class ProxySweepEndpointsTests
         => ProxySweepEndpoints.ListOrphansAsync(SweepId, outcome, pending, storageConfigId, page, pageSize, items, orphans, Ct);
 
     private static void ShouldBeInvalid(object result, string field, string code, string message)
-    {
-        var problem = result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails;
-        problem.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(KeyValuePair.Create(field, new[] { code }));
-        problem.Detail.Should().Be(message);
-        problem.Extensions.Should().ContainKey("code").WhoseValue.Should().Be(code);
-    }
+        => ProblemAssertions.AssertInvalidField(result, field, code, message);
 
     // ==========================================================================
     // RequestSweepAsync

@@ -16,6 +16,7 @@ public sealed class WorkItemEndpointsHttpTests
 {
     private static readonly Instant Start = Instant.FromUtc(2026, 10, 18, 9, 0);
     private static readonly Guid AdminId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+    private static readonly Guid UserId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
     private static readonly Guid ItemId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     private readonly IWorkItemReader reader = Substitute.For<IWorkItemReader>();
@@ -70,7 +71,7 @@ public sealed class WorkItemEndpointsHttpTests
         using var request = caller switch
         {
             "admin" => AuthenticatedTestApp.GetAsAdmin(path, AdminId),
-            "user" => AuthenticatedTestApp.Get(path, AdminId),
+            "user" => AuthenticatedTestApp.Get(path, UserId),
             _ => new HttpRequestMessage(HttpMethod.Get, path),
         };
 

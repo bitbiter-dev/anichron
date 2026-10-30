@@ -9,9 +9,8 @@ public static class BurstEndpoints
 {
     public static IEndpointRouteBuilder MapBurstEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup(ApiPaths.Bursts.Group).WithTags("Bursts");
+        var group = app.MapGroup(ApiPaths.Bursts.Group).WithTags("Bursts").RequireUser();
         group.MapGet(ApiPaths.Bursts.Members, GetMembersAsync)
-             .RequireUser()
              .Produces<IReadOnlyList<AssetDto>>()
              .Produces(StatusCodes.Status404NotFound);
         return app;
