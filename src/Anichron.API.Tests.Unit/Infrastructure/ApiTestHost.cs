@@ -8,9 +8,9 @@ namespace Anichron.API.Tests.Unit.Infrastructure;
 
 internal static class ApiTestHost
 {
-    public static WebApplicationBuilder CreateBuilder()
+    public static WebApplicationBuilder CreateBuilder(string? webRootPath = null)
     {
-        var builder = WebApplication.CreateSlimBuilder();
+        var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { WebRootPath = webRootPath });
         builder.Services.AddHealthChecks();
         builder.Services.AddSingleton(Substitute.For<IAuthService>());
         builder.Services.AddSingleton(Substitute.For<IAuthResponseMapper>());
