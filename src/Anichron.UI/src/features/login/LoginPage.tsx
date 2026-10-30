@@ -35,10 +35,10 @@ export function LoginPage() {
 function FormError({ error, retryIn }: { error: MessageKey | undefined; retryIn: number }) {
   const { t } = useTranslation();
   return (
-    <div role="alert">
-      {error && <p>{t(error)}</p>}
+    <>
+      <div role="alert">{error && <p>{t(error)}</p>}</div>
       {retryIn > 0 && <p>{t('login.retryIn', { count: retryIn })}</p>}
-    </div>
+    </>
   );
 }
 

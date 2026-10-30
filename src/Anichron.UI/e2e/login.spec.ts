@@ -43,6 +43,7 @@ test('a user signs in and lands on the signed-in page', async ({ page, request }
   await expect(page).toHaveURL('/');
   await expectAccessible(page);
 
+  expect(await page.evaluate(() => Reflect.get(window, 'cspViolations') as string[])).toEqual([]);
   await page.reload();
   await expect(page).toHaveURL('/login');
 });
@@ -79,13 +80,13 @@ test('a locked account counts down, then signs in', async ({ page, request }) =>
 
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Too many failed attempts. This account is locked for now.');
-  await expect(alert).toContainText(/You can try again in \d+ seconds?\./);
+  await expect(page.getByText(/You can try again in \d+ seconds?\./)).toBeVisible();
   const submit = page.getByRole('button', { name: 'Sign in' });
   await expect(submit).toBeDisabled();
   await expectAccessible(page);
 
   await expect(submit).toBeEnabled({ timeout: 10_000 });
-  await expect(alert).not.toContainText('You can try again');
+  await expect(page.getByText(/You can try again/)).toBeHidden();
   await submit.click();
 
   await expect(page.getByText(signedIn)).toBeVisible();
