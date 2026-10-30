@@ -16,7 +16,9 @@ public static class FlashbackEndpoints
     {
         var group = app.MapGroup(ApiPaths.Flashbacks.Group).WithTags("Flashbacks");
         group.MapGet(ApiPaths.Flashbacks.OnThisDay, GetOnThisDayAsync)
-             .RequireAuthorization();
+             .RequireUser()
+             .Produces<OnThisDayDto>()
+             .ProducesValidationProblem();
         return app;
     }
 

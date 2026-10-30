@@ -24,7 +24,8 @@ public static class ServiceCollectionExtensions
     {
         public IServiceCollection AddApiSurface(IConfiguration configuration)
             => services
-                .AddOpenApi()
+                .AddOpenApi(options => options.AddSchemaTransformer<ProblemCodeSchemaTransformer>())
+                .AddProblemDetails()
                 .AddDatabase(configuration)
                 .AddForwardedHeadersSupport(configuration)
                 .AddAuthServices(configuration)

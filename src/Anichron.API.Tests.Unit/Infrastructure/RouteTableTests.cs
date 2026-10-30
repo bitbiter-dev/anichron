@@ -8,7 +8,7 @@ namespace Anichron.API.Tests.Unit.Infrastructure;
 
 public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFixture<RouteTableTests.RouteTable>
 {
-    internal sealed record Route(string Method, string Pattern, bool Anonymous, string[] Policies, bool Authenticated, string? RateLimit, string[] Tags);
+    internal sealed record Route(string Method, string Pattern, bool Anonymous, string[] Policies, bool Authenticated, string? RateLimit, string[] Tags, int[] Statuses);
 
     public sealed class RouteTable
     {
@@ -32,7 +32,8 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
                         [.. endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).OfType<string>()],
                         endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(),
                         endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName,
-                        [.. endpoint.Metadata.GetOrderedMetadata<ITagsMetadata>().SelectMany(t => t.Tags)])))];
+                        [.. endpoint.Metadata.GetOrderedMetadata<ITagsMetadata>().SelectMany(t => t.Tags)],
+                        [.. endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(p => p.StatusCode)])))];
         }
     }
 
@@ -189,6 +190,16 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
     [Fact]
     public void Healthz_IsAnonymous()
         => Find("GET", "/api/v1/healthz").Anonymous.Should().BeTrue();
+
+    [Fact]
+    public void EveryRouteButHealthz_DeclaresAResponseOfItsOwn()
+    {
+        int[] crossCutting = [400, 401, 403, 415, 429];
+
+        Routes.Where(r => r.Pattern != "/api/v1/healthz" && r.Statuses.All(crossCutting.Contains))
+            .Select(r => $"{r.Method} {r.Pattern}")
+            .Should().BeEmpty();
+    }
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()

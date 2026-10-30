@@ -14,7 +14,7 @@ public static class WorkItemEndpoints
     public static IEndpointRouteBuilder MapWorkItemEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup(ApiPaths.WorkItems.Group).WithTags("Work items")
-                       .RequireAuthorization(AuthPolicies.Admin);
+                       .RequireAdmin();
         group.MapGet(string.Empty, ListAsync);
         group.MapGet(ApiPaths.WorkItems.Events, StreamEvents);
         group.MapGet(ApiPaths.WorkItems.ById, GetAsync);
@@ -33,9 +33,9 @@ public static class WorkItemEndpoints
         var number = page ?? 1;
         var size = pageSize ?? DefaultPageSize;
         if (size is < 1 or > MaxPageSize)
-            return Invalid(nameof(pageSize), $"pageSize must be from 1 to {MaxPageSize}.");
+            return ApiProblems.InvalidField(ErrorCodes.InvalidPageSize, nameof(pageSize), $"pageSize must be from 1 to {MaxPageSize}.");
         if (number < 1 || number > int.MaxValue / size)
-            return Invalid(nameof(page), "page is out of range.");
+            return ApiProblems.InvalidField(ErrorCodes.InvalidPage, nameof(page), "page is out of range.");
 
         var cursor = await reader.LatestUpdateAsync(ct) ?? NodaConstants.UnixEpoch;
         var found = await reader.ListAsync(new WorkItemQuery(status, kind, (number - 1) * size, size), ct);
@@ -84,7 +84,4 @@ public static class WorkItemEndpoints
         [FromServices] WorkItemEvents events,
         CancellationToken ct)
         => TypedResults.ServerSentEvents(events.StreamAsync(lastEventId, ct));
-
-    private static ValidationProblem Invalid(string field, string message)
-        => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 }

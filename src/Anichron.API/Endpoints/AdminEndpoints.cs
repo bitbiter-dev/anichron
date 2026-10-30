@@ -9,22 +9,42 @@ public static class AdminEndpoints
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup(ApiPaths.Users.Group).WithTags("Users")
-                       .RequireAuthorization(AuthPolicies.Admin);
+                       .RequireAdmin();
         group.MapPost(string.Empty, CreateUserAsync)
-             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+             .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces<AdminCreatedUserResponse>(StatusCodes.Status201Created)
+             .ProducesValidationProblem(StatusCodes.Status409Conflict)
+             .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
         group.MapPost(ApiPaths.Users.PasswordReset, ResetUserPasswordAsync)
-             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapGet(string.Empty, GetUsersAsync);
-        group.MapGet(ApiPaths.Users.ById, GetUserAsync);
+             .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces<AdminPasswordResetResponse>()
+             .Produces(StatusCodes.Status404NotFound);
+        group.MapGet(string.Empty, GetUsersAsync)
+             .Produces<List<AdminUserResponse>>();
+        group.MapGet(ApiPaths.Users.ById, GetUserAsync)
+             .Produces<AdminUserResponse>()
+             .Produces(StatusCodes.Status404NotFound);
         group.MapPatch(ApiPaths.Users.ById, PatchUserAsync)
-             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+             .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces<AdminUserResponse>()
+             .Produces(StatusCodes.Status404NotFound);
         group.MapDelete(ApiPaths.Users.ById, DeleteUserAsync)
-             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
-        group.MapGet(ApiPaths.Users.UserStorageConfigs, GetStorageConfigsAsync);
+             .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces(StatusCodes.Status204NoContent)
+             .Produces(StatusCodes.Status404NotFound);
+        group.MapGet(ApiPaths.Users.UserStorageConfigs, GetStorageConfigsAsync)
+             .Produces<List<AdminStorageConfigResponse>>()
+             .Produces(StatusCodes.Status404NotFound);
         group.MapPost(ApiPaths.Users.UserStorageConfigs, CreateStorageConfigAsync)
-             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+             .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces<AdminStorageConfigResponse>(StatusCodes.Status201Created)
+             .Produces(StatusCodes.Status404NotFound)
+             .ProducesValidationProblem(StatusCodes.Status409Conflict)
+             .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
         group.MapDelete(ApiPaths.Users.UserStorageConfigById, DeleteStorageConfigAsync)
-             .RequireRateLimiting(AuthRateLimitPolicies.Sensitive);
+             .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
+             .Produces(StatusCodes.Status204NoContent)
+             .Produces(StatusCodes.Status404NotFound);
         return app;
     }
 

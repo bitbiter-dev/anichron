@@ -58,6 +58,27 @@ public sealed class WorkItemEndpointsHttpTests
         item.GetProperty("result").GetProperty("found").GetInt32().Should().Be(8);
     }
 
+    [Theory]
+    [InlineData("/api/v1/admin/work-items?status=Sleeping", "admin", 400)]
+    [InlineData("/api/v1/admin/work-items", "anonymous", 401)]
+    [InlineData("/api/v1/admin/work-items", "user", 403)]
+    [InlineData("/api/v1/admin/work-items/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "admin", 404)]
+    public async Task AnErrorWithoutABody_IsAProblemAsync(string path, string caller, int status)
+    {
+        await using var app = await StartAsync();
+        using var client = app.Client;
+        using var request = caller switch
+        {
+            "admin" => AuthenticatedTestApp.GetAsAdmin(path, AdminId),
+            "user" => AuthenticatedTestApp.Get(path, AdminId),
+            _ => new HttpRequestMessage(HttpMethod.Get, path),
+        };
+
+        using var response = await client.SendAsync(request, Ct);
+
+        await ProblemAssertions.AssertStatusProblemAsync(response, status);
+    }
+
     [Fact]
     public async Task List_UnknownStatus_IsABadRequestAsync()
     {

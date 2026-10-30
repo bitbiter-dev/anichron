@@ -11,7 +11,9 @@ public static class BurstEndpoints
     {
         var group = app.MapGroup(ApiPaths.Bursts.Group).WithTags("Bursts");
         group.MapGet(ApiPaths.Bursts.Members, GetMembersAsync)
-             .RequireAuthorization();
+             .RequireUser()
+             .Produces<IReadOnlyList<AssetDto>>()
+             .Produces(StatusCodes.Status404NotFound);
         return app;
     }
 

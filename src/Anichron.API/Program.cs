@@ -11,6 +11,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
 app.UseForwardedHeaders();
+app.UseStatusCodePages();
 app.UseHttpsRedirection();
 app.UseCors();
 app.UseRateLimiter();

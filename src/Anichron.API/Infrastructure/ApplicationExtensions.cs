@@ -15,6 +15,7 @@ public static class ApplicationExtensions
             }).AllowAnonymous();
 
             var api = app.MapGroup(ApiPaths.Base);
+            ((IEndpointConventionBuilder)api).Finally(EndpointResponses.DescribeErrorsAsProblems);
             api.MapAuthEndpoints();
             api.MapUserEndpoints();
             api.MapAdminEndpoints();

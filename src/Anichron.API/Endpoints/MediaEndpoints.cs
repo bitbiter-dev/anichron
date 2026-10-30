@@ -16,10 +16,19 @@ public static class MediaEndpoints
     public static IEndpointRouteBuilder MapMediaEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup(ApiPaths.Assets.Group).WithTags("Media");
+        var contentTypes = ProxyKinds.All.Select(kind => kind.ContentType).Distinct().ToArray();
         group.MapGet(ApiPaths.Assets.Proxy, GetProxyAsync)
-             .RequireAuthorization();
+             .RequireUser()
+             .Produces<Stream>(StatusCodes.Status200OK, contentType: contentTypes[0], additionalContentTypes: contentTypes[1..])
+             .Produces<Stream>(StatusCodes.Status206PartialContent, contentType: contentTypes[0], additionalContentTypes: contentTypes[1..])
+             .Produces(StatusCodes.Status304NotModified)
+             .Produces(StatusCodes.Status404NotFound)
+             .Produces(StatusCodes.Status412PreconditionFailed)
+             .ProducesWithoutBody(StatusCodes.Status416RangeNotSatisfiable);
         group.MapPatch(ApiPaths.Assets.Interaction, PatchInteractionAsync)
-             .RequireAuthorization();
+             .RequireUser()
+             .Produces<AssetInteractionDto>()
+             .Produces(StatusCodes.Status404NotFound);
         return app;
     }
 

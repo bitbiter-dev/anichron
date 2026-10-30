@@ -24,6 +24,13 @@ internal static class ProblemAssertions
         errors[0].Value.EnumerateArray().Select(e => e.GetString()).Should().Equal(code);
     }
 
+    public static async Task AssertStatusProblemAsync(HttpResponseMessage response, int status)
+    {
+        ((int)response.StatusCode).Should().Be(status);
+        var problem = await ProblemAsync(response);
+        problem.GetProperty("status").GetInt32().Should().Be(status);
+    }
+
     private static async Task<JsonElement> ProblemAsync(HttpResponseMessage response)
     {
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
