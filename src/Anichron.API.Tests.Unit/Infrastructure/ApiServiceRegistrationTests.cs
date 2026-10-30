@@ -314,6 +314,12 @@ public sealed class ApiServiceRegistrationTests
             .Should().Throw<OptionsValidationException>().Which.Failures.Should().Equal(failure);
 
     [Fact]
+    public void JwtSettingsValidator_CompleteSettings_Succeeds()
+        => new JwtSettingsValidator()
+            .Validate(null, new JwtSettings { Secret = ValidSecret, Issuer = "iss", Audience = "aud" })
+            .Succeeded.Should().BeTrue();
+
+    [Fact]
     public void AddAuthServices_SecretOneByteShortOfMinimum_FailsAtStart()
         => StartAuthServices(new() { ["Jwt:Secret"] = ValidSecret[1..] })
             .Should().Throw<OptionsValidationException>().Which.Failures.Should().Equal("Jwt:Secret must be at least 32 bytes.");
