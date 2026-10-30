@@ -60,8 +60,8 @@
     {
       "name": "ui-test",
       "group": "pre-push",
-      "command": "pnpm",
-      "args": ["--dir", "src/Anichron.UI", "test"]
+      "command": "bash",
+      "args": ["scripts/ui-pre-push.sh"]
     }
   ]
 }

@@ -156,6 +156,7 @@ jobs:
         run: |
           scripts/ui-mutation-changed.test.sh
           scripts/ui-mutation-guard.test.sh
+          scripts/ui-pre-push.test.sh
 
       - name: Mutation setup matches its rules
         working-directory: .

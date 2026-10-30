@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 dotnet tool restore
 dotnet husky install
 
-# The UI: Node from src/Anichron.UI/.nvmrc (e.g. `fnm use`), pnpm installed on its own (Node 26 has no corepack)
+# The UI: only pnpm is needed (Node 26 has no corepack); pnpm downloads the pinned Node itself (devEngines.runtime)
 pnpm --dir src/Anichron.UI install
 ```
 
@@ -93,7 +93,7 @@ Mutants that flip between runs come from `static readonly` initialisers, EF's ca
 
 ## The UI (`src/Anichron.UI`)
 
-Commands are the `package.json` scripts, run from `src/Anichron.UI` (`pnpm dev`, `typecheck`, `lint`, `format`, `depcruise`, `test`, `build`, `size`, `mutate`). `pnpm dev` proxies `/api` to the API on `http://localhost:5207`. The hooks run `format`, `lint`, `typecheck` and `depcruise` before a commit that stages a UI file, and `test` before every push; CI's `UI` job runs all of them plus the scoped mutation run and the bundle budget (150 kB gzip initial JS, 15 kB CSS in `.size-limit.json`; a PR that raises one says why).
+Commands are the `package.json` scripts, run from `src/Anichron.UI` (`pnpm dev`, `typecheck`, `lint`, `format`, `depcruise`, `test`, `build`, `size`, `mutate`). `pnpm dev` proxies `/api` to the API on `http://localhost:5207`. The hooks run `format`, `lint`, `typecheck` and `depcruise` before a commit that stages a UI file, and `scripts/ui-pre-push.sh` before a push (a frozen install, then `test`, when the branch changes the UI); CI's `UI` job runs all of them plus the scoped mutation run and the bundle budget (150 kB gzip initial JS, 15 kB CSS in `.size-limit.json`; a PR that raises one says why).
 
 **Layout.** `src/app/` (entry, providers, the code-based route tree in `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, and `src/test/` for test support. dependency-cruiser (`.dependency-cruiser.cjs`) fails the build when a feature imports another feature, when `shared/` or `api/` import `features/` or `app/`, when anything but `app/` imports a feature, on an import cycle, when production code imports test code, and when a `.ts` file imports a `.tsx` file. Only `src/api/` touches the network: ESLint's `no-restricted-globals` forbids `fetch`, `EventSource`, `XMLHttpRequest` and `WebSocket` elsewhere, since dependency-cruiser cannot see globals.
 
