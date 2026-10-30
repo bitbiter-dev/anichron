@@ -13,8 +13,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
 app.UseForwardedHeaders();
-app.UseExceptionHandler();
-app.UseStatusCodePages();
+app.UseApiProblems();
 app.UseHttpsRedirection();
 app.UseCors();
 app.UseUi();

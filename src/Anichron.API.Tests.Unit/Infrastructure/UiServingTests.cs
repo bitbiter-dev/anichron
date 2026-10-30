@@ -1,6 +1,7 @@
 using Anichron.API.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Text.Json;
 
@@ -14,7 +15,9 @@ public sealed class UiServingTests
     {
         var builder = ApiTestHost.CreateBuilder(webRoot);
         builder.WebHost.UseTestServer();
+        builder.Services.AddProblemDetails();
         var app = builder.Build();
+        app.UseApiProblems();
         app.UseUi();
         app.MapApiEndpoints();
         await app.StartAsync(TestContext.Current.CancellationToken);
