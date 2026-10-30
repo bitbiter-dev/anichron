@@ -5,7 +5,7 @@ using Anichron.API.Tests.Unit.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
-using System.Text.Json;
+using static Anichron.API.Tests.Unit.Endpoints.ProblemAssertions;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
@@ -56,33 +56,6 @@ public sealed class AuthErrorContractTests
 
     private static Task<HttpResponseMessage> PostAsync(AuthenticatedTestApp app, string path, object body)
         => app.Client.PostAsJsonAsync(path, body, TestContext.Current.CancellationToken);
-
-    private static async Task<JsonElement> AssertProblemAsync(
-        HttpResponseMessage response, int status, string code, string detail)
-    {
-        ((int)response.StatusCode).Should().Be(status);
-        var problem = await ProblemAsync(response);
-        problem.GetProperty("code").GetString().Should().Be(code);
-        problem.GetProperty("status").GetInt32().Should().Be(status);
-        problem.GetProperty("detail").GetString().Should().Be(detail);
-        return problem;
-    }
-
-    private static async Task AssertFieldProblemAsync(
-        HttpResponseMessage response, int status, string code, string field, string detail)
-    {
-        var problem = await AssertProblemAsync(response, status, code, detail);
-        var errors = problem.GetProperty("errors").EnumerateObject().ToList();
-        errors.Should().ContainSingle().Which.Name.Should().Be(field);
-        errors[0].Value.EnumerateArray().Select(e => e.GetString()).Should().Equal(code);
-    }
-
-    private static async Task<JsonElement> ProblemAsync(HttpResponseMessage response)
-    {
-        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
-        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        return body.RootElement.Clone();
-    }
 
     [Theory]
     [InlineData(LoginPath)]

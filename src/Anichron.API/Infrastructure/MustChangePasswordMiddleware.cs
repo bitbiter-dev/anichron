@@ -1,3 +1,4 @@
+using Anichron.API.Endpoints;
 using Anichron.API.Security;
 
 namespace Anichron.API.Infrastructure;
@@ -17,9 +18,9 @@ internal sealed class MustChangePasswordMiddleware(RequestDelegate next)
             && context.User.HasClaim(AppClaimTypes.MustChangePassword, "true")
             && !IsExemptRequest(context.Request))
         {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsJsonAsync(
-                new { error = AuthMessages.MustChangePassword }, context.RequestAborted);
+            await ApiProblems.Problem(
+                    StatusCodes.Status403Forbidden, ErrorCodes.PasswordChangeRequired, AuthMessages.MustChangePassword)
+                .ExecuteAsync(context);
             return;
         }
 

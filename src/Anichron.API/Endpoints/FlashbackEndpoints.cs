@@ -37,7 +37,7 @@ public static class FlashbackEndpoints
         else if (LocalDatePattern.Iso.Parse(date) is { Success: true } parsed)
             day = parsed.Value;
         else
-            return Results.Json(new { error = InvalidDateMessage }, statusCode: StatusCodes.Status400BadRequest);
+            return ApiProblems.FieldProblem(StatusCodes.Status400BadRequest, ErrorCodes.InvalidDate, nameof(date), InvalidDateMessage);
 
         var selection = new OnThisDay(day);
         var views = await reader.ReadAsync(userId, selection, ct);

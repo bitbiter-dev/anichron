@@ -15,8 +15,8 @@ internal static class RateLimiting
     internal static Task RejectAsync(HttpContext httpContext, TimeSpan retryAfter)
     {
         httpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString(InvariantCulture);
-        return AuthProblems.Problem(
-                StatusCodes.Status429TooManyRequests, AuthErrorCodes.RateLimited, AuthMessages.TooManyRequests)
+        return ApiProblems.Problem(
+                StatusCodes.Status429TooManyRequests, ErrorCodes.RateLimited, AuthMessages.TooManyRequests)
             .ExecuteAsync(httpContext);
     }
 }
