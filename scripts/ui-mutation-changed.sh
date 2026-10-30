@@ -6,7 +6,8 @@
 # untracked and deleted.
 #   - No UI file changed: nothing to mutate, exit 0.
 #   - Every changed UI file is in the mutation scope (stryker.config.json's
-#     mutate list): only those files are mutated.
+#     mutate list): only those files are mutated, and none of them having a
+#     mutant (types only) is nothing to mutate, exit 0.
 #   - Anything else changed (a test, a view, a catalog, test support, config,
 #     dependencies, a deleted file): the whole scope is mutated.
 # --all mutates the whole scope regardless. --print prints the Stryker
@@ -24,7 +25,7 @@ while [ "$#" -gt 0 ]; do
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --all) all=true; shift ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -75,4 +76,14 @@ if $print; then
 fi
 
 cd "$ui"
-pnpm exec stryker run "${args[@]+"${args[@]}"}"
+log=$(mktemp "${TMPDIR:-/tmp}/ui-mutation-changed.XXXXXXXX")
+trap 'rm -f "$log"' EXIT
+status=0
+pnpm exec stryker run "${args[@]+"${args[@]}"}" 2>&1 | tee "$log" || status=$?
+
+if [ "$status" -ne 0 ] && [ "${#args[@]}" -gt 0 ] \
+  && grep -q 'Instrumented [0-9]* source file(s) with 0 mutant(s)' "$log"; then
+  echo 'no mutants in the changed files; nothing to mutate'
+  exit 0
+fi
+exit "$status"

@@ -92,6 +92,45 @@ git -C "$repo" rm -q src/Anichron.UI/src/shared/b.ts
 check 'a deleted logic file mutates the whole scope' "$repo" \
   'mutating the whole UI scope; changed outside it: src/shared/b.ts'
 
+# A fake pnpm that reports what a Stryker run over $1 mutants prints, and exits $2.
+fake_pnpm() {
+  mkdir -p "$work/bin"
+  cat > "$work/bin/pnpm" <<SH
+#!/usr/bin/env bash
+echo 'INFO Instrumenter Instrumented 1 source file(s) with $1 mutant(s)'
+[ "$1" -eq 0 ] && echo 'ERROR Stryker No tests were executed. Stryker will exit prematurely.'
+exit $2
+SH
+  chmod +x "$work/bin/pnpm"
+}
+
+run_check() {
+  local label="$1" repo="$2" want_status="$3" needle="$4" out status
+  out=$(cd "$repo" && PATH="$work/bin:$PATH" "$script" --base base 2>&1); status=$?
+  if [ "$status" -ne "$want_status" ]; then
+    fail "$label" "exit $want_status" "exit $status with: $out"
+  elif [[ "$out" != *"$needle"* ]]; then
+    fail "$label" "output containing '$needle'" "$out"
+  else
+    pass "$label"
+  fi
+}
+
+repo=$(fixture empty)
+echo 'export type A = 1;' > "$repo/src/Anichron.UI/src/shared/a.ts"
+fake_pnpm 0 1
+run_check 'changed files with no mutants mutate nothing' "$repo" 0 'no mutants in the changed files; nothing to mutate'
+
+repo=$(fixture failing)
+echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/shared/a.ts"
+fake_pnpm 3 1
+run_check 'a run below the threshold still fails' "$repo" 1 'with 3 mutant(s)'
+
+repo=$(fixture whole-empty)
+echo 'export {}; // more' > "$repo/src/Anichron.UI/src/shared/a.test.ts"
+fake_pnpm 0 1
+run_check 'a whole-scope run with no mutants still fails' "$repo" 1 'No tests were executed'
+
 repo=$(fixture all)
 out=$(cd "$repo" && "$script" --all --print 2>&1)
 if [ -z "$out" ]; then pass '--all mutates the whole scope with no changes'; else fail '--all mutates the whole scope with no changes' '(no arguments)' "$out"; fi
