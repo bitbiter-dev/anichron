@@ -51,3 +51,14 @@ test('the placeholder loads with its headers and requests nothing but its own or
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
 });
+
+test('an unknown API path is a JSON 404 with the API headers, never the app', async ({
+  request,
+}) => {
+  const response = await request.get('/api/v1/nothing-here');
+
+  expect(response.status()).toBe(404);
+  expect(response.headers()['content-type']).toContain('application/problem+json');
+  expect(response.headers()['content-security-policy']).toBe("frame-ancestors 'none'");
+  expect(response.headers()['x-content-type-options']).toBe('nosniff');
+});

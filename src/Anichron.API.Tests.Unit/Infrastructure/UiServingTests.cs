@@ -8,7 +8,7 @@ namespace Anichron.API.Tests.Unit.Infrastructure;
 
 public sealed class UiServingTests
 {
-    private static readonly string TestWebRoot = Path.Combine(AppContext.BaseDirectory, "Infrastructure", "TestWebRoot");
+    private static string TestWebRoot => Path.Combine(AppContext.BaseDirectory, "Infrastructure", "TestWebRoot");
 
     private static async Task<WebApplication> StartAsync(string webRoot)
     {

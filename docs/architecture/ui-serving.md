@@ -28,7 +28,7 @@ middleware that runs after routing, only for a request no endpoint matched:
 
 The fallbacks are middleware rather than `MapFallback` endpoints on purpose: a catch-all endpoint
 matches every method, so routing would pick it instead of answering `405` for a known route.
-`/api` is a path segment (`StartsWithSegments`), so `/apiary` is an app path. The web root is read
+`/api` is a path segment (`StartsWithSegments`), so `/apiary` is an app path. A dot in the last segment counts as an extension (`Path.HasExtension`), so a client route never ends in one (`/people/j.doe` would be a `404`). The web root is read
 through ASP.NET Core's file provider, never `IFileSystem` (ADR 0007, `api-reads-no-file-system`).
 
 ## Security headers
