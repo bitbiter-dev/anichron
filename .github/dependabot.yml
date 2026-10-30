@@ -45,6 +45,34 @@ updates:
           - "StyleCop.Analyzers*"
           - "Microsoft.CodeAnalysis.*Analyzers"
 
+  - package-ecosystem: npm
+    directory: /src/Anichron.UI
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Lint tooling apart from the rest, for the reason the nuget analyzers are: a lint bump
+      # fails the UI job with new findings against unchanged code, a runtime bump by changing an API.
+      ui-lint:
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "eslint-plugin-*"
+          - "typescript-eslint"
+          - "prettier"
+          - "dependency-cruiser"
+      npm:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "eslint-plugin-*"
+          - "typescript-eslint"
+          - "prettier"
+          - "dependency-cruiser"
+
   - package-ecosystem: docker
     directory: /src/Anichron.API
     schedule:

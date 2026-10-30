@@ -120,6 +120,29 @@ agent works — it diffs the main checkout against the target instead. Measured 
 untested method: it listed the main checkout's changed files, tested 0 mutants, printed "unable to
 calculate a mutation score" and **exited `0`**. `--with-baseline` builds on the same diff.
 
+## The UI
+
+The UI (`src/Anichron.UI`) is mutated by StrykerJS with the Vitest runner, configured in
+`src/Anichron.UI/stryker.config.json` at the same 100 thresholds. Its scope is ADR 0014, its
+guard `scripts/ui-mutation-guard.sh`, and its scoped run `scripts/ui-mutation-changed.sh`: only
+the changed files when every changed UI file is in scope, otherwise the whole scope (a changed
+test, view or config can stop a mutant anywhere from being killed, and the scope is small). CI's
+`UI` job runs it against the pull request's base, and with `--all` on master.
+
+**The shared-`TMPDIR` hazard does not apply** (checked on StrykerJS 10.1.1). Its sandboxes are
+directories under `.stryker-tmp` in the UI project itself, so each worktree has its own, and the
+Vitest runner hands the active mutant to the tests in process (Vitest's `provide`/`inject`), not
+through a file. Its per-worker setup file is written inside the sandbox. Two runs at once
+therefore cannot read each other's mutant, and the scoped run sets no private `TMPDIR`.
+
+**The gate was proven both ways** when it was set up: one survivor (the since-removed
+`initAsync: false` in `createI18n`) failed the run at 91.67%, and the seam-2 test,
+which sits inside a `describe`, killed the route tree's mutants. The latter matters because of a
+StrykerJS bug, closed a day before 10.1.1: no tests ran per mutant for tests inside `describe`
+on Vitest 5 (stryker-js#6265). Check a runner upgrade the same way.
+Run Stryker at its default log level: `--logLevel debug` crashes the Vitest 5
+runner (stryker-js#6272).
+
 ## Reading the result
 
 ```

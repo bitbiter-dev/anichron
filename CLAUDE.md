@@ -8,6 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install local tools (Husky) and wire up the pre-commit hook
 dotnet tool restore
 dotnet husky install
+
+# The UI: Node from src/Anichron.UI/.nvmrc (e.g. `fnm use`), pnpm installed on its own (Node 26 has no corepack)
+pnpm --dir src/Anichron.UI install
 ```
 
 ## Build & Run
@@ -88,6 +91,18 @@ Done when the scoped run reports `100.00%` (or nothing to mutate) and every new 
 
 Mutants that flip between runs come from `static readonly` initialisers, EF's cached model, and EF's compiled-query cache (a killing assertion that does not depend on the soft-delete filter reads through `IgnoreQueryFilters()`, #312): build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)` (`AnichronDbContexts.NpgsqlModel()`, or `InMemory(freshModel: true)`). An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
 
+## The UI (`src/Anichron.UI`)
+
+Commands are the `package.json` scripts, run from `src/Anichron.UI` (`pnpm dev`, `typecheck`, `lint`, `format`, `depcruise`, `test`, `build`, `size`, `mutate`). `pnpm dev` proxies `/api` to the API on `http://localhost:5207`. The hooks run `format`, `lint`, `typecheck` and `depcruise` before a commit that stages a UI file, and `test` before every push; CI's `UI` job runs all of them plus the scoped mutation run and the bundle budget (150 kB gzip initial JS, 15 kB CSS in `.size-limit.json`; a PR that raises one says why).
+
+**Layout.** `src/app/` (entry, providers, the code-based route tree in `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, and `src/test/` for test support. dependency-cruiser (`.dependency-cruiser.cjs`) fails the build when a feature imports another feature, when `shared/` or `api/` import `features/` or `app/`, when anything but `app/` imports a feature, on an import cycle, when production code imports test code, and when a `.ts` file imports a `.tsx` file. Only `src/api/` touches the network: ESLint's `no-restricted-globals` forbids `fetch`, `EventSource`, `XMLHttpRequest` and `WebSocket` elsewhere, since dependency-cruiser cannot see globals.
+
+**Logic in `.ts`, views in `.tsx`.** Branching, computed values, timers and custom hooks without JSX go in `.ts`. ESLint caps `.tsx` at `complexity` 4 and `max-depth` 2, so a view that grows a branch moves it into a hook. Every user-facing string comes from the English catalog `src/i18n/locales/en.json` through `t(...)` (keys are typed from it; `react/jsx-no-literals` fails on a literal in JSX).
+
+**Tests.** Seam 2 is the default: `renderApp(path)` (`src/test/render-app.tsx`) renders the whole app through its real route tree, MSW (`src/test/server.ts`) is the network boundary and fails on any unhandled request, and assertions are on what the user sees, with `expect(await axeResults(container)).toHaveNoViolations()`. Timers are always fake (`src/test/setup.ts`). Test a `.ts` module directly (seam 3) only for a mutant seam 2 cannot reasonably kill.
+
+**Mutation.** StrykerJS mutates `src/**/*.ts` plus `src/app/router.tsx` at threshold 100; views, tests, declarations, catalogs and test support are out (ADR 0014). Before finishing a UI change, run `scripts/ui-mutation-changed.sh` and work through every survivor with the same rules as the backend above: a test first, a rewrite for an equivalent mutant, a suppression only with an ADR 0014 row. StrykerJS needs no private `TMPDIR`. `scripts/ui-mutation-guard.sh` (a CI step) keeps the config at testRunner `vitest`, thresholds 100, no incremental mode, `--mutate` only in `ui-mutation-changed.sh`, and every mutate entry and directive named in ADR 0014.
+
 ## Architecture
 
 Four projects with strict separation of concerns:
@@ -106,7 +121,7 @@ Four projects with strict separation of concerns:
 - **Proxy orphans** (`ProxyOrphans`, a proxy sweep's report) are written only by the Worker; outside it only `EfProxyOrphanReader` depends on the entity (`only-worker-writes-proxy-orphans`). See `docs/architecture/work-queue.md`, "Proxy sweeps".
 - Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
-A planned `Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is not yet in the solution: a React + TypeScript single-page app built with Vite and served by the API on the same origin (ADR 0012). The work is planned in parent issues #344–#349.
+`Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is a React + TypeScript single-page app built with Vite, to be served by the API on the same origin (ADR 0012). It is a pnpm project, not part of the .NET solution; so far it has a translated placeholder page. The work is planned in parent issues #344–#349; see "The UI" below.
 
 ### Storage Layout
 
