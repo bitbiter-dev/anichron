@@ -107,20 +107,18 @@ public sealed class WorkItemEndpointsTests
     }
 
     [Theory]
-    [InlineData(0, 50, "page", "page is out of range.")]
-    [InlineData(-1, 50, "page", "page is out of range.")]
-    [InlineData(10_737_419, 200, "page", "page is out of range.")]
-    [InlineData(1, 0, "pageSize", "pageSize must be from 1 to 200.")]
-    [InlineData(1, 201, "pageSize", "pageSize must be from 1 to 200.")]
-    public async Task ListAsync_PagingOutOfRange_IsAValidationProblemAsync(int page, int pageSize, string field, string message)
+    [InlineData(0, 50, "page", "invalid_page", "page is out of range.")]
+    [InlineData(-1, 50, "page", "invalid_page", "page is out of range.")]
+    [InlineData(10_737_419, 200, "page", "invalid_page", "page is out of range.")]
+    [InlineData(1, 0, "pageSize", "invalid_page_size", "pageSize must be from 1 to 200.")]
+    [InlineData(1, 201, "pageSize", "invalid_page_size", "pageSize must be from 1 to 200.")]
+    public async Task ListAsync_PagingOutOfRange_IsAValidationProblemAsync(int page, int pageSize, string field, string code, string message)
     {
         Pages();
 
         var result = await WorkItemEndpoints.ListAsync(null, null, page, pageSize, reader, Ct);
 
-        var errors = result.Result.Should().BeOfType<ValidationProblem>().Which.ProblemDetails.Errors;
-        errors.Keys.Should().Equal(field);
-        errors[field].Should().Equal(message);
+        ProblemAssertions.AssertInvalidField(result.Result, field, code, message);
         await reader.DidNotReceive().ListAsync(Arg.Any<WorkItemQuery>(), Arg.Any<CancellationToken>());
     }
 

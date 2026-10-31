@@ -6,12 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && tsc -p tsconfig.e2e.json",
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
     "test": "vitest run",
+    "e2e": "playwright test",
     "size": "size-limit",
     "mutate": "stryker run"
   },
@@ -35,15 +36,20 @@
     "last 2 Edge versions"
   ],
   "dependencies": {
+    "@hookform/resolvers": "6.0.2",
     "@tanstack/react-router": "1.170.46",
     "i18next": "26.5.11",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "react-i18next": "17.1.9"
+    "react-hook-form": "7.91.0",
+    "react-i18next": "17.1.9",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@babel/core": "8.0.9",
     "@eslint/js": "9.39.5",
+    "@playwright/test": "1.64.1",
     "@rolldown/plugin-babel": "0.2.4",
     "@size-limit/file": "14.3.0",
     "@stryker-mutator/core": "10.1.1",

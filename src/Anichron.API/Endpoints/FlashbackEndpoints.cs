@@ -14,9 +14,10 @@ public static class FlashbackEndpoints
 
     public static IEndpointRouteBuilder MapFlashbackEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup(ApiPaths.Flashbacks.Group).WithTags("Flashbacks");
+        var group = app.MapGroup(ApiPaths.Flashbacks.Group).WithTags("Flashbacks").RequireUser();
         group.MapGet(ApiPaths.Flashbacks.OnThisDay, GetOnThisDayAsync)
-             .RequireAuthorization();
+             .Produces<OnThisDayDto>()
+             .ProducesValidationProblem();
         return app;
     }
 

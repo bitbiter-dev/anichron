@@ -1,0 +1,51 @@
+# ============================================================
+# Anichron — end-to-end runs (src/Anichron.UI/e2e)
+#
+# The API image built from this checkout, and PostgreSQL on
+# tmpfs so every run starts from an empty database. No Worker
+# runs until a flow needs media.
+#
+#   docker build -f src/Anichron.API/Dockerfile -t anichron-api:e2e src
+#   docker compose -f src/docker-compose.e2e.yml up --detach --wait
+#   pnpm --dir src/Anichron.UI e2e
+#   docker compose -f src/docker-compose.e2e.yml down
+# ============================================================
+
+services:
+  anichron-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: anichron_e2e
+      POSTGRES_PASSWORD: anichron_e2e
+      POSTGRES_DB: anichron
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anichron_e2e -d anichron"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  anichron-api:
+    image: ${E2E_API_IMAGE:-anichron-api:e2e}
+    ports:
+      - "${E2E_PORT:-8080}:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_e2e
+      - POSTGRES_CONNECTION__PASSWORD=anichron_e2e
+      - Jwt__Secret=end-to-end-only-secret-at-least-32-bytes-long
+      - Jwt__Issuer=anichron
+      - Jwt__Audience=anichron
+      - RateLimit__SensitivePermitLimit=10000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      anichron-db:
+        condition: service_healthy

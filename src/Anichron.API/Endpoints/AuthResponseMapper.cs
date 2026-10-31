@@ -48,7 +48,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         }
 
         SetRefreshCookie(http, result.Value!.RefreshToken);
-        return Results.Ok(new { result.Value.AccessToken });
+        return Results.Ok(new TokenResponse(result.Value.AccessToken));
     }
 
     public IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie)
@@ -211,10 +211,10 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     private IResult BuildTokenResponse(AuthTokens tokens, HttpContext http, bool setCookie)
     {
         if (!setCookie)
-            return Results.Ok(new { tokens.AccessToken, tokens.RefreshToken });
+            return Results.Ok(new TokenResponse(tokens.AccessToken, tokens.RefreshToken));
 
         SetRefreshCookie(http, tokens.RefreshToken);
-        return Results.Ok(new { tokens.AccessToken });
+        return Results.Ok(new TokenResponse(tokens.AccessToken));
     }
 
     private static IResult LockedResult(HttpContext http, int secondsRemaining)

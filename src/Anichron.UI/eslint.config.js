@@ -15,7 +15,14 @@ const onlyApi = (name) => ({
 });
 
 export default defineConfig([
-  globalIgnores(['dist', 'coverage', 'reports', '.stryker-tmp']),
+  globalIgnores([
+    'dist',
+    'coverage',
+    'reports',
+    '.stryker-tmp',
+    'playwright-report',
+    'test-results',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [js.configs.recommended, tseslint.configs.strictTypeChecked],
@@ -26,6 +33,13 @@ export default defineConfig([
       '@typescript-eslint/no-empty-object-type': [
         'error',
         { allowInterfaces: 'with-single-extends' },
+      ],
+      '@typescript-eslint/only-throw-error': [
+        'error',
+        {
+          allow: [{ from: 'package', package: '@tanstack/router-core', name: 'Redirect' }],
+          allowRethrowing: true,
+        },
       ],
     },
   },

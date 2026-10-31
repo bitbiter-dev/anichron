@@ -9,6 +9,7 @@ using Anichron.Infrastructure.Configuration;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -24,13 +25,14 @@ public static class ServiceCollectionExtensions
     {
         public IServiceCollection AddApiSurface(IConfiguration configuration)
             => services
-                .AddOpenApi()
+                .AddOpenApi(options => options.AddSchemaTransformer<ProblemCodeSchemaTransformer>())
+                .AddProblemDetails()
                 .AddDatabase(configuration)
                 .AddForwardedHeadersSupport(configuration)
                 .AddAuthServices(configuration)
                 .AddWorkItemServices()
                 .AddAuthorizationPolicies()
-                .AddRateLimiting()
+                .AddRateLimiting(configuration)
                 .AddCorsPolicy(configuration)
                 .AddApiHealthChecks();
 
@@ -61,12 +63,16 @@ public static class ServiceCollectionExtensions
             });
         }
 
-        public IServiceCollection AddRateLimiting()
+        public IServiceCollection AddRateLimiting(IConfiguration configuration)
         {
-            return services.AddRateLimiter(options =>
+            services.AddOptions<RateLimitSettings>()
+                .Bind(configuration.GetSection("RateLimit"))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+            services.AddOptions<RateLimiterOptions>().Configure<IOptions<RateLimitSettings>>((options, settings) =>
             {
                 options.AddPolicy(AuthRateLimitPolicies.Sensitive, new SlidingWindowPolicy(
-                    AppDefaults.RateLimit.Sensitive.PermitLimit,
+                    settings.Value.SensitivePermitLimit,
                     TimeSpan.FromSeconds(AppDefaults.RateLimit.Sensitive.WindowSeconds),
                     AppDefaults.RateLimit.Sensitive.Segments));
 
@@ -76,6 +82,8 @@ public static class ServiceCollectionExtensions
                     TimeSpan.FromMinutes(AppDefaults.RateLimit.Refresh.WindowMinutes),
                     AppDefaults.RateLimit.Refresh.Segments));
             });
+
+            return services.AddRateLimiter(_ => { });
         }
 
         public IServiceCollection AddWorkItemServices()
