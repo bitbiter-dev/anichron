@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Net;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
@@ -22,7 +23,7 @@ public sealed class ForwardedHeadersRateLimitTests
         builder.Configuration.AddInMemoryCollection(settings);
         builder.Services
             .AddForwardedHeadersSupport(builder.Configuration)
-            .AddRateLimiting();
+            .AddRateLimiting(builder.Configuration);
 
         var app = builder.Build();
         app.Use((context, next) =>
@@ -111,6 +112,33 @@ public sealed class ForwardedHeadersRateLimitTests
         statuses.Should().Equal(
             HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK,
             HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task SensitivePolicy_ConfiguredPermitLimit_AllowsThatManyThenRejectsAsync()
+    {
+        await using var app = await StartAsync(new() { ["RateLimit:SensitivePermitLimit"] = "3" });
+        using var client = app.GetTestClient();
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 4; i++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/probe");
+            request.Headers.Add(PeerHeader, UntrustedPeer);
+            using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.Should().Equal(HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    public async Task SensitivePolicy_PermitLimitBelowOne_FailsAtStartupAsync(string limit)
+    {
+        var start = () => StartAsync(new() { ["RateLimit:SensitivePermitLimit"] = limit });
+
+        await start.Should().ThrowAsync<OptionsValidationException>();
     }
 
     [Fact]

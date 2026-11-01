@@ -5,7 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## First-time setup
 
 ```bash
-# Install local tools (Husky) and wire up the pre-commit hook
+# Git LFS stores every binary file (.gitattributes). Set up its filters once per machine;
+# --skip-repo leaves the hooks alone, since Husky's own hooks call git lfs.
+brew install git-lfs            # or your platform's package
+git lfs install --skip-repo
+git lfs pull                    # only if you cloned before the line above
+
+# Install local tools (Husky) and wire up the git hooks
 dotnet tool restore
 dotnet husky install
 
@@ -50,7 +56,7 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 An integration test project, or a filter matching integration tests, runs nothing without `-p:TestSuite=Integration` (or `All`).
 
-**The git hooks are the pre-commit and pre-push gates; don't run them by hand as well.** `pre-commit` runs `scripts/tool-versions.sh` (the `dotnet-ef` tool in `.config/dotnet-tools.json` must have the same version as `Microsoft.EntityFrameworkCore`, so bump them together), `dotnet format --verify-no-changes` and a full build, and `pre-push` runs the whole unit suite (`.husky/task-runner.json`). While working, run the test projects or tests you touched. Don't run the full unit suite before committing or pushing; `git push` runs it, and a failure stops the push. No hook runs the integration tests or mutation testing, so run those yourself when your change needs them.
+**The git hooks are the pre-commit and pre-push gates; don't run them by hand as well.** `pre-commit` runs `scripts/tool-versions.sh` (the `dotnet-ef` tool in `.config/dotnet-tools.json` must have the same version as `Microsoft.EntityFrameworkCore`, so bump them together), `scripts/lfs-pointers.sh` (every binary file must be an LFS pointer: add a new binary type to `.gitattributes`), `dotnet format --verify-no-changes` and a full build, and `pre-push` uploads the LFS objects (`git lfs pre-push`) and runs the whole unit suite (`.husky/task-runner.json`). While working, run the test projects or tests you touched. Don't run the full unit suite before committing or pushing; `git push` runs it, and a failure stops the push. No hook runs the integration tests or mutation testing, so run those yourself when your change needs them.
 
 Test projects are recognised by name: `*.Tests.Unit` for unit tests and `*.Tests.Integration` for integration tests. `Directory.Build.props` applies the test SDK to both: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. `Directory.Build.targets` makes only the projects in the selected `TestSuite` (`Unit` by default, `Integration` or `All`) test projects, so `dotnet test` and Stryker never run the integration suite. Internal members are exposed to test projects via `InternalsVisibleTo`.
 
@@ -123,7 +129,7 @@ The API's HTTP surface is `AddApiSurface` plus `MapApiEndpoints`; `Program.cs` a
 - **Proxy orphans** (`ProxyOrphans`, a proxy sweep's report) are written only by the Worker; outside it only `EfProxyOrphanReader` depends on the entity (`only-worker-writes-proxy-orphans`). See `docs/architecture/work-queue.md`, "Proxy sweeps".
 - Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
 
-`Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is a React + TypeScript single-page app built with Vite. The API image builds it and serves it on the same origin as `/api/v1`, with immutable hashed assets, an `index.html` fallback that never answers `/api`, and a strict CSP with Trusted Types (ADR 0012, `docs/architecture/ui-serving.md`). It is a pnpm project, not part of the .NET solution; so far it has a translated placeholder page. The work is planned in parent issues #344–#349; see "The UI" below.
+`Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is a React + TypeScript single-page app built with Vite. The API image builds it and serves it on the same origin as `/api/v1`, with immutable hashed assets, an `index.html` fallback that never answers `/api`, and a strict CSP with Trusted Types (ADR 0012, `docs/architecture/ui-serving.md`). It is a pnpm project, not part of the .NET solution; so far it has the login screen and a signed-in placeholder (#360). The work is planned in parent issues #344–#349; see "The UI" below.
 
 ### Storage Layout
 
@@ -167,7 +173,7 @@ Each user has a private set of `UserStorageConfig` entries pointing to NAS roots
 - Merging a PR: wait until CI has finished and `CI gate` and `CodeQL` are green (`gh pr checks <n> --watch`), then ask the maintainer to confirm. Never merge before CI passes, and never without that confirmation.
 - PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
 - CORS allowed origins configured via `CORS__ALLOWEDORIGINS` env var (comma-separated); the same value switches the refresh cookie to `SameSite=None`. Leave empty for same-origin / reverse proxy deployments.
-- `X-Forwarded-For` is honoured only from loopback or from addresses listed in `FORWARDEDHEADERS__KNOWNPROXIES` / `FORWARDEDHEADERS__KNOWNNETWORKS` (comma-separated IPs / CIDRs; `ForwardLimit = 1`). Rate limiting partitions on the resulting client IP, so a reverse-proxy deployment must set one of these or all clients share the proxy's bucket. Never trust the Docker bridge network for a directly published port — that lets any client spoof its IP.
+- `X-Forwarded-For` is honoured only from loopback or from addresses listed in `FORWARDEDHEADERS__KNOWNPROXIES` / `FORWARDEDHEADERS__KNOWNNETWORKS` (comma-separated IPs / CIDRs; `ForwardLimit = 1`). Rate limiting partitions on the resulting client IP, so a reverse-proxy deployment must set one of these or all clients share the proxy's bucket. Never trust the Docker bridge network for a directly published port — that lets any client spoof its IP. The `Sensitive` policy (login, register, change-password, admin user writes) allows `RATELIMIT__SENSITIVEPERMITLIMIT` requests per minute (default 10); only `src/docker-compose.e2e.yml` raises it.
 - Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.
 - Observability: `GET /api/v1/healthz` (database, proxy storage, originals storage; a missing mount reports Degraded). Logging is the default .NET console logger with `LoggerMessage` source-generated messages (architecture rule `logging-is-source-generated`; `BeginScope` is allowed); structured JSON output and OpenTelemetry are **not** wired up.
 - License: AGPL-3.0.

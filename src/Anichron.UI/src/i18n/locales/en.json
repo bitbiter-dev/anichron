@@ -1,6 +1,22 @@
 {
   "placeholder": {
     "title": "Anichron",
-    "body": "Your photo library is on its way."
+    "body": "You're signed in. Your photo library is on its way."
+  },
+  "login": {
+    "title": "Sign in to Anichron",
+    "usernameOrEmail": "Username or email",
+    "password": "Password",
+    "submit": "Sign in",
+    "retryIn_one": "You can try again in {{count}} second.",
+    "retryIn_other": "You can try again in {{count}} seconds.",
+    "errors": {
+      "required": "Fill in this field.",
+      "invalidCredentials": "The username, email or password is wrong.",
+      "accountDisabled": "This account is disabled. Ask your administrator to enable it.",
+      "accountLocked": "Too many failed attempts. This account is locked for now.",
+      "rateLimited": "Too many attempts from this device.",
+      "generic": "Something went wrong. Try again."
+    }
   }
 }

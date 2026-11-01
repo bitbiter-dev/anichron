@@ -7,7 +7,7 @@ const appPolicy =
   "font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; " +
   "frame-ancestors 'none'; require-trusted-types-for 'script'";
 
-test('the placeholder loads with its headers and requests nothing but its own origin', async ({
+test('the app loads with its headers and requests nothing but its own origin', async ({
   page,
   context,
   baseURL,
@@ -32,8 +32,8 @@ test('the placeholder loads with its headers and requests nothing but its own or
 
   const response = await page.goto('/');
 
-  await expect(page.getByRole('heading', { level: 1, name: 'Anichron' })).toBeVisible();
-  await expect(page.getByText('Your photo library is on its way.')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Sign in to Anichron' })).toBeVisible();
+  await expect(page).toHaveURL('/login');
   const headers = response?.headers() ?? {};
   expect(headers['content-security-policy']).toBe(appPolicy);
   expect(headers['referrer-policy']).toBe('same-origin');

@@ -34,6 +34,13 @@ export default defineConfig([
         'error',
         { allowInterfaces: 'with-single-extends' },
       ],
+      '@typescript-eslint/only-throw-error': [
+        'error',
+        {
+          allow: [{ from: 'package', package: '@tanstack/router-core', name: 'Redirect' }],
+          allowRethrowing: true,
+        },
+      ],
     },
   },
   {

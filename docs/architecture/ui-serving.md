@@ -61,5 +61,12 @@ for the flashback player, say) adds it to `Permissions-Policy` in its own change
 - **Seam 4** (`src/Anichron.UI/e2e/`): Playwright against the image built from the checkout,
   started by `src/docker-compose.e2e.yml` with PostgreSQL on tmpfs and no Worker. Projects: WebKit
   on an iPhone profile, Chromium on a Pixel profile, Firefox at a phone viewport. The smoke test
-  loads the placeholder and asserts the headers, the assets' caching, no CSP or Trusted Types
-  violation, no request to another origin, and no axe violations. CI runs it in the `E2E` job.
+  loads the app (a visitor without a token lands on `/login`) and asserts the headers, the assets'
+  caching, no CSP or Trusted Types violation, no request to another origin, and no axe violations.
+  `login.spec.ts` signs in through the screen: success, a wrong password, a disabled account and a
+  locked account's countdown, each with no CSP violation. Users are seeded only through the public
+  API (#360): the global setup rotates the bootstrap admin's first password (so it fails on a
+  database that is not fresh), and each test creates its own user with the admin API and changes
+  its temporary password. Every request reaches the API from the one Docker bridge address, so the
+  compose file raises `RateLimit__SensitivePermitLimit`; lockout keeps its production timings. CI
+  runs both in the `E2E` job.
