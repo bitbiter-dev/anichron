@@ -5,7 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## First-time setup
 
 ```bash
-# Install local tools (Husky) and wire up the pre-commit hook
+# Git LFS stores every binary file (.gitattributes). Set up its filters once per machine;
+# --skip-repo leaves the hooks alone, since Husky's own hooks call git lfs.
+brew install git-lfs            # or your platform's package
+git lfs install --skip-repo
+git lfs pull                    # only if you cloned before the line above
+
+# Install local tools (Husky) and wire up the git hooks
 dotnet tool restore
 dotnet husky install
 
@@ -50,7 +56,7 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 An integration test project, or a filter matching integration tests, runs nothing without `-p:TestSuite=Integration` (or `All`).
 
-**The git hooks are the pre-commit and pre-push gates; don't run them by hand as well.** `pre-commit` runs `scripts/tool-versions.sh` (the `dotnet-ef` tool in `.config/dotnet-tools.json` must have the same version as `Microsoft.EntityFrameworkCore`, so bump them together), `dotnet format --verify-no-changes` and a full build, and `pre-push` runs the whole unit suite (`.husky/task-runner.json`). While working, run the test projects or tests you touched. Don't run the full unit suite before committing or pushing; `git push` runs it, and a failure stops the push. No hook runs the integration tests or mutation testing, so run those yourself when your change needs them.
+**The git hooks are the pre-commit and pre-push gates; don't run them by hand as well.** `pre-commit` runs `scripts/tool-versions.sh` (the `dotnet-ef` tool in `.config/dotnet-tools.json` must have the same version as `Microsoft.EntityFrameworkCore`, so bump them together), `scripts/lfs-pointers.sh` (every binary file must be an LFS pointer: add a new binary type to `.gitattributes`), `dotnet format --verify-no-changes` and a full build, and `pre-push` uploads the LFS objects (`git lfs pre-push`) and runs the whole unit suite (`.husky/task-runner.json`). While working, run the test projects or tests you touched. Don't run the full unit suite before committing or pushing; `git push` runs it, and a failure stops the push. No hook runs the integration tests or mutation testing, so run those yourself when your change needs them.
 
 Test projects are recognised by name: `*.Tests.Unit` for unit tests and `*.Tests.Integration` for integration tests. `Directory.Build.props` applies the test SDK to both: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. `Directory.Build.targets` makes only the projects in the selected `TestSuite` (`Unit` by default, `Integration` or `All`) test projects, so `dotnet test` and Stryker never run the integration suite. Internal members are exposed to test projects via `InternalsVisibleTo`.
 

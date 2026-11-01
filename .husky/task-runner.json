@@ -8,6 +8,12 @@
       "args": ["scripts/tool-versions.sh"]
     },
     {
+      "name": "lfs-pointers",
+      "group": "pre-commit",
+      "command": "bash",
+      "args": ["scripts/lfs-pointers.sh"]
+    },
+    {
       "name": "format-check",
       "group": "pre-commit",
       "command": "dotnet",
