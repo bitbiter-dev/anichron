@@ -31,6 +31,7 @@ internal static class ArchitectureRules
     public const string WorkItemsChangeOnlyThroughQueueOrCancel = "work-items-change-only-through-queue-or-cancel";
     public const string OpenCvStaysInTheMatcher = "opencv-stays-in-the-matcher";
     public const string OnlyWorkerWritesProxyOrphans = "only-worker-writes-proxy-orphans";
+    public const string MagickStaysInTheDecoder = "magick-stays-in-the-decoder";
 
     private const string Domain = "Anichron.Core.Domain";
     private const string ApiWiring = "Anichron.API.Infrastructure";
@@ -40,6 +41,7 @@ internal static class ArchitectureRules
     private const string WorkItemCanceller = "Anichron.Core.Work.EfWorkItemCanceller";
     private const string ProxyOrphanReader = "Anichron.Core.Data.Repository.EfProxyOrphanReader";
     private const string ThumbnailMatcher = @"^Anichron\.Worker\.Bursts\.OrbThumbnailMatcher(\+.*)?$";
+    private const string HeifDecoder = @"^Anichron\.Worker\.Ingestion\.Proxy\.MagickHeifDecoder(\+.*)?$";
 
     public static IReadOnlyList<ArchitectureRule> All { get; } =
     [
@@ -106,6 +108,10 @@ internal static class ArchitectureRules
                 .And().DoNotHaveFullName(typeof(AnichronDbContext).FullName)
                 .And().DoNotHaveFullName(ProxyOrphanReader)
                 .Should().NotDependOnAny(typeof(ProxyOrphan))),
+        new(MagickStaysInTheDecoder,
+            Types().That().ResideInAssembly(ApiAssembly, CoreAssembly, InfrastructureAssembly, WorkerAssembly)
+                .And().DoNotHaveFullNameMatching(HeifDecoder)
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(@"^ImageMagick(\..*)?$")),
     ];
 
     public static ArchitectureRule Named(string name) => All.Single(rule => rule.Name == name);

@@ -288,6 +288,9 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IProcessLauncher), typeof(SystemProcessLauncher), ServiceLifetime.Singleton },
         { typeof(IVideoProcessor), typeof(FfmpegVideoProcessor), ServiceLifetime.Singleton },
         { typeof(IImageProcessor), typeof(ImageSharpProcessor), ServiceLifetime.Singleton },
+        { typeof(IUprightImageDecoder), typeof(UprightImageDecoder), ServiceLifetime.Singleton },
+        { typeof(MagickHeifDecoder), typeof(MagickHeifDecoder), ServiceLifetime.Singleton },
+        { typeof(ImageSharpUprightDecoder), typeof(ImageSharpUprightDecoder), ServiceLifetime.Singleton },
     };
 
     [Theory]
