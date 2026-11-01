@@ -20,21 +20,21 @@ public class MediaAsset
     public string ContentHash { get; set; } = string.Empty; // XXHash64 for move tracking
 
     // Temporal Data (Optimized for "On This Day")
-    public LocalDateTime DateCaptured
+    public LocalDateTime? DateCaptured
     {
         get;
         set
         {
             field = value;
-            Month = value.Month;
-            Day = value.Day;
-            Year = value.Year;
+            Month = value?.Month;
+            Day = value?.Day;
+            Year = value?.Year;
         }
     }
 
-    public int Month { get; private set; }
-    public int Day { get; private set; }
-    public int Year { get; private set; }
+    public int? Month { get; private set; }
+    public int? Day { get; private set; }
+    public int? Year { get; private set; }
 
     // Metadata & State
     public MediaType MediaType { get; set; }

@@ -1,12 +1,10 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
 internal abstract class ProcessedContentWriter(
-    IFileSystem fileSystem,
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter) : IOutcomeWriter
 {
@@ -32,12 +30,12 @@ internal abstract class ProcessedContentWriter(
     /// <summary>The processed file's content, with the proxies this attempt registered for <paramref name="assetId"/>.</summary>
     /// <param name="context">The processed item.</param>
     /// <param name="assetId">The row that takes the content.</param>
-    protected AssetContent ContentOf(IngestionContext context, Guid assetId)
+    protected static AssetContent ContentOf(IngestionContext context, Guid assetId)
     {
         var exif = context.Exif!;
         return new AssetContent(
             context.ContentHash!,
-            CaptureDate.FromExifOrLastWrite(exif.DateCaptured, fileSystem, context.Item.AbsolutePath),
+            ContentDate.Set(exif.DateCaptured),
             context.Item.PrimaryMediaType,
             new Metadata
             {

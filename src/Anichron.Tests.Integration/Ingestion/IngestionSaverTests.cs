@@ -7,7 +7,6 @@ using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using System.IO.Abstractions;
 
 namespace Anichron.Tests.Integration.Ingestion;
 
@@ -209,7 +208,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
             };
             var repository = new EfMediaAssetRepository(db);
             await new PairedMovResolver(
-                    repository, Substitute.For<IFileSystem>(), Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
+                    repository, Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
                     NullLogger<PairedMovResolver>.Instance)
                 .PairAsync(context, atPath, null, Ct);
             (moved.IsSoftDeleted, atPath.ContentHash, video.FilePath) = (true, "b0b0", "A.mov");

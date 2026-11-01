@@ -448,6 +448,20 @@ public sealed partial class AssetViewReaderTests
         views.Select(v => v.Id).Should().BeEquivalentTo([beforeMidnight.Id, afterMidnight.Id, single.Id]);
     }
 
+    [Fact]
+    public async Task OnThisDay_UndatedBurstMember_IsLeftOut()
+    {
+        var library = new Library();
+        var dated = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 0));
+        var undated = library.Asset(library.MiraConfig);
+        undated.DateCaptured = null;
+        library.Burst(dated, undated);
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));
+
+        views.Should().ContainSingle().Which.Id.Should().Be(dated.Id);
+    }
+
     [Theory]
     [InlineData(2026, 7, 14)]
     [InlineData(2027, 7, 14)]

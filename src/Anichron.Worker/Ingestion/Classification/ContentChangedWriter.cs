@@ -1,17 +1,15 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
-using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
 internal sealed partial class ContentChangedWriter(
     StoredContent storedContent,
-    IFileSystem fileSystem,
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<ContentChangedWriter> logger)
-    : ProcessedContentWriter(fileSystem, pairedMovResolver, pairedMovProxyWriter)
+    : ProcessedContentWriter(pairedMovResolver, pairedMovProxyWriter)
 {
     public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.ContentChanged, FileOutcome.AutoRestoredContentChanged];
 

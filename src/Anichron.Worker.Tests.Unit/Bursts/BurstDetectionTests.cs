@@ -49,7 +49,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         fileSystem.AddDirectory(Root);
         clock.GetCurrentInstant().Returns(Now);
         guids.NewGuid().Returns(_ => Guid.Parse($"bbbbbbbb-0000-0000-0000-{++nextGuid:D12}"));
-        reader.Read(Arg.Any<string>()).Returns(new OriginalPhotoFacts(Noon, null));
+        reader.Read(Arg.Any<string>()).Returns(OriginalPhotoFacts.Unknown);
         matcher.ScoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(call => scores.GetValueOrDefault((call.ArgAt<string>(0), call.ArgAt<string>(1))));
         Seed(new User { Id = MiraId, Username = "mira", Email = "mira@example.com", PasswordHash = "h" });
@@ -79,7 +79,8 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         string? make = "Apple",
         string? model = "iPhone 15 Pro",
         bool softDeleted = false,
-        Guid? burstId = null)
+        Guid? burstId = null,
+        bool dated = true)
     {
         var id = Guid.NewGuid();
         var asset = new MediaAsset
@@ -90,7 +91,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
             FileName = name,
             ContentHash = name,
             MediaType = type,
-            DateCaptured = Noon.PlusMinutes(minutes).PlusSeconds(seconds),
+            DateCaptured = dated ? Noon.PlusMinutes(minutes).PlusSeconds(seconds) : null,
             IsSoftDeleted = softDeleted,
             BurstId = burstId,
             Metadata = new Metadata { AssetId = id, CameraMake = make, CameraModel = model },
@@ -113,7 +114,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         => matcher.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IThumbnailMatcher.ScoreAsync));
 
     private void Labelled(MediaAsset photo, string? label)
-        => reader.Read($"{Root}/{photo.FilePath}").Returns(new OriginalPhotoFacts(Noon, label));
+        => reader.Read($"{Root}/{photo.FilePath}").Returns(new OriginalPhotoFacts(label));
 
     private void Checked(MediaAsset photo, string? label, bool candidate = true)
         => Seed(new BurstCheck { AssetId = photo.Id, CheckedAt = Now, IsCandidate = candidate, CameraBurstId = label });
@@ -306,17 +307,16 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Theory]
-    [InlineData(false, "Apple", "iPhone 15 Pro", true)]
-    [InlineData(true, null, "iPhone 15 Pro", true)]
-    [InlineData(true, "Apple", null, true)]
-    [InlineData(true, "Apple", "iPhone 15 Pro", false)]
+    [InlineData(null, "iPhone 15 Pro", true)]
+    [InlineData("Apple", null, true)]
+    [InlineData("Apple", "iPhone 15 Pro", false)]
     public async Task RunAsync_PhotoLackingWhatACandidateNeeds_IsCheckedButNotGroupedAsync(
-        bool exifTime, string? make, string? model, bool thumbnail)
+        string? make, string? model, bool thumbnail)
     {
         var good = Photo("a.heic");
         var lacking = Photo("b.heic", minutes: 1, thumbnail: thumbnail, make: make, model: model);
         Labelled(good, BurstA);
-        reader.Read($"{Root}/{lacking.FilePath}").Returns(new OriginalPhotoFacts(exifTime ? Noon : null, BurstA));
+        reader.Read($"{Root}/{lacking.FilePath}").Returns(new OriginalPhotoFacts(BurstA));
         var other = Photo("c.heic", minutes: 2);
         Labelled(other, BurstA);
 
@@ -342,17 +342,20 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task RunAsync_UnreadableOriginal_IsCheckedAsNoCandidateAsync()
+    public async Task RunAsync_UnreadableOriginal_IsGroupedBySimilarityAsync()
     {
-        var a = Photo("a.heic");
-        reader.Read($"{Root}/{a.FilePath}").Returns(OriginalPhotoFacts.Unknown);
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
+        Labelled(a, BurstA);
+        reader.Read($"{Root}/{b.FilePath}").Returns(OriginalPhotoFacts.Unknown);
+        Similar(a, b);
 
         var result = await RunAsync();
 
-        result.Should().Be(new BurstDetectionResult { Checked = 1 });
-        StoredChecks().Should().ContainSingle().Which.Should().BeEquivalentTo(
-            new BurstCheck { AssetId = a.Id, CheckedAt = Now, IsCandidate = false, CameraBurstId = null },
+        result.Should().Be(new BurstDetectionResult { Checked = 2, Created = 1, Matched = 1 });
+        StoredChecks().Single(c => c.AssetId == b.Id).Should().BeEquivalentTo(
+            new BurstCheck { AssetId = b.Id, CheckedAt = Now, IsCandidate = true, CameraBurstId = null },
             o => o.Excluding(c => c.Asset));
+        BurstsOf(a, b).Values.Should().AllBeEquivalentTo(StoredBursts().Single().Id);
     }
 
     // ==========================================================================
@@ -453,16 +456,20 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task RunAsync_SimilarPhotoWithoutExifTime_IsNotComparedAsync()
+    public async Task RunAsync_UndatedPhoto_IsNeitherCheckedNorCountedAsync()
     {
-        var (a, b) = (Photo("a.heic"), Photo("b.heic", 1));
-        reader.Read($"{Root}/{b.FilePath}").Returns(new OriginalPhotoFacts(null, null));
+        var (a, b) = (Photo("a.heic"), Photo("b.heic", dated: false));
+        Labelled(a, BurstA);
+        Labelled(b, BurstA);
         Similar(a, b);
 
-        await RunAsync();
+        var result = await RunAsync();
 
+        result.Should().Be(new BurstDetectionResult { Checked = 1 });
+        StoredChecks().Should().ContainSingle().Which.AssetId.Should().Be(a.Id);
         StoredBursts().Should().BeEmpty();
-        Comparisons().Should().Be(0);
+        reader.DidNotReceive().Read($"{Root}/{b.FilePath}");
+        progress.Received(1).Report(1, 1, "Checking photos for bursts");
     }
 
     [Fact]
@@ -897,7 +904,7 @@ public sealed class BurstDetectionTests : IAsyncDisposable
         reader.Read($"{Root}/{a.FilePath}").Returns(_ =>
         {
             cancel.Cancel();
-            return new OriginalPhotoFacts(Noon, null);
+            return OriginalPhotoFacts.Unknown;
         });
 
         var act = () => RunForAsync(ConfigId, cancel.Token);

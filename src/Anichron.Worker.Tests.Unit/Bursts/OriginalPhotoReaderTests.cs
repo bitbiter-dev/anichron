@@ -3,7 +3,6 @@ using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.Exif.Makernotes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
-using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
 using System.Text;
 
@@ -29,14 +28,14 @@ public sealed class OriginalPhotoReaderTests
         => new OriginalPhotoReader(fileSystem, logger).Read("/data/originals/mira/a.jpg");
 
     [Fact]
-    public void Read_PhotoWithACaptureTime_ReadsIt()
+    public void Read_PhotoWithoutABurstLabel_KnowsNoLabel()
     {
         var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
         {
             ["/data/originals/mira/a.jpg"] = new(JpegCapturedAt("2024:07:15 13:22:01")),
         });
 
-        Read(fileSystem).Should().Be(new OriginalPhotoFacts(new LocalDateTime(2024, 7, 15, 13, 22, 1), null));
+        Read(fileSystem).Should().Be(new OriginalPhotoFacts(CameraBurstId: null));
         logger.Collector.Count.Should().Be(0);
     }
 
@@ -45,23 +44,21 @@ public sealed class OriginalPhotoReaderTests
     {
         var facts = Read(new MockFileSystem());
 
-        facts.Should().Be(new OriginalPhotoFacts(null, null));
+        facts.Should().Be(OriginalPhotoFacts.Unknown);
         logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r =>
             r.Level == LogLevel.Warning
-            && r.Message == "Could not read /data/originals/mira/a.jpg for burst detection; it will not be grouped."
+            && r.Message == "Could not read /data/originals/mira/a.jpg for burst detection; it is grouped by similarity alone."
             && r.Exception is FileNotFoundException);
     }
 
     [Fact]
-    public void Describe_AppleBurst_ReadsTheBurstUuidAndCaptureTime()
+    public void Describe_AppleBurst_ReadsTheBurstUuid()
     {
-        var subIfd = new ExifSubIfdDirectory();
-        subIfd.Set(ExifDirectoryBase.TagDateTimeOriginal, "2023:12:24 18:00:05");
         var apple = new AppleMakernoteDirectory();
         apple.Set(AppleMakernoteDirectory.TagBurstUuid, "3F2504E0-4F89-11D3-9A0C-0305E82C3301");
 
-        OriginalPhotoReader.Describe([subIfd, apple]).Should().Be(new OriginalPhotoFacts(
-            new LocalDateTime(2023, 12, 24, 18, 0, 5), "3F2504E0-4F89-11D3-9A0C-0305E82C3301"));
+        OriginalPhotoReader.Describe([new ExifSubIfdDirectory(), apple]).Should().Be(
+            new OriginalPhotoFacts("3F2504E0-4F89-11D3-9A0C-0305E82C3301"));
     }
 
     [Theory]
@@ -76,15 +73,6 @@ public sealed class OriginalPhotoReaderTests
     }
 
     [Fact]
-    public void Describe_NoExifOrMakerNote_KnowsNothing()
-        => OriginalPhotoReader.Describe([new ExifIfd0Directory()]).Should().Be(new OriginalPhotoFacts(null, null));
-
-    [Fact]
-    public void Describe_UnparsableCaptureTime_HasNone()
-    {
-        var subIfd = new ExifSubIfdDirectory();
-        subIfd.Set(ExifDirectoryBase.TagDateTimeOriginal, "    :  :     :  :  ");
-
-        OriginalPhotoReader.Describe([subIfd]).ExifCapturedAt.Should().BeNull();
-    }
+    public void Describe_NoMakerNote_KnowsNothing()
+        => OriginalPhotoReader.Describe([new ExifIfd0Directory()]).Should().Be(OriginalPhotoFacts.Unknown);
 }

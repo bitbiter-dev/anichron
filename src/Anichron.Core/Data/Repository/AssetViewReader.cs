@@ -70,16 +70,16 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
     internal static IQueryable<AssetView> Query(AnichronDbContext db, Guid userId, IAssetSelection selection)
     {
         var visible = db.MediaAssets.VisibleTo(userId);
-        return from a in selection.Apply(visible.NotHiddenFor(userId).NotPairedMovOf(visible))
+        return from a in selection.Apply(visible.NotHiddenFor(userId).NotPairedMovOf(visible).Where(a => a.DateCaptured != null))
                join i in db.Interactions.Where(i => i.UserId == userId) on a.Id equals i.AssetId into interactions
                from i in interactions.DefaultIfEmpty()
                select new AssetView(
                    a.Id,
                    a.MediaType,
-                   a.Year,
-                   a.Month,
-                   a.Day,
-                   a.DateCaptured,
+                   a.Year!.Value,
+                   a.Month!.Value,
+                   a.Day!.Value,
+                   a.DateCaptured!.Value,
                    a.Metadata!.Width,
                    a.Metadata.Height,
                    a.Metadata.Orientation,

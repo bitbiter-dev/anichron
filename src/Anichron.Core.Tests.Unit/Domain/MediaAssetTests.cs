@@ -22,4 +22,14 @@ public sealed class MediaAssetTests
 
         asset.Should().BeEquivalentTo(new { Year = 2024, Month = 2, Day = 29 });
     }
+
+    [Fact]
+    public void DateCaptured_SetToNone_ClearsTheFlashbackDateParts()
+    {
+        var asset = new MediaAsset { DateCaptured = new LocalDateTime(2019, 7, 23, 18, 5) };
+
+        asset.DateCaptured = null;
+
+        asset.Should().BeEquivalentTo(new { DateCaptured = (LocalDateTime?)null, Year = (int?)null, Month = (int?)null, Day = (int?)null });
+    }
 }

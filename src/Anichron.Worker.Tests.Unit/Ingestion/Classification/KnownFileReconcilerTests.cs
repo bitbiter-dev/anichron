@@ -68,7 +68,7 @@ public sealed class KnownFileReconcilerTests
                 Repository,
                 new FakeLogger<PairedMovProxyWriter>());
             return new KnownFileReconciler(
-                    clock, Repository, new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>()), guids, movProxyWriter, FileSystem, Logger)
+                    clock, Repository, new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>()), guids, movProxyWriter, Logger)
                 .ReconcileAsync(Context, file, relativePath, CancellationToken.None);
         }
     }
@@ -499,7 +499,7 @@ public sealed class KnownFileReconcilerTests
     }
 
     [Fact]
-    public async Task ReconcileAsync_VideoContentChangedWithoutAPhotoRow_TakesTheVideoFilesLastWriteTimeAsync()
+    public async Task ReconcileAsync_VideoContentChangedWithoutAPhotoRow_MakesTheVideoUndatedAsync()
     {
         var fx = new TestFixture();
         var mov = Row(MovedRowId, "2024/live.mov", "0ldm0v");
@@ -508,7 +508,7 @@ public sealed class KnownFileReconcilerTests
 
         await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
 
-        mov.DateCaptured.Should().Be(new LocalDateTime(2021, 2, 3, 4, 5, 6));
+        mov.Should().BeEquivalentTo(new { ContentHash = "cafebabe", DateCaptured = (LocalDateTime?)null });
     }
 
     [Fact]

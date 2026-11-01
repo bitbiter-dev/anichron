@@ -57,8 +57,8 @@ public sealed class NewContentWriterTests
                 Clock,
                 GuidFactory,
                 new FakeLogger<ProxyStagingWriter>());
-            return new(Repository, FileSystem, Clock,
-                new PairedMovResolver(Repository, FileSystem, Clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
+            return new(Repository, Clock,
+                new PairedMovResolver(Repository, Clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()));
@@ -179,16 +179,14 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task WriteAsync_WithNullDateCaptured_FallsBackToFileLastWriteTimeAsync()
+    public async Task WriteAsync_WithoutExifDate_StoresTheFileUndatedAsync()
     {
         var fx = new TestFixture();
         var context = MakeContext(exif: DefaultExif with { DateCaptured = null });
 
         var asset = await fx.WriteAsync(context);
 
-        asset!.Year.Should().Be(2023);
-        asset.Month.Should().Be(6);
-        asset.Day.Should().Be(15);
+        asset.Should().BeEquivalentTo(new { DateCaptured = (LocalDateTime?)null, Year = (int?)null, Month = (int?)null, Day = (int?)null });
     }
 
     [Fact]
@@ -290,7 +288,7 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
-    public async Task WriteAsync_LivePhotoPairWithoutExifDate_DatesEachHalfByItsOwnFileAsync()
+    public async Task WriteAsync_LivePhotoPairWithoutExifDate_LeavesBothHalvesUndatedAsync()
     {
         MediaAsset? movAsset = null;
         var fx = new TestFixture();
@@ -310,9 +308,8 @@ public sealed class NewContentWriterTests
 
         var asset = await fx.WriteAsync(context);
 
-        asset!.DateCaptured.Should().Be(new LocalDateTime(2021, 3, 4, 8, 0));
-        movAsset!.DateCaptured.Should().Be(new LocalDateTime(2021, 3, 5, 9, 0));
-        (movAsset.Year, movAsset.Month, movAsset.Day).Should().Be((2021, 3, 5));
+        asset!.DateCaptured.Should().BeNull();
+        movAsset.Should().BeEquivalentTo(new { DateCaptured = (LocalDateTime?)null, Year = (int?)null });
     }
 
     [Fact]

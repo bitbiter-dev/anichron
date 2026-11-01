@@ -175,10 +175,11 @@ namespace Anichron.Core.Migrations
                         .HasColumnType("text")
                         .HasComment("XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same bytes under two storage configs are two assets, which is what makes multi-user work. A global unique index on this column alone would break that and must never be added.");
 
-                    b.Property<LocalDateTime>("DateCaptured")
-                        .HasColumnType("timestamp without time zone");
+                    b.Property<LocalDateTime?>("DateCaptured")
+                        .HasColumnType("timestamp without time zone")
+                        .HasComment("The wall-clock time the file records it was captured. NULL when it records none: the asset is undated, never dated by the file's last-modified time, and is left out of On This Day and burst detection (ADR 0015).");
 
-                    b.Property<int>("Day")
+                    b.Property<int?>("Day")
                         .HasColumnType("integer")
                         .HasComment("See Month — the pair backs IX_MediaAsset_Flashback.");
 
@@ -202,7 +203,7 @@ namespace Anichron.Core.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Month")
+                    b.Property<int?>("Month")
                         .HasColumnType("integer")
                         .HasComment("Stored apart from DateCaptured so \"On This Day\" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.");
 
@@ -213,7 +214,7 @@ namespace Anichron.Core.Migrations
                     b.Property<Guid>("StorageConfigId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Year")
+                    b.Property<int?>("Year")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");

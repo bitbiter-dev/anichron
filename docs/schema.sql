@@ -153,10 +153,10 @@ CREATE TABLE "MediaAssets" (
     "FilePath" text NOT NULL,
     "FileName" text NOT NULL,
     "ContentHash" text NOT NULL,
-    "DateCaptured" timestamp without time zone NOT NULL,
-    "Month" integer NOT NULL,
-    "Day" integer NOT NULL,
-    "Year" integer NOT NULL,
+    "DateCaptured" timestamp without time zone,
+    "Month" integer,
+    "Day" integer,
+    "Year" integer,
     "MediaType" text NOT NULL,
     "IsSoftDeleted" boolean NOT NULL,
     "LastSeenOnNas" timestamp with time zone NOT NULL,
@@ -169,6 +169,7 @@ COMMENT ON TABLE "MediaAssets" IS 'One row per media file, scoped to a storage c
 COMMENT ON COLUMN "MediaAssets"."PairedAssetId" IS 'Live Photo pairing: the photo points at its video. The video is part of the photo, never a memory of its own, and has at most one photo (unique): pairing hands it over, reconciliation soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo is shown as a still photo, so SetNull on delete.';
 COMMENT ON COLUMN "MediaAssets"."FilePath" IS 'Path relative to the storage config root. Not to be confused with ProxyFiles.ProxyPath, which is relative to the proxy root.';
 COMMENT ON COLUMN "MediaAssets"."ContentHash" IS 'XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same bytes under two storage configs are two assets, which is what makes multi-user work. A global unique index on this column alone would break that and must never be added.';
+COMMENT ON COLUMN "MediaAssets"."DateCaptured" IS 'The wall-clock time the file records it was captured. NULL when it records none: the asset is undated, never dated by the file''s last-modified time, and is left out of On This Day and burst detection (ADR 0015).';
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';
 COMMENT ON COLUMN "MediaAssets"."Day" IS 'See Month — the pair backs IX_MediaAsset_Flashback.';
 COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore).';
