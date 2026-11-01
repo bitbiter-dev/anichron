@@ -16,6 +16,14 @@ _Avoid_: Primary photo, key photo
 A photo and the short video the camera recorded with it, shown as one memory. Its video is part of the photo, never a memory of its own; without its video, the photo is shown as a still photo.
 _Avoid_: Pair, HEIC+MOV, motion photo
 
+**Capture date**:
+The date and time on the clock where a photo or video was taken, as its camera or app recorded it, with the offset from UTC when one was recorded. A moment recorded only in UTC is read in the library's time zone.
+_Avoid_: Date taken, timestamp, creation date
+
+**Undated**:
+An asset whose file records no capture date. It is kept and can be shown, but never appears in On This Day or a burst.
+_Avoid_: No date, unknown date
+
 **Missing**:
 An asset whose file a complete crawl of its storage config did not find at its path.
 _Avoid_: Gone, lost, deleted
