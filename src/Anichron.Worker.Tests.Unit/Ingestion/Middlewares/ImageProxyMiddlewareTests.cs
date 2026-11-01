@@ -5,6 +5,8 @@ using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
+using MetadataExtractor;
+using MetadataExtractor.Formats.Exif;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
@@ -70,7 +72,7 @@ public sealed class ImageProxyMiddlewareTests
         {
             return new(generators,
                        blurhashEncoder ?? new BlurhashEncoder(ImageProcessor, Options.Create(new WorkerSettings())),
-                       new ImageSharpUprightDecoder(),
+                       new UprightImageDecoder(new MagickHeifDecoder(), new ImageSharpUprightDecoder()),
                        DirectoryStrategy,
                        new ProxyStagingWriter(
                            FileSystem,
@@ -564,5 +566,137 @@ public sealed class ImageProxyMiddlewareTests
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         context.ProxyFiles.Should().AllSatisfy(p => p.Id.Should().Be(expectedId));
+    }
+
+    // ==========================================================================
+    // HEIC
+    // ==========================================================================
+
+    private static readonly WorkerSettings HeicProxySettings = new() { PreviewLongEdge = 400, ThumbnailShortEdge = 150 };
+
+    // The maintainer's stripped iPhone photo: stored 4032x3024 as a tile grid, irot 270, EXIF orientation 6.
+    private static byte[] IphoneHeic()
+    {
+        using var stream = typeof(ImageProxyMiddlewareTests).Assembly.GetManifestResourceStream("Fixtures.iphone-4732.heic")!;
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        return copy.ToArray();
+    }
+
+    private static byte[] WithMajorBrand(string brand)
+    {
+        var heic = IphoneHeic();
+        System.Text.Encoding.ASCII.GetBytes(brand).CopyTo(heic, 8);
+        return heic;
+    }
+
+    private static byte[] WithBoxType(string boxType)
+    {
+        var heic = IphoneHeic();
+        System.Text.Encoding.ASCII.GetBytes(boxType).CopyTo(heic, 4);
+        return heic;
+    }
+
+    private static byte[] WithExifOrientation(byte orientation)
+    {
+        byte[] entry = [0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, (byte)ExifOrientationMode.RightTop];
+        var heic = IphoneHeic();
+        var offsets = Enumerable.Range(0, heic.Length - entry.Length + 1)
+            .Where(i => heic.AsSpan(i, entry.Length).SequenceEqual(entry))
+            .ToArray();
+        offsets.Should().ContainSingle("the fixture has one big-endian EXIF orientation entry");
+        heic[offsets[0] + entry.Length - 1] = orientation;
+        ImageMetadataReader.ReadMetadata(new MemoryStream(heic))
+            .OfType<ExifIfd0Directory>().Single()
+            .GetUInt16(ExifDirectoryBase.TagOrientation).Should().Be(orientation);
+        return heic;
+    }
+
+    private static async Task<IngestionContext> IngestWithRealProcessorAsync(byte[] source, TestFixture fixture)
+    {
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(source));
+        var processor = new ImageSharpProcessor(Options.Create(HeicProxySettings));
+        var context = MakeContext();
+
+        await fixture.Build(processor, HeicProxySettings).InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        return context;
+    }
+
+    private static async Task<Size> ProxySizeAsync(byte[] source, string proxyFileName)
+    {
+        var fixture = new TestFixture();
+        await IngestWithRealProcessorAsync(source, fixture);
+        var bytes = await fixture.FileSystem.File.ReadAllBytesAsync(
+            $"/data/proxies/ab/cd/{proxyFileName}", TestContext.Current.CancellationToken);
+        return Image.Identify(bytes).Size;
+    }
+
+    [Theory]
+    [InlineData("thumbnail.jpg", 150, 200)]
+    [InlineData("preview.jpg", 300, 400)]
+    public async Task InvokeAsync_IphoneHeic_WritesUprightPortraitProxyBoundedOnItsEdgeAsync(
+        string proxyFileName, int expectedWidth, int expectedHeight)
+    {
+        var size = await ProxySizeAsync(IphoneHeic(), proxyFileName);
+
+        size.Should().Be(new Size(expectedWidth, expectedHeight));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_IphoneHeic_PutsABlurhashOnTheContextAsync()
+    {
+        var context = await IngestWithRealProcessorAsync(IphoneHeic(), new TestFixture());
+
+        context.Blurhash.Should().NotBeNullOrEmpty();
+    }
+
+    [Theory]
+    [InlineData(ExifOrientationMode.TopLeft)]
+    [InlineData(ExifOrientationMode.BottomRight)]
+    public async Task InvokeAsync_HeicWhoseExifDisagreesWithItsContainerRotation_FollowsTheContainerAsync(ushort orientation)
+    {
+        var size = await ProxySizeAsync(WithExifOrientation((byte)orientation), "preview.jpg");
+
+        size.Should().Be(new Size(300, 400));
+    }
+
+    [Theory]
+    [InlineData("heix")]
+    [InlineData("mif1")]
+    public async Task InvokeAsync_HeifStillBrand_IsDecodedAsHeifAsync(string brand)
+    {
+        var size = await ProxySizeAsync(WithMajorBrand(brand), "preview.jpg");
+
+        size.Should().Be(new Size(300, 400));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AvifBrand_IsNotDecodedAsHeifAsync()
+    {
+        var act = () => IngestWithRealProcessorAsync(WithMajorBrand("avif"), new TestFixture());
+
+        await act.Should().ThrowAsync<UnknownImageFormatException>();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_HeicBrandOutsideAnFtypBox_IsNotDecodedAsHeifAsync()
+    {
+        var act = () => IngestWithRealProcessorAsync(WithBoxType("free"), new TestFixture());
+
+        await act.Should().ThrowAsync<UnknownImageFormatException>();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_TruncatedHeic_FailsWithoutProxiesAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(IphoneHeic()[..4096]));
+        var context = MakeContext();
+
+        var act = () => fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        (await act.Should().ThrowAsync<Exception>()).Which.Should().NotBeOfType<UnknownImageFormatException>();
+        context.ProxyFiles.Should().BeEmpty();
     }
 }
