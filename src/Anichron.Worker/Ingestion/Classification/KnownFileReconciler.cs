@@ -80,7 +80,7 @@ internal sealed partial class KnownFileReconciler(
         await repository.LoadMetadataAsync(moved, ct);
         MoveTo(atPath, relativePath);
         await storedContent.TakeAsync(
-            context, atPath, KeepingRowDateWhenProcessingDates(context, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))])), ct);
+            context, atPath, KeepingRowDateWhenMovDatedLater(context, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))])), ct);
 
         await storedContent.RetireAsync(context, moved, ct);
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
@@ -95,7 +95,7 @@ internal sealed partial class KnownFileReconciler(
         var proxies = await pairedMovProxyWriter.WriteForNewContentAsync(context, video, ct);
         var captured = ContentDate.Set(context.Classification!.Primary.Row?.DateCaptured);
         await storedContent.TakeAsync(
-            context, video, KeepingRowDateWhenProcessingDates(context, new AssetContent(context.SecondaryHash!, captured, MediaType.Video, new Metadata(), proxies)), ct);
+            context, video, KeepingRowDateWhenMovDatedLater(context, new AssetContent(context.SecondaryHash!, captured, MediaType.Video, new Metadata(), proxies)), ct);
         return true;
     }
 
@@ -114,7 +114,7 @@ internal sealed partial class KnownFileReconciler(
         return true;
     }
 
-    private static AssetContent KeepingRowDateWhenProcessingDates(IngestionContext context, AssetContent content)
+    private static AssetContent KeepingRowDateWhenMovDatedLater(IngestionContext context, AssetContent content)
         => context.Classification?.DatesMovAfterProcessing == true ? content.KeepingRowDate() : content;
 
     private ProxyFile ProxyOf(MediaAsset owner, ProxyFile source) => new()
