@@ -146,8 +146,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/lfs
-
       # Installs pnpm from packageManager and Node from .nvmrc, then runs a frozen install.
       - uses: pnpm/setup@v3
         with:
