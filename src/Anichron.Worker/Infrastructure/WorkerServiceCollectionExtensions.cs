@@ -124,6 +124,7 @@ internal static class WorkerServiceCollectionExtensions
 
         private void AddImageProxyServices()
         {
+            services.AddSingleton<IUprightImageDecoder, ImageSharpUprightDecoder>();
             services.AddSingleton<IImageProcessor, ImageSharpProcessor>();
             services.AddSingleton<IImageProxyGenerator, ThumbnailGenerator>();
             services.AddSingleton<IImageProxyGenerator, FullPreviewGenerator>();

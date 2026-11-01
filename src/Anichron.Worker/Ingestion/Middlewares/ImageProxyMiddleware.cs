@@ -2,7 +2,6 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.IO.Abstractions;
 
@@ -11,6 +10,7 @@ namespace Anichron.Worker.Ingestion.Middlewares;
 internal sealed partial class ImageProxyMiddleware(
     IEnumerable<IImageProxyGenerator> generators,
     BlurhashEncoder blurhashEncoder,
+    IUprightImageDecoder decoder,
     IProxyDirectoryStrategy proxyDirectoryStrategy,
     ProxyStagingWriter stagingWriter,
     IFileSystem fileSystem,
@@ -25,10 +25,7 @@ internal sealed partial class ImageProxyMiddleware(
         // Ordering guarantees ContentHashingMiddleware ran first; suppression is safe.
         var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.Config.Id, context.ContentHash!);
         var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
-
-        await using var ms = new MemoryStream(sourceBytes);
-        using var image = await Image.LoadAsync<Rgb24>(ms, ct);
-        image.Mutate(x => x.AutoOrient());
+        using var image = await decoder.DecodeAsync(sourceBytes, ct);
 
         var proxySteps = generators
             .Select(g => new Step(g.Bound, () => WriteProxyAsync(g)))

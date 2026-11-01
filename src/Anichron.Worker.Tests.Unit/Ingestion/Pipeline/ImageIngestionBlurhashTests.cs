@@ -51,6 +51,7 @@ public sealed class ImageIngestionBlurhashTests
             new ImageProxyMiddleware(
                 [new ThumbnailGenerator(processor, options), new FullPreviewGenerator(processor, options)],
                 new BlurhashEncoder(processor, options),
+                new ImageSharpUprightDecoder(),
                 new TwoLevelHexShardStrategy(),
                 stagingWriter,
                 fileSystem,

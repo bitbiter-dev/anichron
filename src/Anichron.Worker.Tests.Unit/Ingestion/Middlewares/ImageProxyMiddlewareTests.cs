@@ -70,6 +70,7 @@ public sealed class ImageProxyMiddlewareTests
         {
             return new(generators,
                        blurhashEncoder ?? new BlurhashEncoder(ImageProcessor, Options.Create(new WorkerSettings())),
+                       new ImageSharpUprightDecoder(),
                        DirectoryStrategy,
                        new ProxyStagingWriter(
                            FileSystem,
@@ -250,6 +251,27 @@ public sealed class ImageProxyMiddlewareTests
         await fixture.Build().InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
 
         fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_OriginalNoDecoderReads_FailsWithoutProxiesOrNextAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData([0x00, 0x01, 0x02, 0x03]));
+        var context = MakeContext();
+        var nextCalled = false;
+        Task NextAsync(IngestionContext ctx, CancellationToken ct)
+        {
+            _ = (ctx, ct);
+            nextCalled = true;
+            return Task.CompletedTask;
+        }
+
+        var act = () => fixture.Build().InvokeAsync(context, NextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnknownImageFormatException>();
+        context.ProxyFiles.Should().BeEmpty();
+        nextCalled.Should().BeFalse();
     }
 
     [Fact]
