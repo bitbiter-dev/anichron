@@ -3,13 +3,11 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using NodaTime;
-using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion;
 
 internal sealed partial class PairedMovResolver(
     IMediaAssetRepository repository,
-    IFileSystem fileSystem,
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<PairedMovResolver> logger)
@@ -20,7 +18,7 @@ internal sealed partial class PairedMovResolver(
     /// </summary>
     /// <param name="context">The classified Live Photo item.</param>
     /// <param name="photo">The row that becomes the video's photo.</param>
-    /// <param name="dateCaptured">The capture date an added MOV row takes, before its last-write time.</param>
+    /// <param name="dateCaptured">The capture date an added MOV row takes; null leaves it undated.</param>
     /// <param name="ct">Cancels the lookup of the other photos.</param>
     /// <returns>The MOV row.</returns>
     public async Task<MediaAsset> PairAsync(
@@ -58,7 +56,7 @@ internal sealed partial class PairedMovResolver(
             FilePath = mov.RelativePath,
             FileName = Path.GetFileName(mov.RelativePath),
             ContentHash = context.SecondaryHash!,
-            DateCaptured = CaptureDate.FromExifOrLastWrite(dateCaptured, fileSystem, mov.AbsolutePath),
+            DateCaptured = dateCaptured,
             MediaType = mov.MediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),

@@ -51,11 +51,11 @@ internal static class BurstGrouping
     }
 
     public static MediaAsset Cover(IEnumerable<MediaAsset> members)
-        => members.Where(a => !a.IsSoftDeleted).MinBy(a => (a.DateCaptured, a.Id))!;
+        => members.Where(a => !a.IsSoftDeleted).MinBy(a => (a.DateCaptured!.Value, a.Id))!;
 
     private static bool WithinSpan(IEnumerable<MediaAsset> members, int spanSeconds)
     {
-        var captured = members.Where(a => !a.IsSoftDeleted).Select(a => a.DateCaptured).ToList();
+        var captured = members.Where(a => !a.IsSoftDeleted).Select(a => a.DateCaptured!.Value).ToList();
         return captured.Max() <= captured.Min().PlusSeconds(spanSeconds);
     }
 }

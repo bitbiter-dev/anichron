@@ -3,17 +3,15 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using NodaTime;
-using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
 internal sealed class NewContentWriter(
     IMediaAssetRepository repository,
-    IFileSystem fileSystem,
     IClock clock,
     PairedMovResolver pairedMovResolver,
     PairedMovProxyWriter pairedMovProxyWriter)
-    : ProcessedContentWriter(fileSystem, pairedMovResolver, pairedMovProxyWriter)
+    : ProcessedContentWriter(pairedMovResolver, pairedMovProxyWriter)
 {
     public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.New];
 

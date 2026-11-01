@@ -104,6 +104,10 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.Property(m => m.FilePath).HasComment(
                 "Path relative to the storage config root. Not to be confused with "
                 + "ProxyFiles.ProxyPath, which is relative to the proxy root.");
+            entity.Property(m => m.DateCaptured).HasComment(
+                "The wall-clock time the file records it was captured. NULL when it records none: the asset "
+                + "is undated, never dated by the file's last-modified time, and is left out of On This Day "
+                + "and burst detection (ADR 0015).");
             entity.Property(m => m.Month).HasComment(
                 "Stored apart from DateCaptured so \"On This Day\" is an index lookup on "
                 + "(Month, Day) rather than an EXTRACT() scan over every row.");

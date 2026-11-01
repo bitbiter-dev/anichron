@@ -209,6 +209,37 @@ public sealed class BurstRepositoryTests
     }
 
     [Fact]
+    public async Task UncheckedPhotos_UndatedPhoto_IsNeitherLoadedNorCountedAsync()
+    {
+        var name = Guid.NewGuid().ToString();
+        var configId = Guid.NewGuid();
+        var dated = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
+        var undated = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
+        undated.DateCaptured = null;
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            seed.MediaAssets.AddRange(dated, undated);
+            await seed.SaveChangesAsync(Ct);
+        }
+
+        await using var db = AnichronDbContexts.InMemory(name);
+        var repository = new EfBurstRepository(db);
+
+        (await repository.GetUncheckedPhotosAsync(configId, null, 10, Ct)).Should().ContainSingle().Which.Id.Should().Be(dated.Id);
+        (await repository.CountUncheckedPhotosAsync(configId, Ct)).Should().Be(1);
+    }
+
+    [Fact]
+    public void UncheckedPhotos_StatesTheDatedPhotosInItsOwnPredicate()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = new EfBurstRepository(db).UncheckedPhotos(Guid.NewGuid()).ToQueryString();
+
+        sql.Should().Contain("""m."MediaType" IN ('Image', 'LivePhoto') AND m."DateCaptured" IS NOT NULL AND NOT EXISTS""");
+    }
+
+    [Fact]
     public void UncheckedPhotos_StatesTheActivePhotosInItsOwnPredicate()
     {
         using var db = AnichronDbContexts.NpgsqlModel();

@@ -1,18 +1,14 @@
-using Anichron.Worker.Ingestion;
 using MetadataExtractor;
-using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.Exif.Makernotes;
-using NodaTime;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Bursts;
 
 /// <summary>What burst detection reads from a photo's original.</summary>
-/// <param name="ExifCapturedAt">The EXIF capture time, or null when the original has none.</param>
 /// <param name="CameraBurstId">Apple's BurstUUID, or null when the camera wrote none.</param>
-internal sealed record OriginalPhotoFacts(LocalDateTime? ExifCapturedAt, string? CameraBurstId)
+internal sealed record OriginalPhotoFacts(string? CameraBurstId)
 {
-    internal static OriginalPhotoFacts Unknown { get; } = new(null, null);
+    internal static OriginalPhotoFacts Unknown { get; } = new(CameraBurstId: null);
 }
 
 internal interface IOriginalPhotoReader
@@ -41,16 +37,13 @@ internal sealed partial class OriginalPhotoReader(IFileSystem fileSystem, ILogge
 
     internal static OriginalPhotoFacts Describe(IReadOnlyList<MetadataExtractor.Directory> directories)
     {
-        var captured = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault()?.GetString(ExifDirectoryBase.TagDateTimeOriginal);
         var burstId = directories.OfType<AppleMakernoteDirectory>().FirstOrDefault()?.GetString(AppleMakernoteDirectory.TagBurstUuid);
-        return new(
-            ExifDate.Parse(captured),
-            string.IsNullOrWhiteSpace(burstId) ? null : burstId);
+        return new(string.IsNullOrWhiteSpace(burstId) ? null : burstId);
     }
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Could not read {Path} for burst detection; it will not be grouped.")]
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Could not read {Path} for burst detection; it is grouped by similarity alone.")]
         public static partial void Unreadable(ILogger logger, string path, Exception exception);
     }
 }

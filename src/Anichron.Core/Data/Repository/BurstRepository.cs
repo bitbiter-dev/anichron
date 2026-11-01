@@ -27,7 +27,7 @@ public interface IBurstRepository
     Task<int> CountUncheckedPhotosAsync(Guid storageConfigId, CancellationToken ct);
 
     /// <summary>
-    /// The config's oldest active photos without a burst-checked mark, with their metadata and
+    /// The config's oldest active dated photos without a burst-checked mark, with their metadata and
     /// proxy rows, by capture time and then id.
     /// </summary>
     /// <param name="storageConfigId">The config whose photos are loaded.</param>
@@ -152,13 +152,13 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
         if (after is null)
             return UncheckedPhotos(storageConfigId);
 
-        var (capturedAt, id) = (after.DateCaptured, after.Id);
+        var (capturedAt, id) = (after.DateCaptured!.Value, after.Id);
         return UncheckedPhotos(storageConfigId)
             .Where(a => a.DateCaptured > capturedAt || (a.DateCaptured == capturedAt && a.Id.CompareTo(id) > 0));
     }
 
     internal IQueryable<MediaAsset> UncheckedPhotos(Guid storageConfigId)
         => db.MediaAssets.IgnoreQueryFilters().Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted
-            && (a.MediaType == MediaType.Image || a.MediaType == MediaType.LivePhoto)
+            && (a.MediaType == MediaType.Image || a.MediaType == MediaType.LivePhoto) && a.DateCaptured != null
             && !db.BurstChecks.Any(c => c.AssetId == a.Id));
 }

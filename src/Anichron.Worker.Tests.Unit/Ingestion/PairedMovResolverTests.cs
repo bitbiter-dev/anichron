@@ -7,7 +7,6 @@ using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
-using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion;
 
@@ -24,18 +23,11 @@ public sealed class PairedMovResolverTests
     private sealed class TestFixture
     {
         public IMediaAssetRepository Repository { get; } = Substitute.For<IMediaAssetRepository>();
-        public MockFileSystem FileSystem { get; } = new();
         public FakeLogger<PairedMovResolver> Logger { get; } = new();
         public List<MediaAsset> Added { get; } = [];
 
         public TestFixture()
-        {
-            Repository.When(r => r.Add(Arg.Any<MediaAsset>())).Do(call => Added.Add(call.Arg<MediaAsset>()));
-            FileSystem.AddFile("/abs/A.mov", new MockFileData([])
-            {
-                LastWriteTime = new DateTimeOffset(new DateTime(2021, 3, 5, 9, 0, 0, DateTimeKind.Local)),
-            });
-        }
+            => Repository.When(r => r.Add(Arg.Any<MediaAsset>())).Do(call => Added.Add(call.Arg<MediaAsset>()));
 
         public void PhotosOfTheVideo(params MediaAsset[] photos)
             => Repository.FindPhotosOfAsync(VideoId, Arg.Any<CancellationToken>()).Returns(photos);
@@ -58,7 +50,7 @@ public sealed class PairedMovResolverTests
                     new FileClassification(storedVideo is null ? FileOutcome.New : FileOutcome.Moved, storedVideo),
                     PairingAction.AttachMov),
             };
-            return new PairedMovResolver(Repository, FileSystem, clock, guids, Logger)
+            return new PairedMovResolver(Repository, clock, guids, Logger)
                 .PairAsync(context, photo, new LocalDateTime(2020, 7, 8, 9, 10), CancellationToken.None);
         }
     }

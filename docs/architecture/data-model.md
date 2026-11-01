@@ -20,7 +20,7 @@ a `HasComment` instead — see `docs/adr/0004-schema-documentation.md`.
 do not always match entity names (`AssetInteraction` → `Interactions`, `UserStorageConfig` →
 `StorageConfigs`):
 
-- `MediaAsset` — central entity: `FilePath`, `ContentHash` (XXHash64), `Month`/`Day`/`Year` integers (set only by the `DateCaptured` setter), `MediaType`, `IsSoftDeleted`, and a `PairedAssetId` self-reference (HEIC parent → MOV child)
+- `MediaAsset` — central entity: `FilePath`, `ContentHash` (XXHash64), a nullable `DateCaptured` (the wall-clock time the file records; null means **undated**, never the file's last-modified time, ADR 0015) and nullable `Month`/`Day`/`Year` integers (set only by the `DateCaptured` setter, null with it), `MediaType`, `IsSoftDeleted`, and a `PairedAssetId` self-reference (HEIC parent → MOV child)
 - `Metadata` — 1:1 with `MediaAsset`; EXIF data (dimensions, GPS, raw EXIF orientation tag 1–8, camera make/model/lens, video duration) and the image's `Blurhash` string (a column, not a proxy file)
 - `ProxyFile` — one row per generated artefact, each a file at `ProxyPath` on the local SSD. `ProxyType` is `Thumbnail`, `WebVideo` or `FullPreview`
 - `Burst` — groups photos of one storage config taken moments apart, so a flashback shows one memory; `PrimaryAssetId` is the stored cover (the earliest member), nullable with `SET NULL` so deleting it never fails
