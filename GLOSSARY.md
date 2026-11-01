@@ -17,7 +17,7 @@ A photo and the short video the camera recorded with it, shown as one memory. It
 _Avoid_: Pair, HEIC+MOV, motion photo
 
 **Capture date**:
-The date and time on the clock where a photo or video was taken, as its camera or app recorded it, with the offset from UTC when one was recorded. A moment recorded only in UTC is read in the library's time zone.
+The date and time on the clock where a photo or video was taken, as its camera or app recorded it, with the offset from UTC when one was recorded. A moment recorded only in UTC is read in the library's time zone. A capture date recorded without a time names the day only, and its asset is never part of a burst.
 _Avoid_: Date taken, timestamp, creation date
 
 **Undated**:
