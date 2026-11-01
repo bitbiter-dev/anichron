@@ -1,0 +1,27 @@
+name: Git LFS objects
+description: >-
+  Replaces the checkout's LFS pointers with their files, restoring the objects from a cache
+  keyed on the LFS file list so that a run downloads only objects no earlier run has cached.
+runs:
+  using: composite
+  steps:
+    - name: LFS cache key
+      id: key
+      shell: bash
+      run: echo "hash=$(git lfs ls-files -l | cut -d' ' -f1 | sort | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore LFS objects
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: .git/lfs
+        key: lfs-${{ steps.key.outputs.hash }}
+        restore-keys: lfs-
+
+    - name: Check out LFS files
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        echo "LFS cache hit: ${CACHE_HIT:-false}"
+        git lfs pull
