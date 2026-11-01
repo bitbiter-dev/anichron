@@ -1,4 +1,7 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
+command -v git-lfs >/dev/null 2>&1 || { echo >&2 "git-lfs is not installed; see CLAUDE.md, \"First-time setup\"."; exit 2; }
+git lfs pre-push "$@"
+
 dotnet husky run --group pre-push
