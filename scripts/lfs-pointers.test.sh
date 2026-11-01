@@ -104,8 +104,8 @@ new_repo
 binary blob.bin
 git add blob.bin
 mkdir sub
-out=$(cd sub && "$script" 2>&1); status=$?
-if [ "$status" -eq 1 ]; then pass 'runs from a subdirectory'; else fail 'runs from a subdirectory' 'exit 1' "exit $status with: $out"; fi
+cd sub || { echo 'could not enter the subdirectory' >&2; exit 1; }
+assert_fails 'runs from a subdirectory' 'blob.bin'
 
 echo
 if [ "$failures" -eq 0 ]; then

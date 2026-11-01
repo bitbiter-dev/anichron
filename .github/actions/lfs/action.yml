@@ -16,6 +16,7 @@ runs:
       with:
         path: .git/lfs
         key: lfs-${{ steps.key.outputs.hash }}
+        restore-keys: lfs-
 
     - name: Check out LFS files
       shell: bash
