@@ -1,6 +1,6 @@
 # A capture date is the recorded wall-clock time, or none
 
-Status: accepted (2026-10-31, #383). Decided by the maintainer on #383.
+Status: accepted (2026-10-31, #383), amended 2026-11-01 (date-only dates). Decided by the maintainer on #383.
 
 An asset's capture date is the time on the clock where the photo or video was taken, as its
 file records it, stored as a local date and time without a zone. Next to it the asset keeps the
@@ -17,6 +17,9 @@ in On This Day or a burst. The file's last-modified time is never used as a capt
 - **A moment recorded only in UTC** (the movie header) is read in the library's time zone, the
   host's system zone that the API also uses for "today", and keeps no offset, so a guessed zone
   is never shown as a recorded one.
+- **A date without a time** (XMP `photoshop:DateCreated` written as a date alone, IPTC
+  `DateCreated` without `TimeCreated`) still wins when it comes first, and dates the asset by day
+  alone. Its source kind says so, and such a photo is never a burst candidate.
 - **A Live Photo's video** takes its photo's capture date, offset and source.
 
 ## Why
@@ -29,6 +32,10 @@ day fixed and still shows the zone when one is known.
 The last-modified time was the old fallback. On a NAS it is usually when the file was copied or
 synced, so it put videos and screenshots on the wrong day and year. An undated asset is honest;
 a wrong date is a wrong memory.
+
+A date without a time still names the right day, so it belongs in On This Day. It cannot place
+a photo within the day: read as midnight, similar shots taken minutes or hours apart would fall
+inside a burst's gap and be grouped as one.
 
 ## Considered options
 
@@ -44,6 +51,10 @@ a wrong date is a wrong memory.
   `xmp:CreateDate` alone only on Photoshop documents, where it is the document's creation; no
   real file dated only by GPS; PNG `tIME` is a modified time. A source joins the chain when a
   real file needs it.
+- **A date-only source yields to a later source with a time:** the date and time would no
+  longer come from one source, and two sources can disagree on the day.
+- **A date-only source counts as undated:** it records the right day, and On This Day needs
+  nothing more.
 
 ## Consequences
 
