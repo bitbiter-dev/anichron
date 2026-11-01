@@ -254,7 +254,7 @@ public sealed class ImageProxyMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_OriginalNoDecoderReads_FailsWithoutProxiesOrNextAsync()
+    public async Task InvokeAsync_UnreadableOriginal_FailsWithoutProxiesOrNextAsync()
     {
         var fixture = new TestFixture();
         fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData([0x00, 0x01, 0x02, 0x03]));

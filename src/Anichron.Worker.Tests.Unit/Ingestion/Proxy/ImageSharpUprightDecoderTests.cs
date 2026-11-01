@@ -46,7 +46,7 @@ public sealed class ImageSharpUprightDecoderTests
     }
 
     [Fact]
-    public async Task DecodeAsync_BytesNoDecoderReads_ThrowsAsync()
+    public async Task DecodeAsync_UnreadableBytes_ThrowsAsync()
     {
         var act = () => new ImageSharpUprightDecoder().DecodeAsync(
             [0x00, 0x01, 0x02, 0x03], TestContext.Current.CancellationToken);
