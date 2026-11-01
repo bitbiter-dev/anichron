@@ -33,14 +33,16 @@ byte for byte (#401).
 
 - **Recognised by bytes, not by extension.** `UprightImageDecoder` sends a file to the HEIF decoder
   when it starts with an ISO-BMFF `ftyp` box whose major brand is `heic`, `heix` or `mif1`. Every
-  other file, AVIF (`avif`, #396) included, goes to ImageSharp. The HEIF decoder pins the format
+  other file, AVIF with major brand `avif` (#396) included, goes to ImageSharp; only the major brand
+  is read. The HEIF decoder pins the format
   rather than letting ImageMagick detect it.
 - **Upright exactly once.** libheif applies the container's `irot`/`imir`, and the pixels are copied
   into an `Image<Rgb24>` without metadata, so nothing is left for `AutoOrient` to turn again.
   `AutoOrient` stays on the ImageSharp path (#220). The container wins over EXIF, as the HEIF spec
-  says: the fixture with its EXIF orientation patched to 1 or 3 still decodes to the same portrait.
-- **Colour** is handled as on the JPEG path: 8-bit RGB, the colour profile not applied, the HDR gain
-  map ignored (#398).
+  says: with its EXIF orientation patched to 1 or 3, the fixture still matches its stored pixels
+  (rendered by macOS `sips`) turned by `irot`.
+- **Colour** is handled as on the JPEG path: 8-bit RGB values as stored, and the ICC profile (Display
+  P3 on an iPhone) carried onto the proxies, not applied. The HDR gain map is ignored (#398).
 - **A native library in the Worker image:** it grows by 41 MB on amd64 and 37 MB on arm64. The
   publish output holds every platform's copy, so the Dockerfile's publish stage deletes all but the
   target's (`win-*`, `linux-musl-x64`, `osx-arm64` and the other Linux architecture). The library

@@ -15,6 +15,7 @@ using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.IO.Abstractions.TestingHelpers;
+using System.Text;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
@@ -574,28 +575,50 @@ public sealed class ImageProxyMiddlewareTests
 
     private static readonly WorkerSettings HeicProxySettings = new() { PreviewLongEdge = 400, ThumbnailShortEdge = 150 };
 
-    // The maintainer's stripped iPhone photo: stored 4032x3024 as a tile grid, irot 270, EXIF orientation 6.
-    private static byte[] IphoneHeic()
+    private static byte[] Fixture(string name)
     {
-        using var stream = typeof(ImageProxyMiddlewareTests).Assembly.GetManifestResourceStream("Fixtures.iphone-4732.heic")!;
+        using var stream = typeof(ImageProxyMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
         return copy.ToArray();
     }
 
-    private static byte[] WithMajorBrand(string brand)
+    // The maintainer's stripped iPhone photo: stored 4032x3024 as a tile grid, irot 270, EXIF orientation 6,
+    // a Display P3 profile.
+    private static byte[] IphoneHeic() => Fixture("iphone-4732.heic");
+
+    // Its stored pixels, unrotated, as macOS sips renders them at 64x48.
+    private static Image<Rgb24> StoredPixelsTurnedByIrot()
+    {
+        var stored = Image.Load<Rgb24>(Fixture("iphone-4732-stored.png"));
+        stored.Mutate(x => x.Rotate(RotateMode.Rotate90));
+        return stored;
+    }
+
+    private static double MeanGridDistance(Image<Rgb24> image, Image<Rgb24> reference)
+    {
+        using var a = image.Clone(x => x.Resize(3, 4));
+        using var b = reference.Clone(x => x.Resize(3, 4));
+        var total = 0;
+        for (var y = 0; y < 4; y++)
+        {
+            for (var x = 0; x < 3; x++)
+                total += Math.Abs(a[x, y].R - b[x, y].R) + Math.Abs(a[x, y].G - b[x, y].G) + Math.Abs(a[x, y].B - b[x, y].B);
+        }
+
+        return total / 12.0;
+    }
+
+    private static byte[] Patched(int offset, string ascii)
     {
         var heic = IphoneHeic();
-        System.Text.Encoding.ASCII.GetBytes(brand).CopyTo(heic, 8);
+        Encoding.ASCII.GetBytes(ascii).CopyTo(heic, offset);
         return heic;
     }
 
-    private static byte[] WithBoxType(string boxType)
-    {
-        var heic = IphoneHeic();
-        System.Text.Encoding.ASCII.GetBytes(boxType).CopyTo(heic, 4);
-        return heic;
-    }
+    private static byte[] WithMajorBrand(string brand) => Patched(8, brand);
+
+    private static byte[] WithBoxType(string boxType) => Patched(4, boxType);
 
     private static byte[] WithExifOrientation(byte orientation)
     {
@@ -623,13 +646,19 @@ public sealed class ImageProxyMiddlewareTests
         return context;
     }
 
-    private static async Task<Size> ProxySizeAsync(byte[] source, string proxyFileName)
+    private static async Task<Image<Rgb24>> HeicProxyAsync(byte[] source, string proxyFileName)
     {
         var fixture = new TestFixture();
         await IngestWithRealProcessorAsync(source, fixture);
         var bytes = await fixture.FileSystem.File.ReadAllBytesAsync(
             $"/data/proxies/ab/cd/{proxyFileName}", TestContext.Current.CancellationToken);
-        return Image.Identify(bytes).Size;
+        return Image.Load<Rgb24>(bytes);
+    }
+
+    private static async Task<Size> ProxySizeAsync(byte[] source, string proxyFileName)
+    {
+        using var proxy = await HeicProxyAsync(source, proxyFileName);
+        return proxy.Size;
     }
 
     [Theory]
@@ -638,9 +667,21 @@ public sealed class ImageProxyMiddlewareTests
     public async Task InvokeAsync_IphoneHeic_WritesUprightPortraitProxyBoundedOnItsEdgeAsync(
         string proxyFileName, int expectedWidth, int expectedHeight)
     {
-        var size = await ProxySizeAsync(IphoneHeic(), proxyFileName);
+        using var proxy = await HeicProxyAsync(IphoneHeic(), proxyFileName);
+        using var expected = StoredPixelsTurnedByIrot();
 
-        size.Should().Be(new Size(expectedWidth, expectedHeight));
+        proxy.Size.Should().Be(new Size(expectedWidth, expectedHeight));
+        MeanGridDistance(proxy, expected).Should().BeLessThan(15, "a wrong turn or mirror measures 33 or more");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_IphoneHeic_KeepsItsColourProfileOnTheProxyAsync()
+    {
+        using var proxy = await HeicProxyAsync(IphoneHeic(), "preview.jpg");
+
+        proxy.Metadata.IccProfile.Should().NotBeNull();
+        proxy.Metadata.IccProfile.Header.DataColorSpace.Should().Be(SixLabors.ImageSharp.Metadata.Profiles.Icc.IccColorSpaceType.Rgb);
+        proxy.Metadata.IccProfile.ToByteArray().Should().HaveCount(536);
     }
 
     [Fact]
@@ -656,9 +697,11 @@ public sealed class ImageProxyMiddlewareTests
     [InlineData(ExifOrientationMode.BottomRight)]
     public async Task InvokeAsync_HeicWhoseExifDisagreesWithItsContainerRotation_FollowsTheContainerAsync(ushort orientation)
     {
-        var size = await ProxySizeAsync(WithExifOrientation((byte)orientation), "preview.jpg");
+        using var proxy = await HeicProxyAsync(WithExifOrientation((byte)orientation), "preview.jpg");
+        using var expected = StoredPixelsTurnedByIrot();
 
-        size.Should().Be(new Size(300, 400));
+        proxy.Size.Should().Be(new Size(300, 400));
+        MeanGridDistance(proxy, expected).Should().BeLessThan(15);
     }
 
     [Theory]
@@ -696,7 +739,7 @@ public sealed class ImageProxyMiddlewareTests
 
         var act = () => fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        (await act.Should().ThrowAsync<Exception>()).Which.Should().NotBeOfType<UnknownImageFormatException>();
+        await act.Should().ThrowAsync<ImageMagick.MagickException>();
         context.ProxyFiles.Should().BeEmpty();
     }
 }
