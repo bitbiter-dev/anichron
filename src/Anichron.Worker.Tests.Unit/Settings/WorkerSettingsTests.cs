@@ -14,7 +14,7 @@ public sealed class WorkerSettingsTests
         PreviewLongEdge = 1920,
         PreviewJpegQuality = 85,
         BlurhashSampleLongEdge = 64,
-        VideoMaxHeight = 720,
+        VideoShortEdge = 720,
         VideoBitrateKbps = 2000,
         TokenCleanupIntervalHours = 24,
         FfmpegPath = "ffmpeg",
@@ -171,9 +171,9 @@ public sealed class WorkerSettingsTests
     // ==========================================================================
 
     [Fact]
-    public void Validate_VideoMaxHeightZero_ReturnsFailed()
+    public void Validate_VideoShortEdgeZero_ReturnsFailed()
     {
-        IsValid(ValidSettings with { VideoMaxHeight = 0 }).Should().BeFalse();
+        IsValid(ValidSettings with { VideoShortEdge = 0 }).Should().BeFalse();
     }
 
     [Fact]

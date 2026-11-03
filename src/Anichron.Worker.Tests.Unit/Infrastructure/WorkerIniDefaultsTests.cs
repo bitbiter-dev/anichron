@@ -27,7 +27,7 @@ public sealed class WorkerIniDefaultsTests
             ("Worker", "PreviewJpegQuality", "85"),
             ("Worker", "BlurhashSampleLongEdge", "64"),
             ("Worker", "FfmpegPath", "ffmpeg"),
-            ("Worker", "VideoMaxHeight", "720"),
+            ("Worker", "VideoShortEdge", "720"),
             ("Worker", "VideoBitrateKbps", "2000"));
     }
 }
