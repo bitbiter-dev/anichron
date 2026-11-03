@@ -71,7 +71,59 @@ assert_fails 'a skipped job that is not pull-request-only blocks outside a pull 
 assert_fails 'with no pull-request-only jobs, a skip blocks on a push too' 'docker: skipped' \
   "$script" push "$(needs checks=success mutation=success docker=skipped)"
 
+echo "backend jobs"
+
+changes() {
+  printf '"changes":{"result":"%s","outputs":%s}' "$1" "$2"
+}
+
+# needs_with_changes <changes-result> <changes-outputs-json> [job=result ...]
+needs_with_changes() {
+  local result="$1" outputs="$2"; shift 2
+  local rest
+  rest=$(needs "$@")
+  printf '{%s,%s' "$(changes "$result" "$outputs")" "${rest#\{}"
+}
+
+ui_only='{"backend":"false"}'
+backend_changed='{"backend":"true"}'
+
+assert_passes 'a skipped backend job passes when the backend is unchanged' \
+  "$script" pull_request "$(needs_with_changes success "$ui_only" checks=skipped ui=success docker-api=success)" \
+  --backend checks docker-api
+assert_fails 'a skipped backend job blocks when the backend changed' 'checks: skipped' \
+  "$script" pull_request "$(needs_with_changes success "$backend_changed" checks=skipped ui=success)" \
+  --backend checks
+assert_fails 'a cancelled backend job blocks even when the backend is unchanged' 'checks: cancelled' \
+  "$script" pull_request "$(needs_with_changes success "$ui_only" checks=cancelled ui=success)" \
+  --backend checks
+assert_fails 'a failed backend job blocks even when the backend is unchanged' 'checks: failure' \
+  "$script" pull_request "$(needs_with_changes success "$ui_only" checks=failure ui=success)" \
+  --backend checks
+assert_fails 'a skipped job that is not a backend job blocks when the backend is unchanged' 'ui: skipped' \
+  "$script" pull_request "$(needs_with_changes success "$ui_only" checks=skipped ui=skipped)" \
+  --backend checks
+assert_fails 'a failed change detection blocks' 'changes: failure' \
+  "$script" pull_request "$(needs_with_changes failure '{}' checks=skipped ui=success)" \
+  --backend checks
+assert_fails 'a change detection with no backend output counts as a backend change' 'checks: skipped' \
+  "$script" pull_request "$(needs_with_changes success '{}' checks=skipped ui=success)" \
+  --backend checks
+assert_passes 'a backend job that is also pull-request-only may skip on a push' \
+  "$script" push "$(needs_with_changes success "$backend_changed" checks=success docker-worker=skipped)" \
+  --backend docker-worker docker-worker
+assert_fails 'a skipped backend job blocks on a push, where the backend always counts as changed' 'checks: skipped' \
+  "$script" push "$(needs_with_changes success "$backend_changed" checks=skipped)" \
+  --backend checks
+
 echo "misconfiguration"
+
+assert_fails 'a backend job missing from needs is refused' 'chekcs' \
+  "$script" pull_request "$(needs_with_changes success "$ui_only" checks=skipped)" --backend chekcs
+assert_fails 'backend jobs without the changes job in needs are refused' 'changes' \
+  "$script" pull_request "$(needs checks=skipped)" --backend checks
+assert_fails 'a --backend with no job name is refused' 'usage' \
+  "$script" pull_request "$(needs_with_changes success "$ui_only" checks=success)" --backend
 
 assert_fails 'an empty needs object is refused' 'no jobs' \
   "$script" push '{}'

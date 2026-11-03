@@ -186,7 +186,9 @@ one of the others:
   payload — so enforcement has to be deferred to the end.
 - The `Mutation` job is not itself a required check. It blocks a merge through `CI gate`, the one
   required check this workflow reports, which fails unless `Checks`, `Mutation` and the pull-request
-  Docker builds all succeeded (`scripts/ci-gate.sh`). `Mutation` runs with `always()` and fails on
+  Docker builds all succeeded (`scripts/ci-gate.sh`). On a pull request that changes nothing
+  outside `src/Anichron.UI/`, the backend jobs (`Mutation` among them) skip and the gate accepts
+  that skip; see CLAUDE.md, "Infrastructure". `Mutation` runs with `!cancelled()` and fails on
   its upstream results itself, so a failed project job still gets its report merged and published.
 - A job-level `if:` does **not** relax a `needs:` success requirement — only `always()` or
   `!cancelled()` does, and the implicit `success()` looks at *every* upstream job, not only the
