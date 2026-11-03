@@ -1,3 +1,4 @@
+using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Bmp;
@@ -56,14 +57,14 @@ internal sealed partial class ExifExtractionMiddleware(
 
         var (latitude, longitude) = GetCoordinates(gps);
         var (width, height) = GetSize(
-            (heicPrimary, HeicImagePropertiesDirectory.TagImageWidth, HeicImagePropertiesDirectory.TagImageHeight),
-            (metadataDirectories.OfType<JpegDirectory>().FirstOrDefault(), JpegDirectory.TagImageWidth, JpegDirectory.TagImageHeight),
-            (metadataDirectories.OfType<PngDirectory>().FirstOrDefault(), PngDirectory.TagImageWidth, PngDirectory.TagImageHeight),
-            (metadataDirectories.OfType<GifHeaderDirectory>().FirstOrDefault(), GifHeaderDirectory.TagImageWidth, GifHeaderDirectory.TagImageHeight),
-            (metadataDirectories.OfType<WebPDirectory>().FirstOrDefault(), WebPDirectory.TagImageWidth, WebPDirectory.TagImageHeight),
-            (metadataDirectories.OfType<BmpHeaderDirectory>().FirstOrDefault(), BmpHeaderDirectory.TagImageWidth, BmpHeaderDirectory.TagImageHeight),
-            (cameraInfo, ExifDirectoryBase.TagImageWidth, ExifDirectoryBase.TagImageHeight),
-            (videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight));
+            new SizeSource(heicPrimary, HeicImagePropertiesDirectory.TagImageWidth, HeicImagePropertiesDirectory.TagImageHeight),
+            SizeSource.First<JpegDirectory>(metadataDirectories, JpegDirectory.TagImageWidth, JpegDirectory.TagImageHeight),
+            SizeSource.First<PngDirectory>(metadataDirectories, PngDirectory.TagImageWidth, PngDirectory.TagImageHeight),
+            SizeSource.First<GifHeaderDirectory>(metadataDirectories, GifHeaderDirectory.TagImageWidth, GifHeaderDirectory.TagImageHeight),
+            SizeSource.First<WebPDirectory>(metadataDirectories, WebPDirectory.TagImageWidth, WebPDirectory.TagImageHeight),
+            SizeSource.First<BmpHeaderDirectory>(metadataDirectories, BmpHeaderDirectory.TagImageWidth, BmpHeaderDirectory.TagImageHeight),
+            new SizeSource(cameraInfo, ExifDirectoryBase.TagImageWidth, ExifDirectoryBase.TagImageHeight),
+            new SizeSource(videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight));
 
         return new ExifData(
             Width: width,
@@ -101,49 +102,30 @@ internal sealed partial class ExifExtractionMiddleware(
     }
 
     private static bool HasSize(QuickTimeTrackHeaderDirectory track)
-        => GetSize((track, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight)) != (0, 0);
+        => new SizeSource(track, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight).Read() is not null;
 
-    private static (int Width, int Height) GetSize(
-        params (MetadataExtractor.Directory? Directory, int WidthTag, int HeightTag)[] sources)
-    {
-        foreach (var (directory, widthTag, heightTag) in sources)
-        {
-            if (directory is not null
-                && directory.TryGetInt32(widthTag, out var width) && width > 0
-                && directory.TryGetInt32(heightTag, out var height) && height > 0)
-            {
-                return (width, height);
-            }
-        }
-
-        return (0, 0);
-    }
+    private static (int Width, int Height) GetSize(params SizeSource[] sources)
+        => sources.Select(source => source.Read()).FirstOrDefault(size => size is not null) ?? (0, 0);
 
     private static int GetOrientation(
         HeicImagePropertiesDirectory? heicPrimary, QuickTimeTrackHeaderDirectory? videoTrack, ExifIfd0Directory? cameraInfo)
     {
         if (heicPrimary is not null)
-            return OrientationOfRotation(heicPrimary.TryGetDouble(HeicImagePropertiesDirectory.TagRotation, out var irot) ? irot : 0);
+            return ExifOrientation.OfDisplayRotation(RotationOf(heicPrimary, HeicImagePropertiesDirectory.TagRotation));
         if (videoTrack is not null)
-            return OrientationOfRotation(videoTrack.TryGetDouble(QuickTimeTrackHeaderDirectory.TagRotation, out var rotation) ? rotation : 0);
+            return ExifOrientation.OfDisplayRotation(RotationOf(videoTrack, QuickTimeTrackHeaderDirectory.TagRotation));
         return cameraInfo is not null
            && cameraInfo.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientation)
            && orientation is
                // Stryker disable once Equality
-               >= Core.Domain.ExifOrientation.Upright
-               and <= Core.Domain.ExifOrientation.Max
+               >= ExifOrientation.Upright
+               and <= ExifOrientation.Max
             ? orientation
-            : Core.Domain.ExifOrientation.Upright;
+            : ExifOrientation.Upright;
     }
 
-    private static int OrientationOfRotation(double degrees)
-        => ((((int)Math.Round(degrees) % 360) + 360) % 360) switch
-        {
-            90 => 8,
-            180 => 3,
-            270 => 6,
-            _ => Core.Domain.ExifOrientation.Upright,
-        };
+    private static double RotationOf(MetadataExtractor.Directory directory, int rotationTag)
+        => directory.TryGetDouble(rotationTag, out var degrees) ? degrees : 0;
 
     private LocalDateTime? GetDateCaptured(ExifSubIfdDirectory? captureDetails)
     {
@@ -161,6 +143,20 @@ internal sealed partial class ExifExtractionMiddleware(
         => movieHeader?.GetObject(QuickTimeMovieHeaderDirectory.TagDuration) is TimeSpan duration && duration >= TimeSpan.Zero
             ? (int)Math.Round(duration.TotalSeconds)
             : null;
+
+    private readonly record struct SizeSource(MetadataExtractor.Directory? Directory, int WidthTag, int HeightTag)
+    {
+        public static SizeSource First<T>(IEnumerable<MetadataExtractor.Directory> directories, int widthTag, int heightTag)
+            where T : MetadataExtractor.Directory
+            => new(directories.OfType<T>().FirstOrDefault(), widthTag, heightTag);
+
+        public (int Width, int Height)? Read()
+            => Directory is not null
+               && Directory.TryGetInt32(WidthTag, out var width) && width > 0
+               && Directory.TryGetInt32(HeightTag, out var height) && height > 0
+                ? (width, height)
+                : null;
+    }
 
     private static partial class Log
     {

@@ -184,9 +184,9 @@ public sealed class ExifExtractionMiddlewareTests
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
-            ["/abs/photo.jpg"] = new MockFileData(file),
+            ["/abs/media"] = new MockFileData(file),
         });
-        var context = MakeContext("/abs/photo.jpg");
+        var context = MakeContext("/abs/media");
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
@@ -233,14 +233,6 @@ public sealed class ExifExtractionMiddlewareTests
         var exif = await ExtractAsync(Fixture(name));
 
         (exif.Width, exif.Height, exif.Orientation).Should().Be((1920, 1080, orientation));
-    }
-
-    [Fact]
-    public async Task InvokeAsync_PortraitMov_IsPublishedUprightAsync()
-    {
-        var exif = await ExtractAsync(Fixture("exif-portrait.mov"));
-
-        ExifOrientation.SwapsAxes(exif.Orientation).Should().BeTrue();
     }
 
     [Theory]

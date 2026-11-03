@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Bursts\Fixtures\*.jpg" LogicalName="Fixtures.%(Filename)%(Extension)" />
-    <EmbeddedResource Include="Ingestion\Fixtures\*.heic;Ingestion\Fixtures\*.png;Ingestion\Fixtures\*.jpg;Ingestion\Fixtures\*.tiff;Ingestion\Fixtures\*.mov;Ingestion\Fixtures\*.mp4;Ingestion\Fixtures\*.gif;Ingestion\Fixtures\*.webp;Ingestion\Fixtures\*.bmp" LogicalName="Fixtures.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Ingestion\Fixtures\*" LogicalName="Fixtures.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

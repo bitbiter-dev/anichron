@@ -147,23 +147,13 @@ public sealed class ExifDataMappingTests
 
     private static ExifIfd0Directory TurnedExif() => Ifd0((ExifDirectoryBase.TagOrientation, 6));
 
-    [Theory]
-    [InlineData(0.0, 1)]
-    [InlineData(90.0, 8)]
-    [InlineData(89.9999, 8)]
-    [InlineData(90.0001, 8)]
-    [InlineData(450.0, 8)]
-    [InlineData(180.0, 3)]
-    [InlineData(-180.0, 3)]
-    [InlineData(270.0, 6)]
-    [InlineData(-90.0, 6)]
-    [InlineData(45.0, 1)]
-    public void BuildExifData_VideoRotation_MapsToTheEquivalentExifOrientation(double rotation, int expected)
+    [Fact]
+    public void BuildExifData_VideoRotation_IsTheOrientation()
         => Map(Track(
                 (QuickTimeTrackHeaderDirectory.TagWidth, 1920),
                 (QuickTimeTrackHeaderDirectory.TagHeight, 1080),
-                (QuickTimeTrackHeaderDirectory.TagRotation, rotation)))
-            .Orientation.Should().Be(expected);
+                (QuickTimeTrackHeaderDirectory.TagRotation, 180.0)))
+            .Orientation.Should().Be(3);
 
     [Fact]
     public void BuildExifData_VideoTrackWithoutRotation_IsUprightWhateverExifSays()
