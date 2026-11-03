@@ -512,38 +512,35 @@ public sealed class KnownFileReconcilerTests
     }
 
     [Fact]
-    public async Task ReconcileAsync_VideoContentChangedBesideAProcessedPhoto_LeavesTheVideosDateToProcessingAsync()
-    {
-        var fx = new TestFixture();
-        var mov = Row(MovedRowId, "2024/live.mov", "0ldm0v");
-        mov.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
-        fx.Context = VideoContext(FileOutcome.ContentChanged, mov);
-        fx.Context.Classification = fx.Context.Classification! with
-        {
-            Primary = fx.Context.Classification.Primary with { Outcome = FileOutcome.ContentChanged },
-        };
-
-        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
-
-        (mov.ContentHash, mov.DateCaptured).Should().Be(("cafebabe", new LocalDateTime(2019, 1, 2, 3, 4)));
-    }
-
-    [Fact]
-    public async Task ReconcileAsync_VideoOverwrittenByMoveBesideAProcessedPhoto_LeavesTheVideosDateToProcessingAsync()
+    public async Task ReconcileAsync_VideoOverwrittenByMove_TakesItsPhotosDateNotTheMovedVideosAsync()
     {
         var fx = new TestFixture();
         var (atPath, moved) = MoveOntoAnotherRow(fx);
-        atPath.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
         fx.Context = VideoContext(FileOutcome.OverwrittenByMove, atPath);
         fx.Context.Classification = fx.Context.Classification! with
         {
-            Primary = fx.Context.Classification.Primary with { Outcome = FileOutcome.New },
             Secondary = new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved),
         };
 
-        await fx.ReconcileAsync(fx.Context.Classification.Secondary);
+        await fx.ReconcileAsync(fx.Context.Classification.Secondary, "2024/live.mov");
 
-        (atPath.ContentHash, atPath.DateCaptured).Should().Be(("abc123", new LocalDateTime(2019, 1, 2, 3, 4)));
+        (atPath.ContentHash, atPath.DateCaptured).Should().Be(("abc123", new LocalDateTime(2020, 7, 8, 9, 10)));
+    }
+
+    [Fact]
+    public async Task ReconcileAsync_VideoOverwrittenByMoveBesideACopiedPhoto_IsUndatedAsync()
+    {
+        var fx = new TestFixture();
+        var (atPath, moved) = MoveOntoAnotherRow(fx);
+        fx.Context = VideoContext(FileOutcome.OverwrittenByMove, atPath, withPhoto: false);
+        fx.Context.Classification = fx.Context.Classification! with
+        {
+            Secondary = new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved),
+        };
+
+        await fx.ReconcileAsync(fx.Context.Classification.Secondary, "2024/live.mov");
+
+        (atPath.ContentHash, atPath.DateCaptured).Should().Be(("abc123", null));
     }
 
     [Fact]

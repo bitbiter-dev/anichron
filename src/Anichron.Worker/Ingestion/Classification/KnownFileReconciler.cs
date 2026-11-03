@@ -22,7 +22,7 @@ internal sealed partial class KnownFileReconciler(
             FileOutcome.Moved => Task.FromResult(Move(file.Stored!, relativePath)),
             FileOutcome.DuplicateCopy => Task.FromResult(SkipDuplicate(file.Stored!, relativePath)),
             FileOutcome.OverwrittenByCopy => RetireOverwrittenAsync(context, file.Stored!, file.Retired!, relativePath, ct),
-            FileOutcome.OverwrittenByMove => TakeMovedContentAsync(context, file.Stored!, file.Retired!, relativePath, ct),
+            FileOutcome.OverwrittenByMove => TakeMovedContentAsync(context, file, relativePath, ct),
             FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged
                 => TakeVideoContentAsync(context, file.Stored!, relativePath, ct),
             FileOutcome.AutoRestored or FileOutcome.AutoRestoredMoved => AutoRestoreAsync(context, file.Stored!, relativePath, ct),
@@ -75,12 +75,14 @@ internal sealed partial class KnownFileReconciler(
     }
 
     private async Task<bool> TakeMovedContentAsync(
-        IngestionContext context, MediaAsset atPath, MediaAsset moved, string relativePath, CancellationToken ct)
+        IngestionContext context, FileClassification file, string relativePath, CancellationToken ct)
     {
+        var (atPath, moved) = (file.Stored!, file.Retired!);
         await repository.LoadMetadataAsync(moved, ct);
         MoveTo(atPath, relativePath);
-        await storedContent.TakeAsync(
-            context, atPath, KeepingRowDateWhenMovDatedLater(context, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))])), ct);
+        await storedContent.TakeAsync(context, atPath, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))]), ct);
+        if (file == context.Classification?.Secondary)
+            PairedMovResolver.DateFromPhoto(atPath, context.Classification.Primary.Row);
 
         await storedContent.RetireAsync(context, moved, ct);
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
@@ -93,9 +95,8 @@ internal sealed partial class KnownFileReconciler(
         Log.VideoContentChanged(logger, video.Id, relativePath, video.ContentHash, context.SecondaryHash!);
         MoveTo(video, relativePath);
         var proxies = await pairedMovProxyWriter.WriteForNewContentAsync(context, video, ct);
-        var captured = ContentDate.Set(context.Classification!.Primary.Row?.DateCaptured);
-        await storedContent.TakeAsync(
-            context, video, KeepingRowDateWhenMovDatedLater(context, new AssetContent(context.SecondaryHash!, captured, MediaType.Video, new Metadata(), proxies)), ct);
+        await storedContent.TakeAsync(context, video, new AssetContent(context.SecondaryHash!, null, MediaType.Video, new Metadata(), proxies), ct);
+        PairedMovResolver.DateFromPhoto(video, context.Classification!.Primary.Row);
         return true;
     }
 
@@ -113,9 +114,6 @@ internal sealed partial class KnownFileReconciler(
 
         return true;
     }
-
-    private static AssetContent KeepingRowDateWhenMovDatedLater(IngestionContext context, AssetContent content)
-        => context.Classification?.DatesMovAfterProcessing == true ? content.KeepingRowDate() : content;
 
     private ProxyFile ProxyOf(MediaAsset owner, ProxyFile source) => new()
     {

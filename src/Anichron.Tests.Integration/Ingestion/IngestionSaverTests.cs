@@ -210,7 +210,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
             await new PairedMovResolver(
                     repository, Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
                     NullLogger<PairedMovResolver>.Instance)
-                .PairAsync(context, atPath, null, Ct);
+                .PairAsync(context, atPath, Ct);
             (moved.IsSoftDeleted, atPath.ContentHash, video.FilePath) = (true, "b0b0", "A.mov");
 
             (await new IngestionSaver(db, repository).TrySaveItemAsync(context, null, Ct)).Should().BeTrue();

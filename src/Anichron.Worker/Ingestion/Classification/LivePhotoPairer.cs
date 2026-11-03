@@ -28,7 +28,7 @@ internal sealed partial class LivePhotoPairer(
     {
         var heic = classification.Primary.Row!;
         heic.MediaType = context.Item.PrimaryMediaType;
-        var mov = await pairedMovResolver.PairAsync(context, heic, heic.DateCaptured, ct);
+        var mov = await pairedMovResolver.PairAsync(context, heic, ct);
         Log.Paired(logger, context.Item.RelativePath, heic.Id);
         return mov;
     }
