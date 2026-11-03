@@ -78,15 +78,13 @@ internal sealed partial class FfmpegVideoProcessor(
 
     private async Task RunFfmpegAsync(string sourcePath, string outputPath, string encoder, CancellationToken ct)
     {
-        // Cap the short edge, encode H.264 High/4.0 with yuv420p (universal browser compat),
-        // target bitrate, AAC audio, faststart for progressive web loading.
         var shortEdge = options.Value.VideoShortEdge;
         string[] arguments =
         [
             "-hide_banner",
             "-loglevel", "error",
             "-i", sourcePath,
-            "-vf", $"scale='if(gt(iw,ih),-2,min({shortEdge},iw))':'if(gt(iw,ih),min({shortEdge},ih),-2)'",
+            "-vf", $"scale='if(gt(iw,ih),-2,trunc(min({shortEdge},iw)/2)*2)':'if(gt(iw,ih),trunc(min({shortEdge},ih)/2)*2,-2)'",
             "-c:v", encoder,
             "-pix_fmt", "yuv420p",
             "-profile:v", "high",
@@ -134,9 +132,16 @@ public sealed class FfmpegException : Exception
     public FfmpegException(string message, Exception innerException) : base(message, innerException) { }
 
     public FfmpegException(string ffmpegPath, string arguments, int exitCode, string stderr)
-        : base($"{stderr.Trim()}\nFFmpeg exited with code {exitCode}: {ffmpegPath} {arguments}")
+        : base(MessageFor(ffmpegPath, arguments, exitCode, stderr))
     {
         ExitCode = exitCode;
         Stderr = stderr;
+    }
+
+    private static string MessageFor(string ffmpegPath, string arguments, int exitCode, string stderr)
+    {
+        var command = $"FFmpeg exited with code {exitCode}: {ffmpegPath} {arguments}";
+        var error = stderr.Trim();
+        return error.Length == 0 ? command : $"{error}\n{command}";
     }
 }

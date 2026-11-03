@@ -155,7 +155,7 @@ public sealed class FfmpegVideoProcessorTests
         await fixture.Launcher.Received(1).RunAsync(
             "ffmpeg",
             Arg.Is<IReadOnlyList<string>>(a =>
-                a.Contains("scale='if(gt(iw,ih),-2,min(540,iw))':'if(gt(iw,ih),min(540,ih),-2)'")
+                a.Contains("scale='if(gt(iw,ih),-2,trunc(min(540,iw)/2)*2)':'if(gt(iw,ih),trunc(min(540,ih)/2)*2,-2)'")
                 && a.Contains("4000k")
                 && !IsProbeCall(a)),
             Arg.Any<CancellationToken>());
@@ -204,7 +204,7 @@ public sealed class FfmpegVideoProcessorTests
             "-hide_banner",
             "-loglevel", "error",
             "-i", "/src/video.mp4",
-            "-vf", "scale='if(gt(iw,ih),-2,min(720,iw))':'if(gt(iw,ih),min(720,ih),-2)'",
+            "-vf", "scale='if(gt(iw,ih),-2,trunc(min(720,iw)/2)*2)':'if(gt(iw,ih),trunc(min(720,ih)/2)*2,-2)'",
             "-c:v", H264Encoder.QuickSync,
             "-pix_fmt", "yuv420p",
             "-profile:v", "high",
@@ -258,6 +258,22 @@ public sealed class FfmpegVideoProcessorTests
         var ex = new FfmpegException("ffmpeg", "-i source.mp4", 2, "some error");
 
         ex.Message.Should().Contain("2").And.Contain("-i source.mp4");
+    }
+
+    [Fact]
+    public void FfmpegException_FourParamCtor_MessageStartsWithTheTrimmedError()
+    {
+        var ex = new FfmpegException("ffmpeg", "-i source.mp4", 1, " \nUnable to choose an output format\n");
+
+        ex.Message.Should().Be("Unable to choose an output format\nFFmpeg exited with code 1: ffmpeg -i source.mp4");
+    }
+
+    [Fact]
+    public void FfmpegException_FourParamCtor_WithoutStderr_MessageIsTheCommand()
+    {
+        var ex = new FfmpegException("ffmpeg", "-i source.mp4", 1, " \n");
+
+        ex.Message.Should().Be("FFmpeg exited with code 1: ffmpeg -i source.mp4");
     }
 
     [Fact]
