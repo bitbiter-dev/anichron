@@ -22,7 +22,7 @@ internal static class WorkerIniDefaults
         new IniEntry("Worker", "PreviewJpegQuality", () => "85"),
         new IniEntry("Worker", "BlurhashSampleLongEdge", () => "64"),
         new IniEntry("Worker", "FfmpegPath", () => "ffmpeg"),
-        new IniEntry("Worker", "VideoMaxHeight", () => "720"),
+        new IniEntry("Worker", "VideoShortEdge", () => "720"),
         new IniEntry("Worker", "VideoBitrateKbps", () => "2000"),
     ];
 }
