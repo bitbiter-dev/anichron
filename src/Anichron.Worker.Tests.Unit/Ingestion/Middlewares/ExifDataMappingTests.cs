@@ -2,6 +2,7 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
+using MetadataExtractor.Formats.Heif;
 using MetadataExtractor.Formats.QuickTime;
 using Microsoft.Extensions.Logging;
 using NodaTime;
@@ -108,73 +109,101 @@ public sealed class ExifDataMappingTests
         => Map().Latitude.Should().BeNull();
 
     // ==========================================================================
-    // Dimensions — EXIF first, QuickTime track header as the fallback
+    // Size — the first directory with a positive width and height
     // ==========================================================================
 
-    [Fact]
-    public void BuildExifData_PositiveExifDimensions_AreUsedOverTheTrackHeader()
+    private static (int, int) Size(params MetadataExtractor.Directory[] directories)
     {
-        var result = Map(
-            Ifd0((ExifDirectoryBase.TagImageWidth, 4032), (ExifDirectoryBase.TagImageHeight, 3024)),
-            Track((QuickTimeTrackHeaderDirectory.TagWidth, 1920), (QuickTimeTrackHeaderDirectory.TagHeight, 1080)));
-
-        (result.Width, result.Height).Should().Be((4032, 3024));
+        var result = Map(directories);
+        return (result.Width, result.Height);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void BuildExifData_NonPositiveExifDimension_FallsBackToTheTrackHeader(int exifWidth)
-    {
-        var result = Map(
-            Ifd0((ExifDirectoryBase.TagImageWidth, exifWidth)),
-            Track((QuickTimeTrackHeaderDirectory.TagWidth, 1920)));
+    private static QuickTimeTrackHeaderDirectory SizedTrack(int width, int height)
+        => Track((QuickTimeTrackHeaderDirectory.TagWidth, width), (QuickTimeTrackHeaderDirectory.TagHeight, height));
 
-        result.Width.Should().Be(1920);
-    }
+    [Theory]
+    [InlineData(0, 3024)]
+    [InlineData(-1, 3024)]
+    [InlineData(4032, 0)]
+    [InlineData(4032, -1)]
+    public void BuildExifData_NonPositiveDimension_FallsThroughToTheNextDirectory(int width, int height)
+        => Size(Ifd0((ExifDirectoryBase.TagImageWidth, width), (ExifDirectoryBase.TagImageHeight, height)), SizedTrack(1920, 1080))
+            .Should().Be((1920, 1080));
 
     [Fact]
-    public void BuildExifData_OnlyTrackHeader_UsesIt()
-        => Map(Track((QuickTimeTrackHeaderDirectory.TagHeight, 1080))).Height.Should().Be(1080);
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void BuildExifData_NonPositiveTrackHeaderDimension_IsZero(int trackWidth)
-        => Map(Track((QuickTimeTrackHeaderDirectory.TagWidth, trackWidth))).Width.Should().Be(0);
+    public void BuildExifData_OnlyAWidth_FallsThroughToTheNextDirectory()
+        => Size(Ifd0((ExifDirectoryBase.TagImageWidth, 4032)), SizedTrack(1920, 1080)).Should().Be((1920, 1080));
 
     [Fact]
     public void BuildExifData_NoDimensionsAnywhere_IsZero()
-        => Map().Width.Should().Be(0);
+        => Size().Should().Be((0, 0));
+
+    // ==========================================================================
+    // Orientation — the HEIC container, else the video track, else EXIF
+    // ==========================================================================
+
+    private static HeicImagePropertiesDirectory HeicPrimary(params (int Tag, object Value)[] tags)
+        => With(new HeicImagePropertiesDirectory("HEIC Primary Item Properties"), tags);
+
+    private static ExifIfd0Directory TurnedExif() => Ifd0((ExifDirectoryBase.TagOrientation, 6));
+
+    [Theory]
+    [InlineData(0.0, 1)]
+    [InlineData(90.0, 8)]
+    [InlineData(89.9999, 8)]
+    [InlineData(90.0001, 8)]
+    [InlineData(450.0, 8)]
+    [InlineData(180.0, 3)]
+    [InlineData(-180.0, 3)]
+    [InlineData(270.0, 6)]
+    [InlineData(-90.0, 6)]
+    [InlineData(45.0, 1)]
+    public void BuildExifData_VideoRotation_MapsToTheEquivalentExifOrientation(double rotation, int expected)
+        => Map(Track(
+                (QuickTimeTrackHeaderDirectory.TagWidth, 1920),
+                (QuickTimeTrackHeaderDirectory.TagHeight, 1080),
+                (QuickTimeTrackHeaderDirectory.TagRotation, rotation)))
+            .Orientation.Should().Be(expected);
+
+    [Fact]
+    public void BuildExifData_VideoTrackWithoutRotation_IsUprightWhateverExifSays()
+        => Map(SizedTrack(1920, 1080), TurnedExif()).Orientation.Should().Be(1);
+
+    [Fact]
+    public void BuildExifData_HeicWithoutIrot_IsUprightWhateverExifSays()
+        => Map(HeicPrimary(), TurnedExif()).Orientation.Should().Be(1);
+
+    [Fact]
+    public void BuildExifData_HeicIrot_WinsOverTheVideoTrack()
+        => Map(HeicPrimary((HeicImagePropertiesDirectory.TagRotation, 180u)), SizedTrack(1920, 1080)).Orientation.Should().Be(3);
+
+    [Fact]
+    public void BuildExifData_HeicThumbnailIrot_IsIgnored()
+        => Map(With(new HeicImagePropertiesDirectory("HEIC Thumbnail Properties"), (HeicImagePropertiesDirectory.TagRotation, 270u)))
+            .Orientation.Should().Be(1);
 
     // ==========================================================================
     // Video duration
     // ==========================================================================
 
-    private static ExifData Duration(long duration, int timeScale)
-        => Map(Movie((QuickTimeMovieHeaderDirectory.TagDuration, duration), (QuickTimeMovieHeaderDirectory.TagTimeScale, timeScale)));
+    private static ExifData Duration(object duration)
+        => Map(Movie((QuickTimeMovieHeaderDirectory.TagDuration, duration)));
 
     [Fact]
-    public void BuildExifData_DurationAndTimeScale_RoundsToWholeSeconds()
-        => Duration(duration: 2_500, timeScale: 1_000).DurationInSeconds.Should().Be(2);
+    public void BuildExifData_Duration_RoundsToWholeSeconds()
+        => Duration(TimeSpan.FromSeconds(2.5)).DurationInSeconds.Should().Be(2);
 
     [Fact]
     public void BuildExifData_ZeroDuration_IsZeroSeconds()
-        => Duration(duration: 0, timeScale: 600).DurationInSeconds.Should().Be(0);
+        => Duration(TimeSpan.Zero).DurationInSeconds.Should().Be(0);
 
     [Fact]
     public void BuildExifData_NegativeDuration_IsNull()
-        => Duration(duration: -1, timeScale: 600).DurationInSeconds.Should().BeNull();
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-600)]
-    public void BuildExifData_NonPositiveTimeScale_IsNull(int timeScale)
-        => Duration(duration: 6_000, timeScale: timeScale).DurationInSeconds.Should().BeNull();
+        => Duration(TimeSpan.FromSeconds(-1)).DurationInSeconds.Should().BeNull();
 
     [Fact]
-    public void BuildExifData_TimeScaleOfOne_IsAccepted()
-        => Duration(duration: 7, timeScale: 1).DurationInSeconds.Should().Be(7);
+    public void BuildExifData_DurationThatIsNotATimeSpan_IsNull()
+        => Duration(6_000L).DurationInSeconds.Should().BeNull();
 
     [Fact]
     public void BuildExifData_MovieHeaderWithoutTags_IsNull()

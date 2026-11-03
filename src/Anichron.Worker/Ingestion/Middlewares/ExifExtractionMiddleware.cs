@@ -1,7 +1,13 @@
 using Anichron.Worker.Ingestion.Pipeline;
 using MetadataExtractor;
+using MetadataExtractor.Formats.Bmp;
 using MetadataExtractor.Formats.Exif;
+using MetadataExtractor.Formats.Gif;
+using MetadataExtractor.Formats.Heif;
+using MetadataExtractor.Formats.Jpeg;
+using MetadataExtractor.Formats.Png;
 using MetadataExtractor.Formats.QuickTime;
+using MetadataExtractor.Formats.WebP;
 using NodaTime;
 using System.IO.Abstractions;
 
@@ -11,6 +17,8 @@ internal sealed partial class ExifExtractionMiddleware(
     IFileSystem fileSystem,
     ILogger<ExifExtractionMiddleware> logger) : IIngestionMiddleware
 {
+    private const string heicPrimaryItemProperties = "HEIC Primary Item Properties";
+
     public int Order => IngestionOrder.ExifExtraction;
     public bool CanInvoke(IngestionContext context) => true;
 
@@ -40,15 +48,27 @@ internal sealed partial class ExifExtractionMiddleware(
         var cameraInfo = metadataDirectories.OfType<ExifIfd0Directory>().FirstOrDefault();     // IFD0: camera make/model, orientation
         var captureDetails = metadataDirectories.OfType<ExifSubIfdDirectory>().FirstOrDefault(); // Sub-IFD: date captured, lens model
         var gps = metadataDirectories.OfType<GpsDirectory>().FirstOrDefault();                // GPS coordinates
-        var trackHeader = metadataDirectories.OfType<QuickTimeTrackHeaderDirectory>().FirstOrDefault(); // video dimensions
+        var heicPrimary = metadataDirectories.OfType<HeicImagePropertiesDirectory>()
+            .FirstOrDefault(d => d.Name == heicPrimaryItemProperties);                      // HEIC: size, irot
+        var videoTrack = metadataDirectories.OfType<QuickTimeTrackHeaderDirectory>()
+            .FirstOrDefault(HasSize);                                                       // video: size, rotation
         var movieHeader = metadataDirectories.OfType<QuickTimeMovieHeaderDirectory>().FirstOrDefault(); // video duration
 
         var (latitude, longitude) = GetCoordinates(gps);
+        var (width, height) = GetSize(
+            (heicPrimary, HeicImagePropertiesDirectory.TagImageWidth, HeicImagePropertiesDirectory.TagImageHeight),
+            (metadataDirectories.OfType<JpegDirectory>().FirstOrDefault(), JpegDirectory.TagImageWidth, JpegDirectory.TagImageHeight),
+            (metadataDirectories.OfType<PngDirectory>().FirstOrDefault(), PngDirectory.TagImageWidth, PngDirectory.TagImageHeight),
+            (metadataDirectories.OfType<GifHeaderDirectory>().FirstOrDefault(), GifHeaderDirectory.TagImageWidth, GifHeaderDirectory.TagImageHeight),
+            (metadataDirectories.OfType<WebPDirectory>().FirstOrDefault(), WebPDirectory.TagImageWidth, WebPDirectory.TagImageHeight),
+            (metadataDirectories.OfType<BmpHeaderDirectory>().FirstOrDefault(), BmpHeaderDirectory.TagImageWidth, BmpHeaderDirectory.TagImageHeight),
+            (cameraInfo, ExifDirectoryBase.TagImageWidth, ExifDirectoryBase.TagImageHeight),
+            (videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight));
 
         return new ExifData(
-            Width: GetDimension(cameraInfo, ExifDirectoryBase.TagImageWidth, trackHeader, QuickTimeTrackHeaderDirectory.TagWidth),
-            Height: GetDimension(cameraInfo, ExifDirectoryBase.TagImageHeight, trackHeader, QuickTimeTrackHeaderDirectory.TagHeight),
-            Orientation: GetOrientation(cameraInfo),
+            Width: width,
+            Height: height,
+            Orientation: GetOrientation(heicPrimary, videoTrack, cameraInfo),
             DateCaptured: GetDateCaptured(captureDetails),
             Latitude: latitude,
             Longitude: longitude,
@@ -80,21 +100,36 @@ internal sealed partial class ExifExtractionMiddleware(
         }
     }
 
-    // Photos embed dimensions in EXIF IFD0; videos only have QuickTime track headers.
-    // Trying EXIF first covers both formats with a single helper.
-    private static int GetDimension(
-        MetadataExtractor.Directory? exifDirectory, int exifTag,
-        QuickTimeTrackHeaderDirectory? trackHeader, int quickTimeTag)
+    private static bool HasSize(QuickTimeTrackHeaderDirectory track)
+        => GetSize((track, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight)) != (0, 0);
+
+    // Each format keeps its pixel size in its own directory; the first one with a positive size wins.
+    private static (int Width, int Height) GetSize(
+        params (MetadataExtractor.Directory? Directory, int WidthTag, int HeightTag)[] sources)
     {
-        if (exifDirectory is not null && exifDirectory.TryGetInt32(exifTag, out var exifPixels) && exifPixels > 0)
-            return exifPixels;
-        return trackHeader is not null && trackHeader.TryGetInt32(quickTimeTag, out var qtPixels)
-            ? Math.Max(qtPixels, 0)
-            : 0;
+        foreach (var (directory, widthTag, heightTag) in sources)
+        {
+            if (directory is not null
+                && directory.TryGetInt32(widthTag, out var width) && width > 0
+                && directory.TryGetInt32(heightTag, out var height) && height > 0)
+            {
+                return (width, height);
+            }
+        }
+
+        return (0, 0);
     }
 
-    private static int GetOrientation(ExifIfd0Directory? cameraInfo)
-        => cameraInfo is not null
+    // The HEIC container's irot is what the decoder turns the pixels by, and a video's track rotation is
+    // what its player does, so both win over an EXIF tag.
+    private static int GetOrientation(
+        HeicImagePropertiesDirectory? heicPrimary, QuickTimeTrackHeaderDirectory? videoTrack, ExifIfd0Directory? cameraInfo)
+    {
+        if (heicPrimary is not null)
+            return OrientationOfRotation(heicPrimary.TryGetDouble(HeicImagePropertiesDirectory.TagRotation, out var irot) ? irot : 0);
+        if (videoTrack is not null)
+            return OrientationOfRotation(videoTrack.TryGetDouble(QuickTimeTrackHeaderDirectory.TagRotation, out var rotation) ? rotation : 0);
+        return cameraInfo is not null
            && cameraInfo.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientation)
            && orientation is
                // Stryker disable once Equality
@@ -102,6 +137,17 @@ internal sealed partial class ExifExtractionMiddleware(
                and <= Core.Domain.ExifOrientation.Max
             ? orientation
             : Core.Domain.ExifOrientation.Upright;
+    }
+
+    // Both irot and a track's rotation count degrees anticlockwise.
+    private static int OrientationOfRotation(double degrees)
+        => ((((int)Math.Round(degrees) % 360) + 360) % 360) switch
+        {
+            90 => 8,
+            180 => 3,
+            270 => 6,
+            _ => Core.Domain.ExifOrientation.Upright,
+        };
 
     private LocalDateTime? GetDateCaptured(ExifSubIfdDirectory? captureDetails)
     {
@@ -116,19 +162,9 @@ internal sealed partial class ExifExtractionMiddleware(
     }
 
     private static int? GetDurationInSeconds(QuickTimeMovieHeaderDirectory? movieHeader)
-    {
-        if (movieHeader is null)
-            return null;
-        if (!movieHeader.TryGetInt64(QuickTimeMovieHeaderDirectory.TagDuration, out var duration) ||    // tag absent or unreadable
-            !movieHeader.TryGetInt32(QuickTimeMovieHeaderDirectory.TagTimeScale, out var timeScale) ||  // tag absent or unreadable
-            timeScale <= 0 ||                                                                           // guard: prevents division by zero
-            duration < 0)                                                                               // guard: malformed negative duration
-        {
-            return null;
-        }
-
-        return (int)Math.Round((double)duration / timeScale);
-    }
+        => movieHeader?.GetObject(QuickTimeMovieHeaderDirectory.TagDuration) is TimeSpan duration && duration >= TimeSpan.Zero
+            ? (int)Math.Round(duration.TotalSeconds)
+            : null;
 
     private static partial class Log
     {
