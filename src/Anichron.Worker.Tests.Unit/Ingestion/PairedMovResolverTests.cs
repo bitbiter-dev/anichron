@@ -32,7 +32,7 @@ public sealed class PairedMovResolverTests
         public void PhotosOfTheVideo(params MediaAsset[] photos)
             => Repository.FindPhotosOfAsync(VideoId, Arg.Any<CancellationToken>()).Returns(photos);
 
-        public Task<MediaAsset> PairAsync(MediaAsset photo, MediaAsset? storedVideo)
+        public Task<MediaAsset> PairAsync(MediaAsset photo, MediaAsset? storedVideo, FileOutcome videoOutcome = FileOutcome.Moved)
         {
             var clock = Substitute.For<IClock>();
             clock.GetCurrentInstant().Returns(Now);
@@ -47,11 +47,11 @@ public sealed class PairedMovResolverTests
                 SecondaryHash = "b1b1",
                 Classification = new(
                     new FileClassification(FileOutcome.Unchanged, photo),
-                    new FileClassification(storedVideo is null ? FileOutcome.New : FileOutcome.Moved, storedVideo),
+                    new FileClassification(storedVideo is null ? FileOutcome.New : videoOutcome, storedVideo),
                     PairingAction.AttachMov),
             };
             return new PairedMovResolver(Repository, clock, guids, Logger)
-                .PairAsync(context, photo, new LocalDateTime(2020, 7, 8, 9, 10), CancellationToken.None);
+                .PairAsync(context, photo, CancellationToken.None);
         }
     }
 
@@ -72,6 +72,7 @@ public sealed class PairedMovResolverTests
     {
         var fx = new TestFixture();
         var photo = Row(PhotoId, "A.heic");
+        photo.DateCaptured = new LocalDateTime(2020, 7, 8, 9, 10);
 
         var mov = await fx.PairAsync(photo, storedVideo: null);
 
@@ -90,6 +91,47 @@ public sealed class PairedMovResolverTests
         });
         photo.PairedAssetId.Should().Be(NewVideoId);
         await fx.Repository.DidNotReceive().FindPhotosOfAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PairAsync_NoStoredVideoBesideAnUndatedPhoto_AddsAnUndatedVideoAsync()
+    {
+        var fx = new TestFixture();
+
+        var mov = await fx.PairAsync(Row(PhotoId, "A.heic"), storedVideo: null);
+
+        mov.DateCaptured.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData((int)FileOutcome.ContentChanged)]
+    [InlineData((int)FileOutcome.AutoRestoredContentChanged)]
+    [InlineData((int)FileOutcome.OverwrittenByMove)]
+    public async Task PairAsync_StoredVideoTakingContent_TakesThePhotosDateAsync(int videoOutcome)
+    {
+        var fx = new TestFixture();
+        var (photo, video) = (Row(PhotoId, "A.heic"), Row(VideoId, "A.mov"));
+        photo.DateCaptured = new LocalDateTime(2024, 7, 15, 12, 0);
+        video.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
+        fx.PhotosOfTheVideo();
+
+        await fx.PairAsync(photo, video, (FileOutcome)videoOutcome);
+
+        video.DateCaptured.Should().Be(new LocalDateTime(2024, 7, 15, 12, 0));
+    }
+
+    [Fact]
+    public async Task PairAsync_StoredVideoKeepingItsContent_KeepsItsDateAsync()
+    {
+        var fx = new TestFixture();
+        var (photo, video) = (Row(PhotoId, "A.heic"), Row(VideoId, "A.mov"));
+        photo.DateCaptured = new LocalDateTime(2024, 7, 15, 12, 0);
+        video.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
+        fx.PhotosOfTheVideo();
+
+        await fx.PairAsync(photo, video, FileOutcome.Unchanged);
+
+        video.DateCaptured.Should().Be(new LocalDateTime(2019, 1, 2, 3, 4));
     }
 
     [Fact]

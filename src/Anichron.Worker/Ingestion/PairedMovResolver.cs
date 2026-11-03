@@ -17,21 +17,31 @@ internal sealed partial class PairedMovResolver(
     /// stored one lets go of it.
     /// </summary>
     /// <param name="context">The classified Live Photo item.</param>
-    /// <param name="photo">The row that becomes the video's photo.</param>
-    /// <param name="dateCaptured">The capture date an added MOV row takes; null leaves it undated.</param>
+    /// <param name="photo">The row that becomes the video's photo, dated already.</param>
     /// <param name="ct">Cancels the lookup of the other photos.</param>
     /// <returns>The MOV row.</returns>
-    public async Task<MediaAsset> PairAsync(
-        IngestionContext context, MediaAsset photo, LocalDateTime? dateCaptured, CancellationToken ct)
+    public async Task<MediaAsset> PairAsync(IngestionContext context, MediaAsset photo, CancellationToken ct)
     {
-        var stored = context.Classification!.Secondary!.Row;
+        var video = context.Classification!.Secondary!;
+        var stored = video.Row;
         if (stored is not null)
             await TakeFromOtherPhotosAsync(photo, stored, ct);
 
-        var mov = stored ?? Add(context, dateCaptured);
+        var mov = stored ?? Add(context);
+        if (stored is null || video.TakesContent)
+            DateFromPhoto(mov, photo);
+
         photo.PairedAssetId = mov.Id;
         return mov;
     }
+
+    /// <summary>
+    /// The one rule that dates a Live Photo's video: it takes its photo's capture date, and is undated when the photo
+    /// is or when there is no photo row.
+    /// </summary>
+    /// <param name="video">The video row.</param>
+    /// <param name="photo">Its photo's row as it stands in this item.</param>
+    public static void DateFromPhoto(MediaAsset video, MediaAsset? photo) => video.DateCaptured = photo?.DateCaptured;
 
     private async Task TakeFromOtherPhotosAsync(MediaAsset photo, MediaAsset video, CancellationToken ct)
     {
@@ -46,7 +56,7 @@ internal sealed partial class PairedMovResolver(
         }
     }
 
-    private MediaAsset Add(IngestionContext context, LocalDateTime? dateCaptured)
+    private MediaAsset Add(IngestionContext context)
     {
         var mov = context.Item.SecondaryFile!;
         var asset = new MediaAsset
@@ -56,7 +66,6 @@ internal sealed partial class PairedMovResolver(
             FilePath = mov.RelativePath,
             FileName = Path.GetFileName(mov.RelativePath),
             ContentHash = context.SecondaryHash!,
-            DateCaptured = dateCaptured,
             MediaType = mov.MediaType,
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),

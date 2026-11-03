@@ -5,52 +5,22 @@ using NodaTime;
 
 namespace Anichron.Worker.Ingestion.Classification;
 
-/// <summary>The capture date content gives the row that takes it: the row's own, or a date set by the content.</summary>
-internal abstract record ContentDate
-{
-    private ContentDate()
-    {
-    }
-
-    public static ContentDate KeepRow => new Keep();
-
-    /// <summary>Sets the row's capture date.</summary>
-    /// <param name="dateCaptured">The capture date; null makes the row undated.</param>
-    public static ContentDate Set(LocalDateTime? dateCaptured) => new Setting(dateCaptured);
-
-    public abstract void ApplyTo(MediaAsset asset);
-
-    private sealed record Keep : ContentDate
-    {
-        public override void ApplyTo(MediaAsset asset)
-        {
-        }
-    }
-
-    private sealed record Setting(LocalDateTime? DateCaptured) : ContentDate
-    {
-        public override void ApplyTo(MediaAsset asset) => asset.DateCaptured = DateCaptured;
-    }
-}
-
 /// <summary>The content a row takes, from processing a file or from another row.</summary>
 /// <param name="ContentHash">The content's hash.</param>
-/// <param name="Date">The capture date the row takes.</param>
+/// <param name="DateCaptured">The capture date the row takes; null makes it undated.</param>
 /// <param name="MediaType">The content's media type.</param>
 /// <param name="Description">The metadata values; a stored row copies them, a new row takes this row as its own.</param>
 /// <param name="Proxies">The content's proxies, owned by the row that takes it.</param>
 internal sealed record AssetContent(
-    string ContentHash, ContentDate Date, MediaType MediaType, Metadata Description, IReadOnlyList<ProxyFile> Proxies)
+    string ContentHash, LocalDateTime? DateCaptured, MediaType MediaType, Metadata Description, IReadOnlyList<ProxyFile> Proxies)
 {
     public static AssetContent Of(MediaAsset source, IReadOnlyList<ProxyFile> proxies)
-        => new(source.ContentHash, ContentDate.Set(source.DateCaptured), source.MediaType, source.Metadata ?? new Metadata(), proxies);
-
-    public AssetContent KeepingRowDate() => this with { Date = ContentDate.KeepRow };
+        => new(source.ContentHash, source.DateCaptured, source.MediaType, source.Metadata ?? new Metadata(), proxies);
 
     public void ApplyTo(MediaAsset asset)
     {
         asset.ContentHash = ContentHash;
-        Date.ApplyTo(asset);
+        asset.DateCaptured = DateCaptured;
         asset.MediaType = MediaType;
     }
 }

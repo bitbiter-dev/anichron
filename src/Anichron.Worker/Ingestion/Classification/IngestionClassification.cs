@@ -50,9 +50,6 @@ internal sealed record IngestionClassification(
     public bool NeedsProcessing
         => Primary.Outcome is FileOutcome.New or FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged;
 
-    /// <summary>Whether the video takes content and is dated from the processed photo, once the photo is processed.</summary>
-    public bool DatesMovAfterProcessing => NeedsProcessing && Secondary is { TakesContent: true };
-
     /// <summary>
     /// The rows soft-deleted before the item's save, so another row can take their content: every half's retired
     /// row once either half was overwritten by a move, otherwise none.

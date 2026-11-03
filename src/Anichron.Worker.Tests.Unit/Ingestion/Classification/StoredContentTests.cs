@@ -68,22 +68,11 @@ public sealed class StoredContentTests
     };
 
     private static AssetContent NewContent(params ProxyFile[] proxies) => new(
-        "n3w", ContentDate.Set(new LocalDateTime(2024, 7, 15, 12, 0)), MediaType.LivePhoto, new Metadata { Width = 640, CameraMake = "Fujifilm" }, proxies);
+        "n3w", new LocalDateTime(2024, 7, 15, 12, 0), MediaType.LivePhoto, new Metadata { Width = 640, CameraMake = "Fujifilm" }, proxies);
 
     // ==========================================================================
     // TakeAsync
     // ==========================================================================
-
-    [Fact]
-    public async Task TakeAsync_ContentKeepingTheRowDate_KeepsTheRowDateAsync()
-    {
-        var fx = new TestFixture();
-        var asset = Row();
-
-        await fx.Build().TakeAsync(fx.Context, asset, NewContent().KeepingRowDate(), CancellationToken.None);
-
-        asset.Should().BeEquivalentTo(new { ContentHash = "n3w", DateCaptured = new LocalDateTime(2019, 3, 4, 5, 6), Year = 2019 });
-    }
 
     [Fact]
     public async Task TakeAsync_UndatedContent_MakesTheRowUndatedAsync()
@@ -91,7 +80,7 @@ public sealed class StoredContentTests
         var fx = new TestFixture();
         var asset = Row();
 
-        await fx.Build().TakeAsync(fx.Context, asset, NewContent() with { Date = ContentDate.Set(null) }, CancellationToken.None);
+        await fx.Build().TakeAsync(fx.Context, asset, NewContent() with { DateCaptured = null }, CancellationToken.None);
 
         asset.Should().BeEquivalentTo(new { ContentHash = "n3w", DateCaptured = (LocalDateTime?)null, Year = (int?)null });
     }
