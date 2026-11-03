@@ -17,8 +17,12 @@ A photo and the short video the camera recorded with it, shown as one memory. It
 _Avoid_: Pair, HEIC+MOV, motion photo
 
 **Capture date**:
-The date and time on the clock where a photo or video was taken, as its camera or app recorded it, with the offset from UTC when one was recorded. A moment recorded only in UTC is read in the library's time zone. A capture date recorded without a time names the day only, and its asset is never part of a burst.
+The date and time on the clock where a photo or video was taken, as its camera or app recorded it, with the offset from UTC when one was recorded and the time zone where it was taken when its location is known. A moment recorded only in UTC is read in that zone, or in the library's time zone without a location. A capture date recorded without a time names the day only, and its asset is never part of a burst.
 _Avoid_: Date taken, timestamp, creation date
+
+**Capture zone**:
+The time zone where a photo or video was taken, found from its GPS position. It never changes a recorded clock time or offset; when they disagree, both are kept.
+_Avoid_: Timezone, location zone, offset
 
 **Undated**:
 An asset whose file records no capture date. It is kept and can be shown, but never appears in On This Day or a burst.
