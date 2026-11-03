@@ -16,9 +16,7 @@ internal abstract class ProcessedContentWriter(
         var classification = context.Classification!;
         if (classification.Secondary is { DefersToAnotherRow: false })
         {
-            var mov = await pairedMovResolver.PairAsync(context, asset, context.Exif!.DateCaptured, ct);
-            if (classification.DatesMovAfterProcessing)
-                mov.DateCaptured = asset.DateCaptured;
+            var mov = await pairedMovResolver.PairAsync(context, asset, ct);
             await pairedMovProxyWriter.WriteMissingAsync(context, mov, ct);
         }
 
@@ -35,7 +33,7 @@ internal abstract class ProcessedContentWriter(
         var exif = context.Exif!;
         return new AssetContent(
             context.ContentHash!,
-            ContentDate.Set(exif.DateCaptured),
+            exif.DateCaptured,
             context.Item.PrimaryMediaType,
             new Metadata
             {
