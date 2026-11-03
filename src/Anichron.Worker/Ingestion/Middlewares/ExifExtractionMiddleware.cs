@@ -103,7 +103,6 @@ internal sealed partial class ExifExtractionMiddleware(
     private static bool HasSize(QuickTimeTrackHeaderDirectory track)
         => GetSize((track, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight)) != (0, 0);
 
-    // Each format keeps its pixel size in its own directory; the first one with a positive size wins.
     private static (int Width, int Height) GetSize(
         params (MetadataExtractor.Directory? Directory, int WidthTag, int HeightTag)[] sources)
     {
@@ -120,8 +119,6 @@ internal sealed partial class ExifExtractionMiddleware(
         return (0, 0);
     }
 
-    // The HEIC container's irot is what the decoder turns the pixels by, and a video's track rotation is
-    // what its player does, so both win over an EXIF tag.
     private static int GetOrientation(
         HeicImagePropertiesDirectory? heicPrimary, QuickTimeTrackHeaderDirectory? videoTrack, ExifIfd0Directory? cameraInfo)
     {
@@ -139,7 +136,6 @@ internal sealed partial class ExifExtractionMiddleware(
             : Core.Domain.ExifOrientation.Upright;
     }
 
-    // Both irot and a track's rotation count degrees anticlockwise.
     private static int OrientationOfRotation(double degrees)
         => ((((int)Math.Round(degrees) % 360) + 360) % 360) switch
         {
