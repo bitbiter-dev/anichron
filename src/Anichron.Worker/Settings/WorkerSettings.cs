@@ -68,7 +68,7 @@ public sealed record WorkerSettings : IValidatableObject
     public string FfmpegPath { get; init; } = "ffmpeg";
 
     [Range(1, int.MaxValue)]
-    public int VideoMaxHeight { get; init; } = 720;
+    public int VideoShortEdge { get; init; } = 720;
 
     [Range(1, int.MaxValue)]
     public int VideoBitrateKbps { get; init; } = 2000;

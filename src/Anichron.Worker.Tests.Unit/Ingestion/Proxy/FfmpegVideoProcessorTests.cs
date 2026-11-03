@@ -11,10 +11,12 @@ public sealed class FfmpegVideoProcessorTests
     {
         public IProcessLauncher Launcher { get; } = Substitute.For<IProcessLauncher>();
 
+        public int VideoShortEdge { get; init; } = 720;
+
         public FfmpegVideoProcessor Build()
             => new(
                 Launcher,
-                Options.Create(new WorkerSettings { FfmpegPath = "ffmpeg", VideoMaxHeight = 720, VideoBitrateKbps = 4000 }),
+                Options.Create(new WorkerSettings { FfmpegPath = "ffmpeg", VideoShortEdge = VideoShortEdge, VideoBitrateKbps = 4000 }),
                 Substitute.For<ILogger<FfmpegVideoProcessor>>());
     }
 
@@ -143,17 +145,19 @@ public sealed class FfmpegVideoProcessorTests
     [Fact]
     public async Task TranscodeAsync_AppliesVideoSettingsFromOptionsToFfmpegArgumentsAsync()
     {
-        var fixture = new TestFixture();
+        var fixture = new TestFixture { VideoShortEdge = 540 };
         fixture.Launcher
             .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(_ => ProbeResultAsync(true));
 
         await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video.mp4", CancellationToken.None);
 
-        // TestFixture uses VideoMaxHeight=720, VideoBitrateKbps=4000 — verify both appear in the transcode call.
         await fixture.Launcher.Received(1).RunAsync(
             "ffmpeg",
-            Arg.Is<IReadOnlyList<string>>(a => a.Any(arg => arg.Contains("720")) && a.Contains("4000k") && !IsProbeCall(a)),
+            Arg.Is<IReadOnlyList<string>>(a =>
+                a.Contains("scale='if(gt(iw,ih),-2,min(540,iw))':'if(gt(iw,ih),min(540,ih),-2)'")
+                && a.Contains("4000k")
+                && !IsProbeCall(a)),
             Arg.Any<CancellationToken>());
     }
 
@@ -166,7 +170,7 @@ public sealed class FfmpegVideoProcessorTests
             {
                 var arguments = callInfo.ArgAt<IReadOnlyList<string>>(1).ToArray();
                 calls.Add(arguments);
-                return Task.FromResult(new ProcessResult(IsProbeCall(arguments) ? 0 : transcodeExitCode, "boom"));
+                return Task.FromResult(new ProcessResult(IsProbeCall(arguments) ? 0 : transcodeExitCode, "boom\n"));
             });
         return calls;
     }
@@ -189,16 +193,18 @@ public sealed class FfmpegVideoProcessorTests
     }
 
     [Fact]
-    public async Task TranscodeAsync_TranscodesToBrowserCompatibleH264WithFaststartAsync()
+    public async Task TranscodeAsync_TranscodesToBrowserCompatibleMp4CappedOnTheShortEdgeAsync()
     {
         var fixture = new TestFixture();
         var calls = CaptureCalls(fixture);
 
-        await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video.mp4", CancellationToken.None);
+        await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video_720p.mp4.0123abcd.tmp", CancellationToken.None);
 
         calls[^1].Should().Equal(
+            "-hide_banner",
+            "-loglevel", "error",
             "-i", "/src/video.mp4",
-            "-vf", "scale=-2:'min(720,ih)'",
+            "-vf", "scale='if(gt(iw,ih),-2,min(720,iw))':'if(gt(iw,ih),min(720,ih),-2)'",
             "-c:v", H264Encoder.QuickSync,
             "-pix_fmt", "yuv420p",
             "-profile:v", "high",
@@ -207,12 +213,13 @@ public sealed class FfmpegVideoProcessorTests
             "-c:a", "aac",
             "-b:a", "128k",
             "-movflags", "+faststart",
+            "-f", "mp4",
             "-y",
-            "/out/video.mp4");
+            "/out/video_720p.mp4.0123abcd.tmp");
     }
 
     [Fact]
-    public async Task TranscodeAsync_TranscodeFails_ExceptionCarriesTheSpaceJoinedCommandAndStderrAsync()
+    public async Task TranscodeAsync_TranscodeFails_ExceptionStartsWithTheErrorThenTheSpaceJoinedCommandAsync()
     {
         var fixture = new TestFixture();
         CaptureCalls(fixture, transcodeExitCode: 3);
@@ -221,8 +228,8 @@ public sealed class FfmpegVideoProcessorTests
 
         var ex = (await act.Should().ThrowAsync<FfmpegException>()).Which;
         ex.ExitCode.Should().Be(3);
-        ex.Stderr.Should().Be("boom");
-        ex.Message.Should().Contain("ffmpeg -i /src/video.mp4 -vf scale=-2:'min(720,ih)' -c:v h264_qsv ");
+        ex.Stderr.Should().Be("boom\n");
+        ex.Message.Should().StartWith("boom\nFFmpeg exited with code 3: ffmpeg -hide_banner -loglevel error -i /src/video.mp4 -vf ");
     }
 
     // ==========================================================================
