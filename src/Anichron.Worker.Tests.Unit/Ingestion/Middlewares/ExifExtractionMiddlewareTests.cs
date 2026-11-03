@@ -156,4 +156,96 @@ public sealed class ExifExtractionMiddlewareTests
         context.Exif.Latitude.Should().BeNull();
         context.Exif.Longitude.Should().BeNull();
     }
+
+    // ==========================================================================
+    // Real files: size, orientation and duration
+    // ==========================================================================
+
+    private static byte[] Fixture(string name)
+    {
+        using var stream = typeof(ExifExtractionMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        return copy.ToArray();
+    }
+
+    // The maintainer's stripped iPhone photo: stored 4032x3024, irot 270, EXIF orientation 6.
+    private const int HeicIrotAngleOffset = 2401;
+    private const int HeicExifOrientationOffset = 54180;
+
+    private static byte[] HeicPatched(int offset, byte value)
+    {
+        var heic = Fixture("iphone-4732.heic");
+        heic[offset] = value;
+        return heic;
+    }
+
+    private static async Task<ExifData> ExtractAsync(byte[] file)
+    {
+        var fs = new MockFileSystem(new Dictionary<string, MockFileData>
+        {
+            ["/abs/media"] = new MockFileData(file),
+        });
+        var context = MakeContext("/abs/media");
+
+        await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+
+        return context.Exif!;
+    }
+
+    [Theory]
+    [InlineData("exif-camera.jpg", 48, 32)]
+    [InlineData("exif-image.png", 40, 24)]
+    [InlineData("exif-image.tiff", 56, 36)]
+    [InlineData("exif-image.gif", 44, 28)]
+    [InlineData("exif-image.webp", 52, 30)]
+    [InlineData("exif-image.bmp", 36, 20)]
+    [InlineData("iphone-4732.heic", 4032, 3024)]
+    public async Task InvokeAsync_Image_StoresItsPixelSizeAsync(string name, int width, int height)
+    {
+        var exif = await ExtractAsync(Fixture(name));
+
+        (exif.Width, exif.Height).Should().Be((width, height));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_HeicWithIrot270_StoresOrientation6Async()
+        => (await ExtractAsync(Fixture("iphone-4732.heic"))).Orientation.Should().Be(6);
+
+    [Fact]
+    public async Task InvokeAsync_HeicWhoseExifDisagreesWithIrot_StoresTheOrientationFromIrotAsync()
+        => (await ExtractAsync(HeicPatched(HeicExifOrientationOffset, 1))).Orientation.Should().Be(6);
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 8)]
+    [InlineData(2, 3)]
+    public async Task InvokeAsync_HeicIrot_MapsToTheEquivalentExifOrientationAsync(byte quarterTurns, int expected)
+        => (await ExtractAsync(HeicPatched(HeicIrotAngleOffset, quarterTurns))).Orientation.Should().Be(expected);
+
+    // Both MOVs carry an audio track (0x0) before the 1920x1080 video track; the portrait one is
+    // rotated -90 as an iPhone records it.
+    [Theory]
+    [InlineData("exif-portrait.mov", 6)]
+    [InlineData("exif-landscape.mov", 1)]
+    public async Task InvokeAsync_Mov_StoresTheVideoTrackSizeWithItsRotationAsOrientationAsync(string name, int orientation)
+    {
+        var exif = await ExtractAsync(Fixture(name));
+
+        (exif.Width, exif.Height, exif.Orientation).Should().Be((1920, 1080, orientation));
+    }
+
+    [Theory]
+    [InlineData("exif-portrait.mov")]
+    [InlineData("exif-clip.mp4")]
+    public async Task InvokeAsync_Video_StoresItsDurationInWholeSecondsAsync(string name)
+        => (await ExtractAsync(Fixture(name))).DurationInSeconds.Should().Be(4);
+
+    [Fact]
+    public async Task InvokeAsync_Mp4_StoresTheVideoTrackSizeAsync()
+    {
+        var exif = await ExtractAsync(Fixture("exif-clip.mp4"));
+
+        (exif.Width, exif.Height).Should().Be((64, 48));
+    }
 }

@@ -22,4 +22,18 @@ public sealed class ExifOrientationTests
     [InlineData(-6)]
     public void SwapsAxes_OutOfRange_IsFalse(int orientation)
         => ExifOrientation.SwapsAxes(orientation).Should().BeFalse();
+
+    [Theory]
+    [InlineData(0.0, 1)]
+    [InlineData(90.0, 8)]
+    [InlineData(89.9999, 8)]
+    [InlineData(90.0001, 8)]
+    [InlineData(450.0, 8)]
+    [InlineData(180.0, 3)]
+    [InlineData(-180.0, 3)]
+    [InlineData(270.0, 6)]
+    [InlineData(-90.0, 6)]
+    [InlineData(45.0, 1)]
+    public void OfDisplayRotation_MapsAnticlockwiseDegreesToTheEquivalentOrientation(double degrees, int expected)
+        => ExifOrientation.OfDisplayRotation(degrees).Should().Be(expected);
 }
