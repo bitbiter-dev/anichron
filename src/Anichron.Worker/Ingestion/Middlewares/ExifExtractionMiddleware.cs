@@ -1,6 +1,7 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using MetadataExtractor;
+using MetadataExtractor.Formats.Avi;
 using MetadataExtractor.Formats.Bmp;
 using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.Gif;
@@ -10,6 +11,7 @@ using MetadataExtractor.Formats.Png;
 using MetadataExtractor.Formats.QuickTime;
 using MetadataExtractor.Formats.WebP;
 using NodaTime;
+using System.Globalization;
 using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
@@ -54,6 +56,7 @@ internal sealed partial class ExifExtractionMiddleware(
         var videoTrack = metadataDirectories.OfType<QuickTimeTrackHeaderDirectory>()
             .FirstOrDefault(HasSize);                                                       // video: size, rotation
         var movieHeader = metadataDirectories.OfType<QuickTimeMovieHeaderDirectory>().FirstOrDefault(); // video duration
+        var aviHeader = metadataDirectories.OfType<AviDirectory>().FirstOrDefault();          // AVI: size, duration
 
         var (latitude, longitude) = GetCoordinates(gps);
         var (width, height) = GetSize(
@@ -64,7 +67,8 @@ internal sealed partial class ExifExtractionMiddleware(
             SizeSource.First<WebPDirectory>(metadataDirectories, WebPDirectory.TagImageWidth, WebPDirectory.TagImageHeight),
             SizeSource.First<BmpHeaderDirectory>(metadataDirectories, BmpHeaderDirectory.TagImageWidth, BmpHeaderDirectory.TagImageHeight),
             new SizeSource(cameraInfo, ExifDirectoryBase.TagImageWidth, ExifDirectoryBase.TagImageHeight),
-            new SizeSource(videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight));
+            new SizeSource(videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight),
+            new SizeSource(aviHeader, AviDirectory.TagWidth, AviDirectory.TagHeight));
 
         return new ExifData(
             Width: width,
@@ -76,7 +80,7 @@ internal sealed partial class ExifExtractionMiddleware(
             CameraMake: cameraInfo?.GetString(ExifDirectoryBase.TagMake),
             CameraModel: cameraInfo?.GetString(ExifDirectoryBase.TagModel),
             LensModel: captureDetails?.GetString(ExifDirectoryBase.TagLensModel),
-            DurationInSeconds: GetDurationInSeconds(movieHeader));
+            DurationInSeconds: GetDurationInSeconds(movieHeader) ?? GetDurationInSeconds(aviHeader));
     }
 
     private (double? Latitude, double? Longitude) GetCoordinates(GpsDirectory? gps)
@@ -143,6 +147,17 @@ internal sealed partial class ExifExtractionMiddleware(
         => movieHeader?.GetObject(QuickTimeMovieHeaderDirectory.TagDuration) is TimeSpan duration && duration >= TimeSpan.Zero
             ? (int)Math.Round(duration.TotalSeconds)
             : null;
+
+    private static int? GetDurationInSeconds(AviDirectory? aviHeader)
+        => aviHeader?.GetString(AviDirectory.TagDuration)?.Split(':') is [var hours, var minutes, var seconds]
+           && TryParseWholeNumber(hours, out var h)
+           && TryParseWholeNumber(minutes, out var m)
+           && TryParseWholeNumber(seconds, out var s)
+            ? (h * 3600) + (m * 60) + s
+            : null;
+
+    private static bool TryParseWholeNumber(string text, out int value)
+        => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value);
 
     private readonly record struct SizeSource(MetadataExtractor.Directory? Directory, int WidthTag, int HeightTag)
     {
