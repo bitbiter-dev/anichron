@@ -205,14 +205,21 @@ public sealed class ExifDataMappingTests
     public void BuildExifData_NoMovieHeader_IsNull()
         => Map().DurationInSeconds.Should().BeNull();
 
-    [Fact]
-    public void BuildExifData_AviDuration_IsItsWholeSeconds()
-        => Map(Avi((AviDirectory.TagDuration, "01:02:03"))).DurationInSeconds.Should().Be(3723);
+    [Theory]
+    [InlineData("01:02:03", 3723)]
+    [InlineData("25:00:00", 90000)]
+    public void BuildExifData_AviDuration_IsItsWholeSeconds(string raw, int seconds)
+        => Map(Avi((AviDirectory.TagDuration, raw))).DurationInSeconds.Should().Be(seconds);
 
     [Theory]
     [InlineData("3")]
+    [InlineData("00:03")]
+    [InlineData("00:00:00:03")]
     [InlineData("00:00:03.5")]
-    [InlineData("24:00:00")]
+    [InlineData("x:00:03")]
+    [InlineData("00:x:03")]
+    [InlineData("00:00:x")]
+    [InlineData("00:-1:03")]
     public void BuildExifData_AviDurationNotInHoursMinutesSeconds_IsNull(string raw)
         => Map(Avi((AviDirectory.TagDuration, raw))).DurationInSeconds.Should().BeNull();
 

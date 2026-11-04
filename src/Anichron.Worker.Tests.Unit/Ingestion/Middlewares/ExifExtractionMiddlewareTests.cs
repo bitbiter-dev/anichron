@@ -247,7 +247,7 @@ public sealed class ExifExtractionMiddlewareTests
     [InlineData("exif-clip.mp4", 64, 48)]
     [InlineData("exif-clip.m4v", 72, 40)]
     [InlineData("exif-clip.avi", 80, 60)]
-    public async Task InvokeAsync_Video_StoresItsPixelSizeAsync(string name, int width, int height)
+    public async Task InvokeAsync_Video_StoresItsUprightPixelSizeAsync(string name, int width, int height)
     {
         var exif = await ExtractAsync(Fixture(name));
 
