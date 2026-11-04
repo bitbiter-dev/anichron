@@ -54,10 +54,15 @@ internal sealed partial class IngestionPipelineRunner(
 
     private void CleanUpDirectory(string proxyRoot, IngestionContext context, string contentHash)
     {
-        var directory = fileSystem.Path.Combine(
-            proxyRoot, proxyDirectoryStrategy.GetDirectory(context.Config.Id, contentHash));
-        DiscardTemporaryFiles(directory, context.AttemptId);
-        TryRemoveIfEmpty(directory);
+        var relativeDirectory = proxyDirectoryStrategy.GetDirectory(context.Config.Id, contentHash);
+        DiscardTemporaryFiles(fileSystem.Path.Combine(proxyRoot, relativeDirectory), context.AttemptId);
+
+        for (var directory = relativeDirectory;
+             directory.Length > 0;
+             directory = fileSystem.Path.GetDirectoryName(directory)!)
+        {
+            TryRemoveIfEmpty(fileSystem.Path.Combine(proxyRoot, directory));
+        }
     }
 
     // Deletion runs while the original exception is in flight, so a file that cannot be deleted is
@@ -84,23 +89,26 @@ internal sealed partial class IngestionPipelineRunner(
             foreach (var temporaryPath in temporaryFiles)
                 TryDelete(temporaryPath);
         }
+        catch (DirectoryNotFoundException)
+        {
+            // Nothing was staged.
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.DeleteFailed(logger, directory, ex);
         }
     }
 
-    // Only when empty: a concurrent attempt on the same content shares this directory.
     private void TryRemoveIfEmpty(string directory)
     {
         try
         {
-            // Stryker disable once Logical
-            if (fileSystem.Directory.Exists(directory)
-                && !fileSystem.Directory.EnumerateFileSystemEntries(directory).Any())
-            {
+            if (!fileSystem.Directory.EnumerateFileSystemEntries(directory).Any())
                 fileSystem.Directory.Delete(directory);
-            }
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // Already gone.
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
