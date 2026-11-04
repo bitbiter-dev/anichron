@@ -1,6 +1,7 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
@@ -24,9 +25,9 @@ public sealed class BurstRepositoryTests
             FilePath = name,
             FileName = name,
             ContentHash = name,
-            DateCaptured = Noon.PlusSeconds(seconds),
+            Captured = Recorded.At(Noon.PlusSeconds(seconds)),
             IsSoftDeleted = softDeleted,
-            Metadata = new Metadata { AssetId = assetId, CameraMake = make, CameraModel = model },
+            Metadata = new Metadata { AssetId = assetId, Description = MediaDescription.Unknown with { CameraMake = make, CameraModel = model } },
             ProxyFiles = [.. (proxies ?? [ProxyType.Thumbnail]).Select(type => new ProxyFile { Id = Guid.NewGuid(), AssetId = assetId, ProxyType = type, ProxyPath = $"{name}/{type}" })],
         };
         return candidate is { } isCandidate ? [asset, new BurstCheck { AssetId = assetId, IsCandidate = isCandidate }] : [asset];
@@ -215,7 +216,7 @@ public sealed class BurstRepositoryTests
         var configId = Guid.NewGuid();
         var dated = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
         var undated = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
-        undated.DateCaptured = null;
+        undated.Captured = null;
         await using (var seed = AnichronDbContexts.InMemory(name))
         {
             seed.MediaAssets.AddRange(dated, undated);
@@ -308,6 +309,6 @@ public sealed class BurstRepositoryTests
         FileName = $"{id}.heic",
         ContentHash = id.ToString("N"),
         MediaType = MediaType.Image,
-        DateCaptured = capturedAt,
+        Captured = Recorded.At(capturedAt),
     };
 }

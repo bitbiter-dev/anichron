@@ -2,6 +2,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
@@ -112,7 +113,7 @@ public sealed class ClassificationMiddlewareTests
     {
         var fx = new ClassificationFixture();
         var heic = Stored("photo.heic");
-        heic.DateCaptured = new LocalDateTime(2023, 6, 15, 10, 0);
+        heic.Captured = Recorded.At(new LocalDateTime(2023, 6, 15, 10, 0));
         var mov = StoredMov("photo.mov");
         mov.ContentHash = "0ldm0v";
         var webVideo = new ProxyFile { AssetId = mov.Id, ProxyType = ProxyType.WebVideo, ProxyPath = "0l/old/video_720p.mp4" };

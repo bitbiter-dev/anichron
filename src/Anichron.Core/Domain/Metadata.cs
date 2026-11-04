@@ -6,22 +6,7 @@ public class Metadata
     public Guid AssetId { get; set; }
     public virtual MediaAsset Asset { get; set; } = null!;
 
-    // Dimensions & Transform
-    public int Width { get; set; }
-    public int Height { get; set; }
-    public int Orientation { get; set; } = ExifOrientation.Upright;
-
-    // Location
-    public double? Latitude { get; set; }
-    public double? Longitude { get; set; }
-
-    // Hardware Specs
-    public string? CameraMake { get; set; }
-    public string? CameraModel { get; set; }
-    public string? LensModel { get; set; }
-
-    // Video/File Specifics
-    public int? DurationInSeconds { get; set; }
+    public MediaDescription Description { get; set; } = MediaDescription.Unknown;
 
     // Image Placeholder
     public string? Blurhash { get; set; }

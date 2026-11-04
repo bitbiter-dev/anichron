@@ -1,6 +1,7 @@
 using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NSubstitute.ExceptionExtensions;
@@ -21,7 +22,7 @@ public sealed class ClassificationMiddlewarePairingTests
         FileName = "photo.heic",
         ContentHash = "abc123",
         MediaType = MediaType.Image,
-        DateCaptured = HeicCaptured,
+        Captured = Recorded.At(HeicCaptured),
         PairedAssetId = pairedAssetId,
     };
 

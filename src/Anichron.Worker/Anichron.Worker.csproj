@@ -15,6 +15,7 @@
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Blurhash.ImageSharp" />
+    <PackageReference Include="GeoTimeZone" />
     <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="MetadataExtractor" />
     <PackageReference Include="OpenCvSharp4" />

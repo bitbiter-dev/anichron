@@ -1,4 +1,5 @@
 using Anichron.Core.Domain;
+using Anichron.Testing.Domain;
 using Anichron.Worker.Bursts;
 using NodaTime;
 
@@ -13,7 +14,7 @@ public sealed class BurstGroupingTests
     private static MediaAsset Photo(int seconds, Guid? id = null, bool softDeleted = false) => new()
     {
         Id = id ?? Guid.NewGuid(),
-        DateCaptured = Noon.PlusSeconds(seconds),
+        Captured = Recorded.At(Noon.PlusSeconds(seconds)),
         IsSoftDeleted = softDeleted,
     };
 

@@ -1,5 +1,6 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Classification;
+using Anichron.Worker.Ingestion.Extraction;
 
 namespace Anichron.Worker.Ingestion.Pipeline;
 
@@ -20,7 +21,7 @@ internal sealed class IngestionContext
     public string? ContentHash { get; set; }
     public string? SecondaryHash { get; set; }
     public IngestionClassification? Classification { get; set; }
-    public ExifData? Exif { get; set; }
+    public ExtractedMedia? Extracted { get; set; }
     public string? Blurhash { get; set; }
     public MediaAsset? Asset { get; set; }
 

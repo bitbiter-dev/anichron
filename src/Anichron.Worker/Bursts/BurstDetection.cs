@@ -95,7 +95,7 @@ internal sealed partial class BurstDetectionHandler(
         {
             AssetId = photo.Id,
             CheckedAt = clock.GetCurrentInstant(),
-            IsCandidate = photo.Metadata is { CameraMake: not null, CameraModel: not null }
+            IsCandidate = photo.Metadata is { Description: { CameraMake: not null, CameraModel: not null } }
                 && photo.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail),
             CameraBurstId = facts.CameraBurstId,
         };
@@ -144,8 +144,8 @@ internal sealed partial class BurstDetectionHandler(
         var gap = options.Value.BurstGapSeconds;
         var neighbours = await bursts.GetCandidatesNearAsync(
             configId,
-            photo.Metadata!.CameraMake!,
-            photo.Metadata.CameraModel!,
+            photo.Metadata!.Description.CameraMake!,
+            photo.Metadata.Description.CameraModel!,
             photo.DateCaptured!.Value.PlusSeconds(-gap),
             photo.DateCaptured.Value.PlusSeconds(gap),
             ct);

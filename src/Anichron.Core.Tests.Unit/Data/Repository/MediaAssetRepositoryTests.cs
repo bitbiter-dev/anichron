@@ -263,7 +263,7 @@ public sealed class MediaAssetRepositoryTests
     {
         var ct = TestContext.Current.CancellationToken;
         var asset = AssetAt(ConfigA, "cafe", "a.jpg");
-        asset.Metadata = new Metadata { AssetId = asset.Id, Width = 640, Height = 480 };
+        asset.Metadata = new Metadata { AssetId = asset.Id, Description = MediaDescription.Unknown with { Width = 640, Height = 480 } };
         await using var seed = CreateDb(out var name);
         seed.MediaAssets.Add(asset);
         await seed.SaveChangesAsync(ct);
@@ -273,7 +273,7 @@ public sealed class MediaAssetRepositoryTests
         await new EfMediaAssetRepository(db).LoadMetadataAsync(tracked, ct);
 
         tracked.Metadata.Should().NotBeNull();
-        tracked.Metadata.Width.Should().Be(640);
+        tracked.Metadata.Description.Width.Should().Be(640);
     }
 
     [Fact]
@@ -281,7 +281,7 @@ public sealed class MediaAssetRepositoryTests
     {
         var ct = TestContext.Current.CancellationToken;
         var asset = AssetAt(ConfigA, "cafe", "a.jpg", softDeleted: true);
-        asset.Metadata = new Metadata { AssetId = asset.Id, Width = 640 };
+        asset.Metadata = new Metadata { AssetId = asset.Id, Description = MediaDescription.Unknown with { Width = 640 } };
         await using var seed = CreateDb(out var name);
         seed.MediaAssets.Add(asset);
         await seed.SaveChangesAsync(ct);
@@ -291,7 +291,7 @@ public sealed class MediaAssetRepositoryTests
         await new EfMediaAssetRepository(db).LoadMetadataAsync(tracked, ct);
 
         tracked.Metadata.Should().NotBeNull();
-        tracked.Metadata.Width.Should().Be(640);
+        tracked.Metadata.Description.Width.Should().Be(640);
     }
 
     // ==========================================================================
