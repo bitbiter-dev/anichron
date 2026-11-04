@@ -9,7 +9,7 @@ internal static class MediaTypeDetector
         {
             ".jpg" or ".jpeg" or ".png" or ".heic" or ".heif"
                 or ".gif" or ".webp" or ".tiff" or ".tif" or ".bmp" => MediaType.Image,
-            ".mov" or ".mp4" or ".m4v" or ".avi" or ".mkv" or ".wmv" => MediaType.Video,
+            ".mov" or ".mp4" or ".m4v" or ".avi" => MediaType.Video,
             _ => null,
         };
 }

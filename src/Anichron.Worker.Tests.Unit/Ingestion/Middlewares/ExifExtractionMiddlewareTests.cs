@@ -236,16 +236,21 @@ public sealed class ExifExtractionMiddlewareTests
     }
 
     [Theory]
-    [InlineData("exif-portrait.mov")]
-    [InlineData("exif-clip.mp4")]
-    public async Task InvokeAsync_Video_StoresItsDurationInWholeSecondsAsync(string name)
-        => (await ExtractAsync(Fixture(name))).DurationInSeconds.Should().Be(4);
+    [InlineData("exif-portrait.mov", 4)]
+    [InlineData("exif-clip.mp4", 4)]
+    [InlineData("exif-clip.m4v", 3)]
+    [InlineData("exif-clip.avi", 3)]
+    public async Task InvokeAsync_Video_StoresItsDurationInWholeSecondsAsync(string name, int seconds)
+        => (await ExtractAsync(Fixture(name))).DurationInSeconds.Should().Be(seconds);
 
-    [Fact]
-    public async Task InvokeAsync_Mp4_StoresTheVideoTrackSizeAsync()
+    [Theory]
+    [InlineData("exif-clip.mp4", 64, 48)]
+    [InlineData("exif-clip.m4v", 72, 40)]
+    [InlineData("exif-clip.avi", 80, 60)]
+    public async Task InvokeAsync_Video_StoresItsPixelSizeAsync(string name, int width, int height)
     {
-        var exif = await ExtractAsync(Fixture("exif-clip.mp4"));
+        var exif = await ExtractAsync(Fixture(name));
 
-        (exif.Width, exif.Height).Should().Be((64, 48));
+        (exif.Width, exif.Height, exif.Orientation).Should().Be((width, height, 1));
     }
 }

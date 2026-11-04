@@ -1,6 +1,7 @@
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Middlewares;
 using MetadataExtractor;
+using MetadataExtractor.Formats.Avi;
 using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.Heif;
 using MetadataExtractor.Formats.QuickTime;
@@ -26,6 +27,7 @@ public sealed class ExifDataMappingTests
     private static ExifSubIfdDirectory SubIfd(params (int Tag, object Value)[] tags) => With(new ExifSubIfdDirectory(), tags);
     private static QuickTimeTrackHeaderDirectory Track(params (int Tag, object Value)[] tags) => With(new QuickTimeTrackHeaderDirectory(), tags);
     private static QuickTimeMovieHeaderDirectory Movie(params (int Tag, object Value)[] tags) => With(new QuickTimeMovieHeaderDirectory(), tags);
+    private static AviDirectory Avi(params (int Tag, object Value)[] tags) => With(new AviDirectory(), tags);
 
     private static GpsDirectory Gps(double latitude, double longitude)
     {
@@ -202,4 +204,24 @@ public sealed class ExifDataMappingTests
     [Fact]
     public void BuildExifData_NoMovieHeader_IsNull()
         => Map().DurationInSeconds.Should().BeNull();
+
+    [Fact]
+    public void BuildExifData_AviDuration_IsItsWholeSeconds()
+        => Map(Avi((AviDirectory.TagDuration, "01:02:03"))).DurationInSeconds.Should().Be(3723);
+
+    [Theory]
+    [InlineData("3")]
+    [InlineData("00:00:03.5")]
+    [InlineData("24:00:00")]
+    public void BuildExifData_AviDurationNotInHoursMinutesSeconds_IsNull(string raw)
+        => Map(Avi((AviDirectory.TagDuration, raw))).DurationInSeconds.Should().BeNull();
+
+    [Fact]
+    public void BuildExifData_AviWithoutDuration_IsNull()
+        => Map(Avi()).DurationInSeconds.Should().BeNull();
+
+    [Fact]
+    public void BuildExifData_MovieHeaderDuration_WinsOverAvi()
+        => Map(Avi((AviDirectory.TagDuration, "00:00:09")), Movie((QuickTimeMovieHeaderDirectory.TagDuration, TimeSpan.FromSeconds(4))))
+            .DurationInSeconds.Should().Be(4);
 }

@@ -34,8 +34,6 @@ public sealed class MediaTypeDetectorTests
     [InlineData("/video.mp4")]
     [InlineData("/video.m4v")]
     [InlineData("/video.avi")]
-    [InlineData("/video.mkv")]
-    [InlineData("/video.wmv")]
     public void Detect_VideoExtension_ReturnsVideo(string filePath)
     {
         MediaTypeDetector.Detect(filePath).Should().Be(MediaType.Video);
@@ -65,6 +63,8 @@ public sealed class MediaTypeDetectorTests
     [InlineData("/archive.zip")]
     [InlineData("/text.txt")]
     [InlineData("/noextension")]
+    [InlineData("/video.mkv")]
+    [InlineData("/video.wmv")]
     public void Detect_UnknownExtension_ReturnsNull(string filePath)
     {
         MediaTypeDetector.Detect(filePath).Should().BeNull();
