@@ -12,6 +12,8 @@
 *.[bB][mM][pP] filter=lfs diff=lfs merge=lfs -text
 *.[mM][oO][vV] filter=lfs diff=lfs merge=lfs -text
 *.[mM][pP]4 filter=lfs diff=lfs merge=lfs -text
+*.[mM]4[vV] filter=lfs diff=lfs merge=lfs -text
+*.[aA][vV][iI] filter=lfs diff=lfs merge=lfs -text
 *.[wW][oO][fF][fF] filter=lfs diff=lfs merge=lfs -text
 *.[wW][oO][fF][fF]2 filter=lfs diff=lfs merge=lfs -text
 *.[tT][tT][fF] filter=lfs diff=lfs merge=lfs -text
