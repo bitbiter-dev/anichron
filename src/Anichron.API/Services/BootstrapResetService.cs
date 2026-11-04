@@ -14,6 +14,7 @@ public sealed partial class BootstrapResetService(
     IUserRepository users,
     IUnitOfWork unitOfWork,
     IPasswordHasher passwordHasher,
+    IRegistrationValidator validator,
     IConfiguration configuration,
     ILogger<BootstrapResetService> logger) : IBootstrapResetService
 {
@@ -22,6 +23,7 @@ public sealed partial class BootstrapResetService(
         var resetPassword = configuration["ADMIN_RESET_PASSWORD"];
         if (string.IsNullOrEmpty(resetPassword))
             return;
+        await validator.EnsureMeetsPolicyAsync("ADMIN_RESET_PASSWORD", resetPassword, ct);
 
         var targetUsername = configuration["ADMIN_RESET_USERNAME"];
         User? admin;

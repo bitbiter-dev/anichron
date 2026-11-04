@@ -9,19 +9,22 @@ public static partial class DatabaseStartupExtensions
 {
     extension(WebApplication app)
     {
-        public Task MigrateAndSeedDatabaseAsync(CancellationToken ct)
-            => new DatabaseStartupRetry(
+        public async Task MigrateAndSeedDatabaseAsync(CancellationToken ct)
+        {
+            await new DatabaseStartupRetry(
                     app.Services.GetRequiredService<TimeProvider>(),
                     AppDefaults.Startup.MaxDbRetryAttempts,
                     TimeSpan.FromSeconds(AppDefaults.Startup.DbRetryDelaySeconds))
                 .RunAsync(
-                    app.MigrateAndSeedOnceAsync,
+                    app.MigrateOnceAsync,
                     (ex, attempt) => Log.DatabaseNotReady(app.Logger, ex, attempt,
                         AppDefaults.Startup.MaxDbRetryAttempts, AppDefaults.Startup.DbRetryDelaySeconds),
                     ex => Log.DatabaseUnavailable(app.Logger, ex, AppDefaults.Startup.MaxDbRetryAttempts),
                     ct);
+            await app.SeedAsync(ct);
+        }
 
-        private async Task MigrateAndSeedOnceAsync(CancellationToken ct)
+        private async Task MigrateOnceAsync(CancellationToken ct)
         {
             await using var scope = app.Services.CreateAsyncScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
@@ -29,7 +32,11 @@ public static partial class DatabaseStartupExtensions
 
             await dbContext.Database.MigrateWithAdvisoryLockAsync(ct);
             Log.MigrationApplied(logger);
+        }
 
+        private async Task SeedAsync(CancellationToken ct)
+        {
+            await using var scope = app.Services.CreateAsyncScope();
             var bootstrapSeeder = scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>();
             await bootstrapSeeder.SeedAsync(ct);
 

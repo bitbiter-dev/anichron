@@ -1,10 +1,12 @@
 using Anichron.API.Security;
 using Anichron.API.Services;
+using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Anichron.API.Tests.Unit.Services;
 
@@ -16,6 +18,7 @@ public sealed class BootstrapResetServiceTests
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
         private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
         private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
+        public IPwnedPasswordClient Pwned { get; } = Substitute.For<IPwnedPasswordClient>();
         private readonly ILogger<BootstrapResetService> _logger = Substitute.For<ILogger<BootstrapResetService>>();
 
         public TestFixture()
@@ -48,8 +51,16 @@ public sealed class BootstrapResetServiceTests
             return this;
         }
 
+        public TestFixture WithPwned(string password)
+        {
+            Pwned.IsPwnedAsync(password, Arg.Any<CancellationToken>()).Returns(true);
+            return this;
+        }
+
         public BootstrapResetService CreateTestee() => new(
-            Users, UnitOfWork, _passwordHasher, _configuration, _logger);
+            Users, UnitOfWork, _passwordHasher,
+            new RegistrationValidator(Options.Create(new PasswordPolicy()), Options.Create(new UsernamePolicy()), Pwned),
+            _configuration, _logger);
     }
 
     [Fact]
@@ -141,5 +152,30 @@ public sealed class BootstrapResetServiceTests
             admin.MustChangePassword.Should().BeTrue();
         });
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("elevenchars", "PasswordTooShort")]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "PasswordTooLong")]
+    [InlineData("correct horse battery", "PasswordPwned")]
+    public async Task ResetIfRequestedAsync_PasswordBreaksThePolicy_StopsWithoutResetting(string password, string rule)
+    {
+        var admin = new User { Username = "admin", PasswordHash = "old_hash", MustChangePassword = false };
+        var fixture = new TestFixture()
+            .WithResetPassword(password)
+            .WithPwned("correct horse battery")
+            .WithAdmins([admin]);
+        var testee = fixture.CreateTestee();
+
+        var act = async () => await testee.ResetIfRequestedAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"ADMIN_RESET_PASSWORD does not meet the password policy: {rule}.");
+        Assert.Multiple(() =>
+        {
+            admin.PasswordHash.Should().Be("old_hash");
+            admin.MustChangePassword.Should().BeFalse();
+        });
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

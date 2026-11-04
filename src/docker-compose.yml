@@ -53,6 +53,8 @@ services:
       - Jwt__Secret=${JWT_SECRET}
       - Jwt__Issuer=anichron
       - Jwt__Audience=anichron
+      # First admin's password (12+ characters, not a known breached one); needed only while no user exists:
+      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD}
       # Uncomment and set to your UI's origin(s) if not using a reverse proxy (comma-separated):
       # - CORS__ALLOWEDORIGINS=http://localhost:3000
       # Behind a reverse proxy: trust its address so X-Forwarded-For is honoured (comma-separated):
