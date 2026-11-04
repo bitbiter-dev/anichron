@@ -19,6 +19,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using System.Text;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
@@ -402,5 +403,16 @@ public sealed class ApiServiceRegistrationTests
 
         database.ProviderName.Should().Be("Npgsql.EntityFrameworkCore.PostgreSQL");
         database.GetConnectionString().Should().Contain("Host=db.internal").And.Contain("Database=anichron");
+    }
+
+    [Fact]
+    public void AddDatabase_GivesUpConnectingAfterFiveSeconds()
+    {
+        using var provider = DatabaseServices(DatabaseValues());
+        using var scope = provider.CreateScope();
+
+        var connection = scope.ServiceProvider.GetRequiredService<AnichronDbContext>().Database.GetConnectionString();
+
+        new NpgsqlConnectionStringBuilder(connection).Timeout.Should().Be(5);
     }
 }
