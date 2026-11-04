@@ -1,5 +1,6 @@
 ﻿using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Anichron.Core.Data;
 
@@ -108,6 +109,17 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 "The wall-clock time the file records it was captured. NULL when it records none: the asset "
                 + "is undated, never dated by the file's last-modified time, and is left out of On This Day "
                 + "and burst detection (ADR 0015).");
+            entity.Ignore(m => m.Captured);
+            entity.Property(m => m.CaptureOffset)
+                  .HasConversion(new ValueConverter<Offset, int>(offset => offset.Seconds, seconds => Offset.FromSeconds(seconds)))
+                  .HasComment(
+                      "Seconds east of UTC that the file records with DateCaptured; NULL when it records none. "
+                      + "Kept as recorded, even when it disagrees with CaptureZone (ADR 0015).");
+            entity.Property(m => m.CaptureSource).HasConversion<string>().HasComment(
+                "Which kind of source DateCaptured came from; NULL exactly when DateCaptured is.");
+            entity.Property(m => m.CaptureZone).HasComment(
+                "IANA time zone at the asset's position when it was ingested, looked up offline; NULL without "
+                + "a position. Never changes DateCaptured or CaptureOffset.");
             entity.Property(m => m.Month).HasComment(
                 "Stored apart from DateCaptured so \"On This Day\" is an index lookup on "
                 + "(Month, Day) rather than an EXTRACT() scan over every row.");
@@ -189,7 +201,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                     + "Populated by ExifExtractionMiddleware; every field is best-effort, because a "
                     + "file may carry no EXIF at all."
                 ));
-            entity.Property(m => m.Orientation)
+            entity.OwnsOne(m => m.Description, description => description.Property(d => d.Orientation)
                   .HasDefaultValue(ExifOrientation.Upright)
                   .HasComment(
                       "EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): "
@@ -197,7 +209,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                       + "and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a "
                       + "rotation with a mirror and cannot be expressed as degrees; a reader converts, "
                       + "and for 5-8 swaps Width/Height. Proxies are already upright and a video's "
-                      + "player applies its own rotation, so rotate neither by it.");
+                      + "player applies its own rotation, so rotate neither by it."));
+            entity.Navigation(m => m.Description).IsRequired();
             entity.Property(m => m.Blurhash).HasComment(
                 "BlurHash placeholder string (4x3 components), computed by the Worker from the "
                 + "upright image. Kept here rather than as a proxy file so a response needs no disk "

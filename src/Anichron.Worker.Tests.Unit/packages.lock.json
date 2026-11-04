@@ -607,6 +607,7 @@
           "Anichron.Core": "[1.0.0, )",
           "Anichron.Infrastructure": "[1.0.0, )",
           "Blurhash.ImageSharp": "[4.1.1, )",
+          "GeoTimeZone": "[6.1.0, )",
           "Magick.NET-Q8-AnyCPU": "[15.0.0, )",
           "MetadataExtractor": "[2.9.3, )",
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
@@ -632,6 +633,12 @@
           "Blurhash.Core": "4.2.1",
           "SixLabors.ImageSharp": "4.1.1"
         }
+      },
+      "GeoTimeZone": {
+        "type": "CentralTransitive",
+        "requested": "[6.1.0, )",
+        "resolved": "6.1.0",
+        "contentHash": "HB3OJcaI2NNfB253co3XY0dUFllCtdR8Jn0kS7GR/m8XMhvEgurDfvgebNeac384S+OOvrgb7HEGbZXOps/8Mw=="
       },
       "Magick.NET-Q8-AnyCPU": {
         "type": "CentralTransitive",

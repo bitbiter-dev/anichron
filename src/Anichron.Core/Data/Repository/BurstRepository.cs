@@ -121,7 +121,7 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
             .Include(a => a.ProxyFiles)
             .Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted
                 && a.DateCaptured >= from && a.DateCaptured <= to
-                && a.Metadata!.CameraMake == cameraMake && a.Metadata.CameraModel == cameraModel
+                && a.Metadata!.Description.CameraMake == cameraMake && a.Metadata.Description.CameraModel == cameraModel
                 && a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail)
                 && db.BurstChecks.Any(c => c.AssetId == a.Id && c.IsCandidate))
             .OrderBy(a => a.DateCaptured).ThenBy(a => a.Id);

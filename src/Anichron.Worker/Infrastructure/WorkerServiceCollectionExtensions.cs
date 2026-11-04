@@ -7,6 +7,7 @@ using Anichron.Worker.Bursts;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
+using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
@@ -33,6 +34,7 @@ internal static class WorkerServiceCollectionExtensions
                 .ValidateOnStart();
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IClock>(SystemClock.Instance);
+            services.AddSingleton(DateTimeZoneProviders.Tzdb);
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton<WorkerState>();
             return services;
@@ -101,6 +103,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IngestionClassifier>();
             services.AddScoped<LivePhotoPairer>();
             services.AddScoped<StoredContent>();
+            services.AddSingleton<CaptureZones>();
             services.AddScoped<KnownFileReconciler>();
             services.AddScoped<IOutcomeWriter, NewContentWriter>();
             services.AddScoped<IOutcomeWriter, ContentChangedWriter>();

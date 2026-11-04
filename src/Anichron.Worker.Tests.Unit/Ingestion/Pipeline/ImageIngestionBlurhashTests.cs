@@ -4,6 +4,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
+using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
@@ -64,7 +65,8 @@ public sealed class ImageIngestionBlurhashTests
                         new PairedMovResolver(repository, clock, guids, new FakeLogger<PairedMovResolver>()),
                         new PairedMovProxyWriter(
                             [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
-                            new FakeLogger<PairedMovProxyWriter>())),
+                            new FakeLogger<PairedMovProxyWriter>()),
+                        new CaptureZones(DateTimeZoneProviders.Tzdb, new FakeLogger<CaptureZones>())),
                 ],
                 new IngestionSaver(Substitute.For<IUnitOfWork>(), repository),
                 new FakeLogger<PersistenceMiddleware>()),
@@ -77,7 +79,7 @@ public sealed class ImageIngestionBlurhashTests
             AssetId = Guid.NewGuid(),
             ContentHash = "0123456789abcdef",
             Classification = Classifications.Of(FileOutcome.New),
-            Exif = ExifData.Empty,
+            Extracted = ExtractedMedia.Empty,
         };
 
         await IngestionPipelineBuilder.Build(middlewares, new FakeLogger())(context, CancellationToken.None);

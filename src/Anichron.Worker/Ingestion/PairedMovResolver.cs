@@ -36,12 +36,12 @@ internal sealed partial class PairedMovResolver(
     }
 
     /// <summary>
-    /// The one rule that dates a Live Photo's video: it takes its photo's capture date, and is undated when the photo
+    /// The one rule that dates a Live Photo's video: it takes its photo's whole capture date, and is undated when the photo
     /// is or when there is no photo row.
     /// </summary>
     /// <param name="video">The video row.</param>
     /// <param name="photo">Its photo's row as it stands in this item.</param>
-    public static void DateFromPhoto(MediaAsset video, MediaAsset? photo) => video.DateCaptured = photo?.DateCaptured;
+    public static void DateFromPhoto(MediaAsset video, MediaAsset? photo) => video.Captured = photo?.Captured;
 
     private async Task TakeFromOtherPhotosAsync(MediaAsset photo, MediaAsset video, CancellationToken ct)
     {
