@@ -76,6 +76,16 @@ public sealed class MediaMappingTests
     }
 
     [Fact]
+    public void Description_IsRequiredOnEveryMetadataRow()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+
+        var navigation = context.Model.FindEntityType(typeof(Metadata))!.FindNavigation(nameof(Metadata.Description))!;
+
+        navigation.ForeignKey.IsRequiredDependent.Should().BeTrue();
+    }
+
+    [Fact]
     public void Description_IsStoredInTheMetadataTable()
     {
         using var context = AnichronDbContexts.NpgsqlModel();

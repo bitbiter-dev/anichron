@@ -31,6 +31,24 @@ public sealed class CaptureZonesTests
     public void At_NoPosition_IsNoZone(double? latitude, double? longitude)
         => ZoneAt(At(latitude, longitude)).Should().BeNull();
 
+    [Theory]
+    [InlineData(-90.0, 0.0)]
+    [InlineData(90.0, 0.0)]
+    [InlineData(0.0, -180.0)]
+    [InlineData(0.0, 180.0)]
+    public void At_PositionOnTheEdgeOfTheGlobe_HasAZone(double latitude, double longitude)
+        => ZoneAt(At(latitude, longitude)).Should().NotBeNull();
+
+    [Theory]
+    [InlineData(-90.001, 0.0)]
+    [InlineData(90.001, 0.0)]
+    [InlineData(0.0, -180.001)]
+    [InlineData(0.0, 180.001)]
+    [InlineData(double.NaN, 0.0)]
+    [InlineData(0.0, double.NaN)]
+    public void At_PositionOffTheGlobe_IsNoZone(double latitude, double longitude)
+        => ZoneAt(At(latitude, longitude)).Should().BeNull();
+
     [Fact]
     public void At_ZoneNodaTimeDoesNotKnow_IsNoZoneAndLogged()
     {

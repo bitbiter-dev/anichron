@@ -210,7 +210,6 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                       + "rotation with a mirror and cannot be expressed as degrees; a reader converts, "
                       + "and for 5-8 swaps Width/Height. Proxies are already upright and a video's "
                       + "player applies its own rotation, so rotate neither by it."));
-            entity.Navigation(m => m.Description).IsRequired();
             entity.Property(m => m.Blurhash).HasComment(
                 "BlurHash placeholder string (4x3 components), computed by the Worker from the "
                 + "upright image. Kept here rather than as a proxy file so a response needs no disk "

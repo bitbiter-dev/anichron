@@ -12,9 +12,7 @@ internal static partial class Positions
             return (null, null);
         try
         {
-            // MetadataExtractor 2.9 turned GeoLocation from a class into a readonly struct, so
-            // GetGeoLocation() now returns Nullable<GeoLocation>. `is null` no longer narrows the
-            // value for member access — hence the positional pattern, which unwraps it.
+            // GetGeoLocation() returns Nullable<GeoLocation>; the pattern unwraps it.
             var location = gps.GetGeoLocation();
             return location is { } coordinates
                 ? (coordinates.Latitude, coordinates.Longitude)
