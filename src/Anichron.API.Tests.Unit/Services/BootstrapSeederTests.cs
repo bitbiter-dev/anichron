@@ -9,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
-using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace Anichron.API.Tests.Unit.Services;
@@ -43,12 +42,6 @@ public sealed class BootstrapSeederTests
             return this;
         }
 
-        public TestFixture WithPwned(string password)
-        {
-            Pwned.IsPwnedAsync(password, Arg.Any<CancellationToken>()).Returns(true);
-            return this;
-        }
-
         public TestFixture WithUsersExist()
         {
             Users.AnyAsync(Arg.Any<CancellationToken>()).Returns(true);
@@ -76,7 +69,7 @@ public sealed class BootstrapSeederTests
 
         public BootstrapSeeder CreateTestee() => new(
             Users, UnitOfWork, _guidFactory, PasswordHasher,
-            new RegistrationValidator(Options.Create(new PasswordPolicy()), Options.Create(new UsernamePolicy()), Pwned),
+            PasswordSettings.Validator(Pwned),
             _configuration, _logger);
     }
 
@@ -144,17 +137,15 @@ public sealed class BootstrapSeederTests
     }
 
     [Theory]
-    [InlineData("elevenchars", "PasswordTooShort")]
-    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "PasswordTooLong")]
-    [InlineData("correct horse battery", "PasswordPwned")]
-    public async Task SeedAsync_NoUsers_PasswordBreaksThePolicy_RefusesToCreateTheAdmin(string password, string rule)
+    [MemberData(nameof(PasswordSettings.PolicyBreaches), MemberType = typeof(PasswordSettings))]
+    public async Task SeedAsync_NoUsers_PasswordBreaksThePolicy_RefusesToCreateTheAdmin(string password, string reason)
     {
-        var fixture = new TestFixture().WithConfig(PasswordSetting, password).WithPwned("correct horse battery");
+        var fixture = new TestFixture().WithConfig(PasswordSetting, password);
 
         var act = async () => await fixture.CreateTestee().SeedAsync(CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy: {rule}.");
+            .WithMessage("BOOTSTRAP_ADMIN_PASSWORD " + reason);
         fixture.Users.DidNotReceive().Add(Arg.Any<User>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -180,7 +171,7 @@ public sealed class BootstrapSeederTests
         User? captured = null;
         var fixture = new TestFixture()
             .WithConfig("BOOTSTRAP_ADMIN_USERNAME", "superadmin")
-            .WithConfig("BOOTSTRAP_ADMIN_PASSWORD", "Secure passphrase!")
+            .WithConfig(PasswordSetting, "Secure passphrase!")
             .CaptureAddedUser(u => captured = u);
         var testee = fixture.CreateTestee();
 

@@ -79,10 +79,11 @@ internal sealed partial class FileIngestionPipeline(
         {
             return (
                 [.. fileSystem.Directory.EnumerateFiles(directory)
-                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)) && !IsLink(file, rootPath, tally))],
+                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file))
+                        && !SkipsAsLink(file, rootPath, tally))],
                 [.. fileSystem.Directory.EnumerateDirectories(directory)
                     .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory))
-                        && !IsLink(subdirectory, rootPath, tally))]);
+                        && !SkipsAsLink(subdirectory, rootPath, tally))]);
         }
         catch (Exception ex) when (directory != rootPath && ex is UnauthorizedAccessException or IOException)
         {
@@ -92,7 +93,7 @@ internal sealed partial class FileIngestionPipeline(
         }
     }
 
-    private bool IsLink(string path, string rootPath, CrawlTally tally)
+    private bool SkipsAsLink(string path, string rootPath, CrawlTally tally)
     {
         if (fileSystem.FileInfo.New(path).LinkTarget is null)
             return false;
