@@ -1,5 +1,6 @@
 using Anichron.Core.Domain;
 using MetadataExtractor;
+using MetadataExtractor.Formats.Avi;
 using MetadataExtractor.Formats.Bmp;
 using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.Gif;
@@ -32,7 +33,8 @@ internal static class Frames
             SizeSource.First<WebPDirectory>(directories, WebPDirectory.TagImageWidth, WebPDirectory.TagImageHeight),
             SizeSource.First<BmpHeaderDirectory>(directories, BmpHeaderDirectory.TagImageWidth, BmpHeaderDirectory.TagImageHeight),
             new SizeSource(cameraInfo, ExifDirectoryBase.TagImageWidth, ExifDirectoryBase.TagImageHeight),
-            new SizeSource(videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight));
+            new SizeSource(videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight),
+            SizeSource.First<AviDirectory>(directories, AviDirectory.TagWidth, AviDirectory.TagHeight));
 
         return (width, height, GetOrientation(heicPrimary, videoTrack, cameraInfo));
     }
