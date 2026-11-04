@@ -14,6 +14,9 @@ public sealed record CrawlResult(long Found, long Processed, long Failed)
     public DuplicateCounts? Duplicates { get; init; }
 
     public ReconciliationCounts? Reconciliation { get; init; }
+
+    /// <summary>Links the walk skipped, to files or folders: a crawl never follows a link.</summary>
+    public int SkippedLinks { get; init; }
 }
 
 /// <summary>How a crawl brought the config's rows in line with its files.</summary>
@@ -49,6 +52,7 @@ internal sealed class CrawlTally(IWorkProgress progress)
     private int duplicateCopies;
     private int softDeleted;
     private int autoRestored;
+    private int skippedLinks;
     private bool walked;
     private bool folderSkipped;
 
@@ -58,7 +62,7 @@ internal sealed class CrawlTally(IWorkProgress progress)
         {
             lock (gate)
             {
-                return new CrawlRun(new CrawlResult(found, processed, failed), duplicateCopies)
+                return new CrawlRun(new CrawlResult(found, processed, failed) { SkippedLinks = skippedLinks }, duplicateCopies)
                 {
                     SoftDeleted = softDeleted,
                     AutoRestored = autoRestored,
@@ -81,6 +85,12 @@ internal sealed class CrawlTally(IWorkProgress progress)
     {
         lock (gate)
             folderSkipped = true;
+    }
+
+    public void LinkSkipped()
+    {
+        lock (gate)
+            skippedLinks++;
     }
 
     public void Walked() => Update(() => walked = true);

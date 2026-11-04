@@ -261,4 +261,49 @@ public sealed class CrawlTests
 
         next.Should().BeOfType<CrawlResult>().Which.Duplicates.Should().Be(new DuplicateCounts(1, 0));
     }
+
+    // ==========================================================================
+    // Links, through the real pipeline and missing-file sweep
+    // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_FolderWithALink_SkipsItCountsItAndStillSoftDeletesWhatIsMissingAsync()
+    {
+        var kept = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var throughLink = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var removed = Guid.Parse("00000000-0000-0000-0000-000000000003");
+        var config = Config();
+        configs.FindByIdAsync(config.Id, Ct).Returns(config);
+        configs.GetActiveByUserIdAsync(MiraId, Ct).Returns([config]);
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddEmptyFile("/data/originals/mira/kept.jpg");
+        fileSystem.AddEmptyFile("/data/originals/alice/x.jpg");
+        fileSystem.Directory.CreateSymbolicLink("/data/originals/mira/alice", "/data/originals/alice");
+        var repository = Substitute.For<IMediaAssetRepository>();
+        repository.GetActivePathsAsync(config.Id, Ct)
+            .Returns([new AssetPath(kept, "kept.jpg"), new AssetPath(throughLink, "alice/x.jpg"), new AssetPath(removed, "removed.jpg")]);
+        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Ct).Returns(2);
+        var handler = new CrawlHandler(
+            new ActiveStorageConfigs(configs, activeLogger), configs,
+            FileIngestionPipelines.Build(
+                [new ScriptedClassificationMiddleware(new ScriptedItem(FileOutcome.Unchanged))],
+                fileSystem,
+                new WorkerSettings { MaxConcurrentFiles = 1 }),
+            new MissingFileSweep(repository, new FakeLogger<MissingFileSweep>()),
+            new SharedContentReporter(Substitute.For<IMediaAssetRepository>(), new FakeLogger<SharedContentReporter>()),
+            queue, logger);
+
+        var result = await handler.RunAsync(new CrawlPayload(config.Id), new WorkRun(Guid.NewGuid(), progress), Ct);
+
+        result.Should().BeOfType<CrawlResult>().Which.Should().Match<CrawlResult>(r => r.Found == 1
+            && r.SkippedLinks == 1
+            && r.Reconciliation == new ReconciliationCounts(2, 0, null));
+        await repository.Received(1).SoftDeleteAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { throughLink, removed })), Ct);
+    }
+
+    [Fact]
+    public void Result_NamesTheSkippedLinksInItsJson()
+        => WorkJson.SerializeResult(new CrawlResult(0, 0, 0) { SkippedLinks = 3 })
+            .Should().Contain("\"skippedLinks\":3");
 }
