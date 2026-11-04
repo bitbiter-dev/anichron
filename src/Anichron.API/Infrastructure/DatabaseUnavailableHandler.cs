@@ -13,7 +13,7 @@ namespace Anichron.API.Infrastructure;
 /// <param name="logger">Notes each request answered with the 503.</param>
 internal sealed partial class DatabaseUnavailableHandler(ILogger<DatabaseUnavailableHandler> logger) : IExceptionHandler
 {
-    internal const string Detail = "The service is temporarily unavailable. Try again shortly.";
+    private const string detail = "The service is temporarily unavailable. Try again shortly.";
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
@@ -22,7 +22,7 @@ internal sealed partial class DatabaseUnavailableHandler(ILogger<DatabaseUnavail
 
         Log.DatabaseUnreachable(logger, httpContext.Request.Method, httpContext.Request.Path, cause.Message);
         httpContext.Response.Headers.RetryAfter = AppDefaults.Database.RetryAfterSeconds.ToString(InvariantCulture);
-        await ApiProblems.Problem(StatusCodes.Status503ServiceUnavailable, ErrorCodes.ServiceUnavailable, Detail)
+        await ApiProblems.Problem(StatusCodes.Status503ServiceUnavailable, ErrorCodes.ServiceUnavailable, detail)
             .ExecuteAsync(httpContext);
         return true;
     }

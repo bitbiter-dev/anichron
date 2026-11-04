@@ -47,7 +47,8 @@ public sealed class ErrorPipelineTests
         "refused" => new NpgsqlException("Failed to connect", new SocketException((int)SocketError.ConnectionRefused)),
         "timeout" => new NpgsqlException("Exception while reading from stream", new TimeoutException()),
         "save" => new DbUpdateException("An error occurred while saving", new NpgsqlException("Failed to connect", new IOException())),
-        _ => new PostgresException("terminating connection due to administrator command", "FATAL", "FATAL", "57P01"),
+        "shutdown" => new PostgresException("terminating connection due to administrator command", "FATAL", "FATAL", "57P01"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
     [Theory]
