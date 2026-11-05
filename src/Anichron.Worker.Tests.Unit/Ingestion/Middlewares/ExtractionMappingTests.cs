@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
+using System.Text;
 using XmpCore;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
@@ -147,6 +148,50 @@ public sealed class ExtractionMappingTests
     [Fact]
     public void Extract_Video_IsUndatedWhateverItsExifSays()
         => Recorded(MediaType.Video, SubIfd(Original("2024:07:15 13:22:01"))).Should().BeNull();
+
+    private static (int, object) Created(DateTime created) => (QuickTimeMovieHeaderDirectory.TagCreated, created);
+
+    private static DateTime Unspecified(int year, int month, int day, int hour, int minute, int second)
+        => new(year, month, day, hour, minute, second, DateTimeKind.Unspecified);
+
+    [Fact]
+    public void Extract_VideoWithAMovieHeaderCreated_IsDatedByThatMomentInUtc()
+        => Recorded(MediaType.Video, Movie(Created(Unspecified(2026, 10, 30, 6, 10, 45))))
+            .Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 45)));
+
+    [Fact]
+    public void Extract_VideoWithAZeroMovieHeaderCreated_IsUndated()
+        => Recorded(MediaType.Video, Movie(Created(Unspecified(1904, 1, 1, 0, 0, 0)))).Should().BeNull();
+
+    [Fact]
+    public void Extract_VideoCreatedJustAfterTheQuickTimeEpoch_IsDated()
+        => Recorded(MediaType.Video, Movie(Created(Unspecified(1904, 1, 1, 0, 0, 1))))
+            .Should().Be(new RecordedDate.Moment(Instant.FromUtc(1904, 1, 1, 0, 0, 1)));
+
+    [Fact]
+    public void Extract_VideoWithoutAMovieHeaderCreated_IsUndated()
+        => Recorded(MediaType.Video, Movie((QuickTimeMovieHeaderDirectory.TagDuration, TimeSpan.FromSeconds(4)))).Should().BeNull();
+
+    [Fact]
+    public void Extract_VideoWithAnAppleCreationDate_IsUndatedUntilItsClockTimeIsRead()
+        => Recorded(
+                MediaType.Video,
+                Movie(Created(Unspecified(2026, 10, 30, 6, 10, 45))),
+                With(new QuickTimeMetadataHeaderDirectory(),
+                    (QuickTimeMetadataHeaderDirectory.TagCreationDate, new DateTime(2026, 10, 30, 7, 10, 45, DateTimeKind.Local))))
+            .Should().BeNull();
+
+    [Fact]
+    public void Extract_VideoWithOtherAppleMetadata_IsDatedByItsMovieHeader()
+        => Recorded(
+                MediaType.Video,
+                Movie(Created(Unspecified(2026, 10, 30, 6, 10, 45))),
+                With(new QuickTimeMetadataHeaderDirectory(), (QuickTimeMetadataHeaderDirectory.TagMake, "Apple")))
+            .Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 45)));
+
+    [Fact]
+    public void Extract_Photo_IsNotDatedByAMovieHeader()
+        => Recorded(MediaType.Image, Movie(Created(Unspecified(2026, 10, 30, 6, 10, 45)))).Should().BeNull();
 
     [Fact]
     public void Extract_OnlyDateTimeDigitized_IsUndated()
@@ -335,6 +380,13 @@ public sealed class ExtractionMappingTests
     public void Extract_Photo_IsNotDatedByAnAviDate()
         => AviRecorded(MediaType.Image, "MON SEP 10 20:52:00 2012").Should().BeNull();
 
+    [Fact]
+    public void Extract_VideoWithAnAviDateAndAMovieHeaderCreated_TheAviDateWins()
+        => Recorded(MediaType.Video,
+                Avi((AviDirectory.TagDateTimeOriginal, "MON SEP 10 20:52:00 2012")),
+                Movie(Created(Unspecified(2026, 10, 30, 6, 10, 45))))
+            .Should().Be(new RecordedDate.ClockTime(new LocalDateTime(2012, 9, 10, 20, 52), null));
+
     // ==========================================================================
     // GPS
     // ==========================================================================
@@ -360,6 +412,67 @@ public sealed class ExtractionMappingTests
     [Fact]
     public void Extract_NoGpsDirectory_IsNull()
         => Map().Latitude.Should().BeNull();
+
+    private static QuickTimeMetadataHeaderDirectory Location(string iso6709)
+        => With(new QuickTimeMetadataHeaderDirectory(),
+            (QuickTimeMetadataHeaderDirectory.TagGpsLocation, new StringValue(Encoding.UTF8.GetBytes(iso6709), Encoding.UTF8)));
+
+    [Theory]
+    [InlineData("-36.8485+174.7633+012.000/", -36.8485, 174.7633)]
+    [InlineData("+35.6895+139.6917/", 35.6895, 139.6917)]
+    [InlineData("+52.52-013.405-5/", 52.52, -13.405)]
+    [InlineData("+35+139/", 35.0, 139.0)]
+    public void Extract_VideoLocation_ReadsCoordinates(string iso6709, double latitude, double longitude)
+    {
+        var result = Map(Location(iso6709));
+
+        (result.Latitude, result.Longitude).Should().Be((latitude, longitude));
+        DebugLogs.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("+35.6895+139.6917")]
+    [InlineData("x+35.6895+139.6917/")]
+    [InlineData("+35.6895+139.6917/x")]
+    [InlineData("35.6895+139.6917/")]
+    [InlineData("+5.6895+139.6917/")]
+    [InlineData("+35.6895+39.6917/")]
+    [InlineData("+35.+139.6917/")]
+    [InlineData("+35.6895+139.6917+/")]
+    [InlineData("+4044.30-07400.20/")]
+    [InlineData("+404430-0740020/")]
+    [InlineData("")]
+    public void Extract_MalformedVideoLocation_IsNoPositionAndLogged(string iso6709)
+    {
+        var result = Map(Location(iso6709));
+
+        (result.Latitude, result.Longitude).Should().Be((null, null));
+        DebugLogs.Should().ContainSingle().Which.Should().Be($"No position: malformed ISO 6709 location '{iso6709}'.");
+    }
+
+    [Fact]
+    public void Extract_QuickTimeMetadataWithoutLocation_IsNoPosition()
+    {
+        var result = Map(With(new QuickTimeMetadataHeaderDirectory(), (QuickTimeMetadataHeaderDirectory.TagMake, "Apple")));
+
+        (result.Latitude, result.Longitude).Should().Be((null, null));
+        DebugLogs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Extract_VideoWithAnAppleCreationDate_KeepsItsPosition()
+    {
+        var location = Location("-36.8485+174.7633+012.000/");
+        location.Set(QuickTimeMetadataHeaderDirectory.TagCreationDate, new DateTime(2026, 10, 30, 7, 10, 45, DateTimeKind.Local));
+
+        var result = Middleware.Extract([location], MediaType.Video);
+
+        (result.Recorded, result.Description.Latitude, result.Description.Longitude).Should().Be((null, -36.8485, 174.7633));
+    }
+
+    [Fact]
+    public void Extract_ExifGpsAndVideoLocation_TheExifGpsWins()
+        => Map(Gps(51.5, 0.25), Location("-36.8485+174.7633/")).Latitude.Should().BeApproximately(51.5, 1e-6);
 
     // ==========================================================================
     // Size — the first directory with a positive width and height

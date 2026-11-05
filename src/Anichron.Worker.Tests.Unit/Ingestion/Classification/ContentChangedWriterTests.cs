@@ -97,7 +97,7 @@ public sealed class ContentChangedWriterTests
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),
-                new CaptureZones(DateTimeZoneProviders.Tzdb, new FakeLogger<CaptureZones>()),
+                new CaptureZones(DateTimeZoneProviders.Tzdb, DateTimeZone.Utc, new FakeLogger<CaptureZones>()),
                 Logger);
         }
 

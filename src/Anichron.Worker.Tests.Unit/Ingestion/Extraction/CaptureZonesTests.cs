@@ -14,7 +14,7 @@ public sealed class CaptureZonesTests
         => MediaDescription.Unknown with { Latitude = latitude, Longitude = longitude };
 
     private DateTimeZone? ZoneAt(MediaDescription description, IDateTimeZoneProvider? zones = null)
-        => new CaptureZones(zones ?? DateTimeZoneProviders.Tzdb, logger).At(description);
+        => new CaptureZones(zones ?? DateTimeZoneProviders.Tzdb, DateTimeZone.Utc, logger).At(description);
 
     [Theory]
     [InlineData(-36.8485, 174.7633, "Pacific/Auckland")]

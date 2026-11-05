@@ -63,7 +63,7 @@ public sealed class NewContentWriterTests
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),
-                new CaptureZones(DateTimeZoneProviders.Tzdb, new FakeLogger<CaptureZones>()));
+                new CaptureZones(DateTimeZoneProviders.Tzdb, DateTimeZoneProviders.Tzdb["Europe/Berlin"], new FakeLogger<CaptureZones>()));
         }
 
         public async Task<MediaAsset?> WriteAsync(IngestionContext context)
@@ -214,6 +214,30 @@ public sealed class NewContentWriterTests
         var asset = await new TestFixture().WriteAsync(MakeContext(extracted: TakenInAuckland(Offset.FromHours(13)) with { Recorded = null }));
 
         asset.Should().BeEquivalentTo(new { Captured = (CaptureDate?)null, CaptureZone = (string?)null });
+    }
+
+    private static IngestionContext StandaloneVideo(double? latitude, double? longitude) => MakeContext(
+        item: new SingleFileItem("/abs/clip.mp4", "clip.mp4", MediaType.Video),
+        extracted: new ExtractedMedia(
+            new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 45)),
+            MediaDescription.Unknown with { Latitude = latitude, Longitude = longitude }));
+
+    [Fact]
+    public async Task WriteAsync_VideoRecordedInUtcWithAPosition_IsReadInTheZoneThereAsync()
+    {
+        var asset = await new TestFixture().WriteAsync(StandaloneVideo(-36.8485, 174.7633));
+
+        asset!.Captured.Should().Be(new CaptureDate(
+            new LocalDateTime(2026, 10, 30, 19, 10, 45), null, CaptureSource.RecordedInUtc, "Pacific/Auckland"));
+    }
+
+    [Fact]
+    public async Task WriteAsync_VideoRecordedInUtcWithoutAPosition_IsReadInTheLibraryZoneAsync()
+    {
+        var asset = await new TestFixture().WriteAsync(StandaloneVideo(null, null));
+
+        asset!.Captured.Should().Be(new CaptureDate(
+            new LocalDateTime(2026, 10, 30, 7, 10, 45), null, CaptureSource.RecordedInUtc, null));
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using MetadataExtractor;
 using MetadataExtractor.Formats.Avi;
 using MetadataExtractor.Formats.Exif;
 using MetadataExtractor.Formats.Iptc;
+using MetadataExtractor.Formats.QuickTime;
 using MetadataExtractor.Formats.Xmp;
 using NodaTime;
 using NodaTime.Text;
@@ -16,6 +17,8 @@ internal static partial class RecordedDates
 {
     private const int shortestXmpClock = 16;
     private const int iptcClock = 6;
+
+    private static DateTime QuickTimeEpoch => new(1904, 1, 1, 0, 0, 0, DateTimeKind.Unspecified);
 
     private delegate RecordedDate? Source(IReadOnlyList<Directory> directories, ILogger logger);
 
@@ -33,7 +36,7 @@ internal static partial class RecordedDates
         => SourcesOf(mediaType).Select(source => source(directories, logger)).FirstOrDefault(date => date is not null);
 
     private static Source[] SourcesOf(MediaType mediaType)
-        => mediaType == MediaType.Video ? [AviOriginal] : [ExifOriginal, XmpDateCreated, IptcDateCreated];
+        => mediaType == MediaType.Video ? [AviOriginal, MovieHeaderCreated] : [ExifOriginal, XmpDateCreated, IptcDateCreated];
 
     private static RecordedDate? ExifOriginal(IReadOnlyList<Directory> directories, ILogger logger)
     {
@@ -90,6 +93,20 @@ internal static partial class RecordedDates
 
         return new RecordedDate.ClockTime(at, null);
     }
+
+    private static RecordedDate? MovieHeaderCreated(IReadOnlyList<Directory> directories, ILogger logger)
+    {
+        if (HasAppleCreationDate(directories))
+            return null;
+
+        var created = directories.OfType<QuickTimeMovieHeaderDirectory>().FirstOrDefault()?.GetObject(QuickTimeMovieHeaderDirectory.TagCreated);
+        return created is DateTime moment && moment != QuickTimeEpoch
+            ? new RecordedDate.Moment(Instant.FromDateTimeUtc(DateTime.SpecifyKind(moment, DateTimeKind.Utc)))
+            : null;
+    }
+
+    private static bool HasAppleCreationDate(IReadOnlyList<Directory> directories)
+        => directories.OfType<QuickTimeMetadataHeaderDirectory>().Any(d => d.ContainsTag(QuickTimeMetadataHeaderDirectory.TagCreationDate));
 
     private static (string Clock, string? Offset) SplitOffset(string raw, int shortestClock)
         => raw.LastIndexOfAny(['Z', '+', '-']) is var start && start >= shortestClock ? (raw[..start], raw[start..]) : (raw, null);

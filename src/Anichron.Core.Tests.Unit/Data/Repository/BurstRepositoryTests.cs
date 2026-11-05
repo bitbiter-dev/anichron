@@ -239,7 +239,7 @@ public sealed class BurstRepositoryTests
 
         var sql = new EfBurstRepository(db).UncheckedPhotos(Guid.NewGuid()).ToQueryString();
 
-        sql.Should().Contain("""m."MediaType" IN ('Image', 'LivePhoto') AND m."CaptureSource" = 'Recorded' AND NOT EXISTS""");
+        sql.Should().Contain("""m."MediaType" IN ('Image', 'LivePhoto') AND m."CaptureSource" IN ('Recorded', 'RecordedInUtc') AND NOT EXISTS""");
     }
 
     [Fact]
