@@ -49,8 +49,11 @@ public sealed class MediaEndpointsTests
             });
     }
 
-    private static HttpRequestMessage Get(string type, Guid? userId = null)
-        => AuthenticatedTestApp.Get($"/api/v1/assets/{AssetId}/proxies/{type}", userId ?? UserId);
+    private static HttpRequestMessage Get(string type, Guid? userId = null, string query = $"?v={ContentHash}")
+        => AuthenticatedTestApp.Get($"/api/v1/proxies/{AssetId}/{type}{query}", userId ?? UserId);
+
+    private static string CacheControlOf(HttpResponseMessage response)
+        => response.Headers.NonValidated["Cache-Control"].ToString();
 
     [Theory]
     [InlineData("thumbnail", ProxyType.Thumbnail, "image/jpeg")]
@@ -73,21 +76,53 @@ public sealed class MediaEndpointsTests
     }
 
     [Fact]
-    public async Task GetProxy_OwnAsset_SendsAStrongETagAndPrivateImmutableCachingAsync()
+    public async Task GetProxy_CurrentVersion_SendsAStrongETagAndPrivateImmutableCachingAsync()
     {
         var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1, 2, 3]);
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
 
-        using var response = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
+        using var response = await client.SendAsync(Get("thumbnail", query: "?v=0123456789abcdef"), TestContext.Current.CancellationToken);
 
-        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
-        var cacheControl = response.Headers.CacheControl!;
-        cacheControl.Private.Should().BeTrue();
-        cacheControl.Public.Should().BeFalse();
-        cacheControl.MaxAge.Should().Be(TimeSpan.FromDays(365));
-        cacheControl.Extensions.Should().ContainSingle(e => e.Name == "immutable");
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue("\"0123456789abcdef-Thumbnail\""));
+        CacheControlOf(response).Should().Be("private, max-age=31536000, immutable");
+    }
+
+    [Theory]
+    [InlineData("?v=fedcba9876543210")]
+    [InlineData("?v=0123456789ABCDEF")]
+    [InlineData("?v=")]
+    [InlineData("")]
+    public async Task GetProxy_StaleOrMissingVersion_ServesTheCurrentFileForRevalidationAsync(string query)
+    {
+        var fixture = new TestFixture();
+        fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1, 2, 3]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(Get("thumbnail", query: query), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken)).Should().Equal(1, 2, 3);
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue("\"0123456789abcdef-Thumbnail\""));
+        CacheControlOf(response).Should().Be("private, no-cache");
+    }
+
+    [Fact]
+    public async Task GetProxy_StaleVersionWithTheCurrentETag_IsNotModifiedAndStillRevalidatedAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1, 2, 3]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+        var request = Get("thumbnail", query: "?v=fedcba9876543210");
+        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue("\"0123456789abcdef-Thumbnail\""));
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotModified);
+        CacheControlOf(response).Should().Be("private, no-cache");
     }
 
     [Fact]
@@ -98,12 +133,12 @@ public sealed class MediaEndpointsTests
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
         var request = Get("thumbnail");
-        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
+        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue("\"0123456789abcdef-Thumbnail\""));
 
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotModified);
-        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue("\"0123456789abcdef-Thumbnail\""));
         response.Headers.CacheControl!.Private.Should().BeTrue();
     }
 
@@ -121,7 +156,7 @@ public sealed class MediaEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.PartialContent);
         (await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken)).Should().Equal(12, 13, 14);
-        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.WebVideo}\""));
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue("\"0123456789abcdef-WebVideo\""));
         response.Headers.CacheControl!.Private.Should().BeTrue();
     }
 
@@ -222,7 +257,7 @@ public sealed class MediaEndpointsTests
         using var client = app.Client;
 
         using var response = await client.GetAsync(
-            $"/api/v1/assets/{AssetId}/proxies/thumbnail", TestContext.Current.CancellationToken);
+            $"/api/v1/proxies/{AssetId}/thumbnail?v={ContentHash}", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

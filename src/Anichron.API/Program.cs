@@ -19,7 +19,6 @@ app.UseCors();
 app.UseUi();
 app.UseRateLimiter();
 app.UseAuthentication();
-app.UseMiddleware<MustChangePasswordMiddleware>();
 app.UseAuthorization();
 
 app.MapApiEndpoints();

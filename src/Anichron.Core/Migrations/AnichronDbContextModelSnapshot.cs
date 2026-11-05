@@ -429,7 +429,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<bool>("MustChangePassword")
                         .HasColumnType("boolean")
-                        .HasComment("Set by an admin reset. MustChangePasswordMiddleware then 403s every route except the handful needed to change it.");
+                        .HasComment("Set by an admin reset. Every protected route then answers 403 except the handful needed to change it.");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

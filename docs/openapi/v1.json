@@ -1385,7 +1385,7 @@
         }
       }
     },
-    "/api/v1/assets/{assetId}/proxies/{type}": {
+    "/api/v1/proxies/{assetId}/{type}": {
       "get": {
         "tags": [
           "Media"
@@ -1404,6 +1404,13 @@
             "name": "type",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
             "schema": {
               "type": "string"
             }
