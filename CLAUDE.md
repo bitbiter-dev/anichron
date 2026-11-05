@@ -35,6 +35,8 @@ dotnet run --project src/Anichron.API
 dotnet run --project src/Anichron.Worker
 ```
 
+Building needs the Six Labors licence key in the gitignored `sixlabors.lic` at the repo root; building the images from this checkout is in README, "Build the images".
+
 ## Testing
 
 ```bash

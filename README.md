@@ -25,6 +25,17 @@ Early development — Follow progress in [Issues](https://github.com/bitbiter-de
 
 See the **[Self-Hosting guide](https://github.com/bitbiter-dev/anichron/wiki/Self-Hosting)** for prerequisites, quick start, and multi-user setup.
 
+## Build the images
+
+Run from the repository root; the build context is `src/`:
+
+```bash
+docker build -f src/Anichron.API/Dockerfile -t anichron-api:local src
+docker build --secret id=sixlabors_license,src=sixlabors.lic -f src/Anichron.Worker/Dockerfile -t anichron-worker:local src
+```
+
+The Worker uses ImageSharp, which needs a [Six Labors licence key](https://sixlabors.com/pricing/) at build time. Put the key, and nothing else, in `sixlabors.lic` at the repository root (it is gitignored); the Worker build takes it as the build secret `sixlabors_license` and fails with "No Six Labors license found" without it. To pass the key from an environment variable instead, use `--secret id=sixlabors_license,env=SIXLABORS_LICENSE_KEY`.
+
 ## Documentation
 
 The **[wiki](https://github.com/bitbiter-dev/anichron/wiki)** covers features, architecture, deployment decisions, and the release process.
