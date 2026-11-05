@@ -60,7 +60,7 @@ public sealed class KnownFileReconcilerTests
             => Reconciler().ReconcileAsync(Context, file, relativePath, CancellationToken.None);
 
         public Task<bool> ReconcileSecondaryAsync(FileClassification file, string relativePath)
-            => Reconciler().ReconcileSecondaryAsync(Context, file, relativePath, CancellationToken.None);
+            => Reconciler().ReconcileSecondaryAsync(Context, file, Context.Classification!.Primary, relativePath, CancellationToken.None);
 
         private KnownFileReconciler Reconciler()
         {

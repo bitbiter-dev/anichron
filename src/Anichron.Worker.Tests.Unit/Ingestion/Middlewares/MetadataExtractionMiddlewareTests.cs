@@ -75,7 +75,7 @@ public sealed class MetadataExtractionMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_Always_SetsExifOnContextAsync()
+    public async Task InvokeAsync_Always_SetsMetadataOnContextAsync()
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
@@ -140,7 +140,7 @@ public sealed class MetadataExtractionMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_UnreadableFile_SetsEmptyExifAsync()
+    public async Task InvokeAsync_UnreadableFile_SetsEmptyMetadataAsync()
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {

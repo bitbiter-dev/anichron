@@ -57,7 +57,7 @@ internal sealed partial class MetadataExtractionMiddleware(
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to extract EXIF metadata from {Path}.")]
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to extract metadata from {Path}.")]
         public static partial void ExtractionFailed(ILogger logger, string path, Exception exception);
     }
 }
