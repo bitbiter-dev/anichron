@@ -329,6 +329,17 @@ public sealed class WorkerServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddWorkerCoreServices_UsesTheHostsTimeZoneAsTheLibrarysZone()
+    {
+        var services = new ServiceCollection();
+
+        services.AddWorkerCoreServices();
+
+        services.Should().ContainSingle(d => d.ServiceType == typeof(DateTimeZone))
+            .Which.ImplementationInstance.Should().BeSameAs(DateTimeZoneProviders.Tzdb.GetSystemDefault());
+    }
+
+    [Fact]
     public void AddWorkerCoreServices_BindsWorkerSettingsFromTheWorkerSection()
     {
         var configuration = new ConfigurationBuilder()

@@ -210,16 +210,18 @@ public sealed class BurstRepositoryTests
     }
 
     [Fact]
-    public async Task UncheckedPhotos_UndatedPhoto_IsNeitherLoadedNorCountedAsync()
+    public async Task UncheckedPhotos_UndatedOrDateOnlyPhoto_IsNeitherLoadedNorCountedAsync()
     {
         var name = Guid.NewGuid().ToString();
         var configId = Guid.NewGuid();
         var dated = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
         var undated = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
         undated.Captured = null;
+        var dateOnly = UncheckedPhoto(configId, Guid.NewGuid(), Noon);
+        dateOnly.Captured = new CaptureDate(Noon.Date.AtMidnight(), null, CaptureSource.RecordedDateOnly, null);
         await using (var seed = AnichronDbContexts.InMemory(name))
         {
-            seed.MediaAssets.AddRange(dated, undated);
+            seed.MediaAssets.AddRange(dated, undated, dateOnly);
             await seed.SaveChangesAsync(Ct);
         }
 
@@ -231,13 +233,13 @@ public sealed class BurstRepositoryTests
     }
 
     [Fact]
-    public void UncheckedPhotos_StatesTheDatedPhotosInItsOwnPredicate()
+    public void UncheckedPhotos_StatesThePhotosWithARecordedTimeInItsOwnPredicate()
     {
         using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = new EfBurstRepository(db).UncheckedPhotos(Guid.NewGuid()).ToQueryString();
 
-        sql.Should().Contain("""m."MediaType" IN ('Image', 'LivePhoto') AND m."DateCaptured" IS NOT NULL AND NOT EXISTS""");
+        sql.Should().Contain("""m."MediaType" IN ('Image', 'LivePhoto') AND m."CaptureSource" IN ('Recorded', 'RecordedInUtc') AND NOT EXISTS""");
     }
 
     [Fact]

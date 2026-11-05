@@ -159,6 +159,7 @@ public sealed class EfBurstRepository(AnichronDbContext db) : IBurstRepository
 
     internal IQueryable<MediaAsset> UncheckedPhotos(Guid storageConfigId)
         => db.MediaAssets.IgnoreQueryFilters().Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted
-            && (a.MediaType == MediaType.Image || a.MediaType == MediaType.LivePhoto) && a.DateCaptured != null
+            && (a.MediaType == MediaType.Image || a.MediaType == MediaType.LivePhoto)
+            && (a.CaptureSource == CaptureSource.Recorded || a.CaptureSource == CaptureSource.RecordedInUtc)
             && !db.BurstChecks.Any(c => c.AssetId == a.Id));
 }

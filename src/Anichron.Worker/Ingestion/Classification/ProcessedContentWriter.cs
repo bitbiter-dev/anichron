@@ -35,7 +35,7 @@ internal abstract class ProcessedContentWriter(
         var extracted = context.Extracted!;
         return new AssetContent(
             context.ContentHash!,
-            extracted.Recorded?.In(captureZones.At(extracted.Description)),
+            captureZones.DateOf(extracted),
             context.Item.PrimaryMediaType,
             extracted.Description,
             context.Blurhash,

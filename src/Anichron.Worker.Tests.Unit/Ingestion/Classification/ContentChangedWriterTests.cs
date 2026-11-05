@@ -37,7 +37,7 @@ public sealed class ContentChangedWriterTests
         LensModel: "23mm F2",
         DurationInSeconds: 3);
 
-    private static ExtractedMedia Edited => new(new RecordedDate(new LocalDateTime(2022, 8, 9, 7, 30), Offset.FromHours(9)), EditedDescription);
+    private static ExtractedMedia Edited => new(new RecordedDate.ClockTime(new LocalDateTime(2022, 8, 9, 7, 30), Offset.FromHours(9)), EditedDescription);
 
     private sealed class TestFixture
     {
@@ -97,7 +97,7 @@ public sealed class ContentChangedWriterTests
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),
-                new CaptureZones(DateTimeZoneProviders.Tzdb, new FakeLogger<CaptureZones>()),
+                new CaptureZones(DateTimeZoneProviders.Tzdb, DateTimeZone.Utc, new FakeLogger<CaptureZones>()),
                 Logger);
         }
 

@@ -36,13 +36,15 @@ internal static class EndpointResponses
     }
 
     /// <summary>
-    /// Adds the 400 and 415 a request body can fail to bind with, then describes every error
-    /// response still declared without a body as Problem Details.
+    /// Adds the 503 every endpoint answers while the database is unreachable and the 400 and 415 a
+    /// request body can fail to bind with, then describes every error response still declared
+    /// without a body as Problem Details.
     /// </summary>
     /// <param name="endpoint">The endpoint, after all its other conventions.</param>
     internal static void DescribeErrorsAsProblems(EndpointBuilder endpoint)
     {
         var metadata = endpoint.Metadata;
+        metadata.Add(new ProducesResponseTypeMetadata(StatusCodes.Status503ServiceUnavailable));
         if (metadata.OfType<IAcceptsMetadata>().Any())
         {
             var undeclared = new[] { StatusCodes.Status400BadRequest, StatusCodes.Status415UnsupportedMediaType }
