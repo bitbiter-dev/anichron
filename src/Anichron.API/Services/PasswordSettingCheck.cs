@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Anichron.API.Services;
 
 internal static class PasswordSettingCheck
@@ -10,7 +12,8 @@ internal static class PasswordSettingCheck
             null => null,
             AuthError.PasswordTooShort => "is too short",
             AuthError.PasswordTooLong => "is too long",
-            _ => "is known to be breached",
+            AuthError.PasswordPwned => "is known to be breached",
+            var other => throw new UnreachableException($"Unexpected AuthError in a password setting: {other}"),
         };
         if (broken is not null)
             throw new InvalidOperationException($"{setting} {broken}.");

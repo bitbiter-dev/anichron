@@ -12,7 +12,7 @@ using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
-public sealed class ExifExtractionMiddlewareTests
+public sealed class MetadataExtractionMiddlewareTests
 {
     // Minimal JPEG with EXIF IFD0: Width=100, Height=200, Orientation=6 (90°)
     private static readonly byte[] JpegWithExif =
@@ -47,8 +47,8 @@ public sealed class ExifExtractionMiddlewareTests
             ContentHash = contentHash,
         };
 
-    private static ExifExtractionMiddleware MakeMiddleware(MockFileSystem fs)
-        => new(fs, Substitute.For<ILogger<ExifExtractionMiddleware>>());
+    private static MetadataExtractionMiddleware MakeMiddleware(MockFileSystem fs)
+        => new(fs, Substitute.For<ILogger<MetadataExtractionMiddleware>>());
 
     // ==========================================================================
     // InvokeAsync
@@ -159,7 +159,7 @@ public sealed class ExifExtractionMiddlewareTests
 
     private static byte[] Fixture(string name)
     {
-        using var stream = typeof(ExifExtractionMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
+        using var stream = typeof(MetadataExtractionMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
         return copy.ToArray();

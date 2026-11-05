@@ -276,7 +276,7 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("Metadata", t =>
                         {
-                            t.HasComment("EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by ExifExtractionMiddleware; every field is best-effort, because a file may carry no EXIF at all.");
+                            t.HasComment("What a file records in its EXIF, XMP, IPTC, QuickTime or AVI metadata, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by MetadataExtractionMiddleware; every field is best-effort, because a file may record none of it.");
                         });
                 });
 

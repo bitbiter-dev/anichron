@@ -7,11 +7,11 @@ using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
 
-internal sealed partial class ExifExtractionMiddleware(
+internal sealed partial class MetadataExtractionMiddleware(
     IFileSystem fileSystem,
-    ILogger<ExifExtractionMiddleware> logger) : IIngestionMiddleware
+    ILogger<MetadataExtractionMiddleware> logger) : IIngestionMiddleware
 {
-    public int Order => IngestionOrder.ExifExtraction;
+    public int Order => IngestionOrder.MetadataExtraction;
     public bool CanInvoke(IngestionContext context) => true;
 
     public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)

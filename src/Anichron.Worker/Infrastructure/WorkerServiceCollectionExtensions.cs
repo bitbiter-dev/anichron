@@ -110,7 +110,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IIngestionMiddleware, LoggingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ContentHashingMiddleware>();
             services.AddScoped<IIngestionMiddleware, ClassificationMiddleware>();
-            services.AddScoped<IIngestionMiddleware, ExifExtractionMiddleware>();
+            services.AddScoped<IIngestionMiddleware, MetadataExtractionMiddleware>();
             services.AddScoped<IIngestionMiddleware, ImageProxyMiddleware>();
             services.AddScoped<IIngestionMiddleware, VideoProxyMiddleware>();
             services.AddScoped<IIngestionMiddleware, PersistenceMiddleware>();

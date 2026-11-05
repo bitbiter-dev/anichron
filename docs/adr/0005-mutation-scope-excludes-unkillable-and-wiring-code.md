@@ -124,7 +124,7 @@ for every deployment. The proxy root is no longer a setting at all since #43: it
   a block ignored, Stryker generates block-removal mutants it used to filter out, so the detected
   count can move in either direction. Measured on `c084ee1`: detected went from 505 to 509 — eight
   new block-removal mutants, all killed, against the four ignored log kills above — and one new
-  uncovered block in `ExifExtractionMiddleware`. The score moved from 45.58% to 50.20%. `scripts/mutation-report.sh compare` is therefore only
+  uncovered block in `MetadataExtractionMiddleware`. The score moved from 45.58% to 50.20%. `scripts/mutation-report.sh compare` is therefore only
   meaningful between two runs of the **same** configuration; across a scope change, diff the
   mutants themselves.
 
