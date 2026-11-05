@@ -75,10 +75,10 @@ public sealed class NewContentWriterTests
     }
 
     private static ExtractedMedia DefaultExtracted => new(
-        new RecordedDate(new LocalDateTime(2023, 6, 15, 10, 0), null), MediaDescription.Unknown with { Width = 100, Height = 200 });
+        new RecordedDate.ClockTime(new LocalDateTime(2023, 6, 15, 10, 0), null), MediaDescription.Unknown with { Width = 100, Height = 200 });
 
     private static ExtractedMedia TakenInAuckland(Offset recorded) => new(
-        new RecordedDate(new LocalDateTime(2026, 10, 30, 19, 9, 51), recorded),
+        new RecordedDate.ClockTime(new LocalDateTime(2026, 10, 30, 19, 9, 51), recorded),
         MediaDescription.Unknown with { Latitude = -36.8485, Longitude = 174.7633 });
 
     private static IngestionItem LivePhoto => new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov");
@@ -167,12 +167,23 @@ public sealed class NewContentWriterTests
     {
         var fx = new TestFixture();
         var exifDate = new LocalDateTime(2020, 1, 2, 3, 4, 5);
-        var context = MakeContext(extracted: DefaultExtracted with { Recorded = new RecordedDate(exifDate, null) });
+        var context = MakeContext(extracted: DefaultExtracted with { Recorded = new RecordedDate.ClockTime(exifDate, null) });
 
         var asset = await fx.WriteAsync(context);
 
         asset!.DateCaptured.Should().Be(exifDate);
         (asset.Year, asset.Month, asset.Day).Should().Be((2020, 1, 2));
+    }
+
+    [Fact]
+    public async Task WriteAsync_DateAlone_IsStoredAtMidnightAsRecordedDateOnlyOnThatDayAsync()
+    {
+        var context = MakeContext(extracted: DefaultExtracted with { Recorded = new RecordedDate.DateAlone(new LocalDate(2019, 5, 4)) });
+
+        var asset = await new TestFixture().WriteAsync(context);
+
+        asset!.Captured.Should().Be(new CaptureDate(new LocalDateTime(2019, 5, 4, 0, 0), null, CaptureSource.RecordedDateOnly, null));
+        (asset.Year, asset.Month, asset.Day).Should().Be((2019, 5, 4));
     }
 
     [Fact]
