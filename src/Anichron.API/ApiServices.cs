@@ -9,8 +9,7 @@ public static class ApiServices
     extension(IServiceCollection services)
     {
         public IServiceCollection AddApiSurface(IConfiguration configuration)
-        {
-            services
+            => services
                 .AddOpenApi(options => options.AddSchemaTransformer<ProblemCodeSchemaTransformer>())
                 .AddApiProblems()
                 .AddDatabase(configuration)
@@ -20,10 +19,7 @@ public static class ApiServices
                 .AddAuthorizationPolicies()
                 .AddRateLimiting(configuration)
                 .AddCorsPolicy(configuration)
-                .AddApiHealthChecks();
-            services.AddSingleton<IAuthResponseMapper, AuthResponseMapper>();
-            services.AddScoped<WorkItemEvents>();
-            return services;
-        }
+                .AddApiHealthChecks()
+                .AddEndpointServices();
     }
 }

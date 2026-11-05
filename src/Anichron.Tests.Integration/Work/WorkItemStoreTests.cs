@@ -340,6 +340,34 @@ public sealed class WorkItemStoreTests(PostgresServer server)
         (item.FinishedAt, item.UpdatedAt).Should().Be((At(9), At(9)));
     }
 
+    [Theory]
+    [InlineData(WorkItemStatus.Succeeded, "{}", null)]
+    [InlineData(WorkItemStatus.Failed, null, "boom")]
+    [InlineData(WorkItemStatus.Cancelled, "{}", null)]
+    public async Task Finishing_ARunningItemCarryingAStaleResultAndError_KeepsOnlyItsOwnOutcomeAsync(
+        WorkItemStatus status, string? result, string? error)
+    {
+        var work = await WorkDatabase.CreateAsync(server, Ct);
+        await work.EnqueueAsync(new UnkeyedPayload(1), Ct);
+        var claimed = (await work.Store.ClaimAsync("worker", null, At(0), Lease, Ct))!;
+        await using (var db = work.CreateDbContext())
+        {
+            await db.Database.ExecuteSqlAsync(
+                $"""UPDATE "WorkItems" SET "Result" = '"stale"', "Error" = 'stale' WHERE "Id" = {claimed.Attempt.Id}""", Ct);
+        }
+
+        var finish = status switch
+        {
+            WorkItemStatus.Succeeded => work.Store.SucceedAsync(claimed.Attempt, Halfway, result, At(9), Ct),
+            WorkItemStatus.Failed => work.Store.FailAsync(claimed.Attempt, Halfway, error!, At(9), Ct),
+            _ => work.Store.CancelAsync(claimed.Attempt, Halfway, result, At(9), Ct),
+        };
+        await finish;
+
+        var item = await work.ItemAsync(claimed.Attempt.Id, Ct);
+        (item.Status, item.Result, item.Error).Should().Be((status, result, error));
+    }
+
     [Fact]
     public async Task HeartbeatAsync_CancelRequested_ReportsItAndStillExtendsTheLeaseAsync()
     {

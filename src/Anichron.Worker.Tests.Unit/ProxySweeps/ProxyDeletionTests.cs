@@ -55,9 +55,10 @@ public sealed class ProxyDeletionTests
         => store.GetPendingAsync(payload, ProxyDeletionHandler.BatchSize, Arg.Any<CancellationToken>())
             .Returns(batches[0], [.. batches.Skip(1).Append([])]);
 
-    private async Task<ProxyDeletionResult> RunAsync(IFileSystem fileSystem)
+    private async Task<ProxyDeletionResult> RunAsync(IFileSystem fileSystem, IProxyDirectoryStrategy? directories = null)
     {
-        var result = await new ProxyDeletionHandler(store, unitOfWork, new TwoLevelHexShardStrategy(), fileSystem, clock, logger)
+        var result = await new ProxyDeletionHandler(
+                store, unitOfWork, directories ?? new TwoLevelHexShardStrategy(), fileSystem, clock, logger)
             .RunAsync(payload, new WorkRun(Guid.NewGuid(), progress), Ct);
         return result.Should().BeOfType<ProxyDeletionResult>().Subject;
     }
@@ -193,6 +194,23 @@ public sealed class ProxyDeletionTests
     // ==========================================================================
     // Directories
     // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_ContentDirectoryOutsideTheProxyRoot_IsKeptAndLoggedAsync()
+    {
+        var fileSystem = new MockFileSystem();
+        File(fileSystem, Thumbnail);
+        fileSystem.AddDirectory("/data/originals/mira");
+        var directories = Substitute.For<IProxyDirectoryStrategy>();
+        directories.ContentDirectoryOf(Thumbnail).Returns("../originals/mira");
+        Pending([Orphan(Thumbnail)]);
+
+        await RunAsync(fileSystem, directories);
+
+        fileSystem.Directory.Exists("/data/originals/mira").Should().BeTrue();
+        logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Warning)
+            .Which.Message.Should().Be("Kept proxy directory ../originals/mira: it resolves outside the proxy root.");
+    }
 
     [Fact]
     public async Task RunAsync_LastFileOfAContentDirectory_RemovesItButKeepsTheShardAsync()

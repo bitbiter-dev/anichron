@@ -91,7 +91,10 @@ internal sealed partial class ProxyDeletionHandler(
         if (directories.ContentDirectoryOf(proxyPath) is not { } content)
             return;
         if (StoragePath.ResolveProxy(content) is not { } directory)
+        {
+            Log.DirectoryOutsideRoot(logger, content);
             return;
+        }
 
         try
         {
@@ -118,6 +121,9 @@ internal sealed partial class ProxyDeletionHandler(
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Did not delete orphaned proxy file {ProxyPath}: it resolves outside the proxy root.")]
         public static partial void OutsideRoot(ILogger logger, string proxyPath);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Kept proxy directory {Directory}: it resolves outside the proxy root.")]
+        public static partial void DirectoryOutsideRoot(ILogger logger, string directory);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Kept proxy directory {Directory}: it could not be removed.")]
         public static partial void DirectoryKept(ILogger logger, string directory, Exception ex);
