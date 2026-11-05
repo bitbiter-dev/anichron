@@ -313,8 +313,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 "Argon2id. The parameters live with the hasher, not here, so rotating them does "
                 + "not require a migration.");
             entity.Property(u => u.MustChangePassword).HasComment(
-                "Set by an admin reset. MustChangePasswordMiddleware then 403s every route except "
-                + "the handful needed to change it.");
+                "Set by an admin reset. Every protected route then answers 403 except the handful "
+                + "needed to change it.");
 
             entity.Property(u => u.Username)
                   .HasConversion(v => IdentityNormalizer.Normalize(v), v => v)

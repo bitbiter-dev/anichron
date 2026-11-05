@@ -9,8 +9,8 @@ internal static class AssetDtoMapper
     internal static AssetDto ToDto(AssetView view, AssetBurstDto? burst)
     {
         var swapsAxes = view.Orientation is { } orientation && ExifOrientation.SwapsAxes(orientation);
-        var liveVideoUrl = view is { PairedMovHasVideo: true, PairedMovId: { } movId }
-            ? ProxyKinds.UrlOf(movId, ProxyType.WebVideo)
+        var liveVideoUrl = view is { PairedMovHasVideo: true, PairedMovId: { } movId, PairedMovContentHash: { } movHash }
+            ? ProxyKinds.UrlOf(movId, ProxyType.WebVideo, movHash)
             : null;
 
         return new AssetDto(
@@ -23,9 +23,9 @@ internal static class AssetDtoMapper
             swapsAxes ? view.Width : view.Height,
             view.MediaType == MediaType.Video ? view.DurationInSeconds : null,
             new AssetProxyUrls(
-                view.HasThumbnail ? ProxyKinds.UrlOf(view.Id, ProxyType.Thumbnail) : null,
-                view.HasPreview ? ProxyKinds.UrlOf(view.Id, ProxyType.FullPreview) : null,
-                view.HasVideo ? ProxyKinds.UrlOf(view.Id, ProxyType.WebVideo) : null),
+                view.HasThumbnail ? ProxyKinds.UrlOf(view.Id, ProxyType.Thumbnail, view.ContentHash) : null,
+                view.HasPreview ? ProxyKinds.UrlOf(view.Id, ProxyType.FullPreview, view.ContentHash) : null,
+                view.HasVideo ? ProxyKinds.UrlOf(view.Id, ProxyType.WebVideo, view.ContentHash) : null),
             view.Blurhash,
             liveVideoUrl,
             ToDto(new InteractionState(view.IsStarred, view.IsLiked, Hidden: false)),

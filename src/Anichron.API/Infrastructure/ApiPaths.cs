@@ -18,8 +18,6 @@ internal static class ApiPaths
         internal const string Logout = "/logout";
         internal const string PasswordResetRequest = "/password-reset/request";
         internal const string PasswordResetConfirm = "/password-reset/confirm";
-
-        internal const string LogoutPath = $"{Base}/{Group}{Logout}";
     }
 
     internal static class Users
@@ -34,9 +32,6 @@ internal static class ApiPaths
         internal const string UserStorageConfigs = $"{{userId:guid}}/{StorageConfigs}";
         internal const string UserStorageConfigById = $"{{userId:guid}}/{StorageConfigs}/{{configId:guid}}";
 
-        internal const string MePath = $"{Base}/{Group}{Me}";
-        internal const string ChangePasswordPath = $"{Base}/{Group}{ChangePassword}";
-
         internal static string UserLocation(Guid userId)
             => $"{Base}/{Group}/{userId}";
 
@@ -47,11 +42,16 @@ internal static class ApiPaths
     internal static class Assets
     {
         internal const string Group = "assets";
-        internal const string Proxy = "{assetId:guid}/proxies/{type}";
         internal const string Interaction = "{assetId:guid}/interaction";
+    }
 
-        internal static string ProxyUrl(Guid assetId, string type)
-            => $"{Group}/{assetId}/proxies/{type}";
+    internal static class Proxies
+    {
+        internal const string Group = "proxies";
+        internal const string Proxy = "{assetId:guid}/{type}";
+
+        internal static string ProxyUrl(Guid assetId, string type, string contentHash)
+            => $"{Group}/{assetId}/{type}?v={contentHash}";
     }
 
     internal static class WorkItems

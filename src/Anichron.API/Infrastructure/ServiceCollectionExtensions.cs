@@ -7,6 +7,7 @@ using Anichron.Core.Work;
 using Anichron.Infrastructure.Configuration;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -173,9 +174,17 @@ public static class ServiceCollectionExtensions
 
         public IServiceCollection AddAuthorizationPolicies()
         {
+            var mustChangePassword = new MustChangePasswordRequirement();
+            services.AddSingleton<IAuthorizationMiddlewareResultHandler, MustChangePasswordResultHandler>();
             return services.AddAuthorization(options =>
+            {
+                options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .AddRequirements(mustChangePassword)
+                    .Build();
                 options.AddPolicy(AuthPolicies.Admin,
-                    policy => policy.RequireClaim(AppClaimTypes.IsAdmin, "true")));
+                    policy => policy.RequireClaim(AppClaimTypes.IsAdmin, "true").AddRequirements(mustChangePassword));
+            });
         }
 
         public IServiceCollection AddApiHealthChecks()

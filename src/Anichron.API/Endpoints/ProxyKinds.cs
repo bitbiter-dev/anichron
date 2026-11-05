@@ -12,8 +12,8 @@ internal static class ProxyKinds
     internal static ProxyKind? FromSlug(string slug)
         => All.FirstOrDefault(kind => kind.Slug == slug);
 
-    internal static string UrlOf(Guid assetId, ProxyType type)
-        => ApiPaths.Assets.ProxyUrl(assetId, All.Single(kind => kind.Type == type).Slug);
+    internal static string UrlOf(Guid assetId, ProxyType type, string contentHash)
+        => ApiPaths.Proxies.ProxyUrl(assetId, All.Single(kind => kind.Type == type).Slug, contentHash);
 
     private static ProxyKind[] Table()
     {

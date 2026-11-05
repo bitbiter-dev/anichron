@@ -21,16 +21,16 @@ public sealed class ProxyKindsTests
         => ProxyKinds.FromSlug(slug).Should().BeNull();
 
     [Theory]
-    [InlineData(ProxyType.Thumbnail, "assets/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/proxies/thumbnail")]
-    [InlineData(ProxyType.FullPreview, "assets/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/proxies/preview")]
-    [InlineData(ProxyType.WebVideo, "assets/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/proxies/video")]
-    public void UrlOf_UsesTheTypesSlug(ProxyType type, string url)
-        => ProxyKinds.UrlOf(Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"), type).Should().Be(url);
+    [InlineData(ProxyType.Thumbnail, "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=0123456789abcdef")]
+    [InlineData(ProxyType.FullPreview, "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/preview?v=0123456789abcdef")]
+    [InlineData(ProxyType.WebVideo, "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/video?v=0123456789abcdef")]
+    public void UrlOf_UsesTheTypesSlugAndTheContentVersion(ProxyType type, string url)
+        => ProxyKinds.UrlOf(Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"), type, "0123456789abcdef").Should().Be(url);
 
     [Fact]
     public void UrlOf_UndefinedType_FailsLoudly()
     {
-        var act = () => ProxyKinds.UrlOf(Guid.NewGuid(), (ProxyType)99);
+        var act = () => ProxyKinds.UrlOf(Guid.NewGuid(), (ProxyType)99, "0123456789abcdef");
 
         act.Should().Throw<InvalidOperationException>();
     }
