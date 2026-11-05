@@ -35,6 +35,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IClock>(SystemClock.Instance);
             services.AddSingleton(DateTimeZoneProviders.Tzdb);
+            services.AddSingleton(DateTimeZoneProviders.Tzdb.GetSystemDefault());
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton<WorkerState>();
             return services;

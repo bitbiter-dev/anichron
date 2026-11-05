@@ -15,7 +15,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseForwardedHeaders();
 app.UseApiProblems();
-app.UseHttpsRedirection();
 app.UseCors();
 app.UseUi();
 app.UseRateLimiter();

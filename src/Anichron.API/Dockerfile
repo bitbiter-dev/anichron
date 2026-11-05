@@ -1,5 +1,6 @@
 # 1. Runtime Stage (Using Alpine for a smaller, more secure footprint)
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS base
+RUN apk add --no-cache tzdata
 WORKDIR /app
 EXPOSE 8080
 
