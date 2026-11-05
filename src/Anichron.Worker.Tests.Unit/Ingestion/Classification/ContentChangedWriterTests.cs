@@ -3,8 +3,10 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
+using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
@@ -24,17 +26,18 @@ public sealed class ContentChangedWriterTests
     private static readonly Instant FirstSeen = Instant.FromUtc(2024, 1, 1, 0, 0, 0);
     private static readonly Instant Now = Instant.FromUtc(2026, 5, 19, 10, 0, 0);
 
-    private static readonly ExifData EditedExif = new(
+    private static MediaDescription EditedDescription => new(
         Width: 4032,
         Height: 3024,
         Orientation: 6,
-        DateCaptured: new LocalDateTime(2022, 8, 9, 7, 30),
         Latitude: 35.68,
         Longitude: 139.69,
         CameraMake: "Fujifilm",
         CameraModel: "X100V",
         LensModel: "23mm F2",
         DurationInSeconds: 3);
+
+    private static ExtractedMedia Edited => new(new RecordedDate(new LocalDateTime(2022, 8, 9, 7, 30), Offset.FromHours(9)), EditedDescription);
 
     private sealed class TestFixture
     {
@@ -47,7 +50,7 @@ public sealed class ContentChangedWriterTests
         public List<ProxyFile> Added { get; } = [];
         public List<ProxyFile> Removed { get; } = [];
         public FakeLogger<ContentChangedWriter> Logger { get; } = new();
-        public Metadata StoredMetadata { get; } = new() { AssetId = StoredId, Width = 10, Height = 10, CameraMake = "Old" };
+        public Metadata StoredMetadata { get; } = new() { AssetId = StoredId, Description = MediaDescription.Unknown with { Width = 10, Height = 10, CameraMake = "Old" } };
         public MediaAsset Stored { get; }
 
         public TestFixture()
@@ -62,7 +65,7 @@ public sealed class ContentChangedWriterTests
                 ContentHash = "0ldc0ntent",
                 MediaType = MediaType.Image,
                 LastSeenOnNas = FirstSeen,
-                DateCaptured = new LocalDateTime(2019, 3, 4, 5, 6),
+                Captured = Recorded.At(new LocalDateTime(2019, 3, 4, 5, 6)),
                 ProxyFiles =
                 [
                     OldProxy(ProxyType.Thumbnail, "0l/old/thumbnail.jpg"),
@@ -94,6 +97,7 @@ public sealed class ContentChangedWriterTests
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),
+                new CaptureZones(DateTimeZoneProviders.Tzdb, new FakeLogger<CaptureZones>()),
                 Logger);
         }
 
@@ -113,7 +117,7 @@ public sealed class ContentChangedWriterTests
                     new FileClassification(FileOutcome.ContentChanged, Stored),
                     isPair ? new FileClassification(FileOutcome.Unchanged, storedMov) : null,
                     PairingAction.None),
-                Exif = EditedExif,
+                Extracted = Edited,
                 Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
             };
         }
@@ -215,7 +219,7 @@ public sealed class ContentChangedWriterTests
         var asset = await fx.WriteAsync(fx.Context(new SingleFileItem("/abs/2022/photo.jpg", "2022/photo.jpg", MediaType.Video)));
 
         asset!.ContentHash.Should().Be("n3wc0ntent");
-        asset.DateCaptured.Should().Be(new LocalDateTime(2022, 8, 9, 7, 30));
+        asset.Captured.Should().Be(new CaptureDate(new LocalDateTime(2022, 8, 9, 7, 30), Offset.FromHours(9), CaptureSource.Recorded, "Asia/Tokyo"));
         (asset.Year, asset.Month, asset.Day).Should().Be((2022, 8, 9));
         asset.MediaType.Should().Be(MediaType.Video);
         asset.LastSeenOnNas.Should().Be(Now);
@@ -232,15 +236,7 @@ public sealed class ContentChangedWriterTests
         asset.Metadata.Should().BeEquivalentTo(new
         {
             AssetId = StoredId,
-            Width = 4032,
-            Height = 3024,
-            Orientation = 6,
-            Latitude = 35.68,
-            Longitude = 139.69,
-            CameraMake = "Fujifilm",
-            CameraModel = "X100V",
-            LensModel = "23mm F2",
-            DurationInSeconds = 3,
+            Description = EditedDescription,
             Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
         });
     }
@@ -255,7 +251,7 @@ public sealed class ContentChangedWriterTests
 
         asset!.Metadata.Should().NotBeNull();
         asset.Metadata.AssetId.Should().Be(StoredId);
-        asset.Metadata.Width.Should().Be(4032);
+        asset.Metadata.Description.Should().Be(EditedDescription);
     }
 
     // ==========================================================================

@@ -170,6 +170,18 @@ namespace Anichron.Core.Migrations
                     b.Property<Guid?>("BurstId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("CaptureOffset")
+                        .HasColumnType("integer")
+                        .HasComment("Seconds east of UTC that the file records with DateCaptured; NULL when it records none. Kept as recorded, even when it disagrees with CaptureZone (ADR 0015).");
+
+                    b.Property<string>("CaptureSource")
+                        .HasColumnType("text")
+                        .HasComment("Which kind of source DateCaptured came from; NULL exactly when DateCaptured is.");
+
+                    b.Property<string>("CaptureZone")
+                        .HasColumnType("text")
+                        .HasComment("IANA time zone at the asset's position when it was ingested, looked up offline; NULL without a position. Never changes DateCaptured or CaptureOffset.");
+
                     b.Property<string>("ContentHash")
                         .IsRequired()
                         .HasColumnType("text")
@@ -259,36 +271,6 @@ namespace Anichron.Core.Migrations
                     b.Property<string>("Blurhash")
                         .HasColumnType("text")
                         .HasComment("BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. Null for videos, and for images ingested before the column existed, which are not backfilled.");
-
-                    b.Property<string>("CameraMake")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CameraModel")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("DurationInSeconds")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Height")
-                        .HasColumnType("integer");
-
-                    b.Property<double?>("Latitude")
-                        .HasColumnType("double precision");
-
-                    b.Property<string>("LensModel")
-                        .HasColumnType("text");
-
-                    b.Property<double?>("Longitude")
-                        .HasColumnType("double precision");
-
-                    b.Property<int>("Orientation")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1)
-                        .HasComment("EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container's irot for a HEIC, the video track's rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video's player applies its own rotation, so rotate neither by it.");
-
-                    b.Property<int>("Width")
-                        .HasColumnType("integer");
 
                     b.HasKey("AssetId");
 
@@ -710,7 +692,53 @@ namespace Anichron.Core.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.OwnsOne("Anichron.Core.Domain.MediaDescription", "Description", b1 =>
+                        {
+                            b1.Property<Guid>("MetadataAssetId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("CameraMake")
+                                .HasColumnType("text");
+
+                            b1.Property<string>("CameraModel")
+                                .HasColumnType("text");
+
+                            b1.Property<int?>("DurationInSeconds")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Height")
+                                .HasColumnType("integer");
+
+                            b1.Property<double?>("Latitude")
+                                .HasColumnType("double precision");
+
+                            b1.Property<string>("LensModel")
+                                .HasColumnType("text");
+
+                            b1.Property<double?>("Longitude")
+                                .HasColumnType("double precision");
+
+                            b1.Property<int>("Orientation")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasDefaultValue(1)
+                                .HasComment("EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container's irot for a HEIC, the video track's rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video's player applies its own rotation, so rotate neither by it.");
+
+                            b1.Property<int>("Width")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("MetadataAssetId");
+
+                            b1.ToTable("Metadata");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MetadataAssetId");
+                        });
+
                     b.Navigation("Asset");
+
+                    b.Navigation("Description")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.ProxyFile", b =>

@@ -1,6 +1,7 @@
 using Anichron.Core;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
@@ -76,7 +77,7 @@ public sealed class KnownFileReconcilerTests
     private static IngestionContext VideoContext(FileOutcome outcome, MediaAsset video, bool withPhoto = true)
     {
         var photo = withPhoto ? Row(PhotoId, "2024/live.heic", "abc123") : null;
-        photo?.DateCaptured = new LocalDateTime(2020, 7, 8, 9, 10);
+        photo?.Captured = PhotoCaptured;
         return new IngestionContext
         {
             Item = new LivePhotoPairItem("/abs/2024/live.heic", "2024/live.heic", "/abs/2024/live.mov", "2024/live.mov"),
@@ -91,6 +92,14 @@ public sealed class KnownFileReconcilerTests
         };
     }
 
+    private static CaptureDate PhotoCaptured => new(
+        new LocalDateTime(2020, 7, 8, 9, 10), Offset.FromHours(12), CaptureSource.Recorded, "Pacific/Auckland");
+
+    private static CaptureDate MovedCaptured => new(
+        new LocalDateTime(2022, 8, 9, 7, 30), Offset.FromHours(9), CaptureSource.Recorded, "Asia/Tokyo");
+
+    private static MediaDescription Fujifilm => new(4032, 3024, 6, 35.68, 139.69, "Fujifilm", "X100V", "23mm F2", 3);
+
     private static MediaAsset Row(Guid id, string path, string hash, bool softDeleted = false) => new()
     {
         Id = id,
@@ -100,7 +109,7 @@ public sealed class KnownFileReconcilerTests
         MediaType = MediaType.Image,
         IsSoftDeleted = softDeleted,
         LastSeenOnNas = FirstSeen,
-        DateCaptured = new LocalDateTime(2019, 3, 4, 5, 6),
+        Captured = Recorded.At(new LocalDateTime(2019, 3, 4, 5, 6)),
     };
 
     private static ProxyFile Proxy(Guid owner, ProxyType type, string path, long size = 1) => new()
@@ -206,27 +215,19 @@ public sealed class KnownFileReconcilerTests
         ];
         var moved = Row(MovedRowId, "2023/photo.jpg", "abc123");
         moved.MediaType = MediaType.LivePhoto;
-        moved.DateCaptured = new LocalDateTime(2022, 8, 9, 7, 30);
+        moved.Captured = MovedCaptured;
         moved.ProxyFiles =
         [
             Proxy(MovedRowId, ProxyType.Thumbnail, "ab/new/thumbnail.jpg", size: 300),
             Proxy(MovedRowId, ProxyType.FullPreview, "ab/new/preview.jpg", size: 1920),
         ];
-        fx.LoadsMetadata(atPath, new Metadata { AssetId = PathRowId, Width = 10, Height = 10, CameraMake = "Old", Blurhash = "old" });
-        fx.LoadsMetadata(moved, new Metadata
+        fx.LoadsMetadata(atPath, new Metadata
         {
-            AssetId = MovedRowId,
-            Width = 4032,
-            Height = 3024,
-            Orientation = 6,
-            Latitude = 35.68,
-            Longitude = 139.69,
-            CameraMake = "Fujifilm",
-            CameraModel = "X100V",
-            LensModel = "23mm F2",
-            DurationInSeconds = 3,
-            Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+            AssetId = PathRowId,
+            Description = MediaDescription.Unknown with { Width = 10, Height = 10, CameraMake = "Old" },
+            Blurhash = "old",
         });
+        fx.LoadsMetadata(moved, new Metadata { AssetId = MovedRowId, Description = Fujifilm, Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj" });
         return (atPath, moved);
     }
 
@@ -245,27 +246,15 @@ public sealed class KnownFileReconcilerTests
             FilePath = "2024/taken.jpg",
             ContentHash = "abc123",
             MediaType = MediaType.LivePhoto,
-            DateCaptured = new LocalDateTime(2022, 8, 9, 7, 30),
+            Captured = MovedCaptured,
             LastSeenOnNas = Now,
             IsSoftDeleted = false,
             BurstId = (Guid?)null,
             PairedAssetId = (Guid?)Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
         });
         atPath.Interactions.Should().ContainSingle().Which.IsStarred.Should().BeTrue();
-        atPath.Metadata.Should().BeEquivalentTo(new Metadata
-        {
-            AssetId = PathRowId,
-            Width = 4032,
-            Height = 3024,
-            Orientation = 6,
-            Latitude = 35.68,
-            Longitude = 139.69,
-            CameraMake = "Fujifilm",
-            CameraModel = "X100V",
-            LensModel = "23mm F2",
-            DurationInSeconds = 3,
-            Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
-        }, options => options.Excluding(m => m.Asset));
+        atPath.Metadata.Should().BeEquivalentTo(new { AssetId = PathRowId, Description = Fujifilm, Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj" });
+        atPath.Metadata.Description.Should().NotBeSameAs(moved.Metadata!.Description);
         await fx.Bursts.Received(1).RemoveCheckAsync(PathRowId, Arg.Any<CancellationToken>());
     }
 
@@ -282,32 +271,17 @@ public sealed class KnownFileReconcilerTests
     }
 
     [Fact]
-    public async Task ReconcileAsync_OverwrittenByMove_CarriesEveryMetadataValueOfTheMovedRowAsync()
-    {
-        var fx = new TestFixture();
-        var (atPath, moved) = MoveOntoAnotherRow(fx);
-        var movedMetadata = MetadataValuesTests.FullyPopulated();
-        movedMetadata.AssetId = MovedRowId;
-        fx.LoadsMetadata(moved, movedMetadata);
-
-        await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
-
-        atPath.Metadata.Should().BeEquivalentTo(movedMetadata, options => options.Excluding(m => m.AssetId).Excluding(m => m.Asset));
-        atPath.Metadata.AssetId.Should().Be(PathRowId);
-    }
-
-    [Fact]
     public async Task ReconcileAsync_OverwrittenByMove_UpdatesThePathsStoredMetadataRowInPlaceAsync()
     {
         var fx = new TestFixture();
         var (atPath, moved) = MoveOntoAnotherRow(fx);
-        var stored = new Metadata { AssetId = PathRowId, Width = 10 };
+        var stored = new Metadata { AssetId = PathRowId, Description = MediaDescription.Unknown with { Width = 10 } };
         fx.LoadsMetadata(atPath, stored);
 
         await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
 
         atPath.Metadata.Should().BeSameAs(stored);
-        stored.Width.Should().Be(4032);
+        stored.Description.Should().Be(Fujifilm);
     }
 
     [Fact]
@@ -401,7 +375,7 @@ public sealed class KnownFileReconcilerTests
         await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
 
         atPath.Metadata.Should().NotBeNull();
-        atPath.Metadata.Should().BeEquivalentTo(new { AssetId = PathRowId, Width = 4032, CameraMake = "Fujifilm" });
+        atPath.Metadata.Should().BeEquivalentTo(new { AssetId = PathRowId, Description = Fujifilm });
     }
 
     // ==========================================================================
@@ -470,7 +444,7 @@ public sealed class KnownFileReconcilerTests
         mov.BurstId = BurstId;
         var oldProxy = Proxy(MovedRowId, ProxyType.WebVideo, "0l/old/video_720p.mp4");
         mov.ProxyFiles = [oldProxy];
-        fx.LoadsMetadata(mov, new Metadata { AssetId = MovedRowId, Width = 1920, Height = 1080 });
+        fx.LoadsMetadata(mov, new Metadata { AssetId = MovedRowId, Description = MediaDescription.Unknown with { Width = 1920, Height = 1080 }, Blurhash = "old" });
         fx.Context = VideoContext(FileOutcome.ContentChanged, mov);
 
         var reconciled = await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
@@ -481,12 +455,12 @@ public sealed class KnownFileReconcilerTests
             FilePath = "2024/live.mov",
             FileName = "live.mov",
             ContentHash = "cafebabe",
-            DateCaptured = new LocalDateTime(2020, 7, 8, 9, 10),
+            Captured = PhotoCaptured,
             MediaType = MediaType.Video,
             BurstId = (Guid?)null,
             LastSeenOnNas = Now,
         });
-        mov.Metadata.Should().BeEquivalentTo(new { Width = 0, Height = 0 });
+        mov.Metadata.Should().BeEquivalentTo(new { Description = MediaDescription.Unknown, Blurhash = (string?)null });
         oldProxy.ProxyPath.Should().Be($"ca/{fx.Context.Config.Id:N}-cafebabe/video_720p.mp4");
         oldProxy.SizeBytes.Should().Be(2);
         fx.Added.Should().BeEmpty();
@@ -524,7 +498,7 @@ public sealed class KnownFileReconcilerTests
 
         await fx.ReconcileAsync(fx.Context.Classification.Secondary, "2024/live.mov");
 
-        (atPath.ContentHash, atPath.DateCaptured).Should().Be(("abc123", new LocalDateTime(2020, 7, 8, 9, 10)));
+        (atPath.ContentHash, atPath.Captured).Should().Be(("abc123", PhotoCaptured));
     }
 
     [Fact]

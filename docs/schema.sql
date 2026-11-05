@@ -154,6 +154,9 @@ CREATE TABLE "MediaAssets" (
     "FileName" text NOT NULL,
     "ContentHash" text NOT NULL,
     "DateCaptured" timestamp without time zone,
+    "CaptureOffset" integer,
+    "CaptureSource" text,
+    "CaptureZone" text,
     "Month" integer,
     "Day" integer,
     "Year" integer,
@@ -170,6 +173,9 @@ COMMENT ON COLUMN "MediaAssets"."PairedAssetId" IS 'Live Photo pairing: the phot
 COMMENT ON COLUMN "MediaAssets"."FilePath" IS 'Path relative to the storage config root. Not to be confused with ProxyFiles.ProxyPath, which is relative to the proxy root.';
 COMMENT ON COLUMN "MediaAssets"."ContentHash" IS 'XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same bytes under two storage configs are two assets, which is what makes multi-user work. A global unique index on this column alone would break that and must never be added.';
 COMMENT ON COLUMN "MediaAssets"."DateCaptured" IS 'The wall-clock time the file records it was captured. NULL when it records none: the asset is undated, never dated by the file''s last-modified time, and is left out of On This Day and burst detection (ADR 0015).';
+COMMENT ON COLUMN "MediaAssets"."CaptureOffset" IS 'Seconds east of UTC that the file records with DateCaptured; NULL when it records none. Kept as recorded, even when it disagrees with CaptureZone (ADR 0015).';
+COMMENT ON COLUMN "MediaAssets"."CaptureSource" IS 'Which kind of source DateCaptured came from; NULL exactly when DateCaptured is.';
+COMMENT ON COLUMN "MediaAssets"."CaptureZone" IS 'IANA time zone at the asset''s position when it was ingested, looked up offline; NULL without a position. Never changes DateCaptured or CaptureOffset.';
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';
 COMMENT ON COLUMN "MediaAssets"."Day" IS 'See Month — the pair backs IX_MediaAsset_Flashback.';
 COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore).';
@@ -193,21 +199,21 @@ COMMENT ON TABLE "Interactions" IS 'Per-user state for one asset. Never shared b
 
 CREATE TABLE "Metadata" (
     "AssetId" uuid NOT NULL,
-    "Width" integer NOT NULL,
-    "Height" integer NOT NULL,
-    "Orientation" integer NOT NULL DEFAULT 1,
-    "Latitude" double precision,
-    "Longitude" double precision,
-    "CameraMake" text,
-    "CameraModel" text,
-    "LensModel" text,
-    "DurationInSeconds" integer,
+    "Description_Width" integer NOT NULL,
+    "Description_Height" integer NOT NULL,
+    "Description_Orientation" integer NOT NULL DEFAULT 1,
+    "Description_Latitude" double precision,
+    "Description_Longitude" double precision,
+    "Description_CameraMake" text,
+    "Description_CameraModel" text,
+    "Description_LensModel" text,
+    "Description_DurationInSeconds" integer,
     "Blurhash" text,
     CONSTRAINT "PK_Metadata" PRIMARY KEY ("AssetId"),
     CONSTRAINT "FK_Metadata_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "Metadata" IS 'EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by ExifExtractionMiddleware; every field is best-effort, because a file may carry no EXIF at all.';
-COMMENT ON COLUMN "Metadata"."Orientation" IS 'EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container''s irot for a HEIC, the video track''s rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video''s player applies its own rotation, so rotate neither by it.';
+COMMENT ON COLUMN "Metadata"."Description_Orientation" IS 'EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container''s irot for a HEIC, the video track''s rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video''s player applies its own rotation, so rotate neither by it.';
 COMMENT ON COLUMN "Metadata"."Blurhash" IS 'BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. Null for videos, and for images ingested before the column existed, which are not backfilled.';
 
 

@@ -5,6 +5,8 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Settings;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -25,12 +27,16 @@ public sealed class FileIngestionPipelineTests
     {
         public MockFileSystem FileSystem { get; } = new();
         public List<IngestionContext> ProcessedContexts { get; } = [];
+        public FakeLogger<FileIngestionPipeline> Logger { get; } = new();
+        public IFileSystem? RealFileSystem { get; init; }
 
         public string ExcludedDirectories { get; init; } = string.Empty;
         public string? UnreadableDirectory { get; init; }
 
         private IFileSystem CrawlFileSystem()
         {
+            if (RealFileSystem is not null)
+                return RealFileSystem;
             if (UnreadableDirectory is null)
                 return FileSystem;
 
@@ -41,6 +47,7 @@ public sealed class FileIngestionPipelineTests
             var fileSystem = Substitute.For<IFileSystem>();
             fileSystem.Directory.Returns(directory);
             fileSystem.Path.Returns(FileSystem.Path);
+            fileSystem.FileInfo.Returns(FileSystem.FileInfo);
             return fileSystem;
 
             IDirectory Readable(string path)
@@ -75,7 +82,8 @@ public sealed class FileIngestionPipelineTests
                 middlewares,
                 FileSystem,
                 new WorkerSettings { MaxConcurrentFiles = maxConcurrentFiles, ExcludedDirectories = ExcludedDirectories },
-                CrawlFileSystem());
+                CrawlFileSystem(),
+                Logger);
     }
 
     // ==========================================================================
@@ -421,6 +429,71 @@ public sealed class FileIngestionPipelineTests
             .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         (result.SoftDeleted, result.AutoRestored).Should().Be((2, 1));
+    }
+
+    // ==========================================================================
+    // Links
+    // ==========================================================================
+
+    [Fact]
+    public async Task RunAsync_LinkToAMediaFile_IsSkippedCountedAndLoggedByItsPathUnderTheRootAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/other/IMG_0001.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/2024/real.jpg", new MockFileData([]));
+        fixture.FileSystem.File.CreateSymbolicLink("/nas/2024/linked.jpg", "/other/IMG_0001.jpg");
+
+        var result = await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        ProcessedRelativePaths(fixture).Should().Equal("2024/real.jpg");
+        result.Result.Should().Be(new CrawlResult(Found: 1, Processed: 1, Failed: 0) { SkippedLinks = 1 });
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Message.StartsWith("Skipping link", StringComparison.Ordinal))
+            .Which.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Warning
+                && e.Message == "Skipping link 2024/linked.jpg: a crawl never follows links.");
+    }
+
+    [Fact]
+    public async Task RunAsync_LinkToAFolderInsideTheRoot_IsSkippedWhileTheRealFolderIsCrawledOnceAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/2024/a.jpg", new MockFileData([]));
+        fixture.FileSystem.Directory.CreateSymbolicLink("/nas/again", "/nas/2024");
+
+        var result = await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        ProcessedRelativePaths(fixture).Should().Equal("2024/a.jpg");
+        result.Result.SkippedLinks.Should().Be(1);
+        result.WalkComplete.Should().BeTrue();
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Message == "Skipping link again: a crawl never follows links.");
+    }
+
+    [Fact]
+    public async Task RunAsync_RealLinksOnDisk_NothingBehindThemIsIngestedAsync()
+    {
+        var temp = Directory.CreateTempSubdirectory("anichron-links-");
+        try
+        {
+            var root = Path.Combine(temp.FullName, "mira");
+            var outside = Path.Combine(temp.FullName, "alice");
+            Directory.CreateDirectory(Path.Combine(outside, "2024"));
+            Directory.CreateDirectory(root);
+            await File.WriteAllBytesAsync(Path.Combine(outside, "a.jpg"), [], TestContext.Current.CancellationToken);
+            await File.WriteAllBytesAsync(Path.Combine(outside, "2024", "b.jpg"), [], TestContext.Current.CancellationToken);
+            await File.WriteAllBytesAsync(Path.Combine(root, "real.jpg"), [], TestContext.Current.CancellationToken);
+            Directory.CreateSymbolicLink(Path.Combine(root, "alice"), outside);
+            File.CreateSymbolicLink(Path.Combine(root, "a.jpg"), Path.Combine(outside, "a.jpg"));
+            var fixture = new TestFixture { RealFileSystem = new FileSystem() };
+
+            var result = await fixture.Build().RunAsync(MakeConfig(root), NoProgress, CancellationToken.None);
+
+            ProcessedRelativePaths(fixture).Should().Equal("real.jpg");
+            result.Result.Should().Be(new CrawlResult(Found: 1, Processed: 1, Failed: 0) { SkippedLinks = 2 });
+            result.WalkComplete.Should().BeTrue();
+        }
+        finally
+        {
+            temp.Delete(recursive: true);
+        }
     }
 
     // ==========================================================================

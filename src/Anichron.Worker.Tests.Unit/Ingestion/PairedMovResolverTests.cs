@@ -1,6 +1,7 @@
 using Anichron.Core;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
@@ -67,12 +68,15 @@ public sealed class PairedMovResolverTests
         LastSeenOnNas = FirstSeen,
     };
 
+    private static CaptureDate InAuckland => new(
+        new LocalDateTime(2020, 7, 8, 9, 10), Offset.FromHours(12), CaptureSource.Recorded, "Pacific/Auckland");
+
     [Fact]
     public async Task PairAsync_NoStoredVideo_AddsOneAndPointsThePhotoAtItWithoutLookingForOtherPhotosAsync()
     {
         var fx = new TestFixture();
         var photo = Row(PhotoId, "A.heic");
-        photo.DateCaptured = new LocalDateTime(2020, 7, 8, 9, 10);
+        photo.Captured = InAuckland;
 
         var mov = await fx.PairAsync(photo, storedVideo: null);
 
@@ -84,7 +88,7 @@ public sealed class PairedMovResolverTests
             FilePath = "A.mov",
             FileName = "A.mov",
             ContentHash = "b1b1",
-            DateCaptured = new LocalDateTime(2020, 7, 8, 9, 10),
+            Captured = InAuckland,
             MediaType = MediaType.Video,
             IsSoftDeleted = false,
             LastSeenOnNas = Now,
@@ -100,7 +104,7 @@ public sealed class PairedMovResolverTests
 
         var mov = await fx.PairAsync(Row(PhotoId, "A.heic"), storedVideo: null);
 
-        mov.DateCaptured.Should().BeNull();
+        mov.Captured.Should().BeNull();
     }
 
     [Theory]
@@ -111,13 +115,13 @@ public sealed class PairedMovResolverTests
     {
         var fx = new TestFixture();
         var (photo, video) = (Row(PhotoId, "A.heic"), Row(VideoId, "A.mov"));
-        photo.DateCaptured = new LocalDateTime(2024, 7, 15, 12, 0);
-        video.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
+        photo.Captured = InAuckland;
+        video.Captured = Recorded.At(new LocalDateTime(2019, 1, 2, 3, 4));
         fx.PhotosOfTheVideo();
 
         await fx.PairAsync(photo, video, (FileOutcome)videoOutcome);
 
-        video.DateCaptured.Should().Be(new LocalDateTime(2024, 7, 15, 12, 0));
+        video.Captured.Should().Be(InAuckland);
     }
 
     [Fact]
@@ -125,13 +129,13 @@ public sealed class PairedMovResolverTests
     {
         var fx = new TestFixture();
         var (photo, video) = (Row(PhotoId, "A.heic"), Row(VideoId, "A.mov"));
-        photo.DateCaptured = new LocalDateTime(2024, 7, 15, 12, 0);
-        video.DateCaptured = new LocalDateTime(2019, 1, 2, 3, 4);
+        photo.Captured = InAuckland;
+        video.Captured = Recorded.At(new LocalDateTime(2019, 1, 2, 3, 4));
         fx.PhotosOfTheVideo();
 
         await fx.PairAsync(photo, video, FileOutcome.Unchanged);
 
-        video.DateCaptured.Should().Be(new LocalDateTime(2019, 1, 2, 3, 4));
+        video.Captured.Should().Be(Recorded.At(new LocalDateTime(2019, 1, 2, 3, 4)));
     }
 
     [Fact]

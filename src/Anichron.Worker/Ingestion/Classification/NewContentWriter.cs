@@ -1,5 +1,6 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using NodaTime;
@@ -10,8 +11,9 @@ internal sealed class NewContentWriter(
     IMediaAssetRepository repository,
     IClock clock,
     PairedMovResolver pairedMovResolver,
-    PairedMovProxyWriter pairedMovProxyWriter)
-    : ProcessedContentWriter(pairedMovResolver, pairedMovProxyWriter)
+    PairedMovProxyWriter pairedMovProxyWriter,
+    CaptureZones captureZones)
+    : ProcessedContentWriter(pairedMovResolver, pairedMovProxyWriter, captureZones)
 {
     public override IReadOnlyCollection<FileOutcome> Outcomes => [FileOutcome.New];
 
@@ -27,9 +29,7 @@ internal sealed class NewContentWriter(
             FileName = Path.GetFileName(relativePath),
             IsSoftDeleted = false,
             LastSeenOnNas = clock.GetCurrentInstant(),
-            Metadata = content.Description,
         };
-        content.Description.AssetId = asset.Id;
         content.ApplyTo(asset);
 
         repository.Add(asset);

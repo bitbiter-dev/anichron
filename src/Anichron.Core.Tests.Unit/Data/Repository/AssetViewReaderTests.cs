@@ -2,6 +2,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using System.Text.RegularExpressions;
@@ -57,7 +58,7 @@ public sealed partial class AssetViewReaderTests
                 FilePath = $"{Guid.NewGuid():N}.jpg",
                 FileName = "x.jpg",
                 ContentHash = Guid.NewGuid().ToString("N"),
-                DateCaptured = when,
+                Captured = Recorded.At(when),
                 MediaType = type,
                 IsSoftDeleted = softDeleted,
                 Metadata = metadata,
@@ -242,7 +243,7 @@ public sealed partial class AssetViewReaderTests
             new LocalDateTime(2019, 7, 14, 9, 30),
             MediaType.Video,
             false,
-            new Metadata { Width = 4032, Height = 3024, Orientation = 6, DurationInSeconds = 12, Blurhash = "LEHV6nWB2yk8" },
+            new Metadata { Description = MediaDescription.Unknown with { Width = 4032, Height = 3024, Orientation = 6, DurationInSeconds = 12 }, Blurhash = "LEHV6nWB2yk8" },
             ProxyType.Thumbnail,
             ProxyType.WebVideo);
 
@@ -454,7 +455,7 @@ public sealed partial class AssetViewReaderTests
         var library = new Library();
         var dated = library.Asset(library.MiraConfig, new LocalDateTime(2019, 7, 14, 9, 0));
         var undated = library.Asset(library.MiraConfig);
-        undated.DateCaptured = null;
+        undated.Captured = null;
         library.Burst(dated, undated);
 
         var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2026, 7, 14)));

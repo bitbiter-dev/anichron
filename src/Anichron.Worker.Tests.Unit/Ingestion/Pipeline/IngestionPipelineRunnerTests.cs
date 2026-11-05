@@ -8,6 +8,7 @@ using Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 using Anichron.Worker.Tests.Unit.TestDoubles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
 using NSubstitute.ExceptionExtensions;
 using System.IO.Abstractions;
@@ -21,6 +22,7 @@ public sealed class IngestionPipelineRunnerTests
     {
         public MockFileSystem FileSystem { get; init; } = new();
         public IProxyDirectoryStrategy DirectoryStrategy { get; }
+        public FakeLogger<IngestionPipelineRunner> Logger { get; } = new();
 
         public TestFixture()
         {
@@ -32,7 +34,7 @@ public sealed class IngestionPipelineRunnerTests
             => new(middlewares,
                    DirectoryStrategy,
                    FileSystem,
-                   Substitute.For<ILogger<IngestionPipelineRunner>>());
+                   Logger);
     }
 
     private const string AttemptTemporarySuffix = ".abababababababababababababababab.tmp";
@@ -276,6 +278,75 @@ public sealed class IngestionPipelineRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_StepThrows_RemovesTheEmptiedShardDirectoryAsync()
+    {
+        var fixture = new TestFixture();
+        var runner = fixture.Build(
+            new ProxyWritingMiddleware(10, fixture.FileSystem, "ab/cd/thumbnail.jpg"),
+            new ThrowingMiddleware(20, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.Directory.Exists("/data/proxies/ab").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RunAsync_StepThrows_KeepsTheProxyRootAsync()
+    {
+        var fixture = new TestFixture();
+        var runner = fixture.Build(
+            new ProxyWritingMiddleware(10, fixture.FileSystem, "ab/cd/thumbnail.jpg"),
+            new ThrowingMiddleware(20, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.Directory.Exists("/data/proxies").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_StepThrows_KeepsAShardDirectoryHoldingAnotherContentDirectoryAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddDirectory("/data/proxies/ab/other");
+        var runner = fixture.Build(
+            new ProxyWritingMiddleware(10, fixture.FileSystem, "ab/cd/thumbnail.jpg"),
+            new ThrowingMiddleware(20, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.Directory.Exists("/data/proxies/ab/cd").Should().BeFalse();
+        fixture.FileSystem.Directory.Exists("/data/proxies/ab/other").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_StepThrowsBeforeCreatingTheDirectory_LogsNoWarningAsync()
+    {
+        var fixture = new TestFixture();
+        var runner = fixture.Build(new ThrowingMiddleware(10, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.Logger.Collector.GetSnapshot().Should().NotContain(r => r.Level == LogLevel.Warning);
+    }
+
+    [Fact]
+    public async Task RunAsync_ContentDirectoryAlreadyGone_RemovesTheEmptyShardDirectoryAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddDirectory("/data/proxies/ab");
+        var runner = fixture.Build(new ThrowingMiddleware(10, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.FileSystem.Directory.Exists("/data/proxies/ab").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task RunAsync_StepThrowsBeforeRegisteringAnyProxy_DeletesTemporaryFilesAsync()
     {
         var fixture = new TestFixture();
@@ -384,6 +455,35 @@ public sealed class IngestionPipelineRunnerTests
         var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("original");
+    }
+
+    [Fact]
+    public async Task RunAsync_DirectoryCleanupFails_LogsAWarningAsync()
+    {
+        var fixture = new TestFixture { FileSystem = new EnumerationFailingFileSystem(() => new IOException("io")) };
+        fixture.FileSystem.AddDirectory("/data/proxies/ab/cd");
+        var runner = fixture.Build(new ThrowingMiddleware(20, new InvalidOperationException("original")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.Logger.Collector.GetSnapshot().Should().Contain(r =>
+            r.Level == LogLevel.Warning && r.Message == "Could not delete /data/proxies/ab/cd during cleanup.");
+    }
+
+    [Fact]
+    public async Task RunAsync_DeleteFails_LogsAWarningAsync()
+    {
+        var fixture = new TestFixture { FileSystem = new DeleteFailingFileSystem("/data/proxies/ab/cd/preview.jpg") };
+        var runner = fixture.Build(
+            new ProxyWritingMiddleware(10, fixture.FileSystem, "ab/cd/preview.jpg"),
+            new ThrowingMiddleware(20, new InvalidOperationException("boom")));
+
+        var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Warning)
+            .Which.Message.Should().Be("Could not delete /data/proxies/ab/cd/preview.jpg during cleanup.");
     }
 
     [Fact]
