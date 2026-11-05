@@ -6,7 +6,6 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Work;
-using Anichron.Infrastructure.Configuration;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -382,12 +381,6 @@ public sealed class ApiServiceRegistrationTests
     [Fact]
     public void AddDatabase_NothingConfigured_ReportsEveryMissingSettingAtOnce()
         => StartDatabase([]).Should().Throw<OptionsValidationException>().Which.Failures.Should().HaveCount(4);
-
-    [Fact]
-    public void DatabaseSettingsValidator_CompleteSettings_Succeeds()
-        => new DatabaseSettingsValidator()
-            .Validate(null, new DatabaseConnectionSettings { Host = "h", Database = "d", Username = "u", Password = "p" })
-            .Succeeded.Should().BeTrue();
 
     // ==========================================================================
     // Database

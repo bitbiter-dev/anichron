@@ -19,7 +19,7 @@ public static class AnichronDbContexts
 
     public static AnichronDbContext NpgsqlModel()
         => new(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql("Host=unused", o => o.UseNodaTime())
+            .UseAnichronNpgsql("Host=unused")
             .EnableServiceProviderCaching(false)
             .Options);
 }

@@ -13,6 +13,17 @@ public static class StoragePath
             : null;
     }
 
+    /// <summary>
+    /// Joins a stored proxy path, relative to <see cref="ProxiesRoot"/>, with the root. Returns
+    /// <see langword="null"/> when the path resolves outside the root.
+    /// </summary>
+    /// <param name="proxyPath">The path relative to the proxy root.</param>
+    public static string? ResolveProxy(string proxyPath)
+    {
+        var fullPath = Path.GetFullPath(Path.Combine(ProxiesRoot, proxyPath));
+        return IsInside(ProxiesRoot, fullPath) ? fullPath : null;
+    }
+
     public static bool IsInsideOriginals(string canonicalPath)
         => IsInside(OriginalsRoot, canonicalPath);
 

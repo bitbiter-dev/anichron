@@ -43,6 +43,6 @@ public sealed class PostgresServer : IAsyncLifetime
 
     public static AnichronDbContext Context(string connectionString)
         => new(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql(connectionString, o => o.UseNodaTime())
+            .UseAnichronNpgsql(connectionString)
             .Options);
 }

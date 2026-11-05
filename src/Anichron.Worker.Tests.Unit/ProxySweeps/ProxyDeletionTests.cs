@@ -152,6 +152,27 @@ public sealed class ProxyDeletionTests
     }
 
     [Fact]
+    public async Task RunAsync_PathOutsideTheProxyRoot_IsFailedWithoutDeletingAsync()
+    {
+        const string escaping = "../originals/mira/a.jpg";
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/data/originals/mira/a.jpg", new MockFileData(new byte[10])
+        {
+            LastWriteTime = Scanned.ToDateTimeOffset(),
+        });
+        var orphan = Orphan(escaping);
+        Pending([orphan]);
+
+        var result = await RunAsync(fileSystem);
+
+        fileSystem.File.Exists("/data/originals/mira/a.jpg").Should().BeTrue();
+        orphan.DeletionOutcome.Should().Be(ProxyDeletionOutcome.Failed);
+        result.Should().Be(new ProxyDeletionResult(Deleted: 0, SkippedReferenced: 0, SkippedChanged: 0, Missing: 0, Failed: 1));
+        logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Warning)
+            .Which.Message.Should().Be($"Did not delete orphaned proxy file {escaping}: it resolves outside the proxy root.");
+    }
+
+    [Fact]
     public async Task RunAsync_DeleteFails_IsFailedAndTheRunGoesOnAsync()
     {
         var fileSystem = new DeleteFailingFileSystem($"/data/proxies/{Thumbnail}");

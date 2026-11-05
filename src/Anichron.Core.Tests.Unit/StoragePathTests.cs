@@ -43,6 +43,21 @@ public sealed class StoragePathTests
         => StoragePath.IsInside(root, canonicalPath).Should().BeFalse();
 
     [Theory]
+    [InlineData("01/c1-ab01/thumbnail.jpg", "/data/proxies/01/c1-ab01/thumbnail.jpg")]
+    [InlineData("01/./c1-ab01/../c1-ab01", "/data/proxies/01/c1-ab01")]
+    public void ResolveProxy_PathInsideTheRoot_ReturnsTheFullPath(string proxyPath, string expected)
+        => StoragePath.ResolveProxy(proxyPath).Should().Be(expected);
+
+    [Theory]
+    [InlineData("../originals/mira/a.jpg")]
+    [InlineData("01/../../proxies2/a.jpg")]
+    [InlineData("/etc/passwd")]
+    [InlineData("")]
+    [InlineData("01/..")]
+    public void ResolveProxy_PathOutsideTheRoot_ReturnsNull(string proxyPath)
+        => StoragePath.ResolveProxy(proxyPath).Should().BeNull();
+
+    [Theory]
     [InlineData("/data/originals/mira")]
     [InlineData("/data/originals/mira/2024")]
     public void IsInsideOriginals_Descendant_ReturnsTrue(string canonicalPath)

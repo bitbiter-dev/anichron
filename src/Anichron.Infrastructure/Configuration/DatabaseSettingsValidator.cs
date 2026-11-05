@@ -1,7 +1,6 @@
-using Anichron.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 
-namespace Anichron.API.Infrastructure;
+namespace Anichron.Infrastructure.Configuration;
 
 internal sealed class DatabaseSettingsValidator : IValidateOptions<DatabaseConnectionSettings>
 {

@@ -104,6 +104,28 @@ public sealed class ProxyStagingWriterTests
     }
 
     [Fact]
+    public async Task WriteAsync_PathOutsideTheProxyRoot_IsRefusedBeforeAnyWriteAsync()
+    {
+        var fixture = new TestFixture();
+        var produced = false;
+        var context = MakeContext();
+
+        var write = () => fixture.Build().WriteAsync(
+            context, OwnerId, "../originals/mira/thumbnail.jpg", ProxyType.Thumbnail,
+            (_, _) =>
+            {
+                produced = true;
+                return Task.CompletedTask;
+            },
+            CancellationToken.None);
+
+        await write.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Proxy path ../originals/mira/thumbnail.jpg resolves outside the proxy root.");
+        produced.Should().BeFalse();
+        fixture.FileSystem.AllPaths.Should().NotContain(p => p.StartsWith("/data/originals", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task WriteAsync_CreatesTheProxyDirectoryAsync()
     {
         var fixture = new TestFixture();

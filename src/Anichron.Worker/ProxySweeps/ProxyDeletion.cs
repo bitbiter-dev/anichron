@@ -61,7 +61,12 @@ internal sealed partial class ProxyDeletionHandler(
         if (await store.IsReferencedAsync(orphan.ProxyPath, ct))
             return ProxyDeletionOutcome.SkippedReferenced;
 
-        var file = fileSystem.Path.Combine(StoragePath.ProxiesRoot, orphan.ProxyPath);
+        if (StoragePath.ResolveProxy(orphan.ProxyPath) is not { } file)
+        {
+            Log.OutsideRoot(logger, orphan.ProxyPath);
+            return ProxyDeletionOutcome.Failed;
+        }
+
         if (!fileSystem.File.Exists(file))
             return ProxyDeletionOutcome.Missing;
         if (ProxyFileStamp.Of(fileSystem.FileInfo.New(file)) != new ProxyFileStamp(orphan.SizeBytes, orphan.LastWriteTime))
@@ -83,10 +88,12 @@ internal sealed partial class ProxyDeletionHandler(
 
     private void RemoveContentDirectoryIfEmpty(string proxyPath)
     {
-        if (directories.ContentDirectoryOf(proxyPath) is not { } content)
+        if (directories.ContentDirectoryOf(proxyPath) is not { } content
+            || StoragePath.ResolveProxy(content) is not { } directory)
+        {
             return;
+        }
 
-        var directory = fileSystem.Path.Combine(StoragePath.ProxiesRoot, content);
         try
         {
             if (!fileSystem.Directory.EnumerateFileSystemEntries(directory).Any())
@@ -109,6 +116,9 @@ internal sealed partial class ProxyDeletionHandler(
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Could not delete orphaned proxy file {ProxyPath}.")]
         public static partial void DeleteFailed(ILogger logger, string proxyPath, Exception ex);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Did not delete orphaned proxy file {ProxyPath}: it resolves outside the proxy root.")]
+        public static partial void OutsideRoot(ILogger logger, string proxyPath);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Kept proxy directory {Directory}: it could not be removed.")]
         public static partial void DirectoryKept(ILogger logger, string directory, Exception ex);

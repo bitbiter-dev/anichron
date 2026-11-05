@@ -165,6 +165,15 @@ public sealed class OrbThumbnailMatcherTests
     }
 
     [Fact]
+    public async Task ScoreAsync_ThumbnailOutsideTheProxyRoot_IsNotReadAndScoresZeroAsync()
+    {
+        Store("a.jpg", Before);
+        fileSystem.AddFile("/data/originals/mira/a.jpg", new MockFileData(Before));
+
+        (await Matcher().ScoreAsync("a.jpg", "../originals/mira/a.jpg", Ct)).Should().Be(0);
+    }
+
+    [Fact]
     public async Task ScoreAsync_BytesThatAreNotAnImage_ScoreZeroAsync()
     {
         Store("a.jpg", Before);
