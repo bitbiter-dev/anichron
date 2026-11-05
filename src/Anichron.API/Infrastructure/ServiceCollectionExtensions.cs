@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using System.IO.Abstractions;
 using System.Net;
 using System.Text;
@@ -26,7 +27,7 @@ public static class ServiceCollectionExtensions
         public IServiceCollection AddApiSurface(IConfiguration configuration)
             => services
                 .AddOpenApi(options => options.AddSchemaTransformer<ProblemCodeSchemaTransformer>())
-                .AddProblemDetails()
+                .AddApiProblems()
                 .AddDatabase(configuration)
                 .AddForwardedHeadersSupport(configuration)
                 .AddAuthServices(configuration)
@@ -36,6 +37,9 @@ public static class ServiceCollectionExtensions
                 .AddCorsPolicy(configuration)
                 .AddApiHealthChecks();
 
+        public IServiceCollection AddApiProblems()
+            => services.AddProblemDetails().AddExceptionHandler<DatabaseUnavailableHandler>();
+
         public IServiceCollection AddDatabase(IConfiguration configuration)
         {
             services.AddOptions<DatabaseConnectionSettings>()
@@ -43,7 +47,11 @@ public static class ServiceCollectionExtensions
                 .ValidateOnStart();
             services.AddSingleton<IValidateOptions<DatabaseConnectionSettings>, DatabaseSettingsValidator>();
             return services.AddDbContext<AnichronDbContext>((provider, options) =>
-                options.UseNpgsql(provider.GetRequiredService<IOptions<DatabaseConnectionSettings>>().Value.ToConnectionString(),
+                options.UseNpgsql(
+                    new NpgsqlConnectionStringBuilder(provider.GetRequiredService<IOptions<DatabaseConnectionSettings>>().Value.ToConnectionString())
+                    {
+                        Timeout = AppDefaults.Database.ConnectTimeoutSeconds,
+                    }.ToString(),
                     o => o.UseNodaTime()));
         }
 

@@ -74,16 +74,17 @@ internal static class AppDefaults
         internal const int BackoffBase = 2;
     }
 
+    internal static class Database
+    {
+        internal const int ConnectTimeoutSeconds = 5;
+        internal const int RetryAfterSeconds = 5;
+    }
+
     internal static class Startup
     {
         internal const int MaxDbRetryAttempts = 10;
         internal const int DbRetryDelaySeconds = 5;
         internal const string AdminDefaultUsername = "admin";
         internal const string AdminDefaultMail = "admin@localhost";
-        // Safe: MustChangePassword = true forces rotation on first login; this value is only
-        // used when no users exist and no BOOTSTRAP_ADMIN_PASSWORD env var is configured.
-#pragma warning disable S2068
-        internal const string AdminDefaultPassword = "admin";
-#pragma warning restore S2068
     }
 }

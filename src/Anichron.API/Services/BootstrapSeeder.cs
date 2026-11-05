@@ -18,9 +18,12 @@ public sealed partial class BootstrapSeeder(
     IUnitOfWork unitOfWork,
     IGuidFactory guidFactory,
     IPasswordHasher passwordHasher,
+    IRegistrationValidator validator,
     IConfiguration configuration,
     ILogger<BootstrapSeeder> logger) : IBootstrapSeeder
 {
+    private const string passwordSetting = "BOOTSTRAP_ADMIN_PASSWORD";
+
     public async Task SeedAsync(CancellationToken ct)
     {
         if (await users.AnyAsync(ct))
@@ -28,8 +31,10 @@ public sealed partial class BootstrapSeeder(
 
         var rawUsername = configuration["BOOTSTRAP_ADMIN_USERNAME"];
         var username = string.IsNullOrWhiteSpace(rawUsername) ? AppDefaults.Startup.AdminDefaultUsername : rawUsername;
-        var rawPassword = configuration["BOOTSTRAP_ADMIN_PASSWORD"];
-        var password = string.IsNullOrWhiteSpace(rawPassword) ? AppDefaults.Startup.AdminDefaultPassword : rawPassword;
+        var password = configuration[passwordSetting];
+        if (string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException($"{passwordSetting} must be set to create the bootstrap admin.");
+        await validator.EnsureMeetsPolicyAsync(passwordSetting, password, ct);
 
         Log.CreatingBootstrapAdmin(logger);
 

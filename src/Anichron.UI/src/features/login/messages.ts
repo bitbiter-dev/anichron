@@ -6,6 +6,7 @@ const keys = new Map<string | undefined, MessageKey>([
   ['account_disabled', 'login.errors.accountDisabled'],
   ['account_locked', 'login.errors.accountLocked'],
   ['rate_limited', 'login.errors.rateLimited'],
+  ['service_unavailable', 'login.errors.serviceUnavailable'],
 ]);
 
 export type MessageKey = `login.errors.${keyof typeof en.login.errors}`;

@@ -16,6 +16,7 @@ public sealed class BootstrapResetServiceTests
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
         private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
         private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
+        private readonly IPwnedPasswordClient _pwned = Substitute.For<IPwnedPasswordClient>();
         private readonly ILogger<BootstrapResetService> _logger = Substitute.For<ILogger<BootstrapResetService>>();
 
         public TestFixture()
@@ -49,7 +50,9 @@ public sealed class BootstrapResetServiceTests
         }
 
         public BootstrapResetService CreateTestee() => new(
-            Users, UnitOfWork, _passwordHasher, _configuration, _logger);
+            Users, UnitOfWork, _passwordHasher,
+            PasswordSettings.Validator(_pwned),
+            _configuration, _logger);
     }
 
     [Fact]
@@ -141,5 +144,27 @@ public sealed class BootstrapResetServiceTests
             admin.MustChangePassword.Should().BeTrue();
         });
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [MemberData(nameof(PasswordSettings.PolicyBreaches), MemberType = typeof(PasswordSettings))]
+    public async Task ResetIfRequestedAsync_PasswordBreaksThePolicy_StopsWithoutResetting(string password, string reason)
+    {
+        var admin = new User { Username = "admin", PasswordHash = "old_hash", MustChangePassword = false };
+        var fixture = new TestFixture()
+            .WithResetPassword(password)
+            .WithAdmins([admin]);
+        var testee = fixture.CreateTestee();
+
+        var act = async () => await testee.ResetIfRequestedAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("ADMIN_RESET_PASSWORD " + reason);
+        Assert.Multiple(() =>
+        {
+            admin.PasswordHash.Should().Be("old_hash");
+            admin.MustChangePassword.Should().BeFalse();
+        });
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -25,6 +25,12 @@ const problemBody = z.catch(
 
 export const unknownProblem: Problem = { code: undefined, fields: {}, retryAfterSeconds: 0 };
 
+export const unreachableProblem: Problem = {
+  code: 'service_unavailable',
+  fields: {},
+  retryAfterSeconds: 0,
+};
+
 export async function readProblem(response: Response): Promise<Problem> {
   const body = problemBody.parse(await response.json().catch(() => undefined));
   return {

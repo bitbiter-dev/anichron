@@ -25,6 +25,7 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     private static readonly string[] User = [$"401 {Problem}", $"403 {Problem}"];
     private static readonly string[] Body = [$"400 {Problem}", $"415 {Problem}"];
     private static readonly string[] RateLimited = [$"429 {Problem}"];
+    private const string Unavailable = $"503 {Problem}";
 
     private static string[] Of(params IEnumerable<string>[] parts) => [.. parts.SelectMany(part => part)];
 
@@ -71,7 +72,7 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
                 ? content.Select(media => $"{response.Key} {media.Key} {SchemaName(media.Value.Schema)}".TrimEnd())
                 : [response.Key]);
 
-        described.Should().BeEquivalentTo(expected);
+        described.Should().BeEquivalentTo([.. expected, Unavailable]);
     }
 
     [Fact]
