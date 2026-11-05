@@ -15,8 +15,8 @@ internal sealed class MustChangePasswordRequirement
         return Task.CompletedTask;
     }
 
-    private static bool IsAllowed(HttpContext? request)
-        => request?.GetEndpoint()?.Metadata.GetMetadata<AllowedWhileMustChangePasswordAttribute>() is not null;
+    private static bool IsAllowed(HttpContext? http)
+        => http?.GetEndpoint()?.Metadata.GetMetadata<AllowedWhileMustChangePasswordAttribute>() is not null;
 }
 
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]

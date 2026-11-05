@@ -18,8 +18,6 @@ internal static class ApiPaths
         internal const string Logout = "/logout";
         internal const string PasswordResetRequest = "/password-reset/request";
         internal const string PasswordResetConfirm = "/password-reset/confirm";
-
-        internal const string LogoutPath = $"{Base}/{Group}{Logout}";
     }
 
     internal static class Users
@@ -33,9 +31,6 @@ internal static class ApiPaths
         internal const string PasswordReset = "{userId:guid}/password-reset";
         internal const string UserStorageConfigs = $"{{userId:guid}}/{StorageConfigs}";
         internal const string UserStorageConfigById = $"{{userId:guid}}/{StorageConfigs}/{{configId:guid}}";
-
-        internal const string MePath = $"{Base}/{Group}{Me}";
-        internal const string ChangePasswordPath = $"{Base}/{Group}{ChangePassword}";
 
         internal static string UserLocation(Guid userId)
             => $"{Base}/{Group}/{userId}";

@@ -235,6 +235,11 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
             .Select(r => $"{r.Method} {r.Pattern}").Should().BeEmpty();
 
     [Fact]
+    public void EveryRoute_IsAnonymousOrProtected()
+        => Routes.Where(r => !r.Anonymous && !r.Authenticated)
+            .Select(r => $"{r.Method} {r.Pattern}").Should().BeEmpty();
+
+    [Fact]
     public void EveryProtectedRoute_RefusesAUserWhosePasswordMustChange()
         => Routes.Where(r => r.Authenticated && !r.Anonymous && !r.RefusesMustChangePassword)
             .Select(r => $"{r.Method} {r.Pattern}").Should().BeEmpty();
