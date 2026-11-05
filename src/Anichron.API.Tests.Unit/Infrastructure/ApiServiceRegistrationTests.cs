@@ -267,7 +267,7 @@ public sealed class ApiServiceRegistrationTests
         var policy = provider.GetRequiredService<IOptions<AuthorizationOptions>>().Value.GetPolicy(AuthPolicies.Admin);
 
         policy.Should().NotBeNull();
-        policy.Requirements.Should().ContainSingle().Which.Should().BeOfType<ClaimsAuthorizationRequirement>()
+        policy.Requirements.OfType<ClaimsAuthorizationRequirement>().Should().ContainSingle()
             .Which.Should().Match<ClaimsAuthorizationRequirement>(r =>
                 r.ClaimType == AppClaimTypes.IsAdmin && r.AllowedValues!.Single() == "true");
     }

@@ -1,30 +1,35 @@
 using Anichron.API.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
 public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFixture<RouteTableTests.RouteTable>
 {
-    internal sealed record Route(string Method, string Pattern, bool Anonymous, string[] Policies, bool Authenticated, string? RateLimit, string[] Tags, int[] Statuses);
+    internal sealed record Route(string Method, string Pattern, bool Anonymous, string[] Policies, bool Authenticated, string? RateLimit, string[] Tags, int[] Statuses, bool RefusesMustChangePassword, bool AllowedWhileMustChangePassword);
 
-    public sealed class RouteTable
+    public sealed class RouteTable : IAsyncLifetime
     {
-        internal IReadOnlyList<Route> Routes { get; }
+        internal IReadOnlyList<Route> Routes { get; private set; } = [];
 
-        public RouteTable()
+        public async ValueTask InitializeAsync()
         {
             var builder = ApiTestHost.CreateBuilder();
-            using var app = builder.Build();
+            builder.Services.AddAuthorizationPolicies();
+            await using var app = builder.Build();
+            var policies = app.Services.GetRequiredService<IAuthorizationPolicyProvider>();
 
             app.MapApiEndpoints();
 
-            Routes = [.. ((IEndpointRouteBuilder)app).DataSources
-                .SelectMany(source => source.Endpoints)
-                .OfType<RouteEndpoint>()
-                .SelectMany(endpoint => (endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? ["GET"])
+            List<Route> routes = [];
+            foreach (var endpoint in ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>())
+            {
+                var refusesMustChangePassword = await RefusesMustChangePasswordAsync(policies, endpoint);
+                routes.AddRange((endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? ["GET"])
                     .Select(method => new Route(
                         method,
                         "/" + endpoint.RoutePattern.RawText!.Trim('/'),
@@ -33,7 +38,23 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
                         endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(),
                         endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName,
                         [.. endpoint.Metadata.GetOrderedMetadata<ITagsMetadata>().SelectMany(t => t.Tags)],
-                        [.. endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(p => p.StatusCode)])))];
+                        [.. endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(p => p.StatusCode)],
+                        refusesMustChangePassword,
+                        endpoint.Metadata.GetMetadata<AllowedWhileMustChangePasswordAttribute>() is not null)));
+            }
+
+            Routes = routes;
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        private static async Task<bool> RefusesMustChangePasswordAsync(IAuthorizationPolicyProvider policies, Endpoint endpoint)
+        {
+            var policy = await AuthorizationPolicy.CombineAsync(
+                policies,
+                endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
+                endpoint.Metadata.GetOrderedMetadata<AuthorizationPolicy>());
+            return policy?.Requirements.OfType<MustChangePasswordRequirement>().Any() == true;
         }
     }
 
@@ -212,6 +233,16 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
     public void EveryRateLimitedRoute_DeclaresTheTooManyRequestsItCauses()
         => Routes.Where(r => r.RateLimit is not null && !r.Statuses.Contains(429))
             .Select(r => $"{r.Method} {r.Pattern}").Should().BeEmpty();
+
+    [Fact]
+    public void EveryProtectedRoute_RefusesAUserWhosePasswordMustChange()
+        => Routes.Where(r => r.Authenticated && !r.Anonymous && !r.RefusesMustChangePassword)
+            .Select(r => $"{r.Method} {r.Pattern}").Should().BeEmpty();
+
+    [Fact]
+    public void OnlyWhoAmIChangePasswordAndSignOut_AreAllowedWhilePasswordMustChange()
+        => Routes.Where(r => r.AllowedWhileMustChangePassword).Select(r => $"{r.Method} {r.Pattern}")
+            .Should().BeEquivalentTo("GET /api/v1/users/me", "POST /api/v1/users/me/password", "POST /api/v1/auth/logout");
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
