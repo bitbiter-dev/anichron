@@ -35,7 +35,7 @@ public static class SecurityHeaders
     {
         var headers = context.Response.Headers;
         headers[HeaderNames.XContentTypeOptions] = "nosniff";
-        if (context.Request.Path.StartsWithSegments(ApiPaths.Root))
+        if (ApiPaths.IsApi(context.Request.Path))
         {
             headers[HeaderNames.ContentSecurityPolicy] = apiPolicy;
             return;

@@ -88,11 +88,10 @@ internal sealed partial class ProxyDeletionHandler(
 
     private void RemoveContentDirectoryIfEmpty(string proxyPath)
     {
-        if (directories.ContentDirectoryOf(proxyPath) is not { } content
-            || StoragePath.ResolveProxy(content) is not { } directory)
-        {
+        if (directories.ContentDirectoryOf(proxyPath) is not { } content)
             return;
-        }
+        if (StoragePath.ResolveProxy(content) is not { } directory)
+            return;
 
         try
         {

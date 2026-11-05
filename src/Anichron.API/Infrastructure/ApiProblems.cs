@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 
-namespace Anichron.API.Endpoints;
+namespace Anichron.API.Infrastructure;
 
 /// <summary>Failures as Problem Details: a stable <c>code</c> extension, and the English text in <c>detail</c>.</summary>
 internal static class ApiProblems
@@ -16,21 +16,16 @@ internal static class ApiProblems
     /// <param name="field">The request field, as the client names it in JSON.</param>
     /// <param name="detail">The English text.</param>
     internal static IResult FieldProblem(int statusCode, string code, string field, string detail)
-        => Results.ValidationProblem(
-            errors: new Dictionary<string, string[]> { [field] = [code] },
-            detail: detail,
-            statusCode: statusCode,
-            extensions: Extensions(code));
+        => Results.ValidationProblem(FieldErrors(field, code), detail: detail, statusCode: statusCode, extensions: Extensions(code));
 
     /// <summary>A 400 for one request field, with <paramref name="code"/> also listed under that field in <c>errors</c>.</summary>
     /// <param name="code">The failure's code.</param>
     /// <param name="field">The request field, as the client names it.</param>
     /// <param name="detail">The English text.</param>
     internal static ValidationProblem InvalidField(string code, string field, string detail)
-        => TypedResults.ValidationProblem(
-            errors: new Dictionary<string, string[]> { [field] = [code] },
-            detail: detail,
-            extensions: Extensions(code));
+        => TypedResults.ValidationProblem(FieldErrors(field, code), detail: detail, extensions: Extensions(code));
+
+    private static Dictionary<string, string[]> FieldErrors(string field, string code) => new() { [field] = [code] };
 
     private static Dictionary<string, object?> Extensions(string code) => new() { [CodeExtension] = code };
 }

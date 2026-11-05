@@ -16,7 +16,7 @@ public static class UiServing
             {
                 if (context.GetEndpoint() is not null)
                     return next(context);
-                if (context.Request.Path.StartsWithSegments(ApiPaths.Root))
+                if (ApiPaths.IsApi(context.Request.Path))
                     return Results.Problem(statusCode: StatusCodes.Status404NotFound).ExecuteAsync(context);
                 if (IsAppRoute(context.Request))
                     context.Request.Path = index;

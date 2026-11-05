@@ -6,6 +6,8 @@ internal static class ApiPaths
     internal const string Base = $"{Root}/v1";
     internal const string Healthz = $"{Base}/healthz";
 
+    internal static bool IsApi(PathString path) => path.StartsWithSegments(Root);
+
     internal static class Auth
     {
         internal const string Group = "auth";

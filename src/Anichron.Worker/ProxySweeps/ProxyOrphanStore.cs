@@ -79,7 +79,7 @@ internal sealed class EfProxyOrphanStore(AnichronDbContext db, IGuidFactory guid
     public async Task<ProxySweepResult> SummariseAsync(Guid sweepId, CancellationToken ct)
     {
         var report = db.ProxyOrphans.Where(o => o.SweepId == sweepId);
-        var live = ProxyOrphanScope.LiveConfigIds(db);
+        var live = db.StorageConfigs.LiveIds();
         return new ProxySweepResult(
             await report.CountAsync(ct),
             await report.SumAsync(o => o.SizeBytes, ct),
@@ -94,7 +94,7 @@ internal sealed class EfProxyOrphanStore(AnichronDbContext db, IGuidFactory guid
     public async Task<IReadOnlyList<ProxyOrphan>> GetPendingAsync(ProxyDeletionPayload deletion, int take, CancellationToken ct)
     {
         var pending = db.ProxyOrphans.Where(o => o.SweepId == deletion.SweepId && o.DeletionOutcome == null);
-        var live = ProxyOrphanScope.LiveConfigIds(db);
+        var live = db.StorageConfigs.LiveIds();
         pending = deletion.StorageConfigId is { } configId
             ? pending.Where(o => o.StorageConfigId == configId)
             : pending.Where(o => o.StorageConfigId == null || !live.Contains(o.StorageConfigId));

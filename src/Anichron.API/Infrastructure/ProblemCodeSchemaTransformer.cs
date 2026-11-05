@@ -1,4 +1,3 @@
-using Anichron.API.Endpoints;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;

@@ -43,6 +43,12 @@ public sealed class DatabaseConfigurationTests
         => Start(BaseConfig()).Should().NotThrow();
 
     [Fact]
+    public void DatabaseSettingsValidator_CompleteSettings_Succeeds()
+        => new DatabaseSettingsValidator()
+            .Validate(null, new DatabaseConnectionSettings { Host = "h", Database = "d", Username = "u", Password = "p" })
+            .Succeeded.Should().BeTrue();
+
+    [Fact]
     public void AddDatabaseSettings_TwoSettingsMissing_NamesBothAtStart()
     {
         var entries = BaseConfig();

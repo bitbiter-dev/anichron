@@ -1,4 +1,3 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Security;
 using Anichron.API.Services;
 using Anichron.API.Settings;
@@ -22,19 +21,6 @@ public static class ServiceCollectionExtensions
 {
     extension(IServiceCollection services)
     {
-        public IServiceCollection AddApiSurface(IConfiguration configuration)
-            => services
-                .AddOpenApi(options => options.AddSchemaTransformer<ProblemCodeSchemaTransformer>())
-                .AddApiProblems()
-                .AddDatabase(configuration)
-                .AddForwardedHeadersSupport(configuration)
-                .AddAuthServices(configuration)
-                .AddWorkItemServices()
-                .AddAuthorizationPolicies()
-                .AddRateLimiting(configuration)
-                .AddCorsPolicy(configuration)
-                .AddApiHealthChecks();
-
         public IServiceCollection AddApiProblems()
             => services.AddProblemDetails().AddExceptionHandler<DatabaseUnavailableHandler>();
 
@@ -97,7 +83,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IWorkItemCanceller, EfWorkItemCanceller>();
             services.AddScoped<IWorkQueue, EfWorkQueue>();
             services.AddScoped<IProxyOrphanReader, EfProxyOrphanReader>();
-            services.AddScoped<WorkItemEvents>();
             return services;
         }
 
@@ -124,7 +109,6 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IJwtFactory, JwtFactory>();
             services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
-            services.AddSingleton<IAuthResponseMapper, AuthResponseMapper>();
             services.AddScoped<IUserRepository, EfUserRepository>();
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IInviteRepository, EfInviteRepository>();
