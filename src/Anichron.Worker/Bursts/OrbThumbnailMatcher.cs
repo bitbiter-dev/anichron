@@ -39,8 +39,9 @@ internal sealed partial class OrbThumbnailMatcher(IFileSystem fileSystem, ILogge
         Described? features;
         try
         {
-            features = Describe(await fileSystem.File.ReadAllBytesAsync(
-                fileSystem.Path.Combine(StoragePath.ProxiesRoot, thumbnail), ct));
+            features = StoragePath.ResolveProxy(thumbnail) is { } path
+                ? Describe(await fileSystem.File.ReadAllBytesAsync(path, ct))
+                : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

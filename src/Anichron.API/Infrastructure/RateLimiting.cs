@@ -1,4 +1,3 @@
-using Anichron.API.Endpoints;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using static System.Globalization.CultureInfo;

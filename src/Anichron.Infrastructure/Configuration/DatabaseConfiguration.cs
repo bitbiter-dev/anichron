@@ -1,21 +1,25 @@
 using Anichron.Infrastructure.Data;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.IO.Abstractions;
 
 namespace Anichron.Infrastructure.Configuration;
 
 public static class DatabaseConfiguration
 {
-    public static string GetConnectionString(IConfiguration configuration, IFileSystem fileSystem)
+    extension(IServiceCollection services)
     {
-        var settings = new DatabaseConnectionSettings();
-        Bind(configuration, fileSystem, settings);
-
-        var missing = settings.MissingSettings();
-        return missing.Count == 0 ? settings.ToConnectionString() : throw new InvalidOperationException(missing[0]);
+        public IServiceCollection AddDatabaseSettings(IConfiguration configuration)
+        {
+            services.AddOptions<DatabaseConnectionSettings>()
+                .Configure(settings => Bind(configuration, new FileSystem(), settings))
+                .ValidateOnStart();
+            return services.AddSingleton<IValidateOptions<DatabaseConnectionSettings>, DatabaseSettingsValidator>();
+        }
     }
 
-    public static void Bind(IConfiguration configuration, IFileSystem fileSystem, DatabaseConnectionSettings settings)
+    internal static void Bind(IConfiguration configuration, IFileSystem fileSystem, DatabaseConnectionSettings settings)
     {
         var section = configuration.GetSection("POSTGRES_CONNECTION");
 

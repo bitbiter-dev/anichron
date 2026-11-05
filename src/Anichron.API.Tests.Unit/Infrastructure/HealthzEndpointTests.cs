@@ -1,4 +1,3 @@
-using Anichron.API.Infrastructure;
 using Microsoft.AspNetCore.TestHost;
 using System.Text.Json;
 

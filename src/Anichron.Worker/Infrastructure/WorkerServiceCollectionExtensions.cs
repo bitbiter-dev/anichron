@@ -16,7 +16,7 @@ using Anichron.Worker.ProxySweeps;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Anichron.Worker.Work;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using System.IO.Abstractions;
 
@@ -43,9 +43,8 @@ internal static class WorkerServiceCollectionExtensions
 
         internal IServiceCollection AddWorkerDataServices(IConfiguration configuration)
         {
-            var connectionString = DatabaseConfiguration.GetConnectionString(configuration, new FileSystem());
-            services.AddDbContextFactory<AnichronDbContext>(options =>
-                options.UseNpgsql(connectionString, o => o.UseNodaTime()));
+            services.AddDatabaseSettings(configuration).AddDbContextFactory<AnichronDbContext>((provider, options) =>
+                options.UseAnichronNpgsql(provider.GetRequiredService<IOptions<DatabaseConnectionSettings>>().Value.ToConnectionString()));
             services.AddScoped<IUserRepository, EfUserRepository>();
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();

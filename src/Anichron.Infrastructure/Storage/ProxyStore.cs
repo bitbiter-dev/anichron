@@ -29,8 +29,7 @@ public sealed class ProxyStore : IProxyStore
 
     public Stream? OpenRead(string proxyPath)
     {
-        var fullPath = fileSystem.Path.GetFullPath(fileSystem.Path.Combine(StoragePath.ProxiesRoot, proxyPath));
-        if (!StoragePath.IsInside(StoragePath.ProxiesRoot, fullPath))
+        if (StoragePath.ResolveProxy(proxyPath) is not { } fullPath)
             return null;
 
         try

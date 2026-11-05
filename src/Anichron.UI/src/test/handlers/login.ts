@@ -1,4 +1,4 @@
-// Hand-written until #347 generates the API types; delete together with src/api/login-contract.ts.
+// Hand-written until #345 generates the API client; delete together with src/api/login-contract.ts.
 import { http, HttpResponse } from 'msw';
 import type { LoginRequest, LoginResponse } from '../../api/login-contract';
 

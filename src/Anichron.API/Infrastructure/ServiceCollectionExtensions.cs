@@ -1,4 +1,3 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Security;
 using Anichron.API.Services;
 using Anichron.API.Settings;
@@ -10,11 +9,9 @@ using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
-using System.IO.Abstractions;
 using System.Net;
 using System.Text;
 
@@ -24,35 +21,17 @@ public static class ServiceCollectionExtensions
 {
     extension(IServiceCollection services)
     {
-        public IServiceCollection AddApiSurface(IConfiguration configuration)
-            => services
-                .AddOpenApi(options => options.AddSchemaTransformer<ProblemCodeSchemaTransformer>())
-                .AddApiProblems()
-                .AddDatabase(configuration)
-                .AddForwardedHeadersSupport(configuration)
-                .AddAuthServices(configuration)
-                .AddWorkItemServices()
-                .AddAuthorizationPolicies()
-                .AddRateLimiting(configuration)
-                .AddCorsPolicy(configuration)
-                .AddApiHealthChecks();
-
         public IServiceCollection AddApiProblems()
             => services.AddProblemDetails().AddExceptionHandler<DatabaseUnavailableHandler>();
 
         public IServiceCollection AddDatabase(IConfiguration configuration)
         {
-            services.AddOptions<DatabaseConnectionSettings>()
-                .Configure(settings => DatabaseConfiguration.Bind(configuration, new FileSystem(), settings))
-                .ValidateOnStart();
-            services.AddSingleton<IValidateOptions<DatabaseConnectionSettings>, DatabaseSettingsValidator>();
-            return services.AddDbContext<AnichronDbContext>((provider, options) =>
-                options.UseNpgsql(
+            return services.AddDatabaseSettings(configuration).AddDbContext<AnichronDbContext>((provider, options) =>
+                options.UseAnichronNpgsql(
                     new NpgsqlConnectionStringBuilder(provider.GetRequiredService<IOptions<DatabaseConnectionSettings>>().Value.ToConnectionString())
                     {
                         Timeout = AppDefaults.Database.ConnectTimeoutSeconds,
-                    }.ToString(),
-                    o => o.UseNodaTime()));
+                    }.ToString()));
         }
 
         public IServiceCollection AddForwardedHeadersSupport(IConfiguration configuration)
@@ -104,7 +83,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IWorkItemCanceller, EfWorkItemCanceller>();
             services.AddScoped<IWorkQueue, EfWorkQueue>();
             services.AddScoped<IProxyOrphanReader, EfProxyOrphanReader>();
-            services.AddScoped<WorkItemEvents>();
             return services;
         }
 
@@ -131,7 +109,6 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IJwtFactory, JwtFactory>();
             services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
-            services.AddSingleton<IAuthResponseMapper, AuthResponseMapper>();
             services.AddScoped<IUserRepository, EfUserRepository>();
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IInviteRepository, EfInviteRepository>();

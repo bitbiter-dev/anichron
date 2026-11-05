@@ -1,4 +1,3 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Infrastructure;
 using Anichron.API.Security;
 using Anichron.API.Services;
@@ -6,7 +5,6 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Work;
-using Anichron.Infrastructure.Configuration;
 using Anichron.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -58,7 +56,6 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IGuidFactory), typeof(TimeOrderedGuidFactory), ServiceLifetime.Singleton },
         { typeof(IJwtFactory), typeof(JwtFactory), ServiceLifetime.Singleton },
         { typeof(IPasswordHasher), typeof(Argon2PasswordHasher), ServiceLifetime.Singleton },
-        { typeof(IAuthResponseMapper), typeof(AuthResponseMapper), ServiceLifetime.Singleton },
         { typeof(IUserRepository), typeof(EfUserRepository), ServiceLifetime.Scoped },
         { typeof(IRefreshTokenRepository), typeof(EfRefreshTokenRepository), ServiceLifetime.Scoped },
         { typeof(IInviteRepository), typeof(EfInviteRepository), ServiceLifetime.Scoped },
@@ -122,7 +119,6 @@ public sealed class ApiServiceRegistrationTests
     [Theory]
     [InlineData(typeof(IWorkItemReader), typeof(EfWorkItemReader))]
     [InlineData(typeof(IWorkItemCanceller), typeof(EfWorkItemCanceller))]
-    [InlineData(typeof(WorkItemEvents), typeof(WorkItemEvents))]
     [InlineData(typeof(IWorkQueue), typeof(EfWorkQueue))]
     [InlineData(typeof(IProxyOrphanReader), typeof(EfProxyOrphanReader))]
     public void AddWorkItemServices_RegistersTheScopedImplementation(Type service, Type implementation)
@@ -382,12 +378,6 @@ public sealed class ApiServiceRegistrationTests
     [Fact]
     public void AddDatabase_NothingConfigured_ReportsEveryMissingSettingAtOnce()
         => StartDatabase([]).Should().Throw<OptionsValidationException>().Which.Failures.Should().HaveCount(4);
-
-    [Fact]
-    public void DatabaseSettingsValidator_CompleteSettings_Succeeds()
-        => new DatabaseSettingsValidator()
-            .Validate(null, new DatabaseConnectionSettings { Host = "h", Database = "d", Username = "u", Password = "p" })
-            .Succeeded.Should().BeTrue();
 
     // ==========================================================================
     // Database

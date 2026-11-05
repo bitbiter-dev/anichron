@@ -37,7 +37,8 @@ internal sealed partial class ProxyStagingWriter(
         Func<string, CancellationToken, Task> produceAsync,
         CancellationToken ct)
     {
-        var proxyAbsolutePath = fileSystem.Path.Combine(StoragePath.ProxiesRoot, relativePath);
+        var proxyAbsolutePath = StoragePath.ResolveProxy(relativePath)
+            ?? throw new InvalidOperationException($"Proxy path {relativePath} resolves outside the proxy root.");
         var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath, context.AttemptId);
         try
         {

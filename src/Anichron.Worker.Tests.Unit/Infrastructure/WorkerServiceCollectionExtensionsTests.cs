@@ -383,18 +383,36 @@ public sealed class WorkerServiceCollectionExtensionsTests
         context.Database.GetConnectionString().Should().Contain("Host=db.internal");
     }
 
-    private static ServiceCollection DataServices()
+    private static Dictionary<string, string?> DatabaseValues() => new()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["POSTGRES_CONNECTION:HOST"] = "db.internal",
-            ["POSTGRES_CONNECTION:DBNAME"] = "anichron",
-            ["POSTGRES_CONNECTION:USER"] = "worker",
-            ["POSTGRES_CONNECTION:PASSWORD"] = "pw",
-        }).Build();
+        ["POSTGRES_CONNECTION:HOST"] = "db.internal",
+        ["POSTGRES_CONNECTION:DBNAME"] = "anichron",
+        ["POSTGRES_CONNECTION:USER"] = "worker",
+        ["POSTGRES_CONNECTION:PASSWORD"] = "pw",
+    };
+
+    private static ServiceCollection DataServices() => DataServices(DatabaseValues());
+
+    private static ServiceCollection DataServices(Dictionary<string, string?> values)
+    {
         var services = new ServiceCollection();
-        services.AddWorkerDataServices(configuration);
+        services.AddWorkerDataServices(new ConfigurationBuilder().AddInMemoryCollection(values).Build());
         return services;
+    }
+
+    [Fact]
+    public void AddWorkerDataServices_TwoDatabaseSettingsMissing_NamesBothAtStart()
+    {
+        var values = DatabaseValues();
+        values.Remove("POSTGRES_CONNECTION:DBNAME");
+        values.Remove("POSTGRES_CONNECTION:USER");
+        using var provider = DataServices(values).BuildServiceProvider();
+
+        var start = () => provider.GetRequiredService<IStartupValidator>().Validate();
+
+        start.Should().Throw<OptionsValidationException>().Which.Failures.Should().Equal(
+            "Postgres Database name missing",
+            "Configuration value for USER or secret file USER_FILE not found.");
     }
 
     [Theory]

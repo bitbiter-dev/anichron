@@ -1,4 +1,3 @@
-using Anichron.API.Endpoints;
 using Anichron.API.Security;
 using Microsoft.AspNetCore.Authorization;
 

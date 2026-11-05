@@ -43,7 +43,7 @@ public sealed class MetadataDescriptionTests(PostgresServer server)
         var (connectionString, assetId) = await StoredPhotoAsync();
         var commands = new List<string>();
         await using (var db = new AnichronDbContext(new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql(connectionString, o => o.UseNodaTime())
+            .UseAnichronNpgsql(connectionString)
             .LogTo(commands.Add, [RelationalEventId.CommandExecuted], LogLevel.Information)
             .Options))
         {

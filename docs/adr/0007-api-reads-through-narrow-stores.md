@@ -26,8 +26,9 @@ whose writes threw `NotSupportedException`. The 2026-10-16 architecture review (
 
 ## Decision
 
-- `IProxyStore.OpenRead(proxyPath)` owns the join with `StoragePath.ProxiesRoot`, the containment check
-  (`StoragePath.IsInside`, after `GetFullPath`) and "missing file or directory means `null`". Any other I/O
+- `IProxyStore.OpenRead(proxyPath)` resolves the path with `StoragePath.ResolveProxy` (the join with
+  `StoragePath.ProxiesRoot` and the containment check, shared with the Worker's writes and deletes since #425)
+  and owns "missing file or directory means `null`". Any other I/O
   failure propagates. `RootExists()` serves the health check.
 - `IOriginalStore` has only `RootExists()`, for the originals health check. Reading an original is added
   with #44, its first caller, not ahead of it.

@@ -8,8 +8,7 @@ internal sealed class AnichronDbContextFactory : IDesignTimeDbContextFactory<Ani
     public AnichronDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<AnichronDbContext>()
-            .UseNpgsql("Host=localhost;Database=anichron_design;Username=postgres",
-                o => o.UseNodaTime())
+            .UseAnichronNpgsql("Host=localhost;Database=anichron_design;Username=postgres")
             .Options;
         return new AnichronDbContext(options);
     }

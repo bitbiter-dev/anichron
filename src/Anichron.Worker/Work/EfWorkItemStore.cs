@@ -81,47 +81,36 @@ public sealed class EfWorkItemStore(IDbContextFactory<AnichronDbContext> context
         };
     }
 
-    // Stryker disable all
-    public async Task SucceedAsync(
+    public Task SucceedAsync(
         WorkAttempt attempt, WorkProgress progress, string? result, Instant now, CancellationToken ct)
-    {
-        await using var db = await contexts.CreateDbContextAsync(ct);
-        await Running(db, attempt).ExecuteUpdateAsync(s => s
-            .SetProperty(w => w.Status, WorkItemStatus.Succeeded)
-            .SetProperty(w => w.ProgressDone, progress.Done)
-            .SetProperty(w => w.ProgressTotal, progress.Total)
-            .SetProperty(w => w.ProgressNote, progress.Note)
-            .SetProperty(w => w.Result, result)
-            .SetProperty(w => w.FinishedAt, now)
-            .SetProperty(w => w.UpdatedAt, now), ct);
-    }
+        => FinishAsync(attempt, WorkItemStatus.Succeeded, progress, result, error: null, now, ct);
 
-    // Stryker disable all
-    public async Task FailAsync(
+    public Task FailAsync(
         WorkAttempt attempt, WorkProgress progress, string error, Instant now, CancellationToken ct)
-    {
-        await using var db = await contexts.CreateDbContextAsync(ct);
-        await Running(db, attempt).ExecuteUpdateAsync(s => s
-            .SetProperty(w => w.Status, WorkItemStatus.Failed)
-            .SetProperty(w => w.ProgressDone, progress.Done)
-            .SetProperty(w => w.ProgressTotal, progress.Total)
-            .SetProperty(w => w.ProgressNote, progress.Note)
-            .SetProperty(w => w.Error, error)
-            .SetProperty(w => w.FinishedAt, now)
-            .SetProperty(w => w.UpdatedAt, now), ct);
-    }
+        => FinishAsync(attempt, WorkItemStatus.Failed, progress, result: null, error, now, ct);
+
+    public Task CancelAsync(
+        WorkAttempt attempt, WorkProgress progress, string? result, Instant now, CancellationToken ct)
+        => FinishAsync(attempt, WorkItemStatus.Cancelled, progress, result, error: null, now, ct);
 
     // Stryker disable all
-    public async Task CancelAsync(
-        WorkAttempt attempt, WorkProgress progress, string? result, Instant now, CancellationToken ct)
+    private async Task FinishAsync(
+        WorkAttempt attempt,
+        WorkItemStatus status,
+        WorkProgress progress,
+        string? result,
+        string? error,
+        Instant now,
+        CancellationToken ct)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         await Running(db, attempt).ExecuteUpdateAsync(s => s
-            .SetProperty(w => w.Status, WorkItemStatus.Cancelled)
+            .SetProperty(w => w.Status, status)
             .SetProperty(w => w.ProgressDone, progress.Done)
             .SetProperty(w => w.ProgressTotal, progress.Total)
             .SetProperty(w => w.ProgressNote, progress.Note)
             .SetProperty(w => w.Result, result)
+            .SetProperty(w => w.Error, error)
             .SetProperty(w => w.FinishedAt, now)
             .SetProperty(w => w.UpdatedAt, now), ct);
     }

@@ -1,4 +1,4 @@
-using Anichron.API.Infrastructure;
+using Anichron.API;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
