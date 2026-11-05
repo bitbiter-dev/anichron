@@ -1,4 +1,5 @@
 using Anichron.Core.Domain;
+using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 
@@ -6,7 +7,8 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 internal abstract class ProcessedContentWriter(
     PairedMovResolver pairedMovResolver,
-    PairedMovProxyWriter pairedMovProxyWriter) : IOutcomeWriter
+    PairedMovProxyWriter pairedMovProxyWriter,
+    CaptureZones captureZones) : IOutcomeWriter
 {
     public abstract IReadOnlyCollection<FileOutcome> Outcomes { get; }
 
@@ -28,26 +30,15 @@ internal abstract class ProcessedContentWriter(
     /// <summary>The processed file's content, with the proxies this attempt registered for <paramref name="assetId"/>.</summary>
     /// <param name="context">The processed item.</param>
     /// <param name="assetId">The row that takes the content.</param>
-    protected static AssetContent ContentOf(IngestionContext context, Guid assetId)
+    protected AssetContent ContentOf(IngestionContext context, Guid assetId)
     {
-        var exif = context.Exif!;
+        var extracted = context.Extracted!;
         return new AssetContent(
             context.ContentHash!,
-            exif.DateCaptured,
+            extracted.Recorded?.In(captureZones.At(extracted.Description)),
             context.Item.PrimaryMediaType,
-            new Metadata
-            {
-                Width = exif.Width,
-                Height = exif.Height,
-                Orientation = exif.Orientation,
-                Latitude = exif.Latitude,
-                Longitude = exif.Longitude,
-                CameraMake = exif.CameraMake,
-                CameraModel = exif.CameraModel,
-                LensModel = exif.LensModel,
-                DurationInSeconds = exif.DurationInSeconds,
-                Blurhash = context.Blurhash,
-            },
+            extracted.Description,
+            context.Blurhash,
             context.ProxyFilesOf(assetId));
     }
 }

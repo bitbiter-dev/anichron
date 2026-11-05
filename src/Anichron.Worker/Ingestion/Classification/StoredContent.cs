@@ -7,21 +7,38 @@ namespace Anichron.Worker.Ingestion.Classification;
 
 /// <summary>The content a row takes, from processing a file or from another row.</summary>
 /// <param name="ContentHash">The content's hash.</param>
-/// <param name="DateCaptured">The capture date the row takes; null makes it undated.</param>
+/// <param name="Captured">The capture date the row takes; null makes it undated.</param>
 /// <param name="MediaType">The content's media type.</param>
-/// <param name="Description">The metadata values; a stored row copies them, a new row takes this row as its own.</param>
+/// <param name="Description">What extraction read, owned by the row that takes it.</param>
+/// <param name="Blurhash">The content's placeholder.</param>
 /// <param name="Proxies">The content's proxies, owned by the row that takes it.</param>
 internal sealed record AssetContent(
-    string ContentHash, LocalDateTime? DateCaptured, MediaType MediaType, Metadata Description, IReadOnlyList<ProxyFile> Proxies)
+    string ContentHash,
+    CaptureDate? Captured,
+    MediaType MediaType,
+    MediaDescription Description,
+    string? Blurhash,
+    IReadOnlyList<ProxyFile> Proxies)
 {
+    /// <summary>The content of <paramref name="source"/>, with a copy of its description, since a row owns its own.</summary>
+    /// <param name="source">The row whose content another row takes.</param>
+    /// <param name="proxies">The proxies the taking row owns.</param>
     public static AssetContent Of(MediaAsset source, IReadOnlyList<ProxyFile> proxies)
-        => new(source.ContentHash, source.DateCaptured, source.MediaType, source.Metadata ?? new Metadata(), proxies);
+    {
+        var metadata = source.Metadata ?? new Metadata();
+        return new(source.ContentHash, source.Captured, source.MediaType, metadata.Description with { }, metadata.Blurhash, proxies);
+    }
 
+    /// <summary>Makes <paramref name="asset"/> hold this content's fields and metadata.</summary>
+    /// <param name="asset">The row, with its metadata loaded when it has any.</param>
     public void ApplyTo(MediaAsset asset)
     {
         asset.ContentHash = ContentHash;
-        asset.DateCaptured = DateCaptured;
+        asset.Captured = Captured;
         asset.MediaType = MediaType;
+        var metadata = asset.Metadata ??= new Metadata { AssetId = asset.Id };
+        metadata.Description = Description;
+        metadata.Blurhash = Blurhash;
     }
 }
 
@@ -41,7 +58,6 @@ internal sealed partial class StoredContent(
     {
         await repository.LoadMetadataAsync(asset, ct);
         content.ApplyTo(asset);
-        MetadataValues.Copy(content.Description, asset.Metadata ??= new Metadata { AssetId = asset.Id });
         ProxyFileRows.Replace(repository, asset, content.Proxies);
         asset.BurstId = null;
         return await ReactivateAsync(context, asset, ct);

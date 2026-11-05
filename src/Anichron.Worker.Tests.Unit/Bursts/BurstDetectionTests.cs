@@ -4,6 +4,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Anichron.Worker.Bursts;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Work;
@@ -91,10 +92,10 @@ public sealed class BurstDetectionTests : IAsyncDisposable
             FileName = name,
             ContentHash = name,
             MediaType = type,
-            DateCaptured = dated ? Noon.PlusMinutes(minutes).PlusSeconds(seconds) : null,
+            Captured = dated ? Recorded.At(Noon.PlusMinutes(minutes).PlusSeconds(seconds)) : null,
             IsSoftDeleted = softDeleted,
             BurstId = burstId,
-            Metadata = new Metadata { AssetId = id, CameraMake = make, CameraModel = model },
+            Metadata = new Metadata { AssetId = id, Description = MediaDescription.Unknown with { CameraMake = make, CameraModel = model } },
             ProxyFiles = thumbnail
                 ? [new ProxyFile { Id = Guid.NewGuid(), AssetId = id, ProxyType = ProxyType.Thumbnail, ProxyPath = name }]
                 : [],

@@ -1,8 +1,13 @@
 using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion;
+using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Microsoft.Extensions.Logging;
+using NodaTime;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
+using SixLabors.ImageSharp.PixelFormats;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
@@ -33,13 +38,14 @@ public sealed class ExifExtractionMiddlewareTests
         return bytes;
     }
 
-    private static IngestionContext MakeContext(string path = "/abs/photo.jpg", string? contentHash = "deadbeef") => new()
-    {
-        Item = new SingleFileItem(path, "photo.jpg", MediaType.Image),
-        Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
-        AttemptId = Guid.NewGuid(),
-        ContentHash = contentHash,
-    };
+    private static IngestionContext MakeContext(
+        string path = "/abs/photo.jpg", string? contentHash = "deadbeef", MediaType mediaType = MediaType.Image) => new()
+        {
+            Item = new SingleFileItem(path, "photo.jpg", mediaType),
+            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/abs" },
+            AttemptId = Guid.NewGuid(),
+            ContentHash = contentHash,
+        };
 
     private static ExifExtractionMiddleware MakeMiddleware(MockFileSystem fs)
         => new(fs, Substitute.For<ILogger<ExifExtractionMiddleware>>());
@@ -79,7 +85,7 @@ public sealed class ExifExtractionMiddlewareTests
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        context.Exif.Should().NotBeNull();
+        context.Extracted.Should().NotBeNull();
     }
 
     [Fact]
@@ -93,8 +99,8 @@ public sealed class ExifExtractionMiddlewareTests
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        context.Exif!.Width.Should().Be(100);
-        context.Exif.Height.Should().Be(200);
+        context.Extracted!.Description.Width.Should().Be(100);
+        context.Extracted.Description.Height.Should().Be(200);
     }
 
     [Theory]
@@ -116,7 +122,7 @@ public sealed class ExifExtractionMiddlewareTests
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        context.Exif!.Orientation.Should().Be(expected);
+        context.Extracted!.Description.Orientation.Should().Be(expected);
     }
 
     [Fact]
@@ -130,12 +136,7 @@ public sealed class ExifExtractionMiddlewareTests
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        context.Exif!.Width.Should().Be(0);
-        context.Exif.Height.Should().Be(0);
-        context.Exif.Orientation.Should().Be(1);
-        context.Exif.DateCaptured.Should().BeNull();
-        context.Exif.Latitude.Should().BeNull();
-        context.Exif.Longitude.Should().BeNull();
+        context.Extracted.Should().Be(new ExtractedMedia(null, new MediaDescription(0, 0, 1, null, null, null, null, null, null)));
     }
 
     [Fact]
@@ -149,12 +150,7 @@ public sealed class ExifExtractionMiddlewareTests
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        context.Exif!.Width.Should().Be(0);
-        context.Exif.Height.Should().Be(0);
-        context.Exif.Orientation.Should().Be(1);
-        context.Exif.DateCaptured.Should().BeNull();
-        context.Exif.Latitude.Should().BeNull();
-        context.Exif.Longitude.Should().BeNull();
+        context.Extracted.Should().Be(new ExtractedMedia(null, new MediaDescription(0, 0, 1, null, null, null, null, null, null)));
     }
 
     // ==========================================================================
@@ -180,18 +176,20 @@ public sealed class ExifExtractionMiddlewareTests
         return heic;
     }
 
-    private static async Task<ExifData> ExtractAsync(byte[] file)
+    private static async Task<ExtractedMedia> ExtractFromAsync(byte[] file, MediaType mediaType)
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
             ["/abs/media"] = new MockFileData(file),
         });
-        var context = MakeContext("/abs/media");
+        var context = MakeContext("/abs/media", mediaType: mediaType);
 
         await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
-        return context.Exif!;
+        return context.Extracted!;
     }
+
+    private static async Task<MediaDescription> ExtractAsync(byte[] file) => (await ExtractFromAsync(file, MediaType.Image)).Description;
 
     [Theory]
     [InlineData("exif-camera.jpg", 48, 32)]
@@ -253,4 +251,39 @@ public sealed class ExifExtractionMiddlewareTests
 
         (exif.Width, exif.Height, exif.Orientation).Should().Be((width, height, 1));
     }
+
+    // ==========================================================================
+    // Real files: the recorded date and position
+    // ==========================================================================
+
+    private static byte[] JpegTakenInAuckland()
+    {
+        static Rational[] Dms(uint degrees, uint minutes, uint seconds) => [new(degrees, 1), new(minutes, 1), new(seconds, 1)];
+        var profile = new ExifProfile();
+        profile.SetValue(ExifTag.DateTimeOriginal, "2026:10:30 19:09:51");
+        profile.SetValue(ExifTag.OffsetTimeOriginal, "+13:00");
+        profile.SetValue(ExifTag.GPSLatitudeRef, "S");
+        profile.SetValue(ExifTag.GPSLatitude, Dms(36, 51, 0));
+        profile.SetValue(ExifTag.GPSLongitudeRef, "E");
+        profile.SetValue(ExifTag.GPSLongitude, Dms(174, 45, 36));
+        using var image = new Image<Rgb24>(8, 6);
+        image.Metadata.ExifProfile = profile;
+        using var jpeg = new MemoryStream();
+        image.SaveAsJpeg(jpeg);
+        return jpeg.ToArray();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PhotoWithOffsetAndPosition_RecordsBothAsync()
+    {
+        var extracted = await ExtractFromAsync(JpegTakenInAuckland(), MediaType.Image);
+
+        extracted.Recorded.Should().Be(new RecordedDate(new LocalDateTime(2026, 10, 30, 19, 9, 51), Offset.FromHours(13)));
+        extracted.Description.Latitude.Should().BeApproximately(-36.85, 1e-9);
+        extracted.Description.Longitude.Should().BeApproximately(174.76, 1e-9);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_VideoItem_IsUndatedWhateverItsExifSaysAsync()
+        => (await ExtractFromAsync(JpegTakenInAuckland(), MediaType.Video)).Recorded.Should().BeNull();
 }

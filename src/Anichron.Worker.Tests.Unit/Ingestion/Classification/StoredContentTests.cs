@@ -1,8 +1,11 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
@@ -51,7 +54,7 @@ public sealed class StoredContentTests
         FileName = "a.jpg",
         ContentHash = "0ld",
         MediaType = MediaType.Image,
-        DateCaptured = new LocalDateTime(2019, 3, 4, 5, 6),
+        Captured = Recorded.At(new LocalDateTime(2019, 3, 4, 5, 6)),
         IsSoftDeleted = softDeleted,
         LastSeenOnNas = FirstSeen,
         BurstId = Guid.NewGuid(),
@@ -67,8 +70,13 @@ public sealed class StoredContentTests
         CreatedAt = FirstSeen,
     };
 
+    private static CaptureDate InAuckland => new(
+        new LocalDateTime(2024, 7, 15, 12, 0), Offset.FromHours(12), CaptureSource.Recorded, "Pacific/Auckland");
+
+    private static MediaDescription Fujifilm => MediaDescription.Unknown with { Width = 640, CameraMake = "Fujifilm" };
+
     private static AssetContent NewContent(params ProxyFile[] proxies) => new(
-        "n3w", new LocalDateTime(2024, 7, 15, 12, 0), MediaType.LivePhoto, new Metadata { Width = 640, CameraMake = "Fujifilm" }, proxies);
+        "n3w", InAuckland, MediaType.LivePhoto, Fujifilm, "LEHV6n", proxies);
 
     // ==========================================================================
     // TakeAsync
@@ -80,7 +88,7 @@ public sealed class StoredContentTests
         var fx = new TestFixture();
         var asset = Row();
 
-        await fx.Build().TakeAsync(fx.Context, asset, NewContent() with { DateCaptured = null }, CancellationToken.None);
+        await fx.Build().TakeAsync(fx.Context, asset, NewContent() with { Captured = null }, CancellationToken.None);
 
         asset.Should().BeEquivalentTo(new { ContentHash = "n3w", DateCaptured = (LocalDateTime?)null, Year = (int?)null });
     }
@@ -109,7 +117,7 @@ public sealed class StoredContentTests
         asset.Should().BeEquivalentTo(new
         {
             ContentHash = "n3w",
-            DateCaptured = new LocalDateTime(2024, 7, 15, 12, 0),
+            Captured = InAuckland,
             MediaType = MediaType.LivePhoto,
             BurstId = (Guid?)null,
             IsSoftDeleted = false,
@@ -140,7 +148,7 @@ public sealed class StoredContentTests
 
         await fx.Build().TakeAsync(fx.Context, asset, NewContent(), CancellationToken.None);
 
-        asset.Metadata.Should().BeEquivalentTo(new { AssetId, Width = 640, CameraMake = "Fujifilm" });
+        asset.Metadata.Should().BeEquivalentTo(new { AssetId, Description = Fujifilm, Blurhash = "LEHV6n" });
     }
 
     [Fact]
@@ -148,7 +156,7 @@ public sealed class StoredContentTests
     {
         var fx = new TestFixture();
         var asset = Row();
-        var stored = new Metadata { AssetId = AssetId, Width = 10, CameraMake = "Old" };
+        var stored = new Metadata { AssetId = AssetId, Description = MediaDescription.Unknown with { Width = 10, CameraMake = "Old" }, Blurhash = "old" };
         fx.Repository.LoadMetadataAsync(asset, Arg.Any<CancellationToken>()).Returns(_ =>
         {
             asset.Metadata = stored;
@@ -158,7 +166,69 @@ public sealed class StoredContentTests
         await fx.Build().TakeAsync(fx.Context, asset, NewContent(), CancellationToken.None);
 
         asset.Metadata.Should().BeSameAs(stored);
-        stored.Should().BeEquivalentTo(new { AssetId, Width = 640, CameraMake = "Fujifilm" });
+        stored.Should().BeEquivalentTo(new { AssetId, Description = Fujifilm, Blurhash = "LEHV6n" });
+    }
+
+    [Fact]
+    public void Of_StoredRow_TakesItsContentWithACopyOfItsDescription()
+    {
+        var source = Row();
+        source.Metadata = new Metadata { AssetId = AssetId, Description = Fujifilm, Blurhash = "LEHV6n" };
+
+        var content = AssetContent.Of(source, []);
+
+        content.Should().BeEquivalentTo(new
+        {
+            ContentHash = "0ld",
+            Captured = Recorded.At(new LocalDateTime(2019, 3, 4, 5, 6)),
+            MediaType = MediaType.Image,
+            Description = Fujifilm,
+            Blurhash = "LEHV6n",
+        });
+        content.Description.Should().NotBeSameAs(source.Metadata.Description);
+    }
+
+    [Fact]
+    public void Of_RowWithoutMetadata_DescribesNothing()
+        => AssetContent.Of(Row(), []).Should().BeEquivalentTo(new { Description = MediaDescription.Unknown, Blurhash = (string?)null });
+
+    [Fact]
+    public async Task TakeAsync_ContentOfAnotherTrackedRow_SavesBothRowsDescriptionsAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var name = Guid.NewGuid().ToString();
+        var movedId = Guid.NewGuid();
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            var atPath = Row();
+            atPath.Metadata = new Metadata { AssetId = AssetId, Description = MediaDescription.Unknown with { CameraMake = "Old" } };
+            var moved = new MediaAsset
+            {
+                Id = movedId,
+                FilePath = "b.jpg",
+                FileName = "b.jpg",
+                ContentHash = "m0ved",
+                MediaType = MediaType.Image,
+                Metadata = new Metadata { AssetId = movedId, Description = Fujifilm },
+            };
+            seed.MediaAssets.AddRange(atPath, moved);
+            await seed.SaveChangesAsync(ct);
+        }
+
+        await using (var db = AnichronDbContexts.InMemory(name))
+        {
+            var repository = new EfMediaAssetRepository(db);
+            var atPath = await db.MediaAssets.SingleAsync(a => a.Id == AssetId, ct);
+            var moved = await db.MediaAssets.Include(a => a.Metadata).SingleAsync(a => a.Id == movedId, ct);
+            var clock = Substitute.For<IClock>();
+            await new StoredContent(repository, Substitute.For<IBurstRepository>(), clock, new FakeLogger<StoredContent>())
+                .TakeAsync(new TestFixture().Context, atPath, AssetContent.Of(moved, []), ct);
+            await db.SaveChangesAsync(ct);
+        }
+
+        await using var reload = AnichronDbContexts.InMemory(name);
+        (await reload.Set<Metadata>().ToDictionaryAsync(m => m.AssetId, m => m.Description, ct))
+            .Should().BeEquivalentTo(new Dictionary<Guid, MediaDescription> { [AssetId] = Fujifilm, [movedId] = Fujifilm });
     }
 
     [Fact]

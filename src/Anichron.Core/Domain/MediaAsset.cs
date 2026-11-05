@@ -20,18 +20,26 @@ public class MediaAsset
     public string ContentHash { get; set; } = string.Empty; // XXHash64 for move tracking
 
     // Temporal Data (Optimized for "On This Day")
-    public LocalDateTime? DateCaptured
+    /// <summary>The capture date as one value, set as a whole over its columns; null when the asset is undated.</summary>
+    public CaptureDate? Captured
     {
-        get;
+        get => DateCaptured is { } at && CaptureSource is { } source ? new(at, CaptureOffset, source, CaptureZone) : null;
         set
         {
-            field = value;
-            Month = value?.Month;
-            Day = value?.Day;
-            Year = value?.Year;
+            DateCaptured = value?.At;
+            CaptureOffset = value?.Offset;
+            CaptureSource = value?.Source;
+            CaptureZone = value?.Zone;
+            Month = value?.At.Month;
+            Day = value?.At.Day;
+            Year = value?.At.Year;
         }
     }
 
+    public LocalDateTime? DateCaptured { get; private set; }
+    public Offset? CaptureOffset { get; private set; }
+    public CaptureSource? CaptureSource { get; private set; }
+    public string? CaptureZone { get; private set; }
     public int? Month { get; private set; }
     public int? Day { get; private set; }
     public int? Year { get; private set; }

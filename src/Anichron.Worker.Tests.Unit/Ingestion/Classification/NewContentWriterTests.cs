@@ -5,6 +5,7 @@ using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
+using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
@@ -61,7 +62,8 @@ public sealed class NewContentWriterTests
                 new PairedMovResolver(Repository, Clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
-                    new FakeLogger<PairedMovProxyWriter>()));
+                    new FakeLogger<PairedMovProxyWriter>()),
+                new CaptureZones(DateTimeZoneProviders.Tzdb, new FakeLogger<CaptureZones>()));
         }
 
         public async Task<MediaAsset?> WriteAsync(IngestionContext context)
@@ -72,13 +74,19 @@ public sealed class NewContentWriterTests
         }
     }
 
-    private static readonly ExifData DefaultExif =
-        new(100, 200, 0, new LocalDateTime(2023, 6, 15, 10, 0), null, null, null, null, null, null);
+    private static ExtractedMedia DefaultExtracted => new(
+        new RecordedDate(new LocalDateTime(2023, 6, 15, 10, 0), null), MediaDescription.Unknown with { Width = 100, Height = 200 });
+
+    private static ExtractedMedia TakenInAuckland(Offset recorded) => new(
+        new RecordedDate(new LocalDateTime(2026, 10, 30, 19, 9, 51), recorded),
+        MediaDescription.Unknown with { Latitude = -36.8485, Longitude = 174.7633 });
+
+    private static IngestionItem LivePhoto => new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov");
 
     private static IngestionContext MakeContext(
         IngestionItem? item = null,
         string? contentHash = "deadbeef",
-        ExifData? exif = null,
+        ExtractedMedia? extracted = null,
         MediaAsset? storedMov = null)
     {
         var resolvedItem = item ?? new SingleFileItem("/abs/photo.jpg", "photo.jpg", MediaType.Image);
@@ -96,7 +104,7 @@ public sealed class NewContentWriterTests
                 new FileClassification(FileOutcome.New, null),
                 isPair ? new FileClassification(movOutcome, storedMov) : null,
                 PairingAction.None),
-            Exif = exif ?? DefaultExif,
+            Extracted = extracted ?? DefaultExtracted,
         };
     }
 
@@ -159,12 +167,56 @@ public sealed class NewContentWriterTests
     {
         var fx = new TestFixture();
         var exifDate = new LocalDateTime(2020, 1, 2, 3, 4, 5);
-        var context = MakeContext(exif: DefaultExif with { DateCaptured = exifDate });
+        var context = MakeContext(extracted: DefaultExtracted with { Recorded = new RecordedDate(exifDate, null) });
 
         var asset = await fx.WriteAsync(context);
 
         asset!.DateCaptured.Should().Be(exifDate);
         (asset.Year, asset.Month, asset.Day).Should().Be((2020, 1, 2));
+    }
+
+    [Fact]
+    public async Task WriteAsync_PhotoWithOffsetAndPosition_StoresTheOffsetAndTheZoneThereAsync()
+    {
+        var asset = await new TestFixture().WriteAsync(MakeContext(extracted: TakenInAuckland(Offset.FromHours(13))));
+
+        asset!.Captured.Should().Be(new CaptureDate(
+            new LocalDateTime(2026, 10, 30, 19, 9, 51), Offset.FromHours(13), CaptureSource.Recorded, "Pacific/Auckland"));
+    }
+
+    [Fact]
+    public async Task WriteAsync_OffsetThatDisagreesWithTheZone_IsStoredUnchangedNextToItAsync()
+    {
+        var asset = await new TestFixture().WriteAsync(MakeContext(extracted: TakenInAuckland(Offset.FromHours(1))));
+
+        asset!.Captured.Should().Be(new CaptureDate(
+            new LocalDateTime(2026, 10, 30, 19, 9, 51), Offset.FromHours(1), CaptureSource.Recorded, "Pacific/Auckland"));
+    }
+
+    [Fact]
+    public async Task WriteAsync_DatedPhotoWithoutPosition_HasNoZoneAsync()
+        => (await new TestFixture().WriteAsync(MakeContext())).Should().BeEquivalentTo(new { CaptureZone = (string?)null, CaptureOffset = (Offset?)null });
+
+    [Fact]
+    public async Task WriteAsync_UndatedPhotoWithPosition_HasNoZoneAsync()
+    {
+        var asset = await new TestFixture().WriteAsync(MakeContext(extracted: TakenInAuckland(Offset.FromHours(13)) with { Recorded = null }));
+
+        asset.Should().BeEquivalentTo(new { Captured = (CaptureDate?)null, CaptureZone = (string?)null });
+    }
+
+    [Fact]
+    public async Task WriteAsync_LivePhoto_ItsVideoTakesThePhotosWholeCaptureDateAsync()
+    {
+        MediaAsset? movAsset = null;
+        var fx = new TestFixture();
+        fx.Repository.When(r => r.Add(Arg.Is<MediaAsset>(a => a.MediaType == MediaType.Video)))
+            .Do(call => movAsset = call.Arg<MediaAsset>());
+
+        var asset = await fx.WriteAsync(MakeContext(item: LivePhoto, extracted: TakenInAuckland(Offset.FromHours(13))));
+
+        movAsset!.Captured.Should().Be(asset!.Captured).And.Be(new CaptureDate(
+            new LocalDateTime(2026, 10, 30, 19, 9, 51), Offset.FromHours(13), CaptureSource.Recorded, "Pacific/Auckland"));
     }
 
     [Fact]
@@ -182,7 +234,7 @@ public sealed class NewContentWriterTests
     public async Task WriteAsync_WithoutExifDate_StoresTheFileUndatedAsync()
     {
         var fx = new TestFixture();
-        var context = MakeContext(exif: DefaultExif with { DateCaptured = null });
+        var context = MakeContext(extracted: DefaultExtracted with { Recorded = null });
 
         var asset = await fx.WriteAsync(context);
 
@@ -208,8 +260,7 @@ public sealed class NewContentWriterTests
 
         var asset = await fx.WriteAsync(context);
 
-        asset!.Metadata!.Width.Should().Be(100);
-        asset.Metadata.Height.Should().Be(200);
+        asset!.Metadata!.Description.Should().Be(MediaDescription.Unknown with { Width = 100, Height = 200 });
     }
 
     [Fact]
@@ -304,7 +355,7 @@ public sealed class NewContentWriterTests
             .Do(call => movAsset = call.Arg<MediaAsset>());
         var context = MakeContext(
             item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"),
-            exif: DefaultExif with { DateCaptured = null });
+            extracted: DefaultExtracted with { Recorded = null });
 
         var asset = await fx.WriteAsync(context);
 

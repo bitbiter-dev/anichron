@@ -95,7 +95,7 @@ internal sealed partial class KnownFileReconciler(
         Log.VideoContentChanged(logger, video.Id, relativePath, video.ContentHash, context.SecondaryHash!);
         MoveTo(video, relativePath);
         var proxies = await pairedMovProxyWriter.WriteForNewContentAsync(context, video, ct);
-        await storedContent.TakeAsync(context, video, new AssetContent(context.SecondaryHash!, null, MediaType.Video, new Metadata(), proxies), ct);
+        await storedContent.TakeAsync(context, video, new AssetContent(context.SecondaryHash!, null, MediaType.Video, MediaDescription.Unknown, null, proxies), ct);
         PairedMovResolver.DateFromPhoto(video, context.Classification!.Primary.Row);
         return true;
     }

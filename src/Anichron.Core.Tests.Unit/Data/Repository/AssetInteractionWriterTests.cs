@@ -2,6 +2,7 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using NodaTime;
@@ -22,7 +23,7 @@ public sealed class AssetInteractionWriterTests
                 FilePath = "2019/beach.jpg",
                 FileName = "beach.jpg",
                 ContentHash = "0123456789abcdef",
-                DateCaptured = new LocalDateTime(2019, 7, 14, 9, 30),
+                Captured = Recorded.At(new LocalDateTime(2019, 7, 14, 9, 30)),
                 MediaType = MediaType.Image,
             };
         }

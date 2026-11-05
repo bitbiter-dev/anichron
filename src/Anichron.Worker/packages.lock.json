@@ -12,6 +12,12 @@
           "SixLabors.ImageSharp": "4.1.1"
         }
       },
+      "GeoTimeZone": {
+        "type": "Direct",
+        "requested": "[6.1.0, )",
+        "resolved": "6.1.0",
+        "contentHash": "HB3OJcaI2NNfB253co3XY0dUFllCtdR8Jn0kS7GR/m8XMhvEgurDfvgebNeac384S+OOvrgb7HEGbZXOps/8Mw=="
+      },
       "Magick.NET-Q8-AnyCPU": {
         "type": "Direct",
         "requested": "[15.0.0, )",
