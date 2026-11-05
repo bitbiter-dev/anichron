@@ -226,6 +226,34 @@ public sealed class ContentChangedWriterTests
     }
 
     [Fact]
+    public async Task WriteAsync_NewContentRecordsNoDate_KeepsTheStoredCaptureDateAsync()
+    {
+        var fx = new TestFixture();
+        var context = fx.Context();
+        context.Extracted = Edited with { Recorded = null };
+
+        var asset = await fx.WriteAsync(context);
+
+        asset!.Captured.Should().Be(new CaptureDate(new LocalDateTime(2019, 3, 4, 5, 6), null, CaptureSource.Recorded, null));
+        (asset.Year, asset.Month, asset.Day).Should().Be((2019, 3, 4));
+        asset.ContentHash.Should().Be("n3wc0ntent");
+    }
+
+    [Fact]
+    public async Task WriteAsync_UndatedRowAndNewContentRecordsNoDate_StaysUndatedAsync()
+    {
+        var fx = new TestFixture();
+        fx.Stored.Captured = null;
+        var context = fx.Context();
+        context.Extracted = Edited with { Recorded = null };
+
+        var asset = await fx.WriteAsync(context);
+
+        asset!.Captured.Should().BeNull();
+        asset.DateCaptured.Should().BeNull();
+    }
+
+    [Fact]
     public async Task WriteAsync_RewritesEveryMetadataFieldOnTheLoadedRowAsync()
     {
         var fx = new TestFixture();
@@ -346,6 +374,27 @@ public sealed class ContentChangedWriterTests
         asset.MediaType.Should().Be(MediaType.LivePhoto);
         fx.Repository.DidNotReceive().Add(Arg.Any<MediaAsset>());
         await fx.MovGenerator.DidNotReceive().TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task WriteAsync_EditedLivePhotoRecordsNoDate_ItsEditedMovFollowsTheKeptDateAsync()
+    {
+        var fx = new TestFixture();
+        fx.Stored.PairedAssetId = MovId;
+        var mov = new MediaAsset
+        {
+            Id = MovId,
+            ContentHash = "cafebabe",
+            ProxyFiles = [new ProxyFile { ProxyType = ProxyType.WebVideo }],
+        };
+        var context = fx.Context(
+            new LivePhotoPairItem("/abs/2022/live.heic", "2022/live.heic", "/abs/2022/live.mov", "2022/live.mov"), mov);
+        context.Classification = context.Classification! with { Secondary = new FileClassification(FileOutcome.ContentChanged, mov) };
+        context.Extracted = Edited with { Recorded = null };
+
+        await fx.WriteAsync(context);
+
+        mov.Captured.Should().Be(new CaptureDate(new LocalDateTime(2019, 3, 4, 5, 6), null, CaptureSource.Recorded, null));
     }
 
     // ==========================================================================
