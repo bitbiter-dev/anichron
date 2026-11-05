@@ -11,21 +11,24 @@ public sealed record PatchInteractionRequest(bool? Starred, bool? Liked, bool? H
 
 public static class MediaEndpoints
 {
-    internal const string ProxyCacheControl = "private, max-age=31536000, immutable";
+    private const string currentProxyCacheControl = "private, max-age=31536000, immutable";
+    private const string staleProxyCacheControl = "private, no-cache";
 
     public static IEndpointRouteBuilder MapMediaEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup(ApiPaths.Assets.Group).WithTags("Media").RequireUser();
-        group.MapGet(ApiPaths.Assets.Proxy, GetProxyAsync)
-             .ProducesProxy(StatusCodes.Status200OK)
-             .ProducesProxy(StatusCodes.Status206PartialContent)
-             .Produces(StatusCodes.Status304NotModified)
-             .Produces(StatusCodes.Status404NotFound)
-             .Produces(StatusCodes.Status412PreconditionFailed)
-             .ProducesWithoutBody(StatusCodes.Status416RangeNotSatisfiable);
-        group.MapPatch(ApiPaths.Assets.Interaction, PatchInteractionAsync)
-             .Produces<AssetInteractionDto>()
-             .Produces(StatusCodes.Status404NotFound);
+        var proxies = app.MapGroup(ApiPaths.Proxies.Group).WithTags("Media").RequireUser();
+        proxies.MapGet(ApiPaths.Proxies.Proxy, GetProxyAsync)
+               .ProducesProxy(StatusCodes.Status200OK)
+               .ProducesProxy(StatusCodes.Status206PartialContent)
+               .Produces(StatusCodes.Status304NotModified)
+               .Produces(StatusCodes.Status404NotFound)
+               .Produces(StatusCodes.Status412PreconditionFailed)
+               .ProducesWithoutBody(StatusCodes.Status416RangeNotSatisfiable);
+
+        var assets = app.MapGroup(ApiPaths.Assets.Group).WithTags("Media").RequireUser();
+        assets.MapPatch(ApiPaths.Assets.Interaction, PatchInteractionAsync)
+              .Produces<AssetInteractionDto>()
+              .Produces(StatusCodes.Status404NotFound);
         return app;
     }
 
@@ -38,6 +41,7 @@ public static class MediaEndpoints
     internal static async Task<IResult> GetProxyAsync(
         Guid assetId,
         string type,
+        [FromQuery] string? v,
         ClaimsPrincipal user,
         [FromServices] IMediaAssetReadRepository assets,
         [FromServices] IProxyStore proxies,
@@ -57,7 +61,7 @@ public static class MediaEndpoints
         if (proxies.OpenRead(proxy.ProxyPath) is not { } stream)
             return Results.NotFound();
 
-        context.Response.Headers.CacheControl = ProxyCacheControl;
+        context.Response.Headers.CacheControl = v == proxy.ContentHash ? currentProxyCacheControl : staleProxyCacheControl;
         return Results.Stream(
             stream,
             kind.ContentType,

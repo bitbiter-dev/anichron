@@ -109,9 +109,9 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
             .Should().OnlyContain(r => r.Tags.SequenceEqual(new[] { "Users" }));
 
     [Theory]
-    [InlineData("GET", "/api/v1/assets/{assetId:guid}/proxies/{type}")]
+    [InlineData("GET", "/api/v1/proxies/{assetId:guid}/{type}")]
     [InlineData("PATCH", "/api/v1/assets/{assetId:guid}/interaction")]
-    public void AssetRoutes_RequireAnAuthenticatedUserButNotAdmin(string method, string pattern)
+    public void MediaRoutes_RequireAnAuthenticatedUserButNotAdmin(string method, string pattern)
     {
         var route = Find(method, pattern);
 
@@ -120,9 +120,11 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
         route.Policies.Should().NotContain(AuthPolicies.Admin);
     }
 
-    [Fact]
-    public void AssetRoutes_AreTaggedMedia()
-        => Routes.Where(r => r.Pattern.StartsWith("/api/v1/assets", StringComparison.Ordinal))
+    [Theory]
+    [InlineData("/api/v1/assets")]
+    [InlineData("/api/v1/proxies")]
+    public void MediaRoutes_AreTaggedMedia(string prefix)
+        => Routes.Where(r => r.Pattern.StartsWith(prefix, StringComparison.Ordinal))
             .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Media" }));
 
     [Fact]
