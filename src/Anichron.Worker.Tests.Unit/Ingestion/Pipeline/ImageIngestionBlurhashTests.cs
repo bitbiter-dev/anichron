@@ -66,7 +66,7 @@ public sealed class ImageIngestionBlurhashTests
                         new PairedMovProxyWriter(
                             [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
                             new FakeLogger<PairedMovProxyWriter>()),
-                        new CaptureZones(DateTimeZoneProviders.Tzdb, new FakeLogger<CaptureZones>())),
+                        new CaptureZones(DateTimeZoneProviders.Tzdb, DateTimeZone.Utc, new FakeLogger<CaptureZones>())),
                 ],
                 new IngestionSaver(Substitute.For<IUnitOfWork>(), repository),
                 new FakeLogger<PersistenceMiddleware>()),

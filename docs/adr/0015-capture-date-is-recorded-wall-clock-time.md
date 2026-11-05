@@ -1,7 +1,8 @@
 # A capture date is the recorded wall-clock time, or none
 
-Status: accepted (2026-10-31, #383), amended 2026-11-01 (date-only dates) and 2026-11-03 (the zone
-where it was taken), and 2026-11-04 (an unreadable offset). Decided by the maintainer on #383 and #404.
+Status: accepted (2026-10-31, #383), amended 2026-11-01 (date-only dates), 2026-11-03 (the zone
+where it was taken), 2026-11-04 (an unreadable offset) and 2026-11-05 (a video's position from
+`©xyz`, #405). Decided by the maintainer on #383 and #404.
 
 An asset's capture date is the time on the clock where the photo or video was taken, as its
 file records it, stored as a local date and time without a zone. Next to it the asset keeps the
@@ -17,8 +18,9 @@ file's last-modified time is never used as a capture date.
   `Created`. A source that is absent or unparseable falls through; a movie header `Created` of
   zero (1904-01-01) counts as absent. A source is its time: a blank offset is no offset, and an
   offset that does not parse is dropped while the time it belongs to still dates the asset.
-- **The time zone comes from the location.** An asset with a GPS position (EXIF GPS for photos,
-  `com.apple.quicktime.location.ISO6709` for videos) gets the IANA zone at that position, looked
+- **The time zone comes from the location.** An asset with a GPS position (EXIF GPS for photos;
+  for videos an ISO 6709 string from `com.apple.quicktime.location.ISO6709` or udta `©xyz`,
+  which Android phones and many cameras write) gets the IANA zone at that position, looked
   up offline (GeoTimeZone; its boundary data is ODbL and is attributed in
   `THIRD-PARTY-NOTICES.md`). Without a position, the zone is unknown, never guessed.
 - **The recorded value wins.** The zone never changes a recorded clock time or offset. When a

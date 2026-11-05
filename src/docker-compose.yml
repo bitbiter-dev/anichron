@@ -18,6 +18,11 @@
 #   mount every user's folder, and add each user's storage
 #   config (e.g. /data/originals/alice) through the admin API.
 # Add one API mount line per user either way.
+#
+# TZ is the library's time zone (e.g. Pacific/Auckland): "today"
+# for On This Day, and the zone a video recorded only in UTC is
+# read in when it has no position. The API and every worker take
+# the same ${TZ}.
 # ============================================================
 
 services:
@@ -45,6 +50,7 @@ services:
       - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - TZ=${TZ}
       - POSTGRES_CONNECTION__HOST=anichron-db
       - POSTGRES_CONNECTION__DBNAME=anichron
       - POSTGRES_CONNECTION__PORT=5432
@@ -93,6 +99,7 @@ services:
       - POSTGRES_CONNECTION__PORT=5432
       - POSTGRES_CONNECTION__USER=anichron_admin
       - POSTGRES_CONNECTION__PASSWORD=${DB_PW}
+      - TZ=${TZ}
       - WORKER__USER=${WORKER_USER}  # Email or username of the user this worker processes
       - WORKER__ROOTPATH=/data/originals/alice  # Container path, must match the mount below
       # Optional overrides (defaults shown):

@@ -8,17 +8,31 @@ public sealed class RecordedDateTests
 {
     private static LocalDateTime At => new(2026, 10, 30, 19, 9, 51);
 
+    private static DateTimeZone Auckland => DateTimeZoneProviders.Tzdb["Pacific/Auckland"];
+
+    private static DateTimeZone Berlin => DateTimeZoneProviders.Tzdb["Europe/Berlin"];
+
     [Fact]
     public void In_ZoneAtThePosition_KeepsTheRecordedTimeAndOffsetBesideIt()
-        => new RecordedDate(At, Offset.FromHours(13)).In(DateTimeZoneProviders.Tzdb["Pacific/Auckland"])
+        => new RecordedDate.ClockTime(At, Offset.FromHours(13)).In(Auckland, Berlin)
             .Should().Be(new CaptureDate(At, Offset.FromHours(13), CaptureSource.Recorded, "Pacific/Auckland"));
 
     [Fact]
     public void In_ZoneThatDisagreesWithTheOffset_LeavesTheRecordedValuesAlone()
-        => new RecordedDate(At, Offset.FromHours(1)).In(DateTimeZoneProviders.Tzdb["Pacific/Auckland"])
+        => new RecordedDate.ClockTime(At, Offset.FromHours(1)).In(Auckland, Berlin)
             .Should().Be(new CaptureDate(At, Offset.FromHours(1), CaptureSource.Recorded, "Pacific/Auckland"));
 
     [Fact]
     public void In_NoZone_HasNoZone()
-        => new RecordedDate(At, null).In(null).Should().Be(new CaptureDate(At, null, CaptureSource.Recorded, null));
+        => new RecordedDate.ClockTime(At, null).In(null, Berlin).Should().Be(new CaptureDate(At, null, CaptureSource.Recorded, null));
+
+    [Fact]
+    public void In_MomentWithAZoneAtThePosition_IsReadInThatZone()
+        => new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 45)).In(Auckland, Berlin)
+            .Should().Be(new CaptureDate(new LocalDateTime(2026, 10, 30, 19, 10, 45), null, CaptureSource.RecordedInUtc, "Pacific/Auckland"));
+
+    [Fact]
+    public void In_MomentWithoutAPosition_IsReadInTheLibraryZoneAndHasNoZone()
+        => new RecordedDate.Moment(Instant.FromUtc(2026, 10, 29, 23, 30)).In(null, Berlin)
+            .Should().Be(new CaptureDate(new LocalDateTime(2026, 10, 30, 0, 30), null, CaptureSource.RecordedInUtc, null));
 }

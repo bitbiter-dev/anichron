@@ -278,7 +278,7 @@ public sealed class ExifExtractionMiddlewareTests
     {
         var extracted = await ExtractFromAsync(JpegTakenInAuckland(), MediaType.Image);
 
-        extracted.Recorded.Should().Be(new RecordedDate(new LocalDateTime(2026, 10, 30, 19, 9, 51), Offset.FromHours(13)));
+        extracted.Recorded.Should().Be(new RecordedDate.ClockTime(new LocalDateTime(2026, 10, 30, 19, 9, 51), Offset.FromHours(13)));
         extracted.Description.Latitude.Should().BeApproximately(-36.85, 1e-9);
         extracted.Description.Longitude.Should().BeApproximately(174.76, 1e-9);
     }
