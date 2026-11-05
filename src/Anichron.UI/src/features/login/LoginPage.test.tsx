@@ -98,7 +98,6 @@ describe('the login screen', () => {
       'a body that is not a problem',
       () => HttpResponse.json(['invalid_credentials'], { status: 401 }),
     ],
-    ['a network failure', () => HttpResponse.error()],
   ])('shows the generic error for %s', async (_, response) => {
     server.use(loginRespondsWith(response));
     await openLogin();
@@ -107,6 +106,47 @@ describe('the login screen', () => {
 
     await alertSays('Something went wrong. Try again.');
     expect(submitButton()).toBeEnabled();
+  });
+
+  it('counts down an unavailable service from Retry-After, then accepts a new attempt', async () => {
+    server.use(loginFails(503, problem(503, 'service_unavailable'), { 'Retry-After': '5' }));
+    const { container } = await openLogin();
+
+    signIn('mira', 'correct horse battery staple');
+
+    await alertSays('Anichron is temporarily unavailable. Try again shortly.');
+    expect(screen.getByText('You can try again in 5 seconds.')).toBeVisible();
+    expect(submitButton()).toBeDisabled();
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(submitButton()).toBeEnabled();
+    server.use(loginSucceeds());
+    fireEvent.click(submitButton());
+    expect(
+      await screen.findByText("You're signed in. Your photo library is on its way."),
+    ).toBeVisible();
+  });
+
+  it('shows the unavailable message without a countdown when the server cannot be reached', async () => {
+    server.use(loginRespondsWith(() => HttpResponse.error()));
+    const { container } = await openLogin();
+
+    signIn('mira', 'correct horse battery staple');
+
+    await alertSays('Anichron is temporarily unavailable. Try again shortly.');
+    expect(screen.queryByText(/You can try again/)).toBeNull();
+    expect(submitButton()).toBeEnabled();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('shows the generic error when a successful sign-in has an unreadable body', async () => {
+    server.use(loginRespondsWith(() => new HttpResponse('not json', { status: 200 })));
+    await openLogin();
+
+    signIn('mira', 'correct horse battery staple');
+
+    await alertSays('Something went wrong. Try again.');
   });
 
   it('shows a field error from the API on its field', async () => {
