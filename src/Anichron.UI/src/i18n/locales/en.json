@@ -16,6 +16,7 @@
       "accountDisabled": "This account is disabled. Ask your administrator to enable it.",
       "accountLocked": "Too many failed attempts. This account is locked for now.",
       "rateLimited": "Too many attempts from this device.",
+      "serviceUnavailable": "Anichron is temporarily unavailable. Try again shortly.",
       "generic": "Something went wrong. Try again."
     }
   }

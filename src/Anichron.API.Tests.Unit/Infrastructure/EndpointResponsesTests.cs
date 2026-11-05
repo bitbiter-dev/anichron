@@ -18,6 +18,7 @@ public sealed class EndpointResponsesTests
 
         EndpointResponses.DescribeErrorsAsProblems(endpoint);
 
-        endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().Last().Type.Should().Be<ProblemDetails>();
+        endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().Last(declared => declared.StatusCode == 404)
+            .Type.Should().Be<ProblemDetails>();
     }
 }

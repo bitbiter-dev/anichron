@@ -19,7 +19,8 @@ internal static class FileIngestionPipelines
         IEnumerable<IIngestionMiddleware> middlewares,
         MockFileSystem fileSystem,
         WorkerSettings settings,
-        IFileSystem? crawlFileSystem = null)
+        IFileSystem? crawlFileSystem = null,
+        FakeLogger<FileIngestionPipeline>? logger = null)
     {
         var directoryStrategy = Substitute.For<IProxyDirectoryStrategy>();
         directoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
@@ -33,6 +34,6 @@ internal static class FileIngestionPipelines
             new CrawlExclusions(options),
             options,
             Substitute.For<IGuidFactory>(),
-            new FakeLogger<FileIngestionPipeline>());
+            logger ?? new FakeLogger<FileIngestionPipeline>());
     }
 }

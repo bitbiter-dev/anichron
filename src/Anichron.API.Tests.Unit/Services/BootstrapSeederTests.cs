@@ -15,6 +15,9 @@ namespace Anichron.API.Tests.Unit.Services;
 
 public sealed class BootstrapSeederTests
 {
+    private const string PasswordSetting = "BOOTSTRAP_ADMIN_PASSWORD";
+    private const string ValidPassword = "first-run passphrase";
+
     private sealed class TestFixture
     {
         public IUserRepository Users { get; } = Substitute.For<IUserRepository>();
@@ -23,12 +26,20 @@ public sealed class BootstrapSeederTests
         public IPasswordHasher PasswordHasher { get; } = Substitute.For<IPasswordHasher>();
         private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
         private readonly ILogger<BootstrapSeeder> _logger = new FakeLogger<BootstrapSeeder>();
+        public IPwnedPasswordClient Pwned { get; } = Substitute.For<IPwnedPasswordClient>();
 
         public TestFixture()
         {
             _guidFactory.NewGuid().Returns(Guid.Parse("00000000-0000-0000-0000-000000000001"));
             PasswordHasher.Hash(Arg.Any<string>()).Returns("hashed_password");
             _configuration[Arg.Any<string>()].Returns((string?)null);
+            _configuration[PasswordSetting].Returns(ValidPassword);
+        }
+
+        public TestFixture WithoutPassword()
+        {
+            _configuration[PasswordSetting].Returns((string?)null);
+            return this;
         }
 
         public TestFixture WithUsersExist()
@@ -57,7 +68,9 @@ public sealed class BootstrapSeederTests
         }
 
         public BootstrapSeeder CreateTestee() => new(
-            Users, UnitOfWork, _guidFactory, PasswordHasher, _configuration, _logger);
+            Users, UnitOfWork, _guidFactory, PasswordHasher,
+            PasswordSettings.Validator(Pwned),
+            _configuration, _logger);
     }
 
     // ==========================================================================
@@ -89,7 +102,7 @@ public sealed class BootstrapSeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_NoUsers_UsesDefaultUsernameAndPasswordWhenNotConfigured()
+    public async Task SeedAsync_NoUsers_UsesDefaultUsernameAndConfiguredPassword()
     {
         User? captured = null;
         var fixture = new TestFixture().CaptureAddedUser(u => captured = u);
@@ -99,22 +112,57 @@ public sealed class BootstrapSeederTests
 
         Assert.Multiple(() =>
         {
-            captured!.Username.Should().Be(AppDefaults.Startup.AdminDefaultUsername);
+            captured!.Username.Should().Be("admin");
             captured.PasswordHash.Should().Be("hashed_password");
         });
-        fixture.PasswordHasher.Received(1).Hash("admin");
+        fixture.PasswordHasher.Received(1).Hash(ValidPassword);
     }
 
     [Theory]
+    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task SeedAsync_NoUsers_BlankConfiguredPasswordFallsBackToTheDefault(string configured)
+    public async Task SeedAsync_NoUsers_NoConfiguredPassword_RefusesToCreateTheAdmin(string? configured)
     {
-        var fixture = new TestFixture().WithConfig("BOOTSTRAP_ADMIN_PASSWORD", configured);
+        var fixture = new TestFixture().WithoutPassword();
+        if (configured is not null)
+            fixture.WithConfig(PasswordSetting, configured);
 
-        await fixture.CreateTestee().SeedAsync(CancellationToken.None);
+        var act = async () => await fixture.CreateTestee().SeedAsync(CancellationToken.None);
 
-        fixture.PasswordHasher.Received(1).Hash("admin");
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("BOOTSTRAP_ADMIN_PASSWORD must be set to create the bootstrap admin.");
+        fixture.Users.DidNotReceive().Add(Arg.Any<User>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [MemberData(nameof(PasswordSettings.PolicyBreaches), MemberType = typeof(PasswordSettings))]
+    public async Task SeedAsync_NoUsers_PasswordBreaksThePolicy_RefusesToCreateTheAdmin(string password, string reason)
+    {
+        var fixture = new TestFixture().WithConfig(PasswordSetting, password);
+
+        var act = async () => await fixture.CreateTestee().SeedAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("BOOTSTRAP_ADMIN_PASSWORD " + reason);
+        fixture.Users.DidNotReceive().Add(Arg.Any<User>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("weak")]
+    public async Task SeedAsync_UsersAlreadyExist_NeitherRequiresNorChecksThePassword(string? configured)
+    {
+        var fixture = new TestFixture().WithUsersExist().WithoutPassword();
+        if (configured is not null)
+            fixture.WithConfig(PasswordSetting, configured);
+
+        var act = async () => await fixture.CreateTestee().SeedAsync(CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        await fixture.Pwned.DidNotReceive().IsPwnedAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -123,14 +171,14 @@ public sealed class BootstrapSeederTests
         User? captured = null;
         var fixture = new TestFixture()
             .WithConfig("BOOTSTRAP_ADMIN_USERNAME", "superadmin")
-            .WithConfig("BOOTSTRAP_ADMIN_PASSWORD", "SecurePass!")
+            .WithConfig(PasswordSetting, "Secure passphrase!")
             .CaptureAddedUser(u => captured = u);
         var testee = fixture.CreateTestee();
 
         await testee.SeedAsync(CancellationToken.None);
 
         captured!.Username.Should().Be("superadmin");
-        fixture.PasswordHasher.Received(1).Hash("SecurePass!");
+        fixture.PasswordHasher.Received(1).Hash("Secure passphrase!");
     }
 
     [Fact]
