@@ -65,8 +65,8 @@ for the flashback player, say) adds it to `Permissions-Policy` in its own change
   caching, no CSP or Trusted Types violation, no request to another origin, and no axe violations.
   `login.spec.ts` signs in through the screen: success, a wrong password, a disabled account and a
   locked account's countdown, each with no CSP violation. Users are seeded only through the public
-  API (#360): the global setup rotates the bootstrap admin's first password (so it fails on a
-  database that is not fresh), and each test creates its own user with the admin API and changes
-  its temporary password. Every request reaches the API from the one Docker bridge address, so the
-  compose file raises `RateLimit__SensitivePermitLimit`; lockout keeps its production timings. CI
-  runs both in the `E2E` job.
+  API (#360): the compose file sets `BOOTSTRAP_ADMIN_PASSWORD`, and the global setup rotates that
+  first password (so it fails on a database that is not fresh), and each test creates its own user
+  with the admin API and changes its temporary password. Every request reaches the API from the one
+  Docker bridge address, so the compose file raises `RateLimit__SensitivePermitLimit`; lockout keeps
+  its production timings. CI runs both in the `E2E` job.

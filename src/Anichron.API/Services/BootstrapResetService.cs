@@ -14,14 +14,18 @@ public sealed partial class BootstrapResetService(
     IUserRepository users,
     IUnitOfWork unitOfWork,
     IPasswordHasher passwordHasher,
+    IRegistrationValidator validator,
     IConfiguration configuration,
     ILogger<BootstrapResetService> logger) : IBootstrapResetService
 {
+    private const string passwordSetting = "ADMIN_RESET_PASSWORD";
+
     public async Task ResetIfRequestedAsync(CancellationToken ct)
     {
-        var resetPassword = configuration["ADMIN_RESET_PASSWORD"];
+        var resetPassword = configuration[passwordSetting];
         if (string.IsNullOrEmpty(resetPassword))
             return;
+        await validator.EnsureMeetsPolicyAsync(passwordSetting, resetPassword, ct);
 
         var targetUsername = configuration["ADMIN_RESET_USERNAME"];
         User? admin;

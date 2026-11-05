@@ -79,9 +79,11 @@ internal sealed partial class FileIngestionPipeline(
         {
             return (
                 [.. fileSystem.Directory.EnumerateFiles(directory)
-                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file)))],
+                    .Where(file => !CrawlExclusions.IsExcludedFile(fileSystem.Path.GetFileName(file))
+                        && !SkipsAsLink(file, rootPath, tally))],
                 [.. fileSystem.Directory.EnumerateDirectories(directory)
-                    .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory)))]);
+                    .Where(subdirectory => !exclusions.IsExcludedDirectory(fileSystem.Path.GetFileName(subdirectory))
+                        && !SkipsAsLink(subdirectory, rootPath, tally))]);
         }
         catch (Exception ex) when (directory != rootPath && ex is UnauthorizedAccessException or IOException)
         {
@@ -89,6 +91,16 @@ internal sealed partial class FileIngestionPipeline(
             tally.FolderSkipped();
             return ([], []);
         }
+    }
+
+    private bool SkipsAsLink(string path, string rootPath, CrawlTally tally)
+    {
+        if (fileSystem.FileInfo.New(path).LinkTarget is null)
+            return false;
+
+        Log.LinkSkipped(logger, fileSystem.Path.GetRelativePath(rootPath, path));
+        tally.LinkSkipped();
+        return true;
     }
 
     private async Task EnqueueDirectoryItemsAsync(
@@ -165,6 +177,9 @@ internal sealed partial class FileIngestionPipeline(
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Failed to ingest {Path}.")]
         public static partial void ItemFailed(ILogger logger, string path, Exception ex);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping link {Path}: a crawl never follows links.")]
+        public static partial void LinkSkipped(ILogger logger, string path);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping unreadable folder {Path}.")]
         public static partial void DirectoryUnreadable(ILogger logger, string path, Exception ex);

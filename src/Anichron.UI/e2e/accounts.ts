@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type APIRequestContext } from '@playwright/test';
 
-export const bootstrapAdmin = { username: 'admin', password: 'admin' };
+export const bootstrapAdmin = { username: 'admin', password: 'end-to-end bootstrap passphrase' };
 export const admin = { username: 'admin', password: 'end-to-end admin passphrase' };
 
 export interface Account {
