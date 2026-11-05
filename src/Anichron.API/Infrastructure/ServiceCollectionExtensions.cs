@@ -175,7 +175,6 @@ public static class ServiceCollectionExtensions
         public IServiceCollection AddAuthorizationPolicies()
         {
             var mustChangePassword = new MustChangePasswordRequirement();
-            services.AddSingleton<IAuthorizationHandler>(mustChangePassword);
             services.AddSingleton<IAuthorizationMiddlewareResultHandler, MustChangePasswordResultHandler>();
             return services.AddAuthorization(options =>
             {
