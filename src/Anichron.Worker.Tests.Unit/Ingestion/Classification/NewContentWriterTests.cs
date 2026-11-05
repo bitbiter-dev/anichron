@@ -176,6 +176,17 @@ public sealed class NewContentWriterTests
     }
 
     [Fact]
+    public async Task WriteAsync_DateAlone_IsStoredAtMidnightAsRecordedDateOnlyOnThatDayAsync()
+    {
+        var context = MakeContext(extracted: DefaultExtracted with { Recorded = new RecordedDate.DateAlone(new LocalDate(2019, 5, 4)) });
+
+        var asset = await new TestFixture().WriteAsync(context);
+
+        asset!.Captured.Should().Be(new CaptureDate(new LocalDateTime(2019, 5, 4, 0, 0), null, CaptureSource.RecordedDateOnly, null));
+        (asset.Year, asset.Month, asset.Day).Should().Be((2019, 5, 4));
+    }
+
+    [Fact]
     public async Task WriteAsync_PhotoWithOffsetAndPosition_StoresTheOffsetAndTheZoneThereAsync()
     {
         var asset = await new TestFixture().WriteAsync(MakeContext(extracted: TakenInAuckland(Offset.FromHours(13))));

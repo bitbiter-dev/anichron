@@ -35,4 +35,14 @@ public sealed class RecordedDateTests
     public void In_MomentWithoutAPosition_IsReadInTheLibraryZoneAndHasNoZone()
         => new RecordedDate.Moment(Instant.FromUtc(2026, 10, 29, 23, 30)).In(null, Berlin)
             .Should().Be(new CaptureDate(new LocalDateTime(2026, 10, 30, 0, 30), null, CaptureSource.RecordedInUtc, null));
+
+    [Fact]
+    public void In_DateAlone_IsThatDayAtMidnightWithNoOffsetAndDateOnly()
+        => new RecordedDate.DateAlone(new LocalDate(2019, 5, 4)).In(Auckland, Berlin)
+            .Should().Be(new CaptureDate(new LocalDateTime(2019, 5, 4, 0, 0), null, CaptureSource.RecordedDateOnly, "Pacific/Auckland"));
+
+    [Fact]
+    public void In_DateAloneWithNoZone_HasNoZone()
+        => new RecordedDate.DateAlone(new LocalDate(2019, 5, 4)).In(null, Berlin)
+            .Should().Be(new CaptureDate(new LocalDateTime(2019, 5, 4, 0, 0), null, CaptureSource.RecordedDateOnly, null));
 }
