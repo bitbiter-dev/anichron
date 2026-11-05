@@ -259,6 +259,17 @@ public sealed class ExtractionMappingTests
     }
 
     [Fact]
+    public void Extract_VideoWithAnAppleCreationDate_KeepsItsPosition()
+    {
+        var location = Location("-36.8485+174.7633+012.000/");
+        location.Set(QuickTimeMetadataHeaderDirectory.TagCreationDate, new DateTime(2026, 10, 30, 7, 10, 45, DateTimeKind.Local));
+
+        var result = Middleware.Extract([location], MediaType.Video);
+
+        (result.Recorded, result.Description.Latitude, result.Description.Longitude).Should().Be((null, -36.8485, 174.7633));
+    }
+
+    [Fact]
     public void Extract_ExifGpsAndVideoLocation_TheExifGpsWins()
         => Map(Gps(51.5, 0.25), Location("-36.8485+174.7633/")).Latitude.Should().BeApproximately(51.5, 1e-6);
 
