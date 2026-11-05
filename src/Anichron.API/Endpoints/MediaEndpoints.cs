@@ -41,7 +41,7 @@ public static class MediaEndpoints
     internal static async Task<IResult> GetProxyAsync(
         Guid assetId,
         string type,
-        [FromQuery] string? v,
+        [FromQuery(Name = "v")] string? version,
         ClaimsPrincipal user,
         [FromServices] IMediaAssetReadRepository assets,
         [FromServices] IProxyStore proxies,
@@ -61,7 +61,7 @@ public static class MediaEndpoints
         if (proxies.OpenRead(proxy.ProxyPath) is not { } stream)
             return Results.NotFound();
 
-        context.Response.Headers.CacheControl = v == proxy.ContentHash ? currentProxyCacheControl : staleProxyCacheControl;
+        context.Response.Headers.CacheControl = version == proxy.ContentHash ? currentProxyCacheControl : staleProxyCacheControl;
         return Results.Stream(
             stream,
             kind.ContentType,

@@ -133,12 +133,12 @@ public sealed class MediaEndpointsTests
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
         var request = Get("thumbnail");
-        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
+        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue("\"0123456789abcdef-Thumbnail\""));
 
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotModified);
-        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.Thumbnail}\""));
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue("\"0123456789abcdef-Thumbnail\""));
         response.Headers.CacheControl!.Private.Should().BeTrue();
     }
 
@@ -156,7 +156,7 @@ public sealed class MediaEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.PartialContent);
         (await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken)).Should().Equal(12, 13, 14);
-        response.Headers.ETag.Should().Be(new EntityTagHeaderValue($"\"{ContentHash}-{ProxyType.WebVideo}\""));
+        response.Headers.ETag.Should().Be(new EntityTagHeaderValue("\"0123456789abcdef-WebVideo\""));
         response.Headers.CacheControl!.Private.Should().BeTrue();
     }
 

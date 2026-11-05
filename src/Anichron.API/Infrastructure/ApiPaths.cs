@@ -55,8 +55,8 @@ internal static class ApiPaths
         internal const string Group = "proxies";
         internal const string Proxy = "{assetId:guid}/{type}";
 
-        internal static string ProxyUrl(Guid assetId, string type, string version)
-            => $"{Group}/{assetId}/{type}?v={version}";
+        internal static string ProxyUrl(Guid assetId, string type, string contentHash)
+            => $"{Group}/{assetId}/{type}?v={contentHash}";
     }
 
     internal static class WorkItems
