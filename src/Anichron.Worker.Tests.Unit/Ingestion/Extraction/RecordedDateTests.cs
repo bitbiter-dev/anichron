@@ -10,15 +10,25 @@ public sealed class RecordedDateTests
 
     [Fact]
     public void In_ZoneAtThePosition_KeepsTheRecordedTimeAndOffsetBesideIt()
-        => new RecordedDate(At, Offset.FromHours(13)).In(DateTimeZoneProviders.Tzdb["Pacific/Auckland"])
+        => new RecordedDate.ClockTime(At, Offset.FromHours(13)).In(DateTimeZoneProviders.Tzdb["Pacific/Auckland"])
             .Should().Be(new CaptureDate(At, Offset.FromHours(13), CaptureSource.Recorded, "Pacific/Auckland"));
 
     [Fact]
     public void In_ZoneThatDisagreesWithTheOffset_LeavesTheRecordedValuesAlone()
-        => new RecordedDate(At, Offset.FromHours(1)).In(DateTimeZoneProviders.Tzdb["Pacific/Auckland"])
+        => new RecordedDate.ClockTime(At, Offset.FromHours(1)).In(DateTimeZoneProviders.Tzdb["Pacific/Auckland"])
             .Should().Be(new CaptureDate(At, Offset.FromHours(1), CaptureSource.Recorded, "Pacific/Auckland"));
 
     [Fact]
     public void In_NoZone_HasNoZone()
-        => new RecordedDate(At, null).In(null).Should().Be(new CaptureDate(At, null, CaptureSource.Recorded, null));
+        => new RecordedDate.ClockTime(At, null).In(null).Should().Be(new CaptureDate(At, null, CaptureSource.Recorded, null));
+
+    [Fact]
+    public void In_DateAlone_IsThatDayAtMidnightWithNoOffsetAndDateOnly()
+        => new RecordedDate.DateAlone(new LocalDate(2019, 5, 4)).In(DateTimeZoneProviders.Tzdb["Pacific/Auckland"])
+            .Should().Be(new CaptureDate(new LocalDateTime(2019, 5, 4, 0, 0), null, CaptureSource.RecordedDateOnly, "Pacific/Auckland"));
+
+    [Fact]
+    public void In_DateAloneWithNoZone_HasNoZone()
+        => new RecordedDate.DateAlone(new LocalDate(2019, 5, 4)).In(null)
+            .Should().Be(new CaptureDate(new LocalDateTime(2019, 5, 4, 0, 0), null, CaptureSource.RecordedDateOnly, null));
 }
