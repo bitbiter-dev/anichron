@@ -20,7 +20,8 @@ internal sealed partial class ContentChangedWriter(
         var asset = context.Classification!.Primary.Stored!;
         Log.ContentChanged(logger, asset.Id, context.Item.RelativePath, asset.ContentHash, context.ContentHash!);
 
-        if (await storedContent.TakeAsync(context, asset, ContentOf(context, asset.Id), ct))
+        var content = ContentOf(context, asset.Id);
+        if (await storedContent.TakeAsync(context, asset, content with { Captured = content.Captured ?? asset.Captured }, ct))
             Log.AutoRestored(logger, asset.Id, context.Item.RelativePath);
 
         return asset;
