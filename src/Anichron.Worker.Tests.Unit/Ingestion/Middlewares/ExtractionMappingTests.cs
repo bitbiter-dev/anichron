@@ -110,6 +110,8 @@ public sealed class ExtractionMappingTests
     [Theory]
     [InlineData("+25:00")]
     [InlineData("13:00")]
+    [InlineData("+13")]
+    [InlineData("Z")]
     [InlineData("garbage")]
     public void Extract_MalformedOffset_KeepsTheDateWithoutOffsetAndLogsIt(string raw)
     {
@@ -125,6 +127,7 @@ public sealed class ExtractionMappingTests
 
     [Theory]
     [InlineData("2024-07-15 13:22:01")]
+    [InlineData("    :  :     :  :  ")]
     [InlineData("not a date")]
     public void Extract_UnparseableDate_IsUndatedAndLogged(string raw)
     {
@@ -174,7 +177,7 @@ public sealed class ExtractionMappingTests
         return directory;
     }
 
-    private static RecordedDate.ClockTime At(int hour, int minute, int second = 0, int? offsetMinutes = null, int millisecond = 0)
+    private static RecordedDate.ClockTime At(int hour, int minute, int second = 0, int millisecond = 0, int? offsetMinutes = null)
         => new(new LocalDateTime(2019, 5, 4, hour, minute, second, millisecond), offsetMinutes is { } minutes ? Offset.FromSeconds(minutes * 60) : null);
 
     [Theory]
@@ -187,7 +190,7 @@ public sealed class ExtractionMappingTests
     public void Extract_XmpDateCreatedWithATime_IsThatClockTimeWithTheOffsetWritten(
         string raw, int hour, int minute, int second, int millisecond, int? offsetMinutes)
     {
-        Recorded(XmpCreated(raw)).Should().Be(At(hour, minute, second, offsetMinutes, millisecond));
+        Recorded(XmpCreated(raw)).Should().Be(At(hour, minute, second, millisecond, offsetMinutes));
 
         DebugLogs.Should().BeEmpty();
     }
@@ -229,7 +232,7 @@ public sealed class ExtractionMappingTests
     [InlineData("132201", 13, 22, 1, null)]
     public void Extract_IptcDateAndTimeCreated_IsThatClockTimeWithTheOffsetWritten(string time, int hour, int minute, int second, int? offsetMinutes)
     {
-        Recorded(Iptc("20190504", time)).Should().Be(At(hour, minute, second, offsetMinutes));
+        Recorded(Iptc("20190504", time)).Should().Be(At(hour, minute, second, offsetMinutes: offsetMinutes));
 
         DebugLogs.Should().BeEmpty();
     }

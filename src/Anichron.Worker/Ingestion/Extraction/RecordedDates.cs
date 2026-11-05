@@ -19,6 +19,8 @@ internal static partial class RecordedDates
 
     private delegate RecordedDate? Source(IReadOnlyList<Directory> directories, ILogger logger);
 
+    private static LocalDateTimePattern ExifClock => LocalDateTimePattern.CreateWithInvariantCulture("uuuu':'MM':'dd HH':'mm':'ss");
+    private static OffsetPattern ExifOffset => OffsetPattern.CreateWithInvariantCulture("+HH:mm");
     private static LocalDatePattern XmpDay => LocalDatePattern.Iso;
     private static LocalDateTimePattern XmpClock => LocalDateTimePattern.ExtendedIso;
     private static OffsetPattern XmpOffset => OffsetPattern.CreateWithInvariantCulture("Z+HH:mm");
@@ -39,10 +41,10 @@ internal static partial class RecordedDates
         var raw = subIfd?.GetString(ExifDirectoryBase.TagDateTimeOriginal);
         if (raw is null)
             return null;
-        if (ExifDate.Parse(raw) is not { } at)
+        if (Parsed(ExifClock, raw) is not { } at)
             return Unparseable("EXIF", raw, logger);
 
-        return new RecordedDate.ClockTime(at, OffsetOf("EXIF", subIfd!.GetString(ExifDirectoryBase.TagTimeZoneOriginal), ExifDate.ParseOffset, logger));
+        return new RecordedDate.ClockTime(at, OffsetOf("EXIF", subIfd!.GetString(ExifDirectoryBase.TagTimeZoneOriginal), ExifOffset, logger));
     }
 
     private static RecordedDate? XmpDateCreated(IReadOnlyList<Directory> directories, ILogger logger)
@@ -57,7 +59,7 @@ internal static partial class RecordedDates
         if (Parsed(XmpClock, clock.Length == shortestXmpClock ? clock + ":00" : clock) is not { } at)
             return Unparseable("XMP", raw, logger);
 
-        return new RecordedDate.ClockTime(at, OffsetOf("XMP", offset, text => Parsed(XmpOffset, text), logger));
+        return new RecordedDate.ClockTime(at, OffsetOf("XMP", offset, XmpOffset, logger));
     }
 
     private static RecordedDate? IptcDateCreated(IReadOnlyList<Directory> directories, ILogger logger)
@@ -75,7 +77,7 @@ internal static partial class RecordedDates
         if (Parsed(IptcTime, clock) is not { } time)
             return Unparseable("IPTC", rawTime, logger);
 
-        return new RecordedDate.ClockTime(day + time, OffsetOf("IPTC", offset, text => Parsed(IptcOffset, text), logger));
+        return new RecordedDate.ClockTime(day + time, OffsetOf("IPTC", offset, IptcOffset, logger));
     }
 
     private static RecordedDate? AviOriginal(IReadOnlyList<Directory> directories, ILogger logger)
@@ -92,11 +94,11 @@ internal static partial class RecordedDates
     private static (string Clock, string? Offset) SplitOffset(string raw, int shortestClock)
         => raw.LastIndexOfAny(['Z', '+', '-']) is var start && start >= shortestClock ? (raw[..start], raw[start..]) : (raw, null);
 
-    private static Offset? OffsetOf(string source, string? raw, Func<string, Offset?> parse, ILogger logger)
+    private static Offset? OffsetOf(string source, string? raw, OffsetPattern pattern, ILogger logger)
     {
         if (raw is null || raw.Trim(' ', ':').Length == 0)
             return null;
-        if (parse(raw) is { } offset)
+        if (Parsed(pattern, raw) is { } offset)
             return offset;
 
         Log.OffsetParseFailed(logger, source, raw);
