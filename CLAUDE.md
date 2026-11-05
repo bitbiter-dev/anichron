@@ -33,7 +33,13 @@ dotnet run --project src/Anichron.API
 
 # Run worker locally
 dotnet run --project src/Anichron.Worker
+
+# Build the images from this checkout (run from the repo root; the context is src/)
+docker build -f src/Anichron.API/Dockerfile -t anichron-api:local src
+docker build --secret id=sixlabors_license,src=sixlabors.lic -f src/Anichron.Worker/Dockerfile -t anichron-worker:local src
 ```
+
+ImageSharp needs the Six Labors licence key to build. `dotnet build` reads it from the gitignored `sixlabors.lic` at the repo root (`Directory.Build.props`), which the image build cannot see, since it lies outside `src/`, so the Worker image takes it as the build secret `sixlabors_license`. Without it the build fails with "No Six Labors license found". To pass the key from an environment variable instead (as CI does): `--secret id=sixlabors_license,env=SIXLABORS_LICENSE_KEY`.
 
 ## Testing
 
