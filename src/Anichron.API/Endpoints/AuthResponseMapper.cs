@@ -193,7 +193,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     public void ClearSessionCookies(HttpContext http)
     {
         http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);
-        http.Response.Cookies.Delete(ProxyEndpoints.MediaCookieName, MediaCookieOptions());
+        http.Response.Cookies.Delete(ProxyEndpoints.MediaCookieName, SessionCookieOptions(ProxyEndpoints.MediaCookiePath));
     }
 
     private static class Fields
@@ -249,24 +249,20 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     private void SetSessionCookies(HttpContext http, AuthTokens tokens)
     {
         var now = clock.GetCurrentInstant().ToDateTimeOffset();
-        http.Response.Cookies.Append(AuthMessages.RefreshTokenCookieName, tokens.RefreshToken, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = cookieSettings.SameSite,
-            Expires = now.AddDays(cookieSettings.RefreshTokenDays),
-        });
-        var media = MediaCookieOptions();
+        var refresh = SessionCookieOptions("/");
+        refresh.Expires = now.AddDays(cookieSettings.RefreshTokenDays);
+        http.Response.Cookies.Append(AuthMessages.RefreshTokenCookieName, tokens.RefreshToken, refresh);
+        var media = SessionCookieOptions(ProxyEndpoints.MediaCookiePath);
         media.Expires = now.AddMinutes(cookieSettings.AccessTokenMinutes);
         http.Response.Cookies.Append(ProxyEndpoints.MediaCookieName, tokens.AccessToken, media);
     }
 
-    private CookieOptions MediaCookieOptions()
+    private CookieOptions SessionCookieOptions(string path)
         => new()
         {
             HttpOnly = true,
             Secure = true,
             SameSite = cookieSettings.SameSite,
-            Path = ProxyEndpoints.MediaCookiePath,
+            Path = path,
         };
 }

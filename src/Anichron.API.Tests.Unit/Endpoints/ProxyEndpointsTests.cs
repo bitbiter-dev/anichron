@@ -3,7 +3,6 @@ using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Infrastructure.Storage;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Headers;
@@ -40,7 +39,7 @@ public sealed class ProxyEndpointsTests
         }
 
         public Task<JwtTestApp> StartAsync()
-            => JwtTestApp.StartAsync(app => app.MapGroup("/api/v1").MapProxyEndpoints(), services =>
+            => JwtTestApp.StartAsync(api => api.MapProxyEndpoints(), services =>
             {
                 services.AddSingleton(Assets);
                 services.AddSingleton<IProxyStore>(Proxies);
@@ -304,6 +303,21 @@ public sealed class ProxyEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task GetProxy_RefusedBearerWithoutACookie_IsRefusedByTheBearerSchemeAloneAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(
+            JwtTestApp.WithBearer(Unauthenticated(), "not-a-token"), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        response.Headers.WwwAuthenticate.Select(challenge => challenge.ToString()).Should().Equal(
+            "Bearer error=\"invalid_token\"", "Bearer");
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -325,7 +339,7 @@ public sealed class ProxyEndpointsTests
     [Fact]
     public async Task EveryOtherSignedInRoute_IgnoresTheMediaCookieAsync()
     {
-        await using var app = await JwtTestApp.StartAsync(app => app.MapApiEndpoints(), _ => { });
+        await using var app = await JwtTestApp.StartWholeApiAsync();
         using var client = app.Client;
         var token = JwtTestApp.TokenFor(UserId);
         var routes = app.SignedInRoutes().Where(route => !route.Path.StartsWith("/api/v1/proxies/", StringComparison.Ordinal)).ToList();

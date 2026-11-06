@@ -9,10 +9,7 @@ using System.Security.Claims;
 
 namespace Anichron.API.Endpoints;
 
-/// <summary>
-/// The proxy route, the one route that accepts the media cookie as well as the bearer header
-/// (ADR 0013). The cookie's scheme name stays private, so no other route can name it.
-/// </summary>
+/// <summary>The proxy route, the one route that accepts the media cookie as well as the bearer header (ADR 0013).</summary>
 public static class ProxyEndpoints
 {
     internal const string MediaCookieName = "media_token";
@@ -29,6 +26,8 @@ public static class ProxyEndpoints
             OnMessageReceived = context =>
             {
                 context.Token = context.Request.Cookies[MediaCookieName];
+                if (context.Token is null)
+                    context.NoResult();
                 return Task.CompletedTask;
             },
         });

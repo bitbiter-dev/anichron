@@ -137,11 +137,16 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAdminStorageConfigService, AdminStorageConfigService>();
             services.AddTransient<IBootstrapResetService, BootstrapResetService>();
 
-            services.AddSingleton(new AuthCookieSettings
+            var sameSite = CorsOrigins.RefreshCookieSameSite(CorsOrigins.Read(configuration));
+            services.AddSingleton(provider =>
             {
-                SameSite = CorsOrigins.RefreshCookieSameSite(CorsOrigins.Read(configuration)),
-                AccessTokenMinutes = configuration.GetValue("Jwt:AccessTokenMinutes", AppDefaults.Jwt.AccessTokenMinutes),
-                RefreshTokenDays = configuration.GetValue("Jwt:RefreshTokenDays", AppDefaults.Jwt.RefreshTokenDays),
+                var jwt = provider.GetRequiredService<IOptions<JwtSettings>>().Value;
+                return new AuthCookieSettings
+                {
+                    SameSite = sameSite,
+                    AccessTokenMinutes = jwt.AccessTokenMinutes,
+                    RefreshTokenDays = jwt.RefreshTokenDays,
+                };
             });
 
             services.AddHttpClient<IPwnedPasswordClient, PwnedPasswordClient>(client =>

@@ -16,16 +16,12 @@ internal static class EndpointResponses
     {
         /// <summary>A signed-in user, refused while their password must change.</summary>
         internal TBuilder RequireUser()
-            => builder.RequireAuthorization()
-                      .ProducesProblem(StatusCodes.Status401Unauthorized)
-                      .ProducesProblem(StatusCodes.Status403Forbidden);
+            => builder.RequireAuthorization().ProducesRefusals();
 
         /// <summary>A signed-in user under <paramref name="policy"/>, which refuses them while their password must change.</summary>
         /// <param name="policy">The policy that names the schemes the route accepts.</param>
         internal TBuilder RequireUser(AuthorizationPolicy policy)
-            => builder.RequireAuthorization(policy)
-                      .ProducesProblem(StatusCodes.Status401Unauthorized)
-                      .ProducesProblem(StatusCodes.Status403Forbidden);
+            => builder.RequireAuthorization(policy).ProducesRefusals();
 
         internal TBuilder RequireUserAllowedWhileMustChangePassword()
             => builder.RequireAuthorization()
@@ -33,8 +29,10 @@ internal static class EndpointResponses
                       .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         internal TBuilder RequireAdmin()
-            => builder.RequireAuthorization(AuthPolicies.Admin)
-                      .ProducesProblem(StatusCodes.Status401Unauthorized)
+            => builder.RequireAuthorization(AuthPolicies.Admin).ProducesRefusals();
+
+        private TBuilder ProducesRefusals()
+            => builder.ProducesProblem(StatusCodes.Status401Unauthorized)
                       .ProducesProblem(StatusCodes.Status403Forbidden);
 
         internal TBuilder RequireRateLimit(string policy)

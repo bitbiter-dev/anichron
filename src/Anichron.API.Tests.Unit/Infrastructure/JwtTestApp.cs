@@ -31,27 +31,28 @@ internal sealed partial class JwtTestApp : IAsyncDisposable
 
     public HttpClient Client => app.GetTestClient();
 
-    public static async Task<JwtTestApp> StartAsync(Action<WebApplication> mapEndpoints, Action<IServiceCollection> configureServices)
+    public static Task<JwtTestApp> StartAsync(Action<IEndpointRouteBuilder> mapEndpoints, Action<IServiceCollection> configureServices)
+        => StartHostAsync(app => mapEndpoints(app.MapGroup(ApiPaths.Base)), configureServices);
+
+    public static Task<JwtTestApp> StartWholeApiAsync()
+        => StartHostAsync(app => app.MapApiEndpoints(), _ => { });
+
+    private static async Task<JwtTestApp> StartHostAsync(Action<WebApplication> mapEndpoints, Action<IServiceCollection> configureServices)
     {
-        var builder = ApiTestHost.CreateBuilder();
-        builder.WebHost.UseTestServer();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Jwt:Secret"] = Secret,
-            ["Jwt:Issuer"] = Issuer,
-            ["Jwt:Audience"] = Audience,
-        });
-        builder.Services.AddAuthServices(builder.Configuration);
-        builder.Services.AddProxyEndpoints();
-        builder.Services.AddAuthorizationPolicies();
-        builder.Services.AddApiProblems();
-        configureServices(builder.Services);
-        var app = builder.Build();
-        app.UseApiProblems();
-        app.UseAuthentication();
-        app.UseAuthorization();
-        mapEndpoints(app);
-        await app.StartAsync(TestContext.Current.CancellationToken);
+        var app = await ApiTestHost.StartAuthorizedAsync(
+            builder =>
+            {
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Jwt:Secret"] = Secret,
+                    ["Jwt:Issuer"] = Issuer,
+                    ["Jwt:Audience"] = Audience,
+                });
+                builder.Services.AddAuthServices(builder.Configuration);
+                builder.Services.AddProxyEndpoints();
+                configureServices(builder.Services);
+            },
+            mapEndpoints);
         return new JwtTestApp(app);
     }
 
