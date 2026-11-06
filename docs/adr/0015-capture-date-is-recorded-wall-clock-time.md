@@ -33,10 +33,6 @@ file's last-modified time is never used as a capture date.
   `DateCreated` without `TimeCreated`) still wins when it comes first, and dates the asset by day
   alone. Its source kind says so, and such a photo is never a burst candidate.
 - **A Live Photo's video** takes its photo's capture date, offset, source and zone.
-- **Apple's creation date is read from its raw value** (#415). MetadataExtractor 2.9.3 converts it
-  to the host's zone and drops its offset, and throws on a value it cannot parse. Until #415, a
-  video that carries one stays undated rather than dated by its movie header, so nothing derived
-  from GPS stands in for a recorded clock time.
 
 ## Why
 
@@ -71,8 +67,6 @@ inside a burst's gap and be grouped as one.
   gives an offset, not a zone.
 - **The zone at the position wins over the recorded value:** it would correct a camera on home
   time, but the stored date would no longer be what the file says.
-- **An iPhone video dated by its movie header until #415:** within seconds of the recorded time,
-  but from GPS rather than from the file.
 - **Last-modified as a marked fallback in the same column:** undated assets would carry a date
   that every query must remember to filter out. Keeping the column empty makes "undated"
   impossible to leak into On This Day.
@@ -94,6 +88,5 @@ inside a burst's gap and be grouped as one.
 - The library's time zone is the host's `TZ`; the API and the Worker must run with the same one.
 - A stored zone reflects the boundary data at ingestion; a later boundary change reaches an asset
   only when it is ingested again.
-- iPhone videos are undated until #415, and so missing from On This Day.
 - Files with no recorded date (stripped exports, many PNGs, some cheap cameras) are undated
   until an "Undated" view shows them.

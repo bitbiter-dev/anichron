@@ -3,12 +3,16 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
+using MetadataExtractor.Formats.QuickTime;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NodaTime;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Buffers.Binary;
 using System.IO.Abstractions.TestingHelpers;
+using System.Text;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
@@ -176,7 +180,7 @@ public sealed class ExifExtractionMiddlewareTests
         return heic;
     }
 
-    private static async Task<ExtractedMedia> ExtractFromAsync(byte[] file, MediaType mediaType)
+    private static async Task<ExtractedMedia> ExtractFromAsync(byte[] file, MediaType mediaType, ILogger<ExifExtractionMiddleware>? logger = null)
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
@@ -184,7 +188,8 @@ public sealed class ExifExtractionMiddlewareTests
         });
         var context = MakeContext("/abs/media", mediaType: mediaType);
 
-        await MakeMiddleware(fs).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+        await new ExifExtractionMiddleware(fs, logger ?? Substitute.For<ILogger<ExifExtractionMiddleware>>())
+            .InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
         return context.Extracted!;
     }
@@ -286,4 +291,127 @@ public sealed class ExifExtractionMiddlewareTests
     [Fact]
     public async Task InvokeAsync_VideoItem_IsUndatedWhateverItsExifSaysAsync()
         => (await ExtractFromAsync(JpegTakenInAuckland(), MediaType.Video)).Recorded.Should().BeNull();
+
+    // ==========================================================================
+    // Apple's creation date
+    // ==========================================================================
+
+    // ffmpeg's output with the key, its meta moved from udta into moov as an iPhone writes it; the
+    // movie header says 06:10:41Z, four seconds before the recorded clock time.
+    private const string AppleCreationDateMov = "apple-creationdate.mov";
+
+    [Fact]
+    public async Task InvokeAsync_VideoWithAnAppleCreationDate_IsDatedByItsClockTimeAndKeepsTheRestAsync()
+    {
+        var extracted = await ExtractFromAsync(Fixture(AppleCreationDateMov), MediaType.Video);
+
+        extracted.Recorded.Should().Be(new RecordedDate.ClockTime(new LocalDateTime(2026, 10, 30, 19, 10, 45), Offset.FromHours(13)));
+        (extracted.Description.Width, extracted.Description.Height, extracted.Description.DurationInSeconds).Should().Be((64, 48, 3));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PhotoItemWithAnAppleCreationDate_IsNotDatedByItAsync()
+        => (await ExtractFromAsync(Fixture(AppleCreationDateMov), MediaType.Image)).Recorded.Should().BeNull();
+
+    [Fact]
+    public void MetadataExtractor_StillHandsOverAppleCreationDateWithoutItsOffset()
+    {
+        using var stream = new MemoryStream(Fixture(AppleCreationDateMov));
+
+        MetadataExtractor.ImageMetadataReader.ReadMetadata(stream).OfType<QuickTimeMetadataHeaderDirectory>().Should().ContainSingle()
+            .Which.GetObject(QuickTimeMetadataHeaderDirectory.TagCreationDate).Should().BeOfType<DateTime>(
+                "MetadataExtractor now reads Apple's creation date with its offset (upstream #475): delete AppleCreationDates, "
+                + "the raw-value argument of ExifExtractionMiddleware.Extract and this test, read the library's DateTimeOffset "
+                + "in RecordedDates.AppleCreationDate, and update docs/architecture/ingestion.md");
+    }
+
+    private static byte[] Atom(uint type, params byte[][] body)
+    {
+        var content = body.SelectMany(part => part).ToArray();
+        var atom = new byte[8 + content.Length];
+        BinaryPrimitives.WriteUInt32BigEndian(atom, (uint)atom.Length);
+        BinaryPrimitives.WriteUInt32BigEndian(atom.AsSpan(4), type);
+        content.CopyTo(atom, 8);
+        return atom;
+    }
+
+    private static byte[] Atom(string type, params byte[][] body) => Atom(BinaryPrimitives.ReadUInt32BigEndian(Encoding.ASCII.GetBytes(type)), body);
+
+    private static byte[] UInt32(uint value)
+    {
+        var bytes = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(bytes, value);
+        return bytes;
+    }
+
+    private static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
+
+    // Created 2026-10-30 06:10:41Z, a duration of 4 s.
+    private static byte[] MovieHeader()
+        => Atom("mvhd", new byte[4], UInt32(3_876_185_441), UInt32(3_876_185_441), UInt32(1000), UInt32(4000), new byte[80]);
+
+    private static byte[] Keys(params string[] keys)
+        => Atom("keys", [new byte[4], UInt32((uint)keys.Length), .. keys.Select(key => Atom("mdta", Utf8(key)))]);
+
+    private static byte[] Item(uint keyIndex, string value) => Atom(keyIndex, Atom("data", UInt32(1), new byte[4], Utf8(value)));
+
+    private static byte[] QuickTime(params byte[][] moovAfterTheHeader)
+        => [.. Atom("ftyp", Utf8("qt  "), new byte[4], Utf8("qt  ")), .. Atom("moov", [MovieHeader(), .. moovAfterTheHeader])];
+
+    private const string CreationDateKey = "com.apple.quicktime.creationdate";
+
+    private static Task<ExtractedMedia> ExtractVideoAsync(byte[] file) => ExtractFromAsync(file, MediaType.Video);
+
+    [Fact]
+    public async Task InvokeAsync_HandBuiltAppleCreationDate_DatesTheVideoAsync()
+        => (await ExtractVideoAsync(QuickTime(Atom("meta", Keys(CreationDateKey), Atom("ilst", Item(1, "2026-10-30T19:10:45+13:00"))))))
+            .Recorded.Should().Be(new RecordedDate.ClockTime(new LocalDateTime(2026, 10, 30, 19, 10, 45), Offset.FromHours(13)));
+
+    [Fact]
+    public async Task InvokeAsync_AppleCreationDateAfterOtherKeys_DatesTheVideoAsync()
+        => (await ExtractVideoAsync(QuickTime(Atom("meta",
+                Keys("com.apple.quicktime.make", CreationDateKey),
+                Atom("ilst", Item(1, "Apple"), Item(2, "2026-10-30T19:10:45+13:00"))))))
+            .Recorded.Should().Be(new RecordedDate.ClockTime(new LocalDateTime(2026, 10, 30, 19, 10, 45), Offset.FromHours(13)));
+
+    // Type 0 (implicit) keeps MetadataExtractor from reading the name atom into the value.
+    [Fact]
+    public async Task InvokeAsync_AppleCreationDateItemWithANameAtom_IsDatedByItsDataAsync()
+        => (await ExtractVideoAsync(QuickTime(Atom("meta", Keys(CreationDateKey), Atom("ilst",
+                Atom(1, Atom("data", UInt32(0), new byte[4], Utf8("2026-10-30T19:10:45+13:00")), Atom("name", new byte[8], Utf8("creationdate"))))))))
+            .Recorded.Should().Be(new RecordedDate.ClockTime(new LocalDateTime(2026, 10, 30, 19, 10, 45), Offset.FromHours(13)));
+
+    public static TheoryData<string, byte[]> VideosWithoutAnAppleCreationDate => new()
+    {
+        { "no meta", QuickTime() },
+        { "no creation-date key", QuickTime(Atom("meta", Keys("com.apple.quicktime.make"), Atom("ilst", Item(1, "2026-10-30T19:10:45+13:00")))) },
+        { "the key without an item", QuickTime(Atom("meta", Keys(CreationDateKey), Atom("ilst"))) },
+        { "the key in another meta child", QuickTime(Atom("meta", Keys(CreationDateKey), Atom("free", Item(1, "2026-10-30T19:10:45+13:00")))) },
+        { "the key outside meta", QuickTime(Atom("udta", Keys(CreationDateKey), Atom("ilst", Item(1, "2026-10-30T19:10:45+13:00")))) },
+        { "a truncated item list", QuickTime(Atom("meta", Keys(CreationDateKey), Atom("ilst", Item(1, "2026-10-30T19:10:45+13:00"))))[..^20] },
+    };
+
+    [Theory]
+    [MemberData(nameof(VideosWithoutAnAppleCreationDate))]
+    public async Task InvokeAsync_VideoWithoutAReadableAppleCreationDate_IsDatedByItsMovieHeaderAndKeepsItsDurationAsync(string _, byte[] file)
+    {
+        var extracted = await ExtractVideoAsync(file);
+
+        extracted.Recorded.Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 41)));
+        extracted.Description.DurationInSeconds.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AppleCreationDateTheReaderFailsOn_IsNoDateAndKeepsTheRestAsync()
+    {
+        var logger = new FakeLogger<ExifExtractionMiddleware>();
+        var file = QuickTime(Atom("meta", Keys(CreationDateKey, "com.apple.quicktime.make"), Atom("ilst", Atom(1, Atom("data")), Item(2, "Apple"))));
+
+        var extracted = await ExtractFromAsync(file, MediaType.Video, logger);
+
+        extracted.Recorded.Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 41)));
+        extracted.Description.DurationInSeconds.Should().Be(4);
+        logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug && r.Message.Contains("/abs/media") && r.Exception != null);
+    }
 }
