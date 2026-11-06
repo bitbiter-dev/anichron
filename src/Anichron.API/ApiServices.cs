@@ -15,6 +15,7 @@ public static class ApiServices
                 .AddDatabase(configuration)
                 .AddForwardedHeadersSupport(configuration)
                 .AddAuthServices(configuration)
+                .AddProxyEndpoints()
                 .AddWorkItemServices()
                 .AddAuthorizationPolicies()
                 .AddRateLimiting(configuration)

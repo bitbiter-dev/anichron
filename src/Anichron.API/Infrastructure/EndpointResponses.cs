@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,6 +17,13 @@ internal static class EndpointResponses
         /// <summary>A signed-in user, refused while their password must change.</summary>
         internal TBuilder RequireUser()
             => builder.RequireAuthorization()
+                      .ProducesProblem(StatusCodes.Status401Unauthorized)
+                      .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        /// <summary>A signed-in user under <paramref name="policy"/>, which refuses them while their password must change.</summary>
+        /// <param name="policy">The policy that names the schemes the route accepts.</param>
+        internal TBuilder RequireUser(AuthorizationPolicy policy)
+            => builder.RequireAuthorization(policy)
                       .ProducesProblem(StatusCodes.Status401Unauthorized)
                       .ProducesProblem(StatusCodes.Status403Forbidden);
 

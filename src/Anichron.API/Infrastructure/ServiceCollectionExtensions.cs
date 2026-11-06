@@ -140,6 +140,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(new AuthCookieSettings
             {
                 SameSite = CorsOrigins.RefreshCookieSameSite(CorsOrigins.Read(configuration)),
+                AccessTokenMinutes = configuration.GetValue("Jwt:AccessTokenMinutes", AppDefaults.Jwt.AccessTokenMinutes),
                 RefreshTokenDays = configuration.GetValue("Jwt:RefreshTokenDays", AppDefaults.Jwt.RefreshTokenDays),
             });
 
@@ -155,7 +156,14 @@ public static class ServiceCollectionExtensions
             });
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
-            services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            services.AddJwtValidation(JwtBearerDefaults.AuthenticationScheme);
+
+            return services;
+        }
+
+        internal IServiceCollection AddJwtValidation(string scheme)
+        {
+            services.AddOptions<JwtBearerOptions>(scheme)
                 .Configure<IOptions<JwtSettings>>((options, jwt) =>
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
@@ -168,7 +176,6 @@ public static class ServiceCollectionExtensions
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.Zero,
                     });
-
             return services;
         }
 

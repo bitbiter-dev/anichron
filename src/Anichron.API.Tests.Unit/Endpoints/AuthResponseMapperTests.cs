@@ -14,13 +14,13 @@ public sealed class AuthResponseMapperTests
     private sealed class TestFixture
     {
         private readonly IClock _clock = Substitute.For<IClock>();
-        private readonly AuthCookieSettings _cookieSettings = new()
-        {
-            SameSite = SameSiteMode.Strict,
-            RefreshTokenDays = 7,
-        };
+        private readonly AuthCookieSettings _cookieSettings;
 
-        public TestFixture() => _clock.GetCurrentInstant().Returns(FixedNow);
+        public TestFixture(SameSiteMode sameSite = SameSiteMode.Strict)
+        {
+            _clock.GetCurrentInstant().Returns(FixedNow);
+            _cookieSettings = new() { SameSite = sameSite, AccessTokenMinutes = 15, RefreshTokenDays = 7 };
+        }
 
         public AuthResponseMapper CreateTestee() => new(_cookieSettings, _clock);
     }
@@ -37,6 +37,9 @@ public sealed class AuthResponseMapperTests
         http.Response.Body = new MemoryStream();
         return http;
     }
+
+    private static string[] SetCookiesNamed(HttpContext http, string name)
+        => [.. http.Response.Headers.SetCookie.Select(header => header!).Where(header => header.StartsWith($"{name}=", StringComparison.Ordinal))];
 
     private static Task<string> ReadBodyAsync(HttpResponse response)
     {
@@ -59,13 +62,12 @@ public sealed class AuthResponseMapperTests
             http, new PasswordPolicy(), new UsernamePolicy());
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
-        var setCookie = http.Response.Headers.SetCookie.ToString();
 
         Assert.Multiple(() =>
         {
             http.Response.StatusCode.Should().Be(200);
-            setCookie.Should().Contain("refresh_token=ref_token");
-            setCookie.Should().ContainAll("httponly", "secure", "samesite=strict");
+            SetCookiesNamed(http, "refresh_token").Should().Equal(
+                "refresh_token=ref_token; expires=Thu, 08 Jan 2026 12:00:00 GMT; path=/; secure; samesite=strict; httponly");
             body.Should().Contain("acc_token");
             body.Should().NotContain("ref_token");
         });
@@ -155,6 +157,57 @@ public sealed class AuthResponseMapperTests
         });
     }
 
+    // ==========================================================================
+    // The media cookie (ADR 0013)
+    // ==========================================================================
+
+    public static TheoryData<string, SameSiteMode, string> SignInsThatSetTheMediaCookie => new()
+    {
+        { "register", SameSiteMode.Strict, "strict" },
+        { "login", SameSiteMode.Strict, "strict" },
+        { "refresh", SameSiteMode.Strict, "strict" },
+        { "login", SameSiteMode.None, "none" },
+        { "refresh", SameSiteMode.None, "none" },
+    };
+
+    private static IResult SignIn(AuthResponseMapper testee, string kind, HttpContext http, bool setCookie)
+    {
+        var tokens = AuthResult.Ok(new AuthTokens("acc_token", "ref_token"));
+        return kind switch
+        {
+            "register" => testee.GetRegistrationResult(tokens, http, new PasswordPolicy(), new UsernamePolicy()),
+            "login" => testee.GetLoginResult(tokens, http, setCookie),
+            _ => testee.GetRefreshResult(tokens, http, setCookie),
+        };
+    }
+
+    [Theory]
+    [MemberData(nameof(SignInsThatSetTheMediaCookie))]
+    public async Task CookieSignIn_SetsTheMediaCookieForTheProxyRouteUntilTheAccessTokenExpires(
+        string kind, SameSiteMode sameSite, string expectedSameSite)
+    {
+        var http = NewHttp();
+        var testee = new TestFixture(sameSite).CreateTestee();
+
+        await SignIn(testee, kind, http, setCookie: true).ExecuteAsync(http);
+
+        SetCookiesNamed(http, "media_token").Should().Equal(
+            $"media_token=acc_token; expires=Thu, 01 Jan 2026 12:15:00 GMT; path=/api/v1/proxies; secure; samesite={expectedSameSite}; httponly");
+    }
+
+    [Theory]
+    [InlineData("login")]
+    [InlineData("refresh")]
+    public async Task BodySignIn_SetsNoMediaCookie(string kind)
+    {
+        var http = NewHttp();
+        var testee = new TestFixture().CreateTestee();
+
+        await SignIn(testee, kind, http, setCookie: false).ExecuteAsync(http);
+
+        http.Response.Headers.SetCookie.Should().BeEmpty();
+    }
+
     [Fact]
     public void GetRegistrationResult_ErrorFromOtherContext_ThrowsUnreachableException()
     {
@@ -228,18 +281,32 @@ public sealed class AuthResponseMapperTests
     }
 
     // ==========================================================================
-    // ClearRefreshCookie
+    // ClearSessionCookies
     // ==========================================================================
 
     [Fact]
-    public void ClearRefreshCookie_DeletesRefreshTokenCookieFromResponse()
+    public void ClearSessionCookies_DeletesRefreshTokenCookieFromResponse()
     {
         var http = NewHttp();
         var testee = new TestFixture().CreateTestee();
 
-        testee.ClearRefreshCookie(http);
+        testee.ClearSessionCookies(http);
 
         http.Response.Headers.SetCookie.ToString().Should().Contain("refresh_token");
+    }
+
+    [Theory]
+    [InlineData(SameSiteMode.Strict, "strict")]
+    [InlineData(SameSiteMode.None, "none")]
+    public void ClearSessionCookies_DeletesTheMediaCookieWithTheAttributesItWasSetWith(SameSiteMode sameSite, string expectedSameSite)
+    {
+        var http = NewHttp();
+        var testee = new TestFixture(sameSite).CreateTestee();
+
+        testee.ClearSessionCookies(http);
+
+        SetCookiesNamed(http, "media_token").Should().Equal(
+            $"media_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/api/v1/proxies; secure; samesite={expectedSameSite}; httponly");
     }
 
     // ==========================================================================
