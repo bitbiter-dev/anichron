@@ -1,31 +1,49 @@
-import type { LoginRequest, LoginResponse } from './login-contract';
-import { readProblem, unknownProblem, unreachableProblem, type Problem } from './problem';
+import createClient from 'openapi-fetch';
+import type { components, paths } from './generated/v1';
+import { toProblem, unknownProblem, unreachableProblem, type Problem } from './problem';
 
-export type LoginOutcome = { ok: true } | { ok: false; problem: Problem };
+type Schemas = components['schemas'];
+export type LoginRequest = Schemas['LoginRequest'];
+
+export type Outcome = { ok: true } | { ok: false; problem: Problem };
+
+interface SessionCall {
+  data?: Schemas['SessionResponse'];
+  error?: unknown;
+  response: Response;
+}
 
 export interface ApiClient {
-  login(request: LoginRequest): Promise<LoginOutcome>;
+  login(request: LoginRequest): Promise<Outcome>;
+  restore(): Promise<void>;
   isSignedIn(): boolean;
 }
 
 export function createApiClient(): ApiClient {
-  let accessToken: string | undefined;
+  const client = createClient<paths>({ baseUrl: location.origin });
+  let session: Schemas['SessionResponse'] | undefined;
+  let restored: Promise<void> | undefined;
+
+  async function start(call: () => Promise<SessionCall>): Promise<Outcome> {
+    try {
+      const { data, error, response } = await call();
+      if (!data) return { ok: false, problem: toProblem(error, response) };
+      session = data;
+      return { ok: true };
+    } catch (thrown) {
+      return {
+        ok: false,
+        problem: thrown instanceof SyntaxError ? unknownProblem : unreachableProblem,
+      };
+    }
+  }
+
   return {
-    async login(request) {
-      const response = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      }).catch(() => undefined);
-      if (!response) return { ok: false, problem: unreachableProblem };
-      if (!response.ok) return { ok: false, problem: await readProblem(response) };
-      try {
-        accessToken = ((await response.json()) as LoginResponse).accessToken;
-        return { ok: true };
-      } catch {
-        return { ok: false, problem: unknownProblem };
-      }
+    login: (body) => start(() => client.POST('/api/v1/auth/login', { body })),
+    restore() {
+      restored ??= start(() => client.POST('/api/v1/auth/refresh')).then(() => undefined);
+      return restored;
     },
-    isSignedIn: () => accessToken !== undefined,
+    isSignedIn: () => session !== undefined,
   };
 }

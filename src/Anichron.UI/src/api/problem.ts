@@ -34,8 +34,8 @@ export const unreachableProblem: Problem = {
   retryAfterSeconds: 0,
 };
 
-export async function readProblem(response: Response): Promise<Problem> {
-  const body = problemBody.parse(await response.json().catch(() => undefined));
+export function toProblem(error: unknown, response: Response): Problem {
+  const body = problemBody.parse(error);
   return {
     code: body.code,
     fields: body.errors,
