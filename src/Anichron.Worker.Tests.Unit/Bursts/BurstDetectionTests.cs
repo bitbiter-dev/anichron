@@ -405,6 +405,21 @@ public sealed class BurstDetectionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task RunAsync_VideoWhosePosterLooksLikeAPhotoBesideIt_IsNeverComparedOrJoinedAsync()
+    {
+        var photo = Photo("a.heic");
+        var video = Photo("b.mov", seconds: 2, type: MediaType.Video);
+        Similar(photo, video, score: 0.9);
+
+        var result = await RunAsync();
+
+        result.Should().Be(new BurstDetectionResult { Checked = 1 });
+        Comparisons().Should().Be(0);
+        StoredBursts().Should().BeEmpty();
+        StoredChecks().Select(c => c.AssetId).Should().Equal(photo.Id);
+    }
+
+    [Fact]
     public async Task RunAsync_ComparesTheNewerPhotoWithTheOlderOnceWithTheirThumbnailsAsync()
     {
         Photo("a.heic");

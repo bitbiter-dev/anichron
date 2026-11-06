@@ -59,6 +59,7 @@ public sealed class ImageProxyMiddlewareTests
         public IClock Clock { get; }
         public IGuidFactory GuidFactory { get; } = Substitute.For<IGuidFactory>();
         public IProxyDirectoryStrategy DirectoryStrategy { get; } = Substitute.For<IProxyDirectoryStrategy>();
+        public IVideoFrameExtractor FrameExtractor { get; } = Substitute.For<IVideoFrameExtractor>();
 
         public ImageProxyMiddleware Build(IImageProcessor? imageProcessor = null, WorkerSettings? settings = null)
         {
@@ -74,6 +75,7 @@ public sealed class ImageProxyMiddlewareTests
             return new(generators,
                        blurhashEncoder ?? new BlurhashEncoder(ImageProcessor, Options.Create(new WorkerSettings())),
                        new UprightImageDecoder(new MagickHeifDecoder(), new ImageSharpUprightDecoder()),
+                       FrameExtractor,
                        DirectoryStrategy,
                        new ProxyStagingWriter(
                            FileSystem,
@@ -85,10 +87,10 @@ public sealed class ImageProxyMiddlewareTests
         }
     }
 
-    private static IngestionContext MakeContext(MediaType mediaType = MediaType.Image)
+    private static IngestionContext MakeContext(IngestionItem? item = null)
         => new()
         {
-            Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", mediaType),
+            Item = item ?? new SingleFileItem("/nas/photo.jpg", "photo.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
             AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
@@ -288,6 +290,98 @@ public sealed class ImageProxyMiddlewareTests
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         fixture.FileSystem.AllFiles.Should().NotContain(path => path.EndsWith(".tmp"));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ImageItem_NeverExtractsAVideoFrameAsync()
+    {
+        var fixture = new TestFixture();
+
+        await fixture.Build().InvokeAsync(MakeContext(), NoOpNextAsync, CancellationToken.None);
+
+        await fixture.FrameExtractor.DidNotReceiveWithAnyArgs().ExtractAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    // ==========================================================================
+    // Standalone video: the poster
+    // ==========================================================================
+
+    private static IngestionContext MakeVideoContext()
+        => MakeContext(new SingleFileItem("/nas/clip.mov", "clip.mov", MediaType.Video));
+
+    private static async Task<(IngestionContext Context, TestFixture Fixture)> IngestVideoFrameAsync(int width, int height)
+    {
+        var fixture = new TestFixture();
+        fixture.FrameExtractor.ExtractAsync("/nas/clip.mov", Arg.Any<CancellationToken>())
+            .Returns(_ => new Image<Rgb24>(width, height));
+        var settings = new WorkerSettings();
+        var context = MakeVideoContext();
+
+        await fixture.Build(new ImageSharpProcessor(Options.Create(settings)), settings)
+            .InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        return (context, fixture);
+    }
+
+    private static async Task<Size> SizeOfAsync(TestFixture fixture, string proxyFileName)
+    {
+        var bytes = await fixture.FileSystem.File.ReadAllBytesAsync(
+            $"/data/proxies/ab/cd/{proxyFileName}", TestContext.Current.CancellationToken);
+        return Image.Identify(bytes).Size;
+    }
+
+    [Theory]
+    [InlineData("thumbnail.jpg", 533, 300)]
+    [InlineData("preview.jpg", 1920, 1080)]
+    public async Task InvokeAsync_VideoItem_WritesItsPosterAtThePhotoBoundsAsync(
+        string proxyFileName, int expectedWidth, int expectedHeight)
+    {
+        var (_, fixture) = await IngestVideoFrameAsync(3840, 2160);
+
+        (await SizeOfAsync(fixture, proxyFileName)).Should().Be(new Size(expectedWidth, expectedHeight));
+    }
+
+    [Theory]
+    [InlineData("thumbnail.jpg")]
+    [InlineData("preview.jpg")]
+    public async Task InvokeAsync_VideoFrameSmallerThanTheBounds_KeepsItsSizeAsync(string proxyFileName)
+    {
+        var (_, fixture) = await IngestVideoFrameAsync(240, 160);
+
+        (await SizeOfAsync(fixture, proxyFileName)).Should().Be(new Size(240, 160));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_VideoItem_StagesThumbnailAndPreviewWithABlurhashAsync()
+    {
+        var (context, _) = await IngestVideoFrameAsync(3840, 2160);
+
+        context.ProxyFiles.Select(p => (p.ProxyType, p.ProxyPath)).Should().BeEquivalentTo(
+            [(ProxyType.Thumbnail, "ab/cd/thumbnail.jpg"), (ProxyType.FullPreview, "ab/cd/preview.jpg")]);
+        context.Blurhash.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_VideoFrameFails_FailsWithoutProxiesOrNextAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FrameExtractor.ExtractAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Image<Rgb24>>(_ => throw new FfmpegException("FFmpeg read no frame from /nas/clip.mov."));
+        var context = MakeVideoContext();
+        var nextCalled = false;
+        Task NextAsync(IngestionContext ctx, CancellationToken ct)
+        {
+            _ = (ctx, ct);
+            nextCalled = true;
+            return Task.CompletedTask;
+        }
+
+        var act = () => fixture.Build().InvokeAsync(context, NextAsync, CancellationToken.None);
+
+        await act.Should().ThrowAsync<FfmpegException>();
+        context.ProxyFiles.Should().BeEmpty();
+        context.Blurhash.Should().BeNull();
+        nextCalled.Should().BeFalse();
     }
 
     // ==========================================================================
@@ -497,33 +591,6 @@ public sealed class ImageProxyMiddlewareTests
     // ==========================================================================
 
     [Fact]
-    public void CanInvoke_ImageItem_ReturnsTrue()
-    {
-        new TestFixture().Build().CanInvoke(MakeContext(MediaType.Image)).Should().BeTrue();
-    }
-
-    [Fact]
-    public void CanInvoke_LivePhotoItem_ReturnsTrue()
-    {
-        var context = new IngestionContext
-        {
-            Item = new LivePhotoPairItem("/nas/photo.heic", "photo.heic", "/nas/photo.mov", "photo.mov"),
-            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
-            AttemptId = Guid.NewGuid(),
-            AssetId = Guid.NewGuid(),
-            ContentHash = "0123456789abcdef",
-            SecondaryHash = "fedcba9876543210",
-        };
-        new TestFixture().Build().CanInvoke(context).Should().BeTrue();
-    }
-
-    [Fact]
-    public void CanInvoke_VideoItem_ReturnsFalse()
-    {
-        new TestFixture().Build().CanInvoke(MakeContext(MediaType.Video)).Should().BeFalse();
-    }
-
-    [Fact]
     public async Task InvokeAsync_LivePhotoPairItem_GeneratesProxyFilesAsync()
     {
         var fixture = new TestFixture();
@@ -542,6 +609,7 @@ public sealed class ImageProxyMiddlewareTests
 
         context.ProxyFiles.Should().HaveCount(2);
         context.Blurhash.Should().Be("LGFFaXYk^6#M@-5c,1J5@[or[Q6.");
+        await fixture.FrameExtractor.DidNotReceiveWithAnyArgs().ExtractAsync(default!, TestContext.Current.CancellationToken);
     }
 
     [Fact]
