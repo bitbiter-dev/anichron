@@ -17,19 +17,19 @@ export function contrastRatio(a: string, b: string) {
 export type Theme = 'light' | 'dark';
 export type ThemeColours = Record<Theme, Record<string, string>>;
 
+type RegexMatch<T extends string[]> = [string, ...T];
+
 // Reads the semantic colours (`--color-<name>`) of a token stylesheet, through its
 // `light-dark()` and `var()` references, down to their `#rrggbb` values.
-type Groups<T extends string[]> = [string, ...T];
-
 export function themeColours(css: string): ThemeColours {
-  const matches = css.matchAll(/--([\w-]+):\s*([^;]+);/g) as Iterable<Groups<[string, string]>>;
+  const matches = css.matchAll(/--([\w-]+):\s*([^;]+);/g) as Iterable<RegexMatch<[string, string]>>;
   const declared = new Map([...matches].map(([, name, value]) => [name, value]));
   const resolve = (value: string, theme: Theme): string => {
-    const lightDark = /^light-dark\((.+?),\s*(.+)\)$/.exec(value) as Groups<
+    const lightDark = /^light-dark\((.+?),\s*(.+)\)$/.exec(value) as RegexMatch<
       [string, string]
     > | null;
     if (lightDark) return resolve({ light: lightDark[1], dark: lightDark[2] }[theme], theme);
-    const reference = /^var\(--([\w-]+)\)$/.exec(value) as Groups<[string]> | null;
+    const reference = /^var\(--([\w-]+)\)$/.exec(value) as RegexMatch<[string]> | null;
     if (reference) {
       const target = declared.get(reference[1]);
       if (target === undefined) throw new Error(`--${reference[1]} is not declared`);

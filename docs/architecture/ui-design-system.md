@@ -40,7 +40,8 @@ Two layers:
 
 Radius (`rounded-field`, `rounded-card`) and type size (`text-small`, `text-body`, `text-title`)
 get semantic tokens the same way, with Tailwind's defaults cleared; `rounded-full` (the pill
-button) is not a theme value and stays. Spacing keeps Tailwind's numeric scale. A new kind of colour starts as a semantic token with a value for each theme.
+button) is not a theme value and stays. Spacing keeps Tailwind's numeric scale. A new kind of
+colour starts as a semantic token with a value for each theme.
 
 ## Themes
 
@@ -60,12 +61,13 @@ key and values with the toggle.
 
 - **Motion:** durations are tokens (`--duration-fast`, `--duration-base`) that resolve to `0ms`
   under `prefers-reduced-motion: reduce`; no component checks the preference itself. Tailwind's
-  `transition-*` utilities default to `--duration-fast`. The story
-  player's gestures follow it through Motion's `MotionConfig reducedMotion="user"` (#348).
+  `transition-*` utilities default to `--duration-fast`. The story player's gestures follow it
+  through Motion's `MotionConfig reducedMotion="user"` (#348).
 - **Focus:** a 2 px ring in the accent, offset 2 px, on keyboard focus only (`:focus-visible`,
   React Aria's focus-visible state), never on a tap. A native text input matches `:focus-visible`
-  on a tap too, by browser design; React Aria's focus-visible state removes that from #458 on. It reaches 3:1 against both surfaces; where
-  the accent does not, `focus` gets its own value in that theme.
+  on a tap too, by browser design; React Aria's focus-visible state removes that from #458 on.
+  The ring reaches 3:1 against both surfaces; an accent that does not in a theme gives `focus`
+  its own value there.
 
 ## Base components
 
