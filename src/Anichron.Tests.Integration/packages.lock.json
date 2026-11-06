@@ -165,8 +165,8 @@
       },
       "Magick.NET.Core": {
         "type": "Transitive",
-        "resolved": "15.0.0",
-        "contentHash": "mP/VovMRuXBX2Rcnn1wWu0Zur6cjsf8IQhmTUCrasEk8cyAtN5sjHE7NxiH88whw8/2mjRvuphKUwj6bAZslpQ=="
+        "resolved": "15.1.0",
+        "contentHash": "WIaemRN4tJvw5BNUfsO8/V3LojV5FOCojQ/sQ4ruXme1o2frRYfcvHPhKV5E6TbYoEdVEvtGX+8Wbut0F2lJHg=="
       },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
@@ -672,8 +672,8 @@
           "Anichron.Core": "[1.0.0, )",
           "Anichron.Infrastructure": "[1.0.0, )",
           "Blurhash.ImageSharp": "[4.1.1, )",
-          "GeoTimeZone": "[6.1.0, )",
-          "Magick.NET-Q8-AnyCPU": "[15.0.0, )",
+          "GeoTimeZone": "[7.0.0, )",
+          "Magick.NET-Q8-AnyCPU": "[15.1.0, )",
           "MetadataExtractor": "[2.9.3, )",
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
           "Microsoft.Extensions.Configuration.Ini": "[10.0.14, )",
@@ -701,17 +701,17 @@
       },
       "GeoTimeZone": {
         "type": "CentralTransitive",
-        "requested": "[6.1.0, )",
-        "resolved": "6.1.0",
-        "contentHash": "HB3OJcaI2NNfB253co3XY0dUFllCtdR8Jn0kS7GR/m8XMhvEgurDfvgebNeac384S+OOvrgb7HEGbZXOps/8Mw=="
+        "requested": "[7.0.0, )",
+        "resolved": "7.0.0",
+        "contentHash": "IPVO7FeCcCmWjp4zctVJCF45IaRPrFNxyvCcxbJC/rqcMvtE08ZFFb5YL8fkFyrq2MJY3GdIsVr8npjU1iefcQ=="
       },
       "Magick.NET-Q8-AnyCPU": {
         "type": "CentralTransitive",
-        "requested": "[15.0.0, )",
-        "resolved": "15.0.0",
-        "contentHash": "yECRj8M7/D7dIndVmvEbMsolIBC+lyd+Er3wM/p8MSCaTAqjXjYvqmfETu9u/QuJBKM/ofgZBUtRs4HqRicrow==",
+        "requested": "[15.1.0, )",
+        "resolved": "15.1.0",
+        "contentHash": "nHJpUfEkhiDu5XJAymHWQBCinVQJABTK2j6haHqs650UPUP9iEMqN73VNu8m+YyoyEp5gGwO65hqivhgzzpfnQ==",
         "dependencies": {
-          "Magick.NET.Core": "15.0.0"
+          "Magick.NET.Core": "15.1.0"
         }
       },
       "MetadataExtractor": {
