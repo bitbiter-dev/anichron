@@ -14,7 +14,7 @@ COMMENT ON TABLE "Users" IS 'Owns storage configs and interactions. All identity
 COMMENT ON COLUMN "Users"."Username" IS 'Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.';
 COMMENT ON COLUMN "Users"."Email" IS 'Always stored trimmed and lowercased: an EF value converter applies IdentityNormalizer.Normalize on every write and to every equality comparison against this column, so the case-sensitive unique index cannot hold two spellings of one name.';
 COMMENT ON COLUMN "Users"."PasswordHash" IS 'Argon2id. The parameters live with the hasher, not here, so rotating them does not require a migration.';
-COMMENT ON COLUMN "Users"."MustChangePassword" IS 'Set by an admin reset. MustChangePasswordMiddleware then 403s every route except the handful needed to change it.';
+COMMENT ON COLUMN "Users"."MustChangePassword" IS 'Set by an admin reset. Every protected route then answers 403 except the handful needed to change it.';
 
 
 CREATE TABLE "Invites" (
@@ -212,7 +212,7 @@ CREATE TABLE "Metadata" (
     CONSTRAINT "PK_Metadata" PRIMARY KEY ("AssetId"),
     CONSTRAINT "FK_Metadata_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE
 );
-COMMENT ON TABLE "Metadata" IS 'EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by ExifExtractionMiddleware; every field is best-effort, because a file may carry no EXIF at all.';
+COMMENT ON TABLE "Metadata" IS 'What a file records in its EXIF, XMP, IPTC, QuickTime or AVI metadata, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by MetadataExtractionMiddleware; every field is best-effort, because a file may record none of it.';
 COMMENT ON COLUMN "Metadata"."Description_Orientation" IS 'EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container''s irot for a HEIC, the video track''s rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video''s player applies its own rotation, so rotate neither by it.';
 COMMENT ON COLUMN "Metadata"."Blurhash" IS 'BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. Null for videos, and for images ingested before the column existed, which are not backfilled.';
 

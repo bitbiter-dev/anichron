@@ -16,7 +16,7 @@ using System.Text;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
-public sealed class ExifExtractionMiddlewareTests
+public sealed class MetadataExtractionMiddlewareTests
 {
     // Minimal JPEG with EXIF IFD0: Width=100, Height=200, Orientation=6 (90°)
     private static readonly byte[] JpegWithExif =
@@ -51,8 +51,8 @@ public sealed class ExifExtractionMiddlewareTests
             ContentHash = contentHash,
         };
 
-    private static ExifExtractionMiddleware MakeMiddleware(MockFileSystem fs, ILogger<ExifExtractionMiddleware>? logger = null)
-        => new(fs, logger ?? Substitute.For<ILogger<ExifExtractionMiddleware>>());
+    private static MetadataExtractionMiddleware MakeMiddleware(MockFileSystem fs, ILogger<MetadataExtractionMiddleware>? logger = null)
+        => new(fs, logger ?? Substitute.For<ILogger<MetadataExtractionMiddleware>>());
 
     // ==========================================================================
     // InvokeAsync
@@ -79,7 +79,7 @@ public sealed class ExifExtractionMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_Always_SetsExifOnContextAsync()
+    public async Task InvokeAsync_Always_SetsMetadataOnContextAsync()
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
@@ -144,7 +144,7 @@ public sealed class ExifExtractionMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_UnreadableFile_SetsEmptyExifAsync()
+    public async Task InvokeAsync_UnreadableFile_SetsEmptyMetadataAsync()
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
@@ -163,7 +163,7 @@ public sealed class ExifExtractionMiddlewareTests
 
     private static byte[] Fixture(string name)
     {
-        using var stream = typeof(ExifExtractionMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
+        using var stream = typeof(MetadataExtractionMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
         return copy.ToArray();
@@ -180,7 +180,7 @@ public sealed class ExifExtractionMiddlewareTests
         return heic;
     }
 
-    private static async Task<ExtractedMedia> ExtractFromAsync(byte[] file, MediaType mediaType, ILogger<ExifExtractionMiddleware>? logger = null)
+    private static async Task<ExtractedMedia> ExtractFromAsync(byte[] file, MediaType mediaType, ILogger<MetadataExtractionMiddleware>? logger = null)
     {
         var fs = new MockFileSystem(new Dictionary<string, MockFileData>
         {
@@ -319,7 +319,7 @@ public sealed class ExifExtractionMiddlewareTests
         MetadataExtractor.ImageMetadataReader.ReadMetadata(stream).OfType<QuickTimeMetadataHeaderDirectory>().Should().ContainSingle()
             .Which.GetObject(QuickTimeMetadataHeaderDirectory.TagCreationDate).Should().BeOfType<DateTime>(
                 "MetadataExtractor now reads Apple's creation date with its offset (upstream #475): delete AppleCreationDates, "
-                + "the raw-value argument of ExifExtractionMiddleware.Extract and this test, read the library's DateTimeOffset "
+                + "the raw-value argument of MetadataExtractionMiddleware.Extract and this test, read the library's DateTimeOffset "
                 + "in RecordedDates.AppleCreationDate, and update docs/architecture/ingestion.md");
     }
 
@@ -405,7 +405,7 @@ public sealed class ExifExtractionMiddlewareTests
     [Fact]
     public async Task InvokeAsync_AppleCreationDateTheReaderFailsOn_IsNoDateAndKeepsTheRestAsync()
     {
-        var logger = new FakeLogger<ExifExtractionMiddleware>();
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
 
         var extracted = await ExtractFromAsync(QuickTimeTheReaderFailsOn(), MediaType.Video, logger);
 
@@ -418,7 +418,7 @@ public sealed class ExifExtractionMiddlewareTests
     [Fact]
     public async Task InvokeAsync_PhotoItem_IsNotReadForAnAppleCreationDateAsync()
     {
-        var logger = new FakeLogger<ExifExtractionMiddleware>();
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
 
         await ExtractFromAsync(QuickTimeTheReaderFailsOn(), MediaType.Image, logger);
 

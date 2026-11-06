@@ -22,6 +22,7 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
 {
     public const string UserHeader = "X-Test-User";
     public const string AdminHeader = "X-Test-Admin";
+    public const string MustChangeHeader = "X-Test-Must-Change";
 
     private readonly WebApplication app;
 
@@ -79,6 +80,8 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
             List<Claim> claims = [new(ClaimTypes.NameIdentifier, userId.ToString())];
             if (Request.Headers.ContainsKey(AdminHeader))
                 claims.Add(new Claim(AppClaimTypes.IsAdmin, "true"));
+            if (Request.Headers.TryGetValue(MustChangeHeader, out var mustChange))
+                claims.Add(new Claim(AppClaimTypes.MustChangePassword, mustChange.ToString()));
             var identity = new ClaimsIdentity(claims, Scheme.Name);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
         }

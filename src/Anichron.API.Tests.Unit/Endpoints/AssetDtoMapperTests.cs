@@ -8,6 +8,7 @@ public sealed class AssetDtoMapperTests
 {
     private static readonly Guid AssetId = Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b");
     private static readonly Guid MovId = Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-ffffffffffff");
+    private const string MovHash = "cafebabecafebabe";
 
     private static AssetView Photo => AssetViews.Image(AssetId, new LocalDateTime(2019, 7, 14, 9, 30)) with
     {
@@ -34,8 +35,8 @@ public sealed class AssetDtoMapperTests
             3024,
             null,
             new AssetProxyUrls(
-                "assets/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/proxies/thumbnail",
-                "assets/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/proxies/preview",
+                "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=0123456789abcdef",
+                "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/preview?v=0123456789abcdef",
                 null),
             "LEHV6nWB2yk8",
             null,
@@ -59,9 +60,23 @@ public sealed class AssetDtoMapperTests
         dto.MediaType.Should().Be("Video");
         dto.DurationSeconds.Should().Be(3);
         dto.Proxies.Should().Be(new AssetProxyUrls(
-            "assets/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/proxies/thumbnail",
+            "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=0123456789abcdef",
             null,
-            "assets/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/proxies/video"));
+            "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/video?v=0123456789abcdef"));
+    }
+
+    [Fact]
+    public void AssetThatTookNewContent_KeepsItsIdButEveryProxyUrlChanges()
+    {
+        var before = Photo with { MediaType = MediaType.Video, HasThumbnail = true, HasPreview = true, HasVideo = true };
+
+        var after = ToDto(before with { ContentHash = "fedcba9876543210" });
+
+        after.Id.Should().Be(ToDto(before).Id);
+        after.Proxies.Should().Be(new AssetProxyUrls(
+            "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=fedcba9876543210",
+            "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/preview?v=fedcba9876543210",
+            "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/video?v=fedcba9876543210"));
     }
 
     [Fact]
@@ -72,19 +87,20 @@ public sealed class AssetDtoMapperTests
             MediaType = MediaType.LivePhoto,
             HasThumbnail = true,
             PairedMovId = MovId,
+            PairedMovContentHash = MovHash,
             PairedMovHasVideo = true,
         });
 
         dto.MediaType.Should().Be("LivePhoto");
         dto.DurationSeconds.Should().BeNull();
-        dto.LivePhotoVideoUrl.Should().Be("assets/0199a1b2-c3d4-7e5f-8a9b-ffffffffffff/proxies/video");
+        dto.LivePhotoVideoUrl.Should().Be("proxies/0199a1b2-c3d4-7e5f-8a9b-ffffffffffff/video?v=cafebabecafebabe");
         dto.Proxies.Video.Should().BeNull();
     }
 
     [Fact]
     public void LivePhoto_WhosePairedMovHasNoVideoProxy_IsPublishedAsAStillImage()
     {
-        var dto = ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovId = MovId });
+        var dto = ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovId = MovId, PairedMovContentHash = MovHash });
 
         dto.LivePhotoVideoUrl.Should().BeNull();
         dto.MediaType.Should().Be("Image");
@@ -162,7 +178,7 @@ public sealed class AssetDtoMapperTests
             .Should().Be(new AssetInteractionDto(starred, liked, hidden, weight));
 
     private static AssetView WithLiveVideo(MediaType type)
-        => Photo with { MediaType = type, PairedMovId = MovId, PairedMovHasVideo = true };
+        => Photo with { MediaType = type, PairedMovId = MovId, PairedMovContentHash = MovHash, PairedMovHasVideo = true };
 
     [Theory]
     [InlineData(MediaType.Image, "Image")]

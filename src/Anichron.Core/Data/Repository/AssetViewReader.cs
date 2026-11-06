@@ -5,6 +5,7 @@ namespace Anichron.Core.Data.Repository;
 
 public sealed record AssetView(
     Guid Id,
+    string ContentHash,
     MediaType MediaType,
     int Year,
     int Month,
@@ -19,6 +20,7 @@ public sealed record AssetView(
     bool HasPreview,
     bool HasVideo,
     Guid? PairedMovId,
+    string? PairedMovContentHash,
     bool PairedMovHasVideo,
     bool IsStarred,
     bool IsLiked,
@@ -75,6 +77,7 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
                from i in interactions.DefaultIfEmpty()
                select new AssetView(
                    a.Id,
+                   a.ContentHash,
                    a.MediaType,
                    a.Year!.Value,
                    a.Month!.Value,
@@ -89,6 +92,7 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
                    a.ProxyFiles.Any(p => p.ProxyType == ProxyType.FullPreview),
                    a.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
                    a.PairedAsset!.Id,
+                   a.PairedAsset.ContentHash,
                    a.PairedAsset.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
                    i != null && i.IsStarred,
                    i != null && i.IsLiked,

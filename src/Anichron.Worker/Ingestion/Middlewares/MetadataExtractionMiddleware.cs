@@ -7,11 +7,11 @@ using System.IO.Abstractions;
 
 namespace Anichron.Worker.Ingestion.Middlewares;
 
-internal sealed partial class ExifExtractionMiddleware(
+internal sealed partial class MetadataExtractionMiddleware(
     IFileSystem fileSystem,
-    ILogger<ExifExtractionMiddleware> logger) : IIngestionMiddleware
+    ILogger<MetadataExtractionMiddleware> logger) : IIngestionMiddleware
 {
-    public int Order => IngestionOrder.ExifExtraction;
+    public int Order => IngestionOrder.MetadataExtraction;
     public bool CanInvoke(IngestionContext context) => true;
 
     public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
@@ -72,7 +72,7 @@ internal sealed partial class ExifExtractionMiddleware(
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to extract EXIF metadata from {Path}.")]
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to extract metadata from {Path}.")]
         public static partial void ExtractionFailed(ILogger logger, string path, Exception exception);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to read the Apple creation date of {Path}; the video is dated by its other sources.")]
