@@ -44,10 +44,10 @@ public sealed class ExtractionMappingTests
             (GpsDirectory.TagLongitudeRef, "E"), (GpsDirectory.TagLongitude, Dms(longitude)));
     }
 
-    private MediaDescription Map(params MetadataExtractor.Directory[] directories) => Middleware.Extract(directories, MediaType.Image).Description;
+    private MediaDescription Map(params MetadataExtractor.Directory[] directories) => Middleware.Extract(directories, null, MediaType.Image).Description;
 
     private RecordedDate? Recorded(MediaType mediaType, params MetadataExtractor.Directory[] directories)
-        => Middleware.Extract(directories, mediaType).Recorded;
+        => Middleware.Extract(directories, null, mediaType).Recorded;
 
     private RecordedDate? Recorded(params MetadataExtractor.Directory[] directories) => Recorded(MediaType.Image, directories);
 
@@ -172,22 +172,67 @@ public sealed class ExtractionMappingTests
     public void Extract_VideoWithoutAMovieHeaderCreated_IsUndated()
         => Recorded(MediaType.Video, Movie((QuickTimeMovieHeaderDirectory.TagDuration, TimeSpan.FromSeconds(4)))).Should().BeNull();
 
+    // ==========================================================================
+    // Apple's creation date
+    // ==========================================================================
+
+    private RecordedDate? AppleRecorded(string raw, MediaType mediaType = MediaType.Video, params MetadataExtractor.Directory[] directories)
+        => Middleware.Extract(directories, raw, mediaType).Recorded;
+
+    private static RecordedDate.ClockTime Taken(LocalDateTime at, int? offsetMinutes)
+        => new(at, offsetMinutes is { } minutes ? Offset.FromSeconds(minutes * 60) : null);
+
+    [Theory]
+    [InlineData("2026-10-30T19:10:45+1300", 0, 13 * 60)]
+    [InlineData("2026-10-30T19:10:45+13:00", 0, 13 * 60)]
+    [InlineData("2026-10-30T19:10:45-0330", 0, -210)]
+    [InlineData("2026-10-30T19:10:45Z", 0, 0)]
+    [InlineData("2026-10-30T19:10:45.25+1300", 250, 13 * 60)]
+    [InlineData("2026-10-30T19:10:45.5Z", 500, 0)]
+    [InlineData("2026-10-30T19:10:45", 0, null)]
+    [InlineData("2026-10-30T19:10:45.125", 125, null)]
+    public void Extract_VideoWithAnAppleCreationDate_IsThatClockTimeWithTheOffsetWritten(string raw, int millisecond, int? offsetMinutes)
+    {
+        AppleRecorded(raw).Should().Be(Taken(new LocalDateTime(2026, 10, 30, 19, 10, 45, millisecond), offsetMinutes));
+
+        DebugLogs.Should().BeEmpty();
+    }
+
     [Fact]
-    public void Extract_VideoWithAnAppleCreationDate_IsUndatedUntilItsClockTimeIsRead()
+    public void Extract_VideoWithAnAppleCreationDate_ItWinsOverTheAviDateAndTheMovieHeader()
+        => AppleRecorded("2026-10-30T19:10:45+1300", MediaType.Video,
+                Avi((AviDirectory.TagDateTimeOriginal, "MON SEP 10 20:52:00 2012")),
+                Movie(Created(Unspecified(2026, 10, 30, 6, 10, 41))))
+            .Should().Be(Taken(new LocalDateTime(2026, 10, 30, 19, 10, 45), 13 * 60));
+
+    [Theory]
+    [InlineData("2026-10-30T19:10:45+13")]
+    [InlineData("2026-10-30 19:10:45+1300")]
+    [InlineData("2026-10-30T19:10+1300")]
+    [InlineData("2026-10-30")]
+    [InlineData("30/10/2026 19:10:45")]
+    public void Extract_VideoWithAnUnparseableAppleCreationDate_IsDatedByItsMovieHeaderAndLogged(string raw)
+    {
+        AppleRecorded(raw, MediaType.Video, Movie(Created(Unspecified(2026, 10, 30, 6, 10, 41))))
+            .Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 41)));
+
+        DebugLogs.Should().ContainSingle().Which.Should().Contain($"'{raw}'").And.Contain("Apple");
+    }
+
+    [Fact]
+    public void Extract_VideoWithLibraryReadAppleMetadata_IsDatedByItsMovieHeader()
         => Recorded(
                 MediaType.Video,
                 Movie(Created(Unspecified(2026, 10, 30, 6, 10, 45))),
                 With(new QuickTimeMetadataHeaderDirectory(),
                     (QuickTimeMetadataHeaderDirectory.TagCreationDate, new DateTime(2026, 10, 30, 7, 10, 45, DateTimeKind.Local))))
-            .Should().BeNull();
-
-    [Fact]
-    public void Extract_VideoWithOtherAppleMetadata_IsDatedByItsMovieHeader()
-        => Recorded(
-                MediaType.Video,
-                Movie(Created(Unspecified(2026, 10, 30, 6, 10, 45))),
-                With(new QuickTimeMetadataHeaderDirectory(), (QuickTimeMetadataHeaderDirectory.TagMake, "Apple")))
             .Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 45)));
+
+    [Theory]
+    [InlineData(MediaType.Image)]
+    [InlineData(MediaType.LivePhoto)]
+    public void Extract_Photo_IsNotDatedByAnAppleCreationDate(MediaType mediaType)
+        => AppleRecorded("2026-10-30T19:10:45+1300", mediaType).Should().BeNull();
 
     [Fact]
     public void Extract_Photo_IsNotDatedByAMovieHeader()
@@ -462,12 +507,10 @@ public sealed class ExtractionMappingTests
     [Fact]
     public void Extract_VideoWithAnAppleCreationDate_KeepsItsPosition()
     {
-        var location = Location("-36.8485+174.7633+012.000/");
-        location.Set(QuickTimeMetadataHeaderDirectory.TagCreationDate, new DateTime(2026, 10, 30, 7, 10, 45, DateTimeKind.Local));
+        var result = Middleware.Extract([Location("-36.8485+174.7633+012.000/")], "2026-10-30T19:10:45+1300", MediaType.Video);
 
-        var result = Middleware.Extract([location], MediaType.Video);
-
-        (result.Recorded, result.Description.Latitude, result.Description.Longitude).Should().Be((null, -36.8485, 174.7633));
+        (result.Recorded, result.Description.Latitude, result.Description.Longitude)
+            .Should().Be((Taken(new LocalDateTime(2026, 10, 30, 19, 10, 45), 13 * 60), -36.8485, 174.7633));
     }
 
     [Fact]

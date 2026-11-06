@@ -31,12 +31,35 @@ internal static partial class RecordedDates
     private static LocalTimePattern IptcTime => LocalTimePattern.CreateWithInvariantCulture("HHmmss");
     private static OffsetPattern IptcOffset => OffsetPattern.CreateWithInvariantCulture("+HHmm");
     private static LocalDateTimePattern AviClock => LocalDateTimePattern.CreateWithInvariantCulture("ddd MMM d HH':'mm':'ss uuuu");
+    private static OffsetDateTimePattern[] AppleClocks => [AppleClock("Z+HH:mm"), AppleClock("+HHmm")];
 
-    public static RecordedDate? Of(IReadOnlyList<Directory> directories, MediaType mediaType, ILogger logger)
-        => SourcesOf(mediaType).Select(source => source(directories, logger)).FirstOrDefault(date => date is not null);
+    /// <summary>The recorded capture date, or null when no source of the media type yields one.</summary>
+    /// <param name="directories">What MetadataExtractor read from the file.</param>
+    /// <param name="appleCreationDate">The raw <c>com.apple.quicktime.creationdate</c>, read by <see cref="AppleCreationDates"/>.</param>
+    /// <param name="mediaType">The item's media type, which picks the sources.</param>
+    /// <param name="logger">Logs a value that does not parse.</param>
+    public static RecordedDate? Of(IReadOnlyList<Directory> directories, string? appleCreationDate, MediaType mediaType, ILogger logger)
+        => SourcesOf(mediaType, appleCreationDate).Select(source => source(directories, logger)).FirstOrDefault(date => date is not null);
 
-    private static Source[] SourcesOf(MediaType mediaType)
-        => mediaType == MediaType.Video ? [AviOriginal, MovieHeaderCreated] : [ExifOriginal, XmpDateCreated, IptcDateCreated];
+    private static Source[] SourcesOf(MediaType mediaType, string? appleCreationDate)
+        => mediaType == MediaType.Video
+            ? [(_, logger) => AppleCreationDate(appleCreationDate, logger), AviOriginal, MovieHeaderCreated]
+            : [ExifOriginal, XmpDateCreated, IptcDateCreated];
+
+    private static OffsetDateTimePattern AppleClock(string offset)
+        => OffsetDateTimePattern.CreateWithInvariantCulture($"uuuu'-'MM'-'dd'T'HH':'mm':'ss;FFFFFFFFFo<{offset}>");
+
+    private static RecordedDate? AppleCreationDate(string? raw, ILogger logger)
+    {
+        if (raw is null)
+            return null;
+        if (AppleClocks.Select(pattern => Parsed(pattern, raw)).FirstOrDefault(at => at is not null) is { } at)
+            return new RecordedDate.ClockTime(at.LocalDateTime, at.Offset);
+        if (Parsed(XmpClock, raw) is { } clock)
+            return new RecordedDate.ClockTime(clock, null);
+
+        return Unparseable("Apple", raw, logger);
+    }
 
     private static RecordedDate? ExifOriginal(IReadOnlyList<Directory> directories, ILogger logger)
     {
@@ -96,17 +119,11 @@ internal static partial class RecordedDates
 
     private static RecordedDate? MovieHeaderCreated(IReadOnlyList<Directory> directories, ILogger logger)
     {
-        if (HasAppleCreationDate(directories))
-            return null;
-
         var created = directories.OfType<QuickTimeMovieHeaderDirectory>().FirstOrDefault()?.GetObject(QuickTimeMovieHeaderDirectory.TagCreated);
         return created is DateTime moment && moment != QuickTimeEpoch
             ? new RecordedDate.Moment(Instant.FromDateTimeUtc(DateTime.SpecifyKind(moment, DateTimeKind.Utc)))
             : null;
     }
-
-    private static bool HasAppleCreationDate(IReadOnlyList<Directory> directories)
-        => directories.OfType<QuickTimeMetadataHeaderDirectory>().Any(d => d.ContainsTag(QuickTimeMetadataHeaderDirectory.TagCreationDate));
 
     private static (string Clock, string? Offset) SplitOffset(string raw, int shortestClock)
         => raw.LastIndexOfAny(['Z', '+', '-']) is var start && start >= shortestClock ? (raw[..start], raw[start..]) : (raw, null);

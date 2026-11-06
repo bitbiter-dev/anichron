@@ -25,7 +25,8 @@ internal sealed partial class MetadataExtractionMiddleware(
         try
         {
             using var stream = fileSystem.File.OpenRead(absolutePath);
-            return Extract(ImageMetadataReader.ReadMetadata(stream), mediaType);
+            var directories = ImageMetadataReader.ReadMetadata(stream);
+            return Extract(directories, mediaType == MediaType.Video ? AppleCreationDateOf(stream, absolutePath) : null, mediaType);
         }
         catch (Exception ex)
         {
@@ -34,7 +35,21 @@ internal sealed partial class MetadataExtractionMiddleware(
         }
     }
 
-    internal ExtractedMedia Extract(IReadOnlyList<MetadataExtractor.Directory> directories, MediaType mediaType)
+    private string? AppleCreationDateOf(Stream stream, string absolutePath)
+    {
+        try
+        {
+            stream.Position = 0;
+            return AppleCreationDates.Read(stream);
+        }
+        catch (Exception ex)
+        {
+            Log.AppleCreationDateUnreadable(logger, absolutePath, ex);
+            return null;
+        }
+    }
+
+    internal ExtractedMedia Extract(IReadOnlyList<MetadataExtractor.Directory> directories, string? appleCreationDate, MediaType mediaType)
     {
         var cameraInfo = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
         var captureDetails = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
@@ -42,7 +57,7 @@ internal sealed partial class MetadataExtractionMiddleware(
         var (latitude, longitude) = Positions.Of(directories, logger);
 
         return new ExtractedMedia(
-            RecordedDates.Of(directories, mediaType, logger),
+            RecordedDates.Of(directories, appleCreationDate, mediaType, logger),
             new MediaDescription(
                 width,
                 height,
@@ -59,5 +74,8 @@ internal sealed partial class MetadataExtractionMiddleware(
     {
         [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to extract metadata from {Path}.")]
         public static partial void ExtractionFailed(ILogger logger, string path, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to read the Apple creation date of {Path}; the video is dated by its other sources.")]
+        public static partial void AppleCreationDateUnreadable(ILogger logger, string path, Exception exception);
     }
 }
