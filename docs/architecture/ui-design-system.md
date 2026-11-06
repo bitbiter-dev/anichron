@@ -30,20 +30,25 @@ themes.
 
 Two layers:
 
-- **Primitives:** the raw scales (neutral, accent, danger) as plain CSS variables. No utility
-  class reads them.
+- **Primitives:** the raw scales (`--neutral-*`, `--accent-*`, `--danger-*`, `--black`) as plain
+  CSS variables in `src/app/tokens.css`. No utility class reads them.
 - **Semantic tokens**, the only ones registered with Tailwind's `@theme`: `surface`,
   `surface-raised`, `fg`, `fg-muted`, `border`, `accent`, `on-accent`, `danger`, `focus`, and
   `player`, which is black in both themes. Tailwind's default palette is cleared
-  (`--color-*: initial`).
+  (`--color-*: initial`). `focus` is the accent in both themes, since the accent reaches 3:1 on
+  both surfaces.
 
-Radius (`field`, `card`) and type size get semantic tokens the same way; spacing keeps Tailwind's
-numeric scale. A new kind of colour starts as a semantic token with a value for each theme.
+Radius (`rounded-field`, `rounded-card`) and type size (`text-small`, `text-body`, `text-title`)
+get semantic tokens the same way, with Tailwind's defaults cleared; `rounded-full` (the pill
+button) is not a theme value and stays. Spacing keeps Tailwind's numeric scale. A new kind of colour starts as a semantic token with a value for each theme.
 
 ## Themes
 
 The semantic tokens take their light or dark values from `prefers-color-scheme`, so screens need
-no `dark:` classes. They are written so an attribute on `<html>` can override the system choice.
+no `dark:` classes. Each one is a `light-dark()` of two primitives, and `:root` declares
+`color-scheme: light dark`, so the values follow the system setting at once. An attribute on
+`<html>` that sets `color-scheme: light` or `dark` overrides the system choice without restating
+any token.
 
 The System / Light / Dark toggle ships with #120, its first caller. The choice is stored per
 device in `localStorage`. Applying it before the first paint needs a blocking script, and the CSP
@@ -54,10 +59,12 @@ key and values with the toggle.
 ## Motion and focus
 
 - **Motion:** durations are tokens (`--duration-fast`, `--duration-base`) that resolve to `0ms`
-  under `prefers-reduced-motion: reduce`; no component checks the preference itself. The story
+  under `prefers-reduced-motion: reduce`; no component checks the preference itself. Tailwind's
+  `transition-*` utilities default to `--duration-fast`. The story
   player's gestures follow it through Motion's `MotionConfig reducedMotion="user"` (#348).
 - **Focus:** a 2 px ring in the accent, offset 2 px, on keyboard focus only (`:focus-visible`,
-  React Aria's focus-visible state), never on a tap. It reaches 3:1 against both surfaces; where
+  React Aria's focus-visible state), never on a tap. A native text input matches `:focus-visible`
+  on a tap too, by browser design; React Aria's focus-visible state removes that from #458 on. It reaches 3:1 against both surfaces; where
   the accent does not, `focus` gets its own value in that theme.
 
 ## Base components
@@ -74,9 +81,11 @@ key and values with the toggle.
 - **Seam 2:** a component is tested through the screen that uses it (`renderApp` with MSW), with
   axe in light and dark, and its keyboard operation through `@testing-library/user-event` (React
   Aria's press handling ignores bare `fireEvent` events).
-- **Contrast:** a unit test reads the token stylesheet and checks each semantic foreground and
-  background pair in each theme: 4.5:1 for text, 3:1 for the focus ring and borders.
-- **E2E:** axe in both colour schemes.
+- **Contrast:** a unit test (`src/app/tokens.test.ts`) reads the token stylesheet and checks each
+  semantic foreground and background pair in each theme: 4.5:1 for text, 3:1 for the focus ring
+  and borders.
+- **E2E:** axe in both colour schemes (`e2e/accessibility.ts`); `e2e/look.spec.ts` checks the
+  theme switch, reduced motion, the focus ring and touch targets, and captures the screenshots.
 - **VoiceOver:** the maintainer runs this checklist on the PR that introduces a component:
   1. Every control announces its role, name and state (disabled, invalid, pressed, expanded).
   2. A field announces its label, and its error when it has one.
@@ -87,10 +96,14 @@ key and values with the toggle.
 ## Reviewing the look
 
 - **Design page:** a separate HTML entry that only the Vite dev server serves, not in the
-  production build and not a route of the app's router. It shows the palette in both themes, the
+  production build and not a route of the app's router: `design.html`, at `/design.html` under
+  `pnpm dev`, with its code in `src/design/`. It has its own Tailwind entry, and the app's
+  stylesheet excludes `src/design/` from its sources, so no class of the page reaches the app's
+  CSS. Its text is not in the catalog. It shows the palette in both themes, the
   type scale and every base component in each state.
 - **Screenshots:** a PR that changes the look attaches Playwright screenshots of the affected
-  screens in light and dark, on an iPhone and a Pixel.
+  screens in light and dark, on an iPhone and a Pixel. CI's `E2E` job uploads them as the
+  `screenshots` artifact.
 - **Accent:** the PR that introduces it shows three candidates (warm amber, coral, teal) with their
   contrast ratios; the maintainer picks one and the others are removed before merge.
 - **No Storybook in v1.0.** Revisit at about 10 base components, or when someone other than an
