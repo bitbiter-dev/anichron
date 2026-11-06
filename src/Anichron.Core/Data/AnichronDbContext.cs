@@ -213,8 +213,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
             entity.Property(m => m.Blurhash).HasComment(
                 "BlurHash placeholder string (4x3 components), computed by the Worker from the "
                 + "upright image. Kept here rather than as a proxy file so a response needs no disk "
-                + "read for it. Null for videos, and for images ingested before the column existed, "
-                + "which are not backfilled.");
+                + "read for it. A video's is computed from its poster. Null for assets ingested "
+                + "before the column existed, which are not backfilled.");
             entity.HasKey(m => m.AssetId);
 
             // 1:1 with MediaAsset

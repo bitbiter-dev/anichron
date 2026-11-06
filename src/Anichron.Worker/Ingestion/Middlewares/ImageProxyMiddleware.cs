@@ -2,6 +2,7 @@ using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.IO.Abstractions;
 
@@ -11,21 +12,20 @@ internal sealed partial class ImageProxyMiddleware(
     IEnumerable<IImageProxyGenerator> generators,
     BlurhashEncoder blurhashEncoder,
     IUprightImageDecoder decoder,
+    IVideoFrameExtractor frameExtractor,
     IProxyDirectoryStrategy proxyDirectoryStrategy,
     ProxyStagingWriter stagingWriter,
     IFileSystem fileSystem,
     ILogger<ImageProxyMiddleware> logger) : IIngestionMiddleware
 {
     public int Order => IngestionOrder.ImageProxy;
-    public bool CanInvoke(IngestionContext context)
-        => context.Item.PrimaryMediaType is MediaType.Image or MediaType.LivePhoto;
+    public bool CanInvoke(IngestionContext context) => true;
 
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         // Ordering guarantees ContentHashingMiddleware ran first; suppression is safe.
         var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.Config.Id, context.ContentHash!);
-        var sourceBytes = await fileSystem.File.ReadAllBytesAsync(context.Item.AbsolutePath, ct);
-        using var image = await decoder.DecodeAsync(sourceBytes, ct);
+        using var image = await DecodeUprightAsync(context.Item, ct);
 
         var proxySteps = generators
             .Select(g => new Step(g.Bound, () => WriteProxyAsync(g)))
@@ -68,6 +68,13 @@ internal sealed partial class ImageProxyMiddleware(
             using var copy = image.Clone();
             context.Blurhash = await blurhashEncoder.EncodeAsync(copy, ct);
         }
+    }
+
+    private async Task<Image<Rgb24>> DecodeUprightAsync(IngestionItem item, CancellationToken ct)
+    {
+        if (item.PrimaryMediaType == MediaType.Video)
+            return await frameExtractor.ExtractAsync(item.AbsolutePath, ct);
+        return await decoder.DecodeAsync(await fileSystem.File.ReadAllBytesAsync(item.AbsolutePath, ct), ct);
     }
 
     private sealed record Step(ProxyBound Bound, Func<Task> RunAsync);

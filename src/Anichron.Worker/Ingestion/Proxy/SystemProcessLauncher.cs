@@ -21,14 +21,15 @@ internal sealed class SystemProcessLauncher : IProcessLauncher
         process.Start();
         // Start draining pipes immediately — must be consumed to prevent the child process
         // from blocking on a full pipe buffer. Cancellation is signalled only via WaitForExitAsync.
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        await using var standardOutput = new MemoryStream();
+        var stdoutTask = process.StandardOutput.BaseStream.CopyToAsync(standardOutput, CancellationToken.None);
         var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
         try
         {
             await process.WaitForExitAsync(ct);
             await stdoutTask;
             var standardError = await stderrTask;
-            return new ProcessResult(process.ExitCode, standardError);
+            return new ProcessResult(process.ExitCode, standardError) { StandardOutput = standardOutput.ToArray() };
         }
         catch (OperationCanceledException)
         {
