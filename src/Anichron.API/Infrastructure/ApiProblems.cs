@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using System.Reflection;
 
 namespace Anichron.API.Infrastructure;
 
@@ -32,31 +33,38 @@ internal static class ApiProblems
 
 internal static class ErrorCodes
 {
-    internal const string InvalidCredentials = "invalid_credentials";
-    internal const string AccountDisabled = "account_disabled";
-    internal const string AccountLocked = "account_locked";
-    internal const string RateLimited = "rate_limited";
-    internal const string RefreshTokenRequired = "refresh_token_required";
-    internal const string RefreshTokenInvalid = "refresh_token_invalid";
-    internal const string InvalidUsername = "invalid_username";
-    internal const string InvalidEmail = "invalid_email";
-    internal const string UsernameTaken = "username_taken";
-    internal const string EmailTaken = "email_taken";
-    internal const string PasswordTooShort = "password_too_short";
-    internal const string PasswordTooLong = "password_too_long";
-    internal const string PasswordPwned = "password_pwned";
-    internal const string InviteTokenInvalid = "invite_token_invalid";
-    internal const string PasswordChangeRequired = "password_change_required";
-    internal const string CannotModifySelf = "cannot_modify_self";
-    internal const string PathInvalid = "path_invalid";
-    internal const string PathAlreadyAssigned = "path_already_assigned";
-    internal const string PathOverlaps = "path_overlaps";
-    internal const string InvalidDate = "invalid_date";
-    internal const string InvalidPage = "invalid_page";
-    internal const string InvalidPageSize = "invalid_page_size";
-    internal const string PendingOrOutcome = "pending_or_outcome";
-    internal const string OrphanIdsOrAll = "orphan_ids_or_all";
-    internal const string InvalidOrphanCount = "invalid_orphan_count";
-    internal const string UnknownOrphans = "unknown_orphans";
-    internal const string ServiceUnavailable = "service_unavailable";
+    internal static IEnumerable<string> All()
+        => typeof(ErrorCodes).GetFields(BindingFlags.Static | BindingFlags.Public)
+            .Where(constant => constant.IsLiteral)
+            .Select(constant => constant.GetRawConstantValue())
+            .OfType<string>()
+            .Order(StringComparer.Ordinal);
+
+    public const string InvalidCredentials = "invalid_credentials";
+    public const string AccountDisabled = "account_disabled";
+    public const string AccountLocked = "account_locked";
+    public const string RateLimited = "rate_limited";
+    public const string RefreshTokenRequired = "refresh_token_required";
+    public const string RefreshTokenInvalid = "refresh_token_invalid";
+    public const string InvalidUsername = "invalid_username";
+    public const string InvalidEmail = "invalid_email";
+    public const string UsernameTaken = "username_taken";
+    public const string EmailTaken = "email_taken";
+    public const string PasswordTooShort = "password_too_short";
+    public const string PasswordTooLong = "password_too_long";
+    public const string PasswordPwned = "password_pwned";
+    public const string InviteTokenInvalid = "invite_token_invalid";
+    public const string PasswordChangeRequired = "password_change_required";
+    public const string CannotModifySelf = "cannot_modify_self";
+    public const string PathInvalid = "path_invalid";
+    public const string PathAlreadyAssigned = "path_already_assigned";
+    public const string PathOverlaps = "path_overlaps";
+    public const string InvalidDate = "invalid_date";
+    public const string InvalidPage = "invalid_page";
+    public const string InvalidPageSize = "invalid_page_size";
+    public const string PendingOrOutcome = "pending_or_outcome";
+    public const string OrphanIdsOrAll = "orphan_ids_or_all";
+    public const string InvalidOrphanCount = "invalid_orphan_count";
+    public const string UnknownOrphans = "unknown_orphans";
+    public const string ServiceUnavailable = "service_unavailable";
 }
