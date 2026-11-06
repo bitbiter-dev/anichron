@@ -32,7 +32,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["TokenResponse"];
+                        "application/json": components["schemas"]["SessionResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -125,7 +125,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["TokenResponse"];
+                        "application/json": components["schemas"]["SessionResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -209,7 +209,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["TokenResponse"];
+                        "application/json": components["schemas"]["SessionResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -293,7 +293,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["TokenResponse"];
+                        "application/json": components["schemas"]["SessionResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -612,12 +612,14 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description No Content */
-                204: {
+                /** @description OK */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["SessionResponse"];
+                    };
                 };
                 /** @description Bad Request */
                 400: {
@@ -2507,6 +2509,20 @@ export interface components {
             password: string;
             inviteToken: string;
         };
+        /** @description A new or renewed session, with the refresh token only when it is not set as a cookie. */
+        SessionResponse: {
+            /** @description The access token. */
+            accessToken: string;
+            /**
+             * Format: int32
+             * @description The access token's remaining lifetime in whole seconds.
+             */
+            expiresIn: number | string;
+            /** @description The signed-in user. */
+            user: components["schemas"]["UserProfileResponse"];
+            /** @description The refresh token, for a client that keeps it itself. */
+            refreshToken?: null | string;
+        };
         SseItemOfWorkItemDto: {
             data?: components["schemas"]["WorkItemDto"];
             eventType?: null | string;
@@ -2515,13 +2531,6 @@ export interface components {
         };
         /** Format: binary */
         Stream: string;
-        /** @description The access token, with the refresh token only when it is not set as a cookie. */
-        TokenResponse: {
-            /** @description The access token. */
-            accessToken: string;
-            /** @description The refresh token, for a client that keeps it itself. */
-            refreshToken?: null | string;
-        };
         UserProfileResponse: {
             /** Format: uuid */
             id: string;

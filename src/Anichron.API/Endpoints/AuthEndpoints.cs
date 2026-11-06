@@ -14,17 +14,17 @@ public static class AuthEndpoints
         var group = app.MapGroup(ApiPaths.Auth.Group).WithTags("Auth");
 
         group.MapPost(ApiPaths.Auth.Register, RegisterAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
-             .Produces<TokenResponse>()
+             .Produces<SessionResponse>()
              .ProducesValidationProblem(StatusCodes.Status409Conflict)
              .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
         group.MapPost(ApiPaths.Auth.Login, LoginWebAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
-             .Produces<TokenResponse>()
+             .Produces<SessionResponse>()
              .ProducesProblem(StatusCodes.Status401Unauthorized);
         group.MapPost(ApiPaths.Auth.LoginMobile, LoginMobileAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Sensitive)
-             .Produces<TokenResponse>()
+             .Produces<SessionResponse>()
              .ProducesProblem(StatusCodes.Status401Unauthorized);
         group.MapPost(ApiPaths.Auth.Refresh, RefreshAsync).AllowAnonymous().RequireRateLimit(AuthRateLimitPolicies.Refresh)
-             .Produces<TokenResponse>()
+             .Produces<SessionResponse>()
              .ProducesProblem(StatusCodes.Status401Unauthorized);
         group.MapPost(ApiPaths.Auth.Logout, LogoutAsync).RequireUserAllowedWhileMustChangePassword()
              .Produces(StatusCodes.Status204NoContent);
@@ -81,8 +81,7 @@ public static class AuthEndpoints
         }
 
         var result = await auth.RefreshAsync(rawToken, ct);
-        var setCookie = http.Request.Cookies.ContainsKey(AuthMessages.RefreshTokenCookieName);
-        return mapper.GetRefreshResult(result, http, setCookie);
+        return mapper.GetRefreshResult(result, http, CameWithRefreshCookie(http));
     }
 
     internal static async Task<IResult> LogoutAsync(
@@ -95,6 +94,9 @@ public static class AuthEndpoints
         return Results.NoContent();
     }
 
+    internal static bool CameWithRefreshCookie(HttpContext http)
+        => http.Request.Cookies.ContainsKey(AuthMessages.RefreshTokenCookieName);
+
     // Not yet implemented — planned for Epic 8 (email notifications with deep links).
     private static IResult PasswordResetRequest() => Results.StatusCode(StatusCodes.Status501NotImplemented);
 
@@ -105,9 +107,13 @@ public sealed record RegisterRequest(string Username, string Email, string Passw
 public sealed record LoginRequest(string UsernameOrEmail, string Password);
 public sealed record RefreshRequest(string RefreshToken);
 
-/// <summary>The access token, with the refresh token only when it is not set as a cookie.</summary>
+/// <summary>A new or renewed session, with the refresh token only when it is not set as a cookie.</summary>
 /// <param name="AccessToken">The access token.</param>
+/// <param name="ExpiresIn">The access token's remaining lifetime in whole seconds.</param>
+/// <param name="User">The signed-in user.</param>
 /// <param name="RefreshToken">The refresh token, for a client that keeps it itself.</param>
-public sealed record TokenResponse(
+public sealed record SessionResponse(
     string AccessToken,
+    int ExpiresIn,
+    UserProfileResponse User,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RefreshToken = null);

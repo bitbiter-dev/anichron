@@ -34,7 +34,7 @@ export async function changePassword(
     headers: bearer(token),
     data: { currentPassword, newPassword },
   });
-  expect(response.status(), await response.text()).toBe(204);
+  expect(response.status(), await response.text()).toBe(200);
 }
 
 export async function createAccount(request: APIRequestContext): Promise<Account> {

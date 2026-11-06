@@ -40,7 +40,7 @@ public sealed class TokenService(
             ExpiresAt = now.Plus(Duration.FromDays(settings.RefreshTokenDays)),
         });
 
-        return new AuthTokens(jwtFactory.Create(user), rawToken);
+        return new AuthTokens(jwtFactory.Create(user), rawToken, (int)settings.AccessTokenLifetime.TotalSeconds, user);
     }
 
     public async Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct)

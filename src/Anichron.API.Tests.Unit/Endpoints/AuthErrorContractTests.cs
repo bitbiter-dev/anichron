@@ -241,7 +241,7 @@ public sealed class AuthErrorContractTests
         AuthError error, int status, string code, string field, string detail)
     {
         auth.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail(error));
+            .Returns(AuthResult.Fail<AuthTokens>(error));
         await using var app = await StartAsync();
 
         using var response = await ChangePasswordAsync(app);
