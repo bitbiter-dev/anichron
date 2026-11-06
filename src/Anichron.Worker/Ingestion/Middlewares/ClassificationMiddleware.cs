@@ -38,7 +38,7 @@ internal sealed partial class ClassificationMiddleware(
     private async Task<bool> ReconcileSecondaryAsync(
         IngestionContext context, IngestionClassification classification, CancellationToken ct)
         => classification.Secondary is { } secondary
-            && await reconciler.ReconcileAsync(context, secondary, context.Item.SecondaryFile!.RelativePath, ct);
+            && await reconciler.ReconcileSecondaryAsync(context, secondary, classification.Primary, context.Item.SecondaryFile!.RelativePath, ct);
 
     private static partial class Log
     {

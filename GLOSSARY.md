@@ -16,6 +16,10 @@ _Avoid_: Primary photo, key photo
 A photo and the short video the camera recorded with it, shown as one memory. Its video is part of the photo, never a memory of its own; without its video, the photo is shown as a still photo.
 _Avoid_: Pair, HEIC+MOV, motion photo
 
+**Poster**:
+The still frame that stands for a video wherever it is shown before it plays. Only a video that is a memory of its own has one; a Live Photo's photo is already its image.
+_Avoid_: Cover, thumbnail, preview frame
+
 **Capture date**:
 The date and time on the clock where a photo or video was taken, as its camera or app recorded it, with the offset from UTC when one was recorded and the time zone where it was taken when its location is known. A moment recorded only in UTC is read in that zone, or in the library's time zone without a location. A capture date recorded without a time names the day only, and its asset is never part of a burst.
 _Avoid_: Date taken, timestamp, creation date

@@ -57,6 +57,12 @@ public sealed class KnownFileReconcilerTests
             });
 
         public Task<bool> ReconcileAsync(FileClassification file, string relativePath = "2024/taken.jpg")
+            => Reconciler().ReconcileAsync(Context, file, relativePath, CancellationToken.None);
+
+        public Task<bool> ReconcileSecondaryAsync(FileClassification file, string relativePath)
+            => Reconciler().ReconcileSecondaryAsync(Context, file, Context.Classification!.Primary, relativePath, CancellationToken.None);
+
+        private KnownFileReconciler Reconciler()
         {
             var clock = Substitute.For<IClock>();
             clock.GetCurrentInstant().Returns(Now);
@@ -69,8 +75,7 @@ public sealed class KnownFileReconcilerTests
                 Repository,
                 new FakeLogger<PairedMovProxyWriter>());
             return new KnownFileReconciler(
-                    clock, Repository, new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>()), guids, movProxyWriter, Logger)
-                .ReconcileAsync(Context, file, relativePath, CancellationToken.None);
+                clock, Repository, new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>()), guids, movProxyWriter, Logger);
         }
     }
 
@@ -428,7 +433,7 @@ public sealed class KnownFileReconcilerTests
         var mov = Row(MovedRowId, "2024/live.mov", "0ldm0v", softDeleted: true);
         fx.Context = VideoContext(FileOutcome.AutoRestoredContentChanged, mov);
 
-        var reconciled = await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
+        var reconciled = await fx.ReconcileSecondaryAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
 
         reconciled.Should().BeTrue();
         mov.Should().BeEquivalentTo(new { IsSoftDeleted = false, LastSeenOnNas = Now, ContentHash = "cafebabe" });
@@ -447,7 +452,7 @@ public sealed class KnownFileReconcilerTests
         fx.LoadsMetadata(mov, new Metadata { AssetId = MovedRowId, Description = MediaDescription.Unknown with { Width = 1920, Height = 1080 }, Blurhash = "old" });
         fx.Context = VideoContext(FileOutcome.ContentChanged, mov);
 
-        var reconciled = await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
+        var reconciled = await fx.ReconcileSecondaryAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
 
         reconciled.Should().BeTrue();
         mov.Should().BeEquivalentTo(new
@@ -480,7 +485,7 @@ public sealed class KnownFileReconcilerTests
         fx.Context = VideoContext(FileOutcome.ContentChanged, mov, withPhoto: false);
         fx.FileSystem.AddFile("/abs/2024/live.mov", new MockFileData([]) { LastWriteTime = new DateTime(2021, 2, 3, 4, 5, 6, DateTimeKind.Local) });
 
-        await fx.ReconcileAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
+        await fx.ReconcileSecondaryAsync(fx.Context.Classification!.Secondary!, "2024/live.mov");
 
         mov.Should().BeEquivalentTo(new { ContentHash = "cafebabe", DateCaptured = (LocalDateTime?)null });
     }
@@ -496,7 +501,7 @@ public sealed class KnownFileReconcilerTests
             Secondary = new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved),
         };
 
-        await fx.ReconcileAsync(fx.Context.Classification.Secondary, "2024/live.mov");
+        await fx.ReconcileSecondaryAsync(fx.Context.Classification.Secondary, "2024/live.mov");
 
         (atPath.ContentHash, atPath.Captured).Should().Be(("abc123", PhotoCaptured));
     }
@@ -512,7 +517,7 @@ public sealed class KnownFileReconcilerTests
             Secondary = new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved),
         };
 
-        await fx.ReconcileAsync(fx.Context.Classification.Secondary, "2024/live.mov");
+        await fx.ReconcileSecondaryAsync(fx.Context.Classification.Secondary, "2024/live.mov");
 
         (atPath.ContentHash, atPath.DateCaptured).Should().Be(("abc123", null));
     }
@@ -589,7 +594,7 @@ public sealed class KnownFileReconcilerTests
         var video = Row(MovedRowId, "2024/live.mov", "cafebabe", softDeleted: true);
         fx.Context.Classification = LivePhoto((FileOutcome)photoOutcome, video);
 
-        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
+        await fx.ReconcileSecondaryAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
 
         InformationLines(fx).Should().ContainSingle().Which.Message.Should().Be(
             "Asset cccccccc-cccc-cccc-cccc-cccccccccccc is a Live Photo again: "
@@ -606,7 +611,7 @@ public sealed class KnownFileReconcilerTests
         var video = Row(MovedRowId, "2024/live.mov", "cafebabe", softDeleted: true);
         fx.Context.Classification = LivePhoto((FileOutcome)photoOutcome, video);
 
-        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
+        await fx.ReconcileSecondaryAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
 
         InformationLines(fx).Should().BeEmpty();
     }
@@ -618,7 +623,7 @@ public sealed class KnownFileReconcilerTests
         var video = Row(MovedRowId, "2024/live.mov", "cafebabe", softDeleted: true);
         fx.Context.Classification = LivePhoto(FileOutcome.Unchanged, video, photoPointsAt: Guid.NewGuid());
 
-        await fx.ReconcileAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
+        await fx.ReconcileSecondaryAsync(fx.Context.Classification.Secondary!, "2024/live.mov");
 
         InformationLines(fx).Should().BeEmpty();
     }

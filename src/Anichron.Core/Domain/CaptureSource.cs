@@ -11,3 +11,9 @@ public enum CaptureSource
     /// <summary>A moment the file records only in UTC, read in the zone where it was taken, else in the library's zone.</summary>
     RecordedInUtc = 3,
 }
+
+public static class CaptureSources
+{
+    /// <summary>The sources whose capture date carries a time of day.</summary>
+    public static IReadOnlyCollection<CaptureSource?> Timed => [CaptureSource.Recorded, CaptureSource.RecordedInUtc];
+}

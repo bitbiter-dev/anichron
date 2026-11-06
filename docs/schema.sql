@@ -212,7 +212,7 @@ CREATE TABLE "Metadata" (
     CONSTRAINT "PK_Metadata" PRIMARY KEY ("AssetId"),
     CONSTRAINT "FK_Metadata_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE
 );
-COMMENT ON TABLE "Metadata" IS 'EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by ExifExtractionMiddleware; every field is best-effort, because a file may carry no EXIF at all.';
+COMMENT ON TABLE "Metadata" IS 'What a file records in its EXIF, XMP, IPTC, QuickTime or AVI metadata, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by MetadataExtractionMiddleware; every field is best-effort, because a file may record none of it.';
 COMMENT ON COLUMN "Metadata"."Description_Orientation" IS 'EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container''s irot for a HEIC, the video track''s rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video''s player applies its own rotation, so rotate neither by it.';
 COMMENT ON COLUMN "Metadata"."Blurhash" IS 'BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. A video''s is computed from its poster. Null for assets ingested before the column existed, which are not backfilled.';
 
