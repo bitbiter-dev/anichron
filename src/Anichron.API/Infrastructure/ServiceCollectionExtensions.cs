@@ -137,10 +137,16 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAdminStorageConfigService, AdminStorageConfigService>();
             services.AddTransient<IBootstrapResetService, BootstrapResetService>();
 
-            services.AddSingleton(new AuthCookieSettings
+            var sameSite = CorsOrigins.RefreshCookieSameSite(CorsOrigins.Read(configuration));
+            services.AddSingleton(provider =>
             {
-                SameSite = CorsOrigins.RefreshCookieSameSite(CorsOrigins.Read(configuration)),
-                RefreshTokenDays = configuration.GetValue("Jwt:RefreshTokenDays", AppDefaults.Jwt.RefreshTokenDays),
+                var jwt = provider.GetRequiredService<IOptions<JwtSettings>>().Value;
+                return new AuthCookieSettings
+                {
+                    SameSite = sameSite,
+                    AccessTokenMinutes = jwt.AccessTokenMinutes,
+                    RefreshTokenDays = jwt.RefreshTokenDays,
+                };
             });
 
             services.AddHttpClient<IPwnedPasswordClient, PwnedPasswordClient>(client =>
@@ -155,7 +161,14 @@ public static class ServiceCollectionExtensions
             });
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
-            services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            services.AddJwtValidation(JwtBearerDefaults.AuthenticationScheme);
+
+            return services;
+        }
+
+        internal IServiceCollection AddJwtValidation(string scheme)
+        {
+            services.AddOptions<JwtBearerOptions>(scheme)
                 .Configure<IOptions<JwtSettings>>((options, jwt) =>
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
@@ -168,7 +181,6 @@ public static class ServiceCollectionExtensions
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.Zero,
                     });
-
             return services;
         }
 

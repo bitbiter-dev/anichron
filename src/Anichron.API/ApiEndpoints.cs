@@ -20,6 +20,7 @@ public static class ApiEndpoints
             api.MapAuthEndpoints();
             api.MapUserEndpoints();
             api.MapAdminEndpoints();
+            api.MapProxyEndpoints();
             api.MapMediaEndpoints();
             api.MapFlashbackEndpoints();
             api.MapBurstEndpoints();

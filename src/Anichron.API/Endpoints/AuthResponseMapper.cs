@@ -22,7 +22,7 @@ public interface IAuthResponseMapper
     IResult GetAdminGetStorageConfigsResult(AuthResult<List<UserStorageConfig>> result);
     IResult GetAdminCreateStorageConfigResult(AuthResult<UserStorageConfig> result);
     IResult GetAdminDeleteStorageConfigResult(AuthResult result);
-    void ClearRefreshCookie(HttpContext http);
+    void ClearSessionCookies(HttpContext http);
 }
 
 public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock clock) : IAuthResponseMapper
@@ -47,8 +47,9 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             };
         }
 
-        SetRefreshCookie(http, result.Value!.RefreshToken);
-        return Results.Ok(new TokenResponse(result.Value.AccessToken));
+        var tokens = result.Value!;
+        SetSessionCookies(http, tokens);
+        return Results.Ok(new TokenResponse(tokens.AccessToken));
     }
 
     public IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie)
@@ -189,8 +190,11 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             _ => throw new UnreachableException($"Unexpected AuthError in AdminDeleteStorageConfig: {result.Error}"),
         };
 
-    public void ClearRefreshCookie(HttpContext http)
-        => http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);
+    public void ClearSessionCookies(HttpContext http)
+    {
+        http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);
+        http.Response.Cookies.Delete(ProxyEndpoints.MediaCookieName, SessionCookieOptions(ProxyEndpoints.MediaCookiePath));
+    }
 
     private static class Fields
     {
@@ -213,7 +217,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         if (!setCookie)
             return Results.Ok(new TokenResponse(tokens.AccessToken, tokens.RefreshToken));
 
-        SetRefreshCookie(http, tokens.RefreshToken);
+        SetSessionCookies(http, tokens);
         return Results.Ok(new TokenResponse(tokens.AccessToken));
     }
 
@@ -242,14 +246,23 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     private static IResult AccountDisabledResult()
         => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.AccountDisabled, AuthMessages.AccountDisabled);
 
-    private void SetRefreshCookie(HttpContext http, string rawToken)
+    private void SetSessionCookies(HttpContext http, AuthTokens tokens)
     {
-        http.Response.Cookies.Append(AuthMessages.RefreshTokenCookieName, rawToken, new CookieOptions
+        var now = clock.GetCurrentInstant().ToDateTimeOffset();
+        var refresh = SessionCookieOptions("/");
+        refresh.Expires = now.AddDays(cookieSettings.RefreshTokenDays);
+        http.Response.Cookies.Append(AuthMessages.RefreshTokenCookieName, tokens.RefreshToken, refresh);
+        var media = SessionCookieOptions(ProxyEndpoints.MediaCookiePath);
+        media.Expires = now.AddMinutes(cookieSettings.AccessTokenMinutes);
+        http.Response.Cookies.Append(ProxyEndpoints.MediaCookieName, tokens.AccessToken, media);
+    }
+
+    private CookieOptions SessionCookieOptions(string path)
+        => new()
         {
             HttpOnly = true,
             Secure = true,
             SameSite = cookieSettings.SameSite,
-            Expires = clock.GetCurrentInstant().ToDateTimeOffset().AddDays(cookieSettings.RefreshTokenDays),
-        });
-    }
+            Path = path,
+        };
 }
