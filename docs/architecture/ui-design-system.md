@@ -14,7 +14,7 @@ build settles a detail.
   language is added there and to the catalog. The app is wrapped in `I18nProvider` with the locale
   from i18next's current language, and `<html lang>` follows the same value.
 - **Icons:** `lucide-react`, imported per icon. A meaningful icon's label comes from the catalog; a
-  decorative one is `aria-hidden`.
+  decorative one is `aria-hidden`. Its first caller is #120's navigation.
 - **Fonts:** the system font stack. No font files in v1.0.
 - **Class order:** `prettier-plugin-tailwindcss`, checked by `pnpm format`. No Tailwind ESLint
   plugin: an off-palette class does not exist (see Tokens).
