@@ -19,9 +19,9 @@ namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
 public sealed class ExtractionMappingTests
 {
-    private readonly FakeLogger<ExifExtractionMiddleware> logger = new();
+    private readonly FakeLogger<MetadataExtractionMiddleware> logger = new();
 
-    private ExifExtractionMiddleware Middleware => new(new MockFileSystem(), logger);
+    private MetadataExtractionMiddleware Middleware => new(new MockFileSystem(), logger);
 
     private static T With<T>(T directory, params (int Tag, object Value)[] tags) where T : MetadataExtractor.Directory
     {
