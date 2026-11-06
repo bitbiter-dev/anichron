@@ -188,6 +188,9 @@ jobs:
           require-lockfile: true
           cache: true
 
+      - name: Generated API types are current
+        run: pnpm openapi:check
+
       - name: Typecheck
         run: pnpm typecheck
 

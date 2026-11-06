@@ -270,7 +270,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<string>("Blurhash")
                         .HasColumnType("text")
-                        .HasComment("BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. Null for videos, and for images ingested before the column existed, which are not backfilled.");
+                        .HasComment("BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. A video's is computed from its poster. Null for assets ingested before the column existed, which are not backfilled.");
 
                     b.HasKey("AssetId");
 

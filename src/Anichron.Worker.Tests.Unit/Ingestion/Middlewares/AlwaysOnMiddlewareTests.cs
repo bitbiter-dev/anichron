@@ -13,7 +13,7 @@ namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
 public sealed class AlwaysOnMiddlewareTests
 {
-    public static TheoryData<string> Names => ["Classification", "ContentHashing", "Logging", "Persistence"];
+    public static TheoryData<string> Names => ["Classification", "ContentHashing", "ImageProxy", "Logging", "Persistence"];
 
     private static IIngestionMiddleware Create(string name)
     {
@@ -32,6 +32,8 @@ public sealed class AlwaysOnMiddlewareTests
                 saver,
                 new FakeLogger<ClassificationMiddleware>()),
             "ContentHashing" => new ContentHashingMiddleware(fileSystem),
+            "ImageProxy" => new ImageProxyMiddleware(
+                [], null!, null!, null!, null!, null!, fileSystem, new FakeLogger<ImageProxyMiddleware>()),
             "Logging" => new LoggingMiddleware(new FakeLogger<LoggingMiddleware>()),
             "Persistence" => new PersistenceMiddleware([], saver, new FakeLogger<PersistenceMiddleware>()),
             _ => throw new ArgumentOutOfRangeException(nameof(name)),

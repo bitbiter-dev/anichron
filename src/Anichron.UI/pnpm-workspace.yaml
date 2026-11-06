@@ -1,3 +1,6 @@
 engineStrict: true
 saveExact: true
 strictPeerDependencies: true
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: '6'

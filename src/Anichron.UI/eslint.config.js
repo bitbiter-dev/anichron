@@ -22,6 +22,7 @@ export default defineConfig([
     '.stryker-tmp',
     'playwright-report',
     'test-results',
+    'src/api/generated',
   ]),
   {
     files: ['**/*.{ts,tsx}'],

@@ -21,7 +21,7 @@ public sealed class FfmpegVideoProcessorTests
     }
 
     private static Task<ProcessResult> ProbeResultAsync(bool success)
-        => Task.FromResult(new ProcessResult(success ? 0 : 1, string.Empty));
+        => Task.FromResult(new ProcessResult(success ? 0 : 1, [], string.Empty));
 
     private static bool IsProbeCall(IReadOnlyList<string> arguments) => arguments.Contains("/dev/null");
 
@@ -170,7 +170,7 @@ public sealed class FfmpegVideoProcessorTests
             {
                 var arguments = callInfo.ArgAt<IReadOnlyList<string>>(1).ToArray();
                 calls.Add(arguments);
-                return Task.FromResult(new ProcessResult(IsProbeCall(arguments) ? 0 : transcodeExitCode, "boom\n"));
+                return Task.FromResult(new ProcessResult(IsProbeCall(arguments) ? 0 : transcodeExitCode, [], "boom\n"));
             });
         return calls;
     }
