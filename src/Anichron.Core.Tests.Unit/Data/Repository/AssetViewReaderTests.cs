@@ -250,11 +250,34 @@ public sealed partial class AssetViewReaderTests
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
         view.Should().Be(new AssetView(
-            asset.Id, MediaType.Video, 2019, 7, 14, new LocalDateTime(2019, 7, 14, 9, 30),
+            asset.Id, asset.ContentHash, MediaType.Video, 2019, 7, 14, new LocalDateTime(2019, 7, 14, 9, 30),
             4032, 3024, 6, 12, "LEHV6nWB2yk8",
             HasThumbnail: true, HasPreview: false, HasVideo: true,
-            PairedMovId: null, PairedMovHasVideo: false,
+            PairedMovId: null, PairedMovContentHash: null, PairedMovHasVideo: false,
             IsStarred: false, IsLiked: false, BurstId: null));
+    }
+
+    [Fact]
+    public async Task ReadAsync_RowThatTookNewContent_KeepsItsIdAndReportsTheNewHash()
+    {
+        var library = new Library();
+        var asset = library.Asset(library.MiraConfig, proxyTypes: ProxyType.Thumbnail);
+        asset.ContentHash = "0ld0ld0ld0ld0ld0";
+        var options = await library.SeedAsync();
+        await using (var db = new AnichronDbContext(options))
+        {
+            var row = await db.MediaAssets.Include(a => a.ProxyFiles).SingleAsync(TestContext.Current.CancellationToken);
+            row.ContentHash = "n3wn3wn3wn3wn3wn";
+            row.ProxyFiles.Single().ProxyPath = "n3/n3wn3wn3wn3wn3wn/thumbnail.jpg";
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var reading = new AnichronDbContext(options);
+        var views = await new EfAssetViewReader(reading)
+            .ReadAsync(library.Mira.Id, new Everything(), TestContext.Current.CancellationToken);
+
+        var view = views.Should().ContainSingle().Which;
+        (view.Id, view.ContentHash).Should().Be((asset.Id, "n3wn3wn3wn3wn3wn"));
     }
 
     [Fact]
@@ -321,10 +344,13 @@ public sealed partial class AssetViewReaderTests
     // Live Photo pairing
     // ==========================================================================
 
+    private const string MovHash = "cafebabecafebabe";
+
     private static async Task<AssetView> LivePhotoAsync(bool movSoftDeleted, params ProxyType[] movProxies)
     {
         var library = new Library();
         var mov = library.Asset(library.MiraConfig, type: MediaType.Video, softDeleted: movSoftDeleted, proxyTypes: movProxies);
+        mov.ContentHash = MovHash;
         var heic = library.LivePhoto(mov);
 
         var views = await ReadAsync(library, library.Mira, new OnlyAsset(heic.Id));
@@ -332,11 +358,12 @@ public sealed partial class AssetViewReaderTests
     }
 
     [Fact]
-    public async Task ReadAsync_PairedMovWithVideo_ReportsItsIdAndVideo()
+    public async Task ReadAsync_PairedMovWithVideo_ReportsItsIdHashAndVideo()
     {
         var view = await LivePhotoAsync(movSoftDeleted: false, ProxyType.WebVideo);
 
         view.PairedMovId.Should().NotBeNull();
+        view.PairedMovContentHash.Should().Be(MovHash);
         view.PairedMovHasVideo.Should().BeTrue();
     }
 
@@ -355,6 +382,7 @@ public sealed partial class AssetViewReaderTests
         var view = await LivePhotoAsync(movSoftDeleted: true, ProxyType.WebVideo);
 
         view.PairedMovId.Should().BeNull();
+        view.PairedMovContentHash.Should().BeNull();
         view.PairedMovHasVideo.Should().BeFalse();
     }
 
@@ -555,8 +583,8 @@ public sealed partial class AssetViewReaderTests
     public void OnThisDay_FallsOnTheDay_ComparesMonthAndDay(int year, int month, int day, bool falls)
     {
         var view = new AssetView(
-            Guid.NewGuid(), MediaType.Image, year, month, day, new LocalDateTime(year, month, day, 9, 0),
-            null, null, null, null, null, false, false, false, null, false, false, false, null);
+            Guid.NewGuid(), "0123456789abcdef", MediaType.Image, year, month, day, new LocalDateTime(year, month, day, 9, 0),
+            null, null, null, null, null, false, false, false, null, null, false, false, false, null);
 
         new OnThisDay(new LocalDate(2026, 7, 14)).FallsOnTheDay(view).Should().Be(falls);
     }

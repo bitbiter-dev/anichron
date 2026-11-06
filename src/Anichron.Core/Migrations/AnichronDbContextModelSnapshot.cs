@@ -276,7 +276,7 @@ namespace Anichron.Core.Migrations
 
                     b.ToTable("Metadata", t =>
                         {
-                            t.HasComment("EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by ExifExtractionMiddleware; every field is best-effort, because a file may carry no EXIF at all.");
+                            t.HasComment("What a file records in its EXIF, XMP, IPTC, QuickTime or AVI metadata, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by MetadataExtractionMiddleware; every field is best-effort, because a file may record none of it.");
                         });
                 });
 
@@ -429,7 +429,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<bool>("MustChangePassword")
                         .HasColumnType("boolean")
-                        .HasComment("Set by an admin reset. MustChangePasswordMiddleware then 403s every route except the handful needed to change it.");
+                        .HasComment("Set by an admin reset. Every protected route then answers 403 except the handful needed to change it.");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

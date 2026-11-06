@@ -15,10 +15,14 @@ internal static class EndpointResponses
     {
         /// <summary>A signed-in user, refused while their password must change.</summary>
         internal TBuilder RequireUser()
-            => builder.RequireUserAllowedWhileMustChangePassword().ProducesProblem(StatusCodes.Status403Forbidden);
+            => builder.RequireAuthorization()
+                      .ProducesProblem(StatusCodes.Status401Unauthorized)
+                      .ProducesProblem(StatusCodes.Status403Forbidden);
 
         internal TBuilder RequireUserAllowedWhileMustChangePassword()
-            => builder.RequireAuthorization().ProducesProblem(StatusCodes.Status401Unauthorized);
+            => builder.RequireAuthorization()
+                      .WithMetadata(new AllowedWhileMustChangePasswordAttribute())
+                      .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         internal TBuilder RequireAdmin()
             => builder.RequireAuthorization(AuthPolicies.Admin)

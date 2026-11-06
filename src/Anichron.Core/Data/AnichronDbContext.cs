@@ -197,9 +197,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
         modelBuilder.Entity<Metadata>(entity =>
         {
             entity.ToTable(t => t.HasComment(
-                    "EXIF data, 1:1 with MediaAsset and keyed by it — there is no separate Id. "
-                    + "Populated by ExifExtractionMiddleware; every field is best-effort, because a "
-                    + "file may carry no EXIF at all."
+                    "What a file records in its EXIF, XMP, IPTC, QuickTime or AVI metadata, 1:1 with MediaAsset and "
+                    + "keyed by it — there is no separate Id. Populated by MetadataExtractionMiddleware; every field "
+                    + "is best-effort, because a file may record none of it."
                 ));
             entity.OwnsOne(m => m.Description, description => description.Property(d => d.Orientation)
                   .HasDefaultValue(ExifOrientation.Upright)
@@ -313,8 +313,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 "Argon2id. The parameters live with the hasher, not here, so rotating them does "
                 + "not require a migration.");
             entity.Property(u => u.MustChangePassword).HasComment(
-                "Set by an admin reset. MustChangePasswordMiddleware then 403s every route except "
-                + "the handful needed to change it.");
+                "Set by an admin reset. Every protected route then answers 403 except the handful "
+                + "needed to change it.");
 
             entity.Property(u => u.Username)
                   .HasConversion(v => IdentityNormalizer.Normalize(v), v => v)

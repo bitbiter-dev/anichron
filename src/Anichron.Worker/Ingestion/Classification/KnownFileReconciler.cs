@@ -15,14 +15,21 @@ internal sealed partial class KnownFileReconciler(
     PairedMovProxyWriter pairedMovProxyWriter,
     ILogger<KnownFileReconciler> logger)
 {
-    public Task<bool> ReconcileAsync(
-        IngestionContext context, FileClassification file, string relativePath, CancellationToken ct) => file.Outcome switch
+    public Task<bool> ReconcileAsync(IngestionContext context, FileClassification file, string relativePath, CancellationToken ct)
+        => ReconcileAsync(context, file, relativePath, photo: null, ct);
+
+    public Task<bool> ReconcileSecondaryAsync(
+        IngestionContext context, FileClassification file, FileClassification photo, string relativePath, CancellationToken ct)
+        => ReconcileAsync(context, file, relativePath, photo, ct);
+
+    private Task<bool> ReconcileAsync(
+        IngestionContext context, FileClassification file, string relativePath, FileClassification? photo, CancellationToken ct) => file.Outcome switch
         {
             FileOutcome.Unchanged => Task.FromResult(Refresh(file.Stored!, relativePath)),
             FileOutcome.Moved => Task.FromResult(Move(file.Stored!, relativePath)),
             FileOutcome.DuplicateCopy => Task.FromResult(SkipDuplicate(file.Stored!, relativePath)),
             FileOutcome.OverwrittenByCopy => RetireOverwrittenAsync(context, file.Stored!, file.Retired!, relativePath, ct),
-            FileOutcome.OverwrittenByMove => TakeMovedContentAsync(context, file, relativePath, ct),
+            FileOutcome.OverwrittenByMove => TakeMovedContentAsync(context, file, relativePath, photo, ct),
             FileOutcome.ContentChanged or FileOutcome.AutoRestoredContentChanged
                 => TakeVideoContentAsync(context, file.Stored!, relativePath, ct),
             FileOutcome.AutoRestored or FileOutcome.AutoRestoredMoved => AutoRestoreAsync(context, file.Stored!, relativePath, ct),
@@ -75,14 +82,14 @@ internal sealed partial class KnownFileReconciler(
     }
 
     private async Task<bool> TakeMovedContentAsync(
-        IngestionContext context, FileClassification file, string relativePath, CancellationToken ct)
+        IngestionContext context, FileClassification file, string relativePath, FileClassification? photo, CancellationToken ct)
     {
         var (atPath, moved) = (file.Stored!, file.Retired!);
         await repository.LoadMetadataAsync(moved, ct);
         MoveTo(atPath, relativePath);
         await storedContent.TakeAsync(context, atPath, AssetContent.Of(moved, [.. moved.ProxyFiles.Select(proxy => ProxyOf(atPath, proxy))]), ct);
-        if (file == context.Classification?.Secondary)
-            PairedMovResolver.DateFromPhoto(atPath, context.Classification.Primary.Row);
+        if (photo is not null)
+            PairedMovResolver.DateFromPhoto(atPath, photo.Row);
 
         await storedContent.RetireAsync(context, moved, ct);
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
