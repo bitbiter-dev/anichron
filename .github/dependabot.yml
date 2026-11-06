@@ -35,9 +35,6 @@ updates:
           - "Microsoft.VisualStudio.Threading.Analyzers"
           - "StyleCop.Analyzers*"
           - "Microsoft.CodeAnalysis.*Analyzers"
-      # The first release that reads Apple's creation date with its offset (upstream #475) fails
-      # a canary test on purpose: its PR deletes the Worker's own reader (#415). On its own, that
-      # failure holds up no other bump.
       metadata-extractor:
         patterns:
           - "MetadataExtractor"

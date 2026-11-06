@@ -26,10 +26,7 @@ internal sealed partial class ExifExtractionMiddleware(
         {
             using var stream = fileSystem.File.OpenRead(absolutePath);
             var directories = ImageMetadataReader.ReadMetadata(stream);
-            if (mediaType != MediaType.Video)
-                return Extract(directories, null, mediaType);
-
-            return Extract(directories, AppleCreationDateOf(stream, absolutePath), mediaType);
+            return Extract(directories, mediaType == MediaType.Video ? AppleCreationDateOf(stream, absolutePath) : null, mediaType);
         }
         catch (Exception ex)
         {

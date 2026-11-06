@@ -51,8 +51,8 @@ public sealed class ExifExtractionMiddlewareTests
             ContentHash = contentHash,
         };
 
-    private static ExifExtractionMiddleware MakeMiddleware(MockFileSystem fs)
-        => new(fs, Substitute.For<ILogger<ExifExtractionMiddleware>>());
+    private static ExifExtractionMiddleware MakeMiddleware(MockFileSystem fs, ILogger<ExifExtractionMiddleware>? logger = null)
+        => new(fs, logger ?? Substitute.For<ILogger<ExifExtractionMiddleware>>());
 
     // ==========================================================================
     // InvokeAsync
@@ -188,8 +188,7 @@ public sealed class ExifExtractionMiddlewareTests
         });
         var context = MakeContext("/abs/media", mediaType: mediaType);
 
-        await new ExifExtractionMiddleware(fs, logger ?? Substitute.For<ILogger<ExifExtractionMiddleware>>())
-            .InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+        await MakeMiddleware(fs, logger).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
 
         return context.Extracted!;
     }
@@ -296,8 +295,7 @@ public sealed class ExifExtractionMiddlewareTests
     // Apple's creation date
     // ==========================================================================
 
-    // ffmpeg's output with the key, its meta moved from udta into moov as an iPhone writes it; the
-    // movie header says 06:10:41Z, four seconds before the recorded clock time.
+    // Its movie header says 06:10:41Z.
     private const string AppleCreationDateMov = "apple-creationdate.mov";
 
     [Fact]
@@ -401,17 +399,29 @@ public sealed class ExifExtractionMiddlewareTests
         extracted.Description.DurationInSeconds.Should().Be(4);
     }
 
+    private static byte[] QuickTimeTheReaderFailsOn()
+        => QuickTime(Atom("meta", Keys(CreationDateKey, "com.apple.quicktime.make"), Atom("ilst", Atom(1, Atom("data")), Item(2, "Apple"))));
+
     [Fact]
     public async Task InvokeAsync_AppleCreationDateTheReaderFailsOn_IsNoDateAndKeepsTheRestAsync()
     {
         var logger = new FakeLogger<ExifExtractionMiddleware>();
-        var file = QuickTime(Atom("meta", Keys(CreationDateKey, "com.apple.quicktime.make"), Atom("ilst", Atom(1, Atom("data")), Item(2, "Apple"))));
 
-        var extracted = await ExtractFromAsync(file, MediaType.Video, logger);
+        var extracted = await ExtractFromAsync(QuickTimeTheReaderFailsOn(), MediaType.Video, logger);
 
         extracted.Recorded.Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 41)));
         extracted.Description.DurationInSeconds.Should().Be(4);
         logger.Collector.GetSnapshot().Should().ContainSingle()
             .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug && r.Message.Contains("/abs/media") && r.Exception != null);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PhotoItem_IsNotReadForAnAppleCreationDateAsync()
+    {
+        var logger = new FakeLogger<ExifExtractionMiddleware>();
+
+        await ExtractFromAsync(QuickTimeTheReaderFailsOn(), MediaType.Image, logger);
+
+        logger.Collector.GetSnapshot().Should().BeEmpty();
     }
 }
