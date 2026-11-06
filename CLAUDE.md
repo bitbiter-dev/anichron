@@ -154,6 +154,7 @@ Each file is the reference for its area. Read it before changing that area, and 
 - **Work queue** (`work-queue.md`): producing, scope, scheduling, executing, cancelling, the admin view, adding a kind, the handler contract, and proxy sweeps. Read before adding a work kind or touching `Anichron.Core/Work` or `Anichron.Worker/Work`.
 - **UI serving** (`ui-serving.md`): how the API image serves the UI, the cache and fallback rules, the security headers, and the end-to-end setup. Read before touching `UiServing`, `SecurityHeaders`, the API Dockerfile's UI stage or `e2e/`.
 - **Media reads** (`media-reads.md`): `IAssetViewReader`, selections, burst covers, published media types, and the hidden/starred/liked rules. Read before adding or changing a media endpoint.
+- **UI design system** (`ui-design-system.md`): the stack, the look, the two token layers, themes, motion and focus, base components, the accessibility checks and how the look is reviewed. Read before adding a component, a token or a screen style.
 
 ## Conventions
 
