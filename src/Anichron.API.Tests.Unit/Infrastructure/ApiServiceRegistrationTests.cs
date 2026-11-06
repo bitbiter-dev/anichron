@@ -185,6 +185,14 @@ public sealed class ApiServiceRegistrationTests
     }
 
     [Fact]
+    public void AddAuthServices_MediaCookieLifetimeComesFromJwtAccessTokenMinutes()
+    {
+        using var provider = AuthServices(Configuration(new() { ["Jwt:AccessTokenMinutes"] = "7" })).BuildServiceProvider();
+
+        provider.GetRequiredService<AuthCookieSettings>().AccessTokenMinutes.Should().Be(7);
+    }
+
+    [Fact]
     public void AddAuthServices_LoginFloorComesFromConfiguration()
     {
         var services = AuthServices(Configuration(new() { ["Login:FailureFloorMilliseconds"] = "250" }));

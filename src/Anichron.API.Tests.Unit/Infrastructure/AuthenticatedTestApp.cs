@@ -33,22 +33,14 @@ internal sealed class AuthenticatedTestApp : IAsyncDisposable
     public static async Task<AuthenticatedTestApp> StartAsync(
         Action<IEndpointRouteBuilder> mapEndpoints, Action<IServiceCollection> configureServices, bool rateLimited = false)
     {
-        var builder = ApiTestHost.CreateBuilder();
-        builder.WebHost.UseTestServer();
-        builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthHandler>("Test", null);
-        builder.Services.AddAuthorizationPolicies();
-        builder.Services.AddApiProblems();
-        if (rateLimited)
-            builder.Services.AddRateLimiting(builder.Configuration);
-        configureServices(builder.Services);
-        var app = builder.Build();
-        app.UseApiProblems();
-        if (rateLimited)
-            app.UseRateLimiter();
-        app.UseAuthentication();
-        app.UseAuthorization();
-        mapEndpoints(app.MapGroup(ApiPaths.Base));
-        await app.StartAsync(TestContext.Current.CancellationToken);
+        var app = await ApiTestHost.StartAuthorizedAsync(
+            builder =>
+            {
+                builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthHandler>("Test", null);
+                configureServices(builder.Services);
+            },
+            app => mapEndpoints(app.MapGroup(ApiPaths.Base)),
+            rateLimited);
         return new AuthenticatedTestApp(app);
     }
 

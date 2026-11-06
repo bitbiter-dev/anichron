@@ -1,4 +1,7 @@
 import { z } from 'zod/mini';
+import type { components } from './generated/v1';
+
+export type ErrorCode = components['schemas']['ErrorCode'] | 'required';
 
 export interface Problem {
   code: string | undefined;
@@ -26,7 +29,7 @@ const problemBody = z.catch(
 export const unknownProblem: Problem = { code: undefined, fields: {}, retryAfterSeconds: 0 };
 
 export const unreachableProblem: Problem = {
-  code: 'service_unavailable',
+  code: 'service_unavailable' satisfies ErrorCode,
   fields: {},
   retryAfterSeconds: 0,
 };
