@@ -1,6 +1,7 @@
+import type { ErrorCode } from '../../api/problem';
 import type en from '../../i18n/locales/en.json';
 
-const keys = new Map<string | undefined, MessageKey>([
+const keys: ReadonlyMap<string | undefined, MessageKey> = new Map<ErrorCode, MessageKey>([
   ['required', 'login.errors.required'],
   ['invalid_credentials', 'login.errors.invalidCredentials'],
   ['account_disabled', 'login.errors.accountDisabled'],

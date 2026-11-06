@@ -2699,6 +2699,38 @@
           }
         }
       },
+      "ErrorCode": {
+        "enum": [
+          "account_disabled",
+          "account_locked",
+          "cannot_modify_self",
+          "email_taken",
+          "invalid_credentials",
+          "invalid_date",
+          "invalid_email",
+          "invalid_orphan_count",
+          "invalid_page",
+          "invalid_page_size",
+          "invalid_username",
+          "invite_token_invalid",
+          "orphan_ids_or_all",
+          "password_change_required",
+          "password_pwned",
+          "password_too_long",
+          "password_too_short",
+          "path_already_assigned",
+          "path_invalid",
+          "path_overlaps",
+          "pending_or_outcome",
+          "rate_limited",
+          "refresh_token_invalid",
+          "refresh_token_required",
+          "service_unavailable",
+          "unknown_orphans",
+          "username_taken"
+        ],
+        "type": "string"
+      },
       "FlashbackYearDto": {
         "required": [
           "year",
@@ -2763,15 +2795,12 @@
             "additionalProperties": {
               "type": "array",
               "items": {
-                "type": "string"
+                "$ref": "#/components/schemas/ErrorCode"
               }
             }
           },
           "code": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "$ref": "#/components/schemas/ErrorCode"
           }
         }
       },
@@ -2895,10 +2924,7 @@
             ]
           },
           "code": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "$ref": "#/components/schemas/ErrorCode"
           }
         }
       },

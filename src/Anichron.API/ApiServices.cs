@@ -10,7 +10,7 @@ public static class ApiServices
     {
         public IServiceCollection AddApiSurface(IConfiguration configuration)
             => services
-                .AddOpenApi(options => options.AddSchemaTransformer<ProblemCodeSchemaTransformer>())
+                .AddOpenApi(options => options.AddDocumentTransformer<ProblemCodeDocumentTransformer>())
                 .AddApiProblems()
                 .AddDatabase(configuration)
                 .AddForwardedHeadersSupport(configuration)
