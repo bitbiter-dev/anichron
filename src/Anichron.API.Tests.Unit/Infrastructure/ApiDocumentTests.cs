@@ -85,9 +85,54 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
         foreach (var name in new[] { "ProblemDetails", "HttpValidationProblemDetails" })
         {
             var properties = composed.Value.Components!.Schemas![name].Properties!;
-            properties.Should().ContainKey("code").WhoseValue.Type.Should().Be(JsonSchemaType.String | JsonSchemaType.Null);
+            properties.Should().ContainKey("code").WhoseValue.Should().BeOfType<OpenApiSchemaReference>()
+                .Which.Reference.Id.Should().Be("ErrorCode");
             properties.Should().ContainKey("detail");
         }
+    }
+
+    [Fact]
+    public void FieldErrors_AreErrorCodes()
+    {
+        var errors = composed.Value.Components!.Schemas!["HttpValidationProblemDetails"].Properties!["errors"];
+
+        SchemaName(errors.AdditionalProperties).Should().Be("ErrorCode[]");
+    }
+
+    [Fact]
+    public void ErrorCode_ListsEveryCodeTheApiGives()
+    {
+        var errorCode = composed.Value.Components!.Schemas!["ErrorCode"];
+
+        errorCode.Type.Should().Be(JsonSchemaType.String);
+        errorCode.Enum!.Select(value => value.GetValue<string>()).Should().Equal(
+            "account_disabled",
+            "account_locked",
+            "cannot_modify_self",
+            "email_taken",
+            "invalid_credentials",
+            "invalid_date",
+            "invalid_email",
+            "invalid_orphan_count",
+            "invalid_page",
+            "invalid_page_size",
+            "invalid_username",
+            "invite_token_invalid",
+            "orphan_ids_or_all",
+            "password_change_required",
+            "password_pwned",
+            "password_too_long",
+            "password_too_short",
+            "path_already_assigned",
+            "path_invalid",
+            "path_overlaps",
+            "pending_or_outcome",
+            "rate_limited",
+            "refresh_token_invalid",
+            "refresh_token_required",
+            "service_unavailable",
+            "unknown_orphans",
+            "username_taken");
     }
 
     [Fact]

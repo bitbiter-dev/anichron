@@ -2,11 +2,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
-import { fieldCodes } from '../../api/problem';
+import { fieldCodes, type ErrorCode } from '../../api/problem';
 import { useCountdown } from '../../shared/use-countdown';
 import { messageKey } from './messages';
 
-const required = z.minLength(1, { error: 'required' });
+const required = z.minLength(1, { error: 'required' satisfies ErrorCode });
 
 const loginSchema = z.object({
   usernameOrEmail: z.string().check(z.trim(), required),
