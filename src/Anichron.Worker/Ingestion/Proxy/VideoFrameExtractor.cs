@@ -22,17 +22,9 @@ internal sealed class FfmpegFrameExtractor(IProcessLauncher processLauncher, IOp
         return Image.Load<Rgb24>(frame);
     }
 
-    private async Task<byte[]> ReadFrameAsync(string[] input, CancellationToken ct)
-    {
-        string[] arguments =
-        [
-            "-hide_banner", "-loglevel", "error",
-            .. input,
-            "-frames:v", "1", "-pix_fmt", "rgb24", "-c:v", "png", "-f", "image2pipe", "-",
-        ];
-        var result = await processLauncher.RunAsync(options.Value.FfmpegPath, arguments, ct);
-        if (result.ExitCode != 0)
-            throw new FfmpegException(options.Value.FfmpegPath, string.Join(" ", arguments), result.ExitCode, result.StandardError);
-        return result.StandardOutput;
-    }
+    private Task<byte[]> ReadFrameAsync(string[] input, CancellationToken ct)
+        => processLauncher.RunFfmpegQuietlyAsync(
+            options.Value.FfmpegPath,
+            [.. input, "-frames:v", "1", "-pix_fmt", "rgb24", "-c:v", "png", "-f", "image2pipe", "-"],
+            ct);
 }

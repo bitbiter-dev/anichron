@@ -29,7 +29,7 @@ internal sealed class SystemProcessLauncher : IProcessLauncher
             await process.WaitForExitAsync(ct);
             await stdoutTask;
             var standardError = await stderrTask;
-            return new ProcessResult(process.ExitCode, standardError) { StandardOutput = standardOutput.ToArray() };
+            return new ProcessResult(process.ExitCode, standardOutput.ToArray(), standardError);
         }
         catch (OperationCanceledException)
         {

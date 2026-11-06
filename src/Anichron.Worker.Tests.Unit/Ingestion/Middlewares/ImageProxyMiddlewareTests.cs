@@ -87,10 +87,10 @@ public sealed class ImageProxyMiddlewareTests
         }
     }
 
-    private static IngestionContext MakeContext(MediaType mediaType = MediaType.Image)
+    private static IngestionContext MakeContext(IngestionItem? item = null)
         => new()
         {
-            Item = new SingleFileItem("/nas/photo.jpg", "photo.jpg", mediaType),
+            Item = item ?? new SingleFileItem("/nas/photo.jpg", "photo.jpg", MediaType.Image),
             Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
             AttemptId = Guid.NewGuid(),
             AssetId = Guid.NewGuid(),
@@ -307,14 +307,7 @@ public sealed class ImageProxyMiddlewareTests
     // ==========================================================================
 
     private static IngestionContext MakeVideoContext()
-        => new()
-        {
-            Item = new SingleFileItem("/nas/clip.mov", "clip.mov", MediaType.Video),
-            Config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), RootPath = "/nas" },
-            AttemptId = Guid.NewGuid(),
-            AssetId = Guid.NewGuid(),
-            ContentHash = "0123456789abcdef",
-        };
+        => MakeContext(new SingleFileItem("/nas/clip.mov", "clip.mov", MediaType.Video));
 
     private static async Task<(IngestionContext Context, TestFixture Fixture)> IngestVideoFrameAsync(int width, int height)
     {

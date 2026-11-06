@@ -43,7 +43,7 @@ public sealed class FfmpegFrameExtractorTests
     [Fact]
     public async Task ExtractAsync_VideoLongerThanASecond_ReturnsItsFrameAtOneSecondAsync()
     {
-        Answer(FrameAtOneSecond, new ProcessResult(0, string.Empty) { StandardOutput = Png(6, 4) });
+        Answer(FrameAtOneSecond, new ProcessResult(0, Png(6, 4), string.Empty));
 
         using var frame = await Build().ExtractAsync("/nas/clip.mov", TestContext.Current.CancellationToken);
 
@@ -54,8 +54,8 @@ public sealed class FfmpegFrameExtractorTests
     [Fact]
     public async Task ExtractAsync_ClipShorterThanASecond_ReturnsItsFirstFrameAsync()
     {
-        Answer(FrameAtOneSecond, new ProcessResult(0, string.Empty));
-        Answer(FirstFrame, new ProcessResult(0, string.Empty) { StandardOutput = Png(3, 5) });
+        Answer(FrameAtOneSecond, new ProcessResult(0, [], string.Empty));
+        Answer(FirstFrame, new ProcessResult(0, Png(3, 5), string.Empty));
 
         using var frame = await Build().ExtractAsync("/nas/clip.mov", TestContext.Current.CancellationToken);
 
@@ -65,7 +65,7 @@ public sealed class FfmpegFrameExtractorTests
     [Fact]
     public async Task ExtractAsync_FfmpegFails_ThrowsWithItsErrorWithoutRetryingAsync()
     {
-        Answer(FrameAtOneSecond, new ProcessResult(1, "moov atom not found\n"));
+        Answer(FrameAtOneSecond, new ProcessResult(1, [], "moov atom not found\n"));
 
         var act = () => Build().ExtractAsync("/nas/clip.mov", TestContext.Current.CancellationToken);
 
@@ -82,8 +82,8 @@ public sealed class FfmpegFrameExtractorTests
     [Fact]
     public async Task ExtractAsync_FirstFrameFails_ThrowsWithItsErrorAsync()
     {
-        Answer(FrameAtOneSecond, new ProcessResult(0, string.Empty));
-        Answer(FirstFrame, new ProcessResult(234, "Invalid data\n"));
+        Answer(FrameAtOneSecond, new ProcessResult(0, [], string.Empty));
+        Answer(FirstFrame, new ProcessResult(234, [], "Invalid data\n"));
 
         var act = () => Build().ExtractAsync("/nas/clip.mov", TestContext.Current.CancellationToken);
 
@@ -93,8 +93,8 @@ public sealed class FfmpegFrameExtractorTests
     [Fact]
     public async Task ExtractAsync_NoFrameAtAll_ThrowsNamingTheVideoAsync()
     {
-        Answer(FrameAtOneSecond, new ProcessResult(0, string.Empty));
-        Answer(FirstFrame, new ProcessResult(0, string.Empty));
+        Answer(FrameAtOneSecond, new ProcessResult(0, [], string.Empty));
+        Answer(FirstFrame, new ProcessResult(0, [], string.Empty));
 
         var act = () => Build().ExtractAsync("/nas/clip.mov", TestContext.Current.CancellationToken);
 

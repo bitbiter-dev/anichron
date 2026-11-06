@@ -5,7 +5,4 @@ internal interface IProcessLauncher
     Task<ProcessResult> RunAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken ct);
 }
 
-internal sealed record ProcessResult(int ExitCode, string StandardError)
-{
-    public byte[] StandardOutput { get; init; } = [];
-}
+internal sealed record ProcessResult(int ExitCode, byte[] StandardOutput, string StandardError);
