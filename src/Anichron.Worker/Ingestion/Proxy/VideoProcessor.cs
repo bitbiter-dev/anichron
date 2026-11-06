@@ -81,8 +81,6 @@ internal sealed partial class FfmpegVideoProcessor(
         var shortEdge = options.Value.VideoShortEdge;
         string[] arguments =
         [
-            "-hide_banner",
-            "-loglevel", "error",
             "-i", sourcePath,
             "-vf", $"scale='if(gt(iw,ih),-2,trunc(min({shortEdge},iw)/2)*2)':'if(gt(iw,ih),trunc(min({shortEdge},ih)/2)*2,-2)'",
             "-c:v", encoder,
@@ -97,9 +95,7 @@ internal sealed partial class FfmpegVideoProcessor(
             "-y",
             outputPath,
         ];
-        var result = await processLauncher.RunAsync(options.Value.FfmpegPath, arguments, ct);
-        if (result.ExitCode != 0)
-            throw new FfmpegException(options.Value.FfmpegPath, string.Join(" ", arguments), result.ExitCode, result.StandardError);
+        await processLauncher.RunFfmpegQuietlyAsync(options.Value.FfmpegPath, arguments, ct);
     }
 
     public void Dispose() => encoderDetectionLock.Dispose();
@@ -111,6 +107,19 @@ internal sealed partial class FfmpegVideoProcessor(
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "H.264 encoder {Encoder} is unavailable; trying next.")]
         public static partial void EncoderUnavailable(ILogger logger, string encoder);
+    }
+}
+
+internal static class FfmpegLaunch
+{
+    public static async Task<byte[]> RunFfmpegQuietlyAsync(
+        this IProcessLauncher processLauncher, string ffmpegPath, IReadOnlyList<string> arguments, CancellationToken ct)
+    {
+        string[] quiet = ["-hide_banner", "-loglevel", "error", .. arguments];
+        var result = await processLauncher.RunAsync(ffmpegPath, quiet, ct);
+        if (result.ExitCode != 0)
+            throw new FfmpegException(ffmpegPath, string.Join(" ", quiet), result.ExitCode, result.StandardError);
+        return result.StandardOutput;
     }
 }
 
