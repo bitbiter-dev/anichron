@@ -212,7 +212,7 @@ public sealed class AuthEndpointsTests
 
         var result = await AuthEndpoints.LogoutAsync(NewHttp(), auth, mapper, request: null, CancellationToken.None);
 
-        mapper.Received(1).ClearRefreshCookie(Arg.Any<HttpContext>());
+        mapper.Received(1).ClearSessionCookies(Arg.Any<HttpContext>());
         await auth.DidNotReceive().RevokeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
     }
@@ -226,7 +226,7 @@ public sealed class AuthEndpointsTests
 
         var result = await AuthEndpoints.LogoutAsync(http, auth, mapper, request: null, CancellationToken.None);
 
-        mapper.Received(1).ClearRefreshCookie(Arg.Any<HttpContext>());
+        mapper.Received(1).ClearSessionCookies(Arg.Any<HttpContext>());
         await auth.Received(1).RevokeAsync("cookie_tok", Arg.Any<CancellationToken>());
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
     }
@@ -240,7 +240,7 @@ public sealed class AuthEndpointsTests
         var result = await AuthEndpoints.LogoutAsync(
             NewHttp(), auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
 
-        mapper.Received(1).ClearRefreshCookie(Arg.Any<HttpContext>());
+        mapper.Received(1).ClearSessionCookies(Arg.Any<HttpContext>());
         await auth.Received(1).RevokeAsync("body_tok", Arg.Any<CancellationToken>());
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
     }

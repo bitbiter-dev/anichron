@@ -89,7 +89,7 @@ public static class AuthEndpoints
         HttpContext http, IAuthService auth, IAuthResponseMapper mapper, [FromBody] RefreshRequest? request, CancellationToken ct)
     {
         var rawToken = http.Request.Cookies[AuthMessages.RefreshTokenCookieName] ?? request?.RefreshToken;
-        mapper.ClearRefreshCookie(http);
+        mapper.ClearSessionCookies(http);
         if (rawToken is not null)
             await auth.RevokeAsync(rawToken, ct);
         return Results.NoContent();
