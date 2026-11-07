@@ -4,6 +4,22 @@ A self-hosted photo library that resurfaces a user's own photos and videos from 
 
 ## Language
 
+**Memory**:
+One thing shown in a flashback: a photo, a video, a Live Photo, or a burst, which is shown by its cover.
+_Avoid_: Item, asset (in the UI), card
+
+**On This Day**:
+The user's memories whose capture date falls on a given day and month in an earlier year: today's, or one of the recent days the user picks. In a year without 29 February, memories from 29 February fall on 28 February.
+_Avoid_: Today's memories, anniversary
+
+**Story**:
+The full-screen player that shows memories one after another, each for a set time, until the user moves on or pauses.
+_Avoid_: Slideshow, carousel, reel
+
+**Year group**:
+The memories of one year within a day's story, shown together and skipped together.
+_Avoid_: Chapter, section
+
 **Burst**:
 Photos of the same scene from one storage config, taken moments apart, shown as one memory. Either the camera marked them as one burst, or each one looks like a neighbouring frame taken shortly before or after it.
 _Avoid_: Moment, similar group, near-duplicates
