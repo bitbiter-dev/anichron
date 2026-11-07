@@ -82,6 +82,13 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/design/**'],
+    rules: {
+      'react/jsx-no-literals': 'off',
+      'no-restricted-syntax': 'off',
+    },
+  },
+  {
     files: ['src/**/*.tsx'],
     rules: {
       complexity: ['error', 4],

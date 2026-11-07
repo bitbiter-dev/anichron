@@ -39,6 +39,13 @@ module.exports = {
       to: { path: testCode },
     },
     {
+      name: 'only-the-design-page-imports-it',
+      comment: 'The dev-only design page (src/design/) is never part of the app.',
+      severity: 'error',
+      from: { path: '^src/', pathNot: ['^src/design/', ...testCode] },
+      to: { path: '^src/design/' },
+    },
+    {
       name: 'logic-imports-no-views',
       comment: 'A .ts file never imports a .tsx file, so logic stays out of views (ADR 0014).',
       severity: 'error',

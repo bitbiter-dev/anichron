@@ -4,7 +4,7 @@ import { z } from 'zod/mini';
 import { createApiClient } from '../api/client';
 import { createI18n } from '../i18n/i18n';
 import { App } from './App';
-import './base.css';
+import './styles.css';
 import { createAppRouter } from './router';
 
 // The CSP forbids the eval that zod probes for.

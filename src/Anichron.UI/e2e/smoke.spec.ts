@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { expectAccessible } from './accessibility';
 
 const appPolicy =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; " +
@@ -48,8 +48,7 @@ test('the app loads with its headers and requests nothing but its own origin', a
   expect(pageErrors).toEqual([]);
   expect(requested.filter((url) => new URL(url).origin !== origin)).toEqual([]);
 
-  const accessibility = await new AxeBuilder({ page }).analyze();
-  expect(accessibility.violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test('an unknown API path is a JSON 404 with the API headers, never the app', async ({

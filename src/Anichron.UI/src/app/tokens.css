@@ -1,0 +1,80 @@
+:root {
+  color-scheme: light dark;
+
+  --neutral-0: #ffffff;
+  --neutral-50: #f7f5f2;
+  --neutral-100: #f3f1ee;
+  --neutral-400: #aaa39b;
+  --neutral-500: #8a837c;
+  --neutral-600: #7d766f;
+  --neutral-700: #5e5852;
+  --neutral-850: #24211e;
+  --neutral-900: #1f1c19;
+  --neutral-950: #171513;
+  --black: #000000;
+
+  --accent-200: #a6c9c4;
+  --accent-400: #2cc5b0;
+  --accent-700: #0f766e;
+  --accent-800: #1e534a;
+
+  --peach-200: #f2c4a4;
+  --peach-800: #6e3c22;
+
+  --blue-100: #cfdcf0;
+  --blue-800: #2b3d5c;
+
+  --danger-400: #f97066;
+  --danger-700: #b42318;
+
+  --glass-opacity: 0.7;
+  --glass-blur: 24px;
+  --glass-edge: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.12));
+  --shadow-glass:
+    inset 0 1px 0 light-dark(rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.1)),
+    0 20px 48px -12px light-dark(rgb(31 28 25 / 0.2), rgb(0 0 0 / 0.6));
+  --shadow-accent:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 8px 20px -6px color-mix(in srgb, var(--color-accent) 60%, transparent);
+
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+  }
+}
+
+@theme {
+  --color-*: initial;
+  --color-surface: light-dark(var(--neutral-50), var(--neutral-950));
+  --color-surface-raised: light-dark(var(--neutral-0), var(--neutral-850));
+  --color-fg: light-dark(var(--neutral-900), var(--neutral-100));
+  --color-fg-muted: light-dark(var(--neutral-700), var(--neutral-400));
+  --color-border: light-dark(var(--neutral-600), var(--neutral-500));
+  --color-accent: light-dark(var(--accent-700), var(--accent-400));
+  --color-on-accent: light-dark(var(--neutral-0), var(--neutral-900));
+  --color-danger: light-dark(var(--danger-700), var(--danger-400));
+  --color-focus: var(--color-accent);
+  --color-backdrop-accent: light-dark(var(--accent-200), var(--accent-800));
+  --color-backdrop-warm: light-dark(var(--peach-200), var(--peach-800));
+  --color-backdrop-cool: light-dark(var(--blue-100), var(--blue-800));
+  --color-player: var(--black);
+
+  --radius-*: initial;
+  --radius-field: 0.75rem;
+  --radius-card: 1rem;
+
+  --text-*: initial;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.25rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-title: 1.5rem;
+  --text-title--line-height: 2rem;
+
+  --default-transition-duration: var(--duration-fast);
+}

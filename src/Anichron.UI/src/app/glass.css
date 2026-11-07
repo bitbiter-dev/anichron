@@ -1,0 +1,26 @@
+@utility glow-backdrop {
+  background:
+    radial-gradient(60% 50% at 15% 20%, var(--color-backdrop-accent), transparent),
+    radial-gradient(60% 50% at 90% 85%, var(--color-backdrop-warm), transparent),
+    radial-gradient(50% 40% at 85% 15%, var(--color-backdrop-cool), transparent),
+    var(--color-surface);
+}
+
+@utility glass-card {
+  background: color-mix(
+    in srgb,
+    var(--color-surface-raised) calc(var(--glass-opacity) * 100%),
+    transparent
+  );
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-glass);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--color-surface-raised);
+  }
+}
+
+@utility lift-accent {
+  box-shadow: var(--shadow-accent);
+}

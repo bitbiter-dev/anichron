@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { expectAccessible } from './accessibility';
 import { createAccount, disable, lockOut } from './accounts';
 
 const signedIn = "You're signed in. Your photo library is on its way.";
@@ -27,11 +27,6 @@ async function signIn(page: Page, usernameOrEmail: string, password: string) {
   await page.getByLabel('Username or email').fill(usernameOrEmail);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-}
-
-async function expectAccessible(page: Page) {
-  const accessibility = await new AxeBuilder({ page }).analyze();
-  expect(accessibility.violations).toEqual([]);
 }
 
 test('a user signs in, lands on the signed-in page and stays signed in across a reload', async ({
