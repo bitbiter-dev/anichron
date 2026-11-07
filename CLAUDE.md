@@ -159,6 +159,7 @@ Each file is the reference for its area. Read it before changing that area, and 
 ## Conventions
 
 - **Enforced by the build** (`TreatWarningsAsErrors`, `src/.editorconfig`, central package management) and by `dotnet format --verify-no-changes`: file-scoped namespaces matching the folder, `camelCase` private fields (static ones too) with no underscore in production code (test projects suppress `IDE1006`), `I`-prefixed interfaces, 4-space indentation with LF line endings, `AnalysisMode=Recommended`, and package versions only in `Directory.Packages.props`. When one fires, fix the code rather than suppress the rule.
+- **Lock files**: CI restores in locked mode (`RestoreLockedMode` when `CI=true`), so a package bump that leaves any project's `packages.lock.json` stale fails with `NU1004`. Run `dotnet restore src` and commit every lock file it changes; Dependabot updates only the projects that reference a package directly, not the test projects that reach it through a project reference.
 - **XML doc comments**: write `/// <summary>` only when it adds information beyond the name. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) go without, overriding any global rule that asks for docs on every public member. Once a member has a summary, RCS1141 requires a `<param>` for each parameter; those short ones (`ct`: "Cancels the read.") are accepted, not a review finding.
 
 ## Multi-User Design
