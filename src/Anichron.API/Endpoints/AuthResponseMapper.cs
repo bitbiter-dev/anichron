@@ -213,11 +213,12 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     private IResult BuildSessionResponse(AuthTokens tokens, HttpContext http, bool setCookie)
     {
         var user = UserProfileResponse.From(tokens.User);
+        var expiresIn = (int)tokens.AccessTokenLifetime.TotalSeconds;
         if (!setCookie)
-            return Results.Ok(new SessionResponse(tokens.AccessToken, tokens.ExpiresIn, user, tokens.RefreshToken));
+            return Results.Ok(new SessionResponse(tokens.AccessToken, expiresIn, user, tokens.RefreshToken));
 
         SetSessionCookies(http, tokens);
-        return Results.Ok(new SessionResponse(tokens.AccessToken, tokens.ExpiresIn, user));
+        return Results.Ok(new SessionResponse(tokens.AccessToken, expiresIn, user));
     }
 
     private static IResult LockedResult(HttpContext http, int secondsRemaining)

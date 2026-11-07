@@ -59,7 +59,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRegistrationResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", 900, new User())),
+            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())),
             http, new PasswordPolicy(), new UsernamePolicy());
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
@@ -85,7 +85,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetLoginResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", 900, new User())), http, setCookie: true);
+            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: true);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
         var setCookie = http.Response.Headers.SetCookie.ToString();
@@ -106,7 +106,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetLoginResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", 900, new User())), http, setCookie: false);
+            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -130,7 +130,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRefreshResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", 900, new User())), http, setCookie: true);
+            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: true);
         await result.ExecuteAsync(http);
 
         Assert.Multiple(() =>
@@ -147,7 +147,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRefreshResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", 900, new User())), http, setCookie: false);
+            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -173,7 +173,7 @@ public sealed class AuthResponseMapperTests
 
     private static IResult SignIn(AuthResponseMapper testee, string kind, HttpContext http, bool setCookie)
     {
-        var tokens = AuthResult.Ok(new AuthTokens("acc_token", "ref_token", 900, new User()));
+        var tokens = AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()));
         return kind switch
         {
             "register" => testee.GetRegistrationResult(tokens, http, new PasswordPolicy(), new UsernamePolicy()),

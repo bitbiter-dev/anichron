@@ -90,7 +90,7 @@ public sealed class TokenServiceTests
 
         Assert.Multiple(() =>
         {
-            result.ExpiresIn.Should().Be(1200);
+            result.AccessTokenLifetime.Should().Be(TimeSpan.FromMinutes(20));
             result.User.Should().BeSameAs(user);
         });
     }

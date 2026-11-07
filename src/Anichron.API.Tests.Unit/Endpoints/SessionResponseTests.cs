@@ -18,10 +18,10 @@ public sealed class SessionResponseTests
     private const string Session =
         """{"accessToken":"the-access","expiresIn":900,"user":{"id":"11111111-1111-1111-1111-111111111111","username":"alice","email":"alice@example.com","isAdmin":true,"mustChangePassword":false}""";
 
-    private static readonly AuthTokens Tokens = new(
+    private static AuthTokens Tokens => new(
         "the-access",
         "the-refresh",
-        900,
+        TimeSpan.FromMinutes(15),
         new User
         {
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),

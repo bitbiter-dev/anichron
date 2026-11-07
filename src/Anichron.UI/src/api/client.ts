@@ -24,7 +24,7 @@ export function createApiClient(): ApiClient {
   let session: Schemas['SessionResponse'] | undefined;
   let restored: Promise<void> | undefined;
 
-  async function start(call: () => Promise<SessionCall>): Promise<Outcome> {
+  async function openSession(call: () => Promise<SessionCall>): Promise<Outcome> {
     try {
       const { data, error, response } = await call();
       if (!data) return { ok: false, problem: toProblem(error, response) };
@@ -39,9 +39,9 @@ export function createApiClient(): ApiClient {
   }
 
   return {
-    login: (body) => start(() => client.POST('/api/v1/auth/login', { body })),
+    login: (body) => openSession(() => client.POST('/api/v1/auth/login', { body })),
     restore() {
-      restored ??= start(() => client.POST('/api/v1/auth/refresh')).then(() => undefined);
+      restored ??= openSession(() => client.POST('/api/v1/auth/refresh')).then(() => undefined);
       return restored;
     },
     isSignedIn: () => session !== undefined,

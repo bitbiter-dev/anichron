@@ -10,7 +10,7 @@ using System.Text;
 
 namespace Anichron.API.Services;
 
-public sealed record AuthTokens(string AccessToken, string RefreshToken, int ExpiresIn, User User);
+public sealed record AuthTokens(string AccessToken, string RefreshToken, TimeSpan AccessTokenLifetime, User User);
 public sealed record AdminCreatedUser(Guid Id, string Username, string Email, string TemporaryPassword);
 
 public sealed record AuthResult<T>
@@ -188,18 +188,17 @@ public sealed class AuthService(
         if (error is not null)
             return AuthResult.Fail<AuthTokens>(error.Value);
 
-        AuthTokens? tokens = null;
+        user.PasswordHash = passwordHasher.Hash(newPassword);
+        user.MustChangePassword = false;
+        var tokens = tokenService.Issue(user);
         await unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            user.PasswordHash = passwordHasher.Hash(newPassword);
-            user.MustChangePassword = false;
             var now = clock.GetCurrentInstant();
             await tokenService.MarkAllSessionsRevokedAsync(userId, now, ct);
-            tokens = tokenService.Issue(user);
             await unitOfWork.SaveChangesAsync(ct);
         }, ct);
 
-        return AuthResult.Ok(tokens!);
+        return AuthResult.Ok(tokens);
     }
 
     public async Task<AuthResult<AdminCreatedUser>> AdminCreateUserAsync(string username, string email, CancellationToken ct)

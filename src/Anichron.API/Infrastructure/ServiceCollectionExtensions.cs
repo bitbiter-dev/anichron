@@ -64,7 +64,6 @@ public static class ServiceCollectionExtensions
                     TimeSpan.FromSeconds(AppDefaults.RateLimit.Sensitive.WindowSeconds),
                     AppDefaults.RateLimit.Sensitive.Segments));
 
-                // Refresh tokens rotate on every use. Tighter policy required.
                 options.AddPolicy(AuthRateLimitPolicies.Refresh, new SlidingWindowPolicy(
                     settings.Value.RefreshPermitLimit,
                     TimeSpan.FromMinutes(AppDefaults.RateLimit.Refresh.WindowMinutes),

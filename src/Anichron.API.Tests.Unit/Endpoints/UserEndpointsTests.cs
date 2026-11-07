@@ -142,7 +142,7 @@ public sealed class UserEndpointsTests
         var mapper = Substitute.For<IAuthResponseMapper>();
         var options = Options.Create(new PasswordPolicy());
         authService.ChangePasswordAsync(userId, ValidRequest.CurrentPassword, ValidRequest.NewPassword, Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", 900, new User())));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
         mapper.GetChangePasswordResult(Arg.Any<AuthResult<AuthTokens>>(), Arg.Any<HttpContext>(), Arg.Any<bool>(), Arg.Any<PasswordPolicy>())
             .Returns(Results.NoContent());
 
@@ -163,7 +163,7 @@ public sealed class UserEndpointsTests
         var options = Options.Create(new PasswordPolicy());
         var expectedResult = Results.NoContent();
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", 900, new User())));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
         mapper.GetChangePasswordResult(Arg.Any<AuthResult<AuthTokens>>(), Arg.Any<HttpContext>(), Arg.Any<bool>(), Arg.Any<PasswordPolicy>())
             .Returns(expectedResult);
 
