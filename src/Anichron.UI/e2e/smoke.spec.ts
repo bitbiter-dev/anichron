@@ -33,7 +33,7 @@ test('the app loads with its headers and requests nothing but its own origin', a
   const response = await page.goto('/');
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sign in to Anichron' })).toBeVisible();
-  await expect(page).toHaveURL('/login');
+  await expect(page).toHaveURL('/login?redirect=%2F');
   const headers = response?.headers() ?? {};
   expect(headers['content-security-policy']).toBe(appPolicy);
   expect(headers['referrer-policy']).toBe('same-origin');

@@ -113,6 +113,8 @@ describe('starting the app', () => {
     const { router } = renderApp('/login');
     await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
 
+    expect(where(router)).toBe('/login');
+
     signIn();
 
     expect(await screen.findByText(signedIn)).toBeVisible();

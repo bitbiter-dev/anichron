@@ -25,7 +25,7 @@ const signedInRoute = createRoute({
   id: 'signed-in',
   beforeLoad: ({ context, location }) => {
     if (!context.api.isSignedIn())
-      throw redirect({ to: '/login', search: { redirect: location.href } });
+      throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
   },
 });
 
@@ -38,11 +38,8 @@ const placeholderRoute = createRoute({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    redirect: returnPath(search.redirect),
-  }),
   beforeLoad: ({ context, search }) => {
-    if (context.api.isSignedIn()) throw redirect({ href: search.redirect });
+    if (context.api.isSignedIn()) throw redirect({ href: returnPath(search) });
   },
   component: LoginPage,
 });
