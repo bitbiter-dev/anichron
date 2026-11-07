@@ -6,4 +6,7 @@ public sealed record RateLimitSettings
 {
     [Range(1, int.MaxValue)]
     public int SensitivePermitLimit { get; init; } = AppDefaults.RateLimit.Sensitive.PermitLimit;
+
+    [Range(1, int.MaxValue)]
+    public int RefreshPermitLimit { get; init; } = AppDefaults.RateLimit.Refresh.PermitLimit;
 }

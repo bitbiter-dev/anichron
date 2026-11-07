@@ -55,7 +55,7 @@ internal static class AppDefaults
 
         internal static class Refresh
         {
-            internal const int PermitLimit = 5;
+            internal const int PermitLimit = 60;
             internal const int WindowMinutes = 15;
             internal const int Segments = 3;
         }
