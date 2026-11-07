@@ -2,7 +2,8 @@ import { request, type FullConfig } from '@playwright/test';
 import { admin, bootstrapAdmin, changePassword } from './accounts';
 
 export default async function globalSetup(config: FullConfig) {
-  const context = await request.newContext({ baseURL: config.projects[0]?.use.baseURL });
+  const { baseURL, ignoreHTTPSErrors } = config.projects[0]?.use ?? {};
+  const context = await request.newContext({ baseURL, ignoreHTTPSErrors });
   const response = await context.post('/api/v1/auth/login/mobile', {
     data: { usernameOrEmail: bootstrapAdmin.username, password: bootstrapAdmin.password },
   });
