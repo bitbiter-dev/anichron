@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contrastRatio, themeColours } from './contrast';
+import { blend, contrastRatio, declarations, themeColours } from './contrast';
 
 describe('contrastRatio', () => {
   it('is 21 for black on white, in either order', () => {
@@ -63,6 +63,28 @@ describe('themeColours', () => {
   ])('fails on %s, a colour it cannot read', (value) => {
     expect(() => themeColours(`@theme { --color-ink: ${value}; }`)).toThrow(
       `${value} is not a #rrggbb colour`,
+    );
+  });
+});
+
+describe('blend', () => {
+  it('lays a colour over another at an opacity, as sRGB compositing does', () => {
+    expect(blend('#ffffff', '#000000', 0.5)).toBe('#808080');
+    expect(blend('#ff0000', '#0000ff', 0.25)).toBe('#4000bf');
+  });
+
+  it('pads each channel to two digits', () => {
+    expect(blend('#0a0a0a', '#000000', 1)).toBe('#0a0a0a');
+  });
+});
+
+describe('declarations', () => {
+  it('reads every custom property with its value', () => {
+    expect(declarations(':root { --glass-opacity:0.7; --grey-1: #111111; }')).toEqual(
+      new Map([
+        ['glass-opacity', '0.7'],
+        ['grey-1', '#111111'],
+      ]),
     );
   });
 });

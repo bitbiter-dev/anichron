@@ -10,8 +10,8 @@ export function LoginPage() {
   const { t } = useTranslation();
   const { register, onSubmit, formError, fieldError, retryIn, blocked } = useLoginForm();
   return (
-    <main className="grid min-h-dvh place-items-center p-4">
-      <div className="w-full max-w-sm rounded-card border border-border bg-surface-raised p-6">
+    <main className="grid min-h-dvh place-items-center p-4 glow-backdrop">
+      <div className="w-full max-w-sm rounded-card p-6 glass-card">
         <h1 className="mb-6 text-title font-semibold">{t('login.title')}</h1>
         <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)} noValidate>
           <FormError error={formError} retryIn={retryIn} />
@@ -31,7 +31,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={blocked}
-            className={`mt-2 min-h-11 rounded-full bg-accent px-6 font-semibold text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50 ${focusRing}`}
+            className={`mt-2 min-h-11 rounded-full bg-accent px-6 font-semibold text-on-accent lift-accent transition-opacity hover:opacity-90 disabled:opacity-50 ${focusRing}`}
           >
             {t('login.submit')}
           </button>

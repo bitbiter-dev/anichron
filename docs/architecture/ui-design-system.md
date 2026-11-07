@@ -21,20 +21,29 @@ build settles a detail.
 
 ## The look
 
-Photo-first: the chrome is warm neutral grey, so the photos carry the colour. One accent, used
-only for primary actions, focus and selection. About 12 px radius on fields and cards, pill-shaped
-buttons, at least 44 px touch targets, a small type scale. The story player is black in both
-themes.
+Photo-first: the chrome is warm neutral grey, so the photos carry the colour. One accent, teal
+(chosen on #457, 2026-11-07), used only for primary actions, focus and selection. About 12 px
+radius on fields and cards, pill-shaped buttons, at least 44 px touch targets, a small type scale.
+The story player is black in both themes.
+
+Not flat (decided on #457, 2026-11-07): a screen that stands alone, such as sign-in, puts a
+frosted **glass** card over a soft backdrop of three colour glows (accent, warm, cool). Fields and
+buttons on the card stay solid, so typed text and labels never sit on something see-through, and
+the primary button lifts off the card with a soft accent shadow. Older phones are not a target, so
+the blur is not rationed; where a browser cannot blur, the card falls back to the solid raised
+surface.
 
 ## Tokens
 
 Two layers:
 
-- **Primitives:** the raw scales (`--neutral-*`, `--accent-*`, `--danger-*`, `--black`) as plain
-  CSS variables in `src/app/tokens.css`. No utility class reads them.
+- **Primitives:** the raw scales (`--neutral-*`, `--accent-*`, `--danger-*`, `--peach-*`,
+  `--blue-*`, `--black`) as plain CSS variables in `src/app/tokens.css`. No utility class reads
+  them.
 - **Semantic tokens**, the only ones registered with Tailwind's `@theme`: `surface`,
-  `surface-raised`, `fg`, `fg-muted`, `border`, `accent`, `on-accent`, `danger`, `focus`, and
-  `player`, which is black in both themes. Tailwind's default palette is cleared
+  `surface-raised`, `fg`, `fg-muted`, `border`, `accent`, `on-accent`, `danger`, `focus`, the
+  backdrop glows `backdrop-accent`, `backdrop-warm` and `backdrop-cool`, and `player`, which is
+  black in both themes. Tailwind's default palette is cleared
   (`--color-*: initial`). `focus` is the accent in both themes, since the accent reaches 3:1 on
   both surfaces.
 
@@ -42,6 +51,11 @@ Radius (`rounded-field`, `rounded-card`) and type size (`text-small`, `text-body
 get semantic tokens the same way, with Tailwind's defaults cleared; `rounded-full` (the pill
 button) is not a theme value and stays. Spacing keeps Tailwind's numeric scale. A new kind of
 colour starts as a semantic token with a value for each theme.
+
+Glass is three utilities in `src/app/glass.css`, built only from tokens: `glow-backdrop` (the
+glows over `surface`), `glass-card` (`surface-raised` at `--glass-opacity`, blurred by
+`--glass-blur`, with `--glass-edge` and `--shadow-glass`) and `lift-accent` (`--shadow-accent`).
+The shadows and the edge take a `light-dark()` colour like the semantic tokens.
 
 ## Themes
 
@@ -85,7 +99,9 @@ key and values with the toggle.
   Aria's press handling ignores bare `fireEvent` events).
 - **Contrast:** a unit test (`src/app/tokens.test.ts`) reads the token stylesheet and checks each
   semantic foreground and background pair in each theme: 4.5:1 for text, 3:1 for the focus ring
-  and borders.
+  and borders. Text on glass is checked against the worst case the blur can produce: the card at
+  `--glass-opacity` over each glow at full strength, and over the bare surface. axe cannot measure
+  text over a blur, so this test is the contrast check for glass.
 - **E2E:** axe in both colour schemes (`e2e/accessibility.ts`); `e2e/look.spec.ts` checks the
   theme switch, reduced motion, the focus ring and touch targets, and captures the screenshots.
 - **VoiceOver:** the maintainer runs this checklist on the PR that introduces a component:
@@ -101,13 +117,13 @@ key and values with the toggle.
   production build and not a route of the app's router: `design.html`, at `/design.html` under
   `pnpm dev`, with its code in `src/design/`. It has its own Tailwind entry, and the app's
   stylesheet excludes `src/design/` from its sources, so no class of the page reaches the app's
-  CSS. Its text is not in the catalog. It shows the palette in both themes, the
-  type scale and every base component in each state.
+  CSS. Its text is not in the catalog. It shows the palette in both themes with contrast ratios,
+  the type scale, the glass card in both themes, and every base component in each state.
 - **Screenshots:** a PR that changes the look attaches Playwright screenshots of the affected
   screens in light and dark, on an iPhone and a Pixel. CI's `E2E` job uploads them as the
   `screenshots` artifact.
-- **Accent:** the PR that introduces it shows three candidates (warm amber, coral, teal) with their
-  contrast ratios; the maintainer picks one and the others are removed before merge.
+- **Accent:** teal, picked from three candidates (warm amber, coral, teal) on #457: amber did not
+  please, and coral sat too close to `danger`.
 - **No Storybook in v1.0.** Revisit at about 10 base components, or when someone other than an
   agent works on them.
 

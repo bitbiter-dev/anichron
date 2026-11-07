@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const surface = { light: 'rgb(247, 245, 242)', dark: 'rgb(23, 21, 19)' };
-const accent = 'rgb(180, 83, 9)';
+const accent = 'rgb(15, 118, 110)';
 
 const controls = (page: Page) => [
   page.getByLabel('Username or email'),

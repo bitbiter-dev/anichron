@@ -14,16 +14,29 @@ export function contrastRatio(a: string, b: string) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+// `top` at `opacity` composited over `bottom`.
+export function blend(top: string, bottom: string, opacity: number) {
+  const mixed = [1, 3, 5].map((offset) => {
+    const byte = (hex: string) => Number.parseInt(hex.slice(offset, offset + 2), 16);
+    return Math.round(byte(top) * opacity + byte(bottom) * (1 - opacity));
+  });
+  return `#${mixed.map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+}
+
 export type Theme = 'light' | 'dark';
 export type ThemeColours = Record<Theme, Record<string, string>>;
 
 type RegexMatch<T extends string[]> = [string, ...T];
 
+export function declarations(css: string) {
+  const matches = css.matchAll(/--([\w-]+):\s*([^;]+);/g) as Iterable<RegexMatch<[string, string]>>;
+  return new Map([...matches].map(([, name, value]) => [name, value]));
+}
+
 // Reads the semantic colours (`--color-<name>`) of a token stylesheet, through its
 // `light-dark()` and `var()` references, down to their `#rrggbb` values.
 export function themeColours(css: string): ThemeColours {
-  const matches = css.matchAll(/--([\w-]+):\s*([^;]+);/g) as Iterable<RegexMatch<[string, string]>>;
-  const declared = new Map([...matches].map(([, name, value]) => [name, value]));
+  const declared = declarations(css);
   const resolve = (value: string, theme: Theme): string => {
     const lightDark = /^light-dark\((.+?),\s*(.+)\)$/.exec(value) as RegexMatch<
       [string, string]
