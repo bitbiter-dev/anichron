@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate, useRouter } from '@tanstack/react-router';
+import { useRouter } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
 import { fieldCodes, type ErrorCode } from '../../api/problem';
@@ -18,8 +18,8 @@ type LoginFields = z.infer<typeof loginSchema>;
 const fields = ['usernameOrEmail', 'password'] as const;
 
 export function useLoginForm() {
-  const { api } = useRouter().options.context;
-  const navigate = useNavigate();
+  const router = useRouter();
+  const { api } = router.options.context;
   const countdown = useCountdown();
   const { register, handleSubmit, setError, formState } = useForm<LoginFields>({
     resolver: zodResolver(loginSchema),
@@ -28,7 +28,7 @@ export function useLoginForm() {
   const onSubmit = handleSubmit(async (values) => {
     const outcome = await api.login(values);
     if (outcome.ok) {
-      await navigate({ to: '/' });
+      await router.invalidate();
       return;
     }
     setError('root', { message: outcome.problem.code });

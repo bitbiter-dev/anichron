@@ -50,7 +50,7 @@ public sealed class JwtFactory : IJwtFactory
             issuer: settings.Issuer,
             audience: settings.Audience,
             claims: claims,
-            expires: clock.GetCurrentInstant().ToDateTimeUtc().AddMinutes(settings.AccessTokenMinutes),
+            expires: clock.GetCurrentInstant().ToDateTimeUtc().Add(settings.AccessTokenLifetime),
             signingCredentials: credentials);
 
         return tokenHandler.WriteToken(token);

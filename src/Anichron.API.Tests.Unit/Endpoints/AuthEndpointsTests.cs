@@ -1,6 +1,7 @@
 using Anichron.API.Endpoints;
 using Anichron.API.Services;
 using Anichron.API.Settings;
+using Anichron.Core.Domain;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
@@ -33,7 +34,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
 
         await AuthEndpoints.RegisterAsync(
             ValidRegisterRequest, auth, mapper, NewHttp(),
@@ -51,7 +52,7 @@ public sealed class AuthEndpointsTests
     {
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var serviceResult = AuthResult.Ok(new AuthTokens("access", "refresh"));
+        var serviceResult = AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
         var expectedResult = Results.NoContent();
         auth.RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(serviceResult);
@@ -76,7 +77,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
 
         await AuthEndpoints.LoginWebAsync(ValidLoginRequest, auth, mapper, NewHttp(), CancellationToken.None);
 
@@ -90,7 +91,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
 
         await AuthEndpoints.LoginWebAsync(ValidLoginRequest, auth, mapper, NewHttp(), CancellationToken.None);
 
@@ -107,7 +108,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
 
         await AuthEndpoints.LoginMobileAsync(ValidLoginRequest, auth, mapper, NewHttp(), CancellationToken.None);
 
@@ -121,7 +122,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
 
         await AuthEndpoints.LoginMobileAsync(ValidLoginRequest, auth, mapper, NewHttp(), CancellationToken.None);
 
@@ -152,7 +153,7 @@ public sealed class AuthEndpointsTests
         var mapper = Substitute.For<IAuthResponseMapper>();
         var http = NewHttpWithCookie("refresh_token", "cookie_tok");
         auth.RefreshAsync("cookie_tok", Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
 
         await AuthEndpoints.RefreshAsync(http, auth, mapper, request: null, CancellationToken.None);
 
@@ -166,7 +167,7 @@ public sealed class AuthEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.RefreshAsync("body_tok", Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh")));
+            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
 
         await AuthEndpoints.RefreshAsync(NewHttp(), auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
 

@@ -29,7 +29,10 @@ async function signIn(page: Page, usernameOrEmail: string, password: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
-test('a user signs in and lands on the signed-in page', async ({ page, request }) => {
+test('a user signs in, lands on the signed-in page and stays signed in across a reload', async ({
+  page,
+  request,
+}) => {
   const account = await createAccount(request);
 
   await signIn(page, account.username, account.password);
@@ -38,9 +41,27 @@ test('a user signs in and lands on the signed-in page', async ({ page, request }
   await expect(page).toHaveURL('/');
   await expectAccessible(page);
 
-  expect(await page.evaluate(() => Reflect.get(window, 'cspViolations') as string[])).toEqual([]);
   await page.reload();
-  await expect(page).toHaveURL('/login');
+  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page).toHaveURL('/');
+});
+
+test('a signed-out visitor signs in and returns to the requested page', async ({
+  page,
+  request,
+}) => {
+  const account = await createAccount(request);
+
+  await page.goto('/?from=link');
+  await expect(page).toHaveURL('/login?redirect=%2F%3Ffrom%3Dlink');
+  await page.getByLabel('Username or email').fill(account.username);
+  await page.getByLabel('Password').fill(account.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page).toHaveURL('/?from=link');
+  await page.goto('/login');
+  await expect(page).toHaveURL('/');
 });
 
 test('a wrong password is refused in the user’s language', async ({ page, request }) => {

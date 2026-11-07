@@ -31,15 +31,15 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
 
     public static TheoryData<string, string[]> Responses => new()
     {
-        { "POST /api/v1/auth/register", Of(["200 application/json TokenResponse", $"409 {Invalid}", $"422 {Invalid}"], Body, RateLimited) },
-        { "POST /api/v1/auth/login", Of(["200 application/json TokenResponse", $"401 {Problem}"], Body, RateLimited) },
-        { "POST /api/v1/auth/login/mobile", Of(["200 application/json TokenResponse", $"401 {Problem}"], Body, RateLimited) },
-        { "POST /api/v1/auth/refresh", Of(["200 application/json TokenResponse", $"401 {Problem}"], Body, RateLimited) },
+        { "POST /api/v1/auth/register", Of(["200 application/json SessionResponse", $"409 {Invalid}", $"422 {Invalid}"], Body, RateLimited) },
+        { "POST /api/v1/auth/login", Of(["200 application/json SessionResponse", $"401 {Problem}"], Body, RateLimited) },
+        { "POST /api/v1/auth/login/mobile", Of(["200 application/json SessionResponse", $"401 {Problem}"], Body, RateLimited) },
+        { "POST /api/v1/auth/refresh", Of(["200 application/json SessionResponse", $"401 {Problem}"], Body, RateLimited) },
         { "POST /api/v1/auth/logout", Of(["204", $"401 {Problem}"], Body) },
         { "POST /api/v1/auth/password-reset/request", Of([$"501 {Problem}"], RateLimited) },
         { "POST /api/v1/auth/password-reset/confirm", Of([$"501 {Problem}"], RateLimited) },
         { "GET /api/v1/users/me", ["200 application/json UserProfileResponse", $"401 {Problem}", $"404 {Problem}"] },
-        { "POST /api/v1/users/me/password", ["204", $"400 {Invalid}", $"401 {Problem}", $"415 {Problem}", $"422 {Invalid}", $"429 {Problem}"] },
+        { "POST /api/v1/users/me/password", ["200 application/json SessionResponse", $"400 {Invalid}", $"401 {Problem}", $"415 {Problem}", $"422 {Invalid}", $"429 {Problem}"] },
         { "POST /api/v1/users", Of(["201 application/json AdminCreatedUserResponse", $"409 {Invalid}", $"422 {Invalid}"], User, Body, RateLimited) },
         { "GET /api/v1/users", Of(["200 application/json AdminUserResponse[]"], User) },
         { "GET /api/v1/users/{userId}", Of(["200 application/json AdminUserResponse", $"404 {Problem}"], User) },

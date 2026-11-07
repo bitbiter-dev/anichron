@@ -10,4 +10,6 @@ public sealed record JwtSettings
     public string Audience { get; init; } = string.Empty;
     public int AccessTokenMinutes { get; init; } = AppDefaults.Jwt.AccessTokenMinutes;
     public int RefreshTokenDays { get; init; } = AppDefaults.Jwt.RefreshTokenDays;
+
+    public TimeSpan AccessTokenLifetime => TimeSpan.FromMinutes(AccessTokenMinutes);
 }

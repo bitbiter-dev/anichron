@@ -2,6 +2,7 @@ using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Domain;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
@@ -19,7 +20,7 @@ public static class UserEndpoints
         group.MapPost(ApiPaths.Users.ChangePassword, ChangePasswordAsync)
              .RequireUserAllowedWhileMustChangePassword()
              .RequireRateLimit(AuthRateLimitPolicies.Sensitive)
-             .Produces(StatusCodes.Status204NoContent)
+             .Produces<SessionResponse>()
              .ProducesValidationProblem()
              .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
         return app;
@@ -36,12 +37,13 @@ public static class UserEndpoints
         var found = await users.FindByIdAsync(userId, ct);
         return found is null
             ? Results.NotFound()
-            : Results.Ok(new UserProfileResponse(found.Id, found.Username, found.Email, found.IsAdmin, found.MustChangePassword));
+            : Results.Ok(UserProfileResponse.From(found));
     }
 
     internal static async Task<IResult> ChangePasswordAsync(
         ChangePasswordRequest req,
         ClaimsPrincipal user,
+        HttpContext http,
         IAuthService auth,
         IAuthResponseMapper mapper,
         IOptions<PasswordPolicy> passwordPolicyOptions,
@@ -51,9 +53,13 @@ public static class UserEndpoints
             return Results.Unauthorized();
 
         var result = await auth.ChangePasswordAsync(userId, req.CurrentPassword, req.NewPassword, ct);
-        return mapper.GetChangePasswordResult(result, passwordPolicyOptions.Value);
+        return mapper.GetChangePasswordResult(result, http, AuthEndpoints.CameWithRefreshCookie(http), passwordPolicyOptions.Value);
     }
 }
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
-public sealed record UserProfileResponse(Guid Id, string Username, string Email, bool IsAdmin, bool MustChangePassword);
+public sealed record UserProfileResponse(Guid Id, string Username, string Email, bool IsAdmin, bool MustChangePassword)
+{
+    internal static UserProfileResponse From(User user)
+        => new(user.Id, user.Username, user.Email, user.IsAdmin, user.MustChangePassword);
+}

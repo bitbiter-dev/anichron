@@ -3,7 +3,8 @@
 #
 # The API image built from this checkout, and PostgreSQL on
 # tmpfs so every run starts from an empty database. No Worker
-# runs until a flow needs media.
+# runs until a flow needs media. Caddy serves it over HTTPS
+# on https://localhost:8443 with its own internal certificate.
 #
 #   docker build -f src/Anichron.API/Dockerfile -t anichron-api:e2e src
 #   docker compose -f src/docker-compose.e2e.yml up --detach --wait
@@ -28,8 +29,6 @@ services:
 
   anichron-api:
     image: ${E2E_API_IMAGE:-anichron-api:e2e}
-    ports:
-      - "${E2E_PORT:-8080}:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - POSTGRES_CONNECTION__HOST=anichron-db
@@ -42,6 +41,7 @@ services:
       - Jwt__Audience=anichron
       - BOOTSTRAP_ADMIN_PASSWORD=end-to-end bootstrap passphrase
       - RateLimit__SensitivePermitLimit=10000
+      - RateLimit__RefreshPermitLimit=10000
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
       interval: 2s
@@ -49,4 +49,18 @@ services:
       retries: 30
     depends_on:
       anichron-db:
+        condition: service_healthy
+
+  anichron-tls:
+    image: caddy:2.10-alpine
+    command: caddy reverse-proxy --from https://localhost:8443 --to anichron-api:8080 --internal-certs --disable-redirects
+    ports:
+      - "${E2E_PORT:-8443}:8443"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://localhost:8443/api/v1/healthz || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      anichron-api:
         condition: service_healthy

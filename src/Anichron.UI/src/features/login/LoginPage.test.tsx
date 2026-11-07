@@ -2,9 +2,9 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { LoginRequest } from '../../api/login-contract';
+import type { LoginRequest } from '../../api/client';
 import { axeResults } from '../../test/axe';
-import { loginFails, loginRespondsWith, loginSucceeds, problem } from '../../test/handlers/login';
+import { loginFails, loginRespondsWith, loginSucceeds, problem } from '../../test/handlers/auth';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 

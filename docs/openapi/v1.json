@@ -36,7 +36,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             }
@@ -125,7 +125,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             }
@@ -204,7 +204,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             }
@@ -289,7 +289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             }
@@ -568,8 +568,15 @@
               }
             }
           },
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -3106,6 +3113,41 @@
           }
         }
       },
+      "SessionResponse": {
+        "required": [
+          "accessToken",
+          "expiresIn",
+          "user"
+        ],
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "The access token."
+          },
+          "expiresIn": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The access token's remaining lifetime in whole seconds.",
+            "format": "int32"
+          },
+          "user": {
+            "description": "The signed-in user.",
+            "$ref": "#/components/schemas/UserProfileResponse"
+          },
+          "refreshToken": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The refresh token, for a client that keeps it itself."
+          }
+        },
+        "description": "A new or renewed session, with the refresh token only when it is not set as a cookie."
+      },
       "SseItemOfWorkItemDto": {
         "type": "object",
         "properties": {
@@ -3136,26 +3178,6 @@
       "Stream": {
         "type": "string",
         "format": "binary"
-      },
-      "TokenResponse": {
-        "required": [
-          "accessToken"
-        ],
-        "type": "object",
-        "properties": {
-          "accessToken": {
-            "type": "string",
-            "description": "The access token."
-          },
-          "refreshToken": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "description": "The refresh token, for a client that keeps it itself."
-          }
-        },
-        "description": "The access token, with the refresh token only when it is not set as a cookie."
       },
       "UserProfileResponse": {
         "required": [

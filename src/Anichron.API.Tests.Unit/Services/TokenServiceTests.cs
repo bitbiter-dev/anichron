@@ -51,7 +51,7 @@ public sealed class TokenServiceTests
 
         public TokenService CreateTestee() => new(
             Tokens, UnitOfWork, _clock, _guidFactory,
-            Options.Create(new JwtSettings { RefreshTokenDays = 30 }),
+            Options.Create(new JwtSettings { AccessTokenMinutes = 20, RefreshTokenDays = 30 }),
             _jwtFactory);
     }
 
@@ -78,6 +78,21 @@ public sealed class TokenServiceTests
         var result = testee.Issue(user);
 
         result.AccessToken.Should().Be("access_token");
+    }
+
+    [Fact]
+    public void Issue_ValidUser_ReturnsTheSessionForThatUserWithTheAccessTokenLifetimeInSeconds()
+    {
+        var user = new User { Id = Guid.Parse("11111111-1111-1111-1111-111111111111") };
+        var testee = new TestFixture().CreateTestee();
+
+        var result = testee.Issue(user);
+
+        Assert.Multiple(() =>
+        {
+            result.AccessTokenLifetime.Should().Be(TimeSpan.FromMinutes(20));
+            result.User.Should().BeSameAs(user);
+        });
     }
 
     [Fact]

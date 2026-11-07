@@ -96,12 +96,12 @@ public sealed class ForwardedHeadersRateLimitTests
     }
 
     [Fact]
-    public async Task RefreshPolicy_AllowsItsPermitLimitThenRejectsAsync()
+    public async Task RefreshPolicy_AllowsSixtyRefreshesThenRejectsAsync()
     {
         await using var app = await StartAsync([]);
         using var client = app.GetTestClient();
         var statuses = new List<HttpStatusCode>();
-        for (var i = 0; i < 6; i++)
+        for (var i = 0; i < 61; i++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, "/probe-refresh");
             request.Headers.Add(PeerHeader, UntrustedPeer);
@@ -109,9 +109,24 @@ public sealed class ForwardedHeadersRateLimitTests
             statuses.Add(response.StatusCode);
         }
 
-        statuses.Should().Equal(
-            HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK,
-            HttpStatusCode.TooManyRequests);
+        statuses.Should().Equal([.. Enumerable.Repeat(HttpStatusCode.OK, 60), HttpStatusCode.TooManyRequests]);
+    }
+
+    [Fact]
+    public async Task RefreshPolicy_ConfiguredPermitLimit_AllowsThatManyThenRejectsAsync()
+    {
+        await using var app = await StartAsync(new() { ["RateLimit:RefreshPermitLimit"] = "2" });
+        using var client = app.GetTestClient();
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 3; i++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/probe-refresh");
+            request.Headers.Add(PeerHeader, UntrustedPeer);
+            using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.Should().Equal(HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.TooManyRequests);
     }
 
     [Fact]
@@ -132,11 +147,13 @@ public sealed class ForwardedHeadersRateLimitTests
     }
 
     [Theory]
-    [InlineData("0")]
-    [InlineData("-1")]
-    public async Task SensitivePolicy_PermitLimitBelowOne_FailsAtStartupAsync(string limit)
+    [InlineData("SensitivePermitLimit", "0")]
+    [InlineData("SensitivePermitLimit", "-1")]
+    [InlineData("RefreshPermitLimit", "0")]
+    [InlineData("RefreshPermitLimit", "-1")]
+    public async Task Policy_PermitLimitBelowOne_FailsAtStartupAsync(string setting, string limit)
     {
-        var start = () => StartAsync(new() { ["RateLimit:SensitivePermitLimit"] = limit });
+        var start = () => StartAsync(new() { [$"RateLimit:{setting}"] = limit });
 
         await start.Should().ThrowAsync<OptionsValidationException>();
     }

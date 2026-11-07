@@ -12,7 +12,7 @@ public interface IAuthResponseMapper
     IResult GetRegistrationResult(AuthResult<AuthTokens> result, HttpContext http, PasswordPolicy passwordPolicy, UsernamePolicy usernamePolicy);
     IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
     IResult GetRefreshResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
-    IResult GetChangePasswordResult(AuthResult result, PasswordPolicy passwordPolicy);
+    IResult GetChangePasswordResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie, PasswordPolicy passwordPolicy);
     IResult GetAdminCreateUserResult(AuthResult<AdminCreatedUser> result);
     IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result);
     IResult GetAdminGetUsersResult(List<User> users);
@@ -47,9 +47,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             };
         }
 
-        var tokens = result.Value!;
-        SetSessionCookies(http, tokens);
-        return Results.Ok(new TokenResponse(tokens.AccessToken));
+        return BuildSessionResponse(result.Value!, http, setCookie: true);
     }
 
     public IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie)
@@ -66,7 +64,7 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             };
         }
 
-        return BuildTokenResponse(result.Value!, http, setCookie);
+        return BuildSessionResponse(result.Value!, http, setCookie);
     }
 
     public IResult GetRefreshResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie)
@@ -83,13 +81,13 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
             };
         }
 
-        return BuildTokenResponse(result.Value!, http, setCookie);
+        return BuildSessionResponse(result.Value!, http, setCookie);
     }
 
-    public IResult GetChangePasswordResult(AuthResult result, PasswordPolicy passwordPolicy)
+    public IResult GetChangePasswordResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie, PasswordPolicy passwordPolicy)
     {
         if (result.IsSuccess)
-            return Results.NoContent();
+            return BuildSessionResponse(result.Value!, http, setCookie);
 
         return result.Error switch
         {
@@ -212,13 +210,15 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     private static AdminStorageConfigResponse ToAdminStorageConfigResponse(UserStorageConfig config)
         => new(config.Id, config.UserId, config.RootPath, config.IsActive);
 
-    private IResult BuildTokenResponse(AuthTokens tokens, HttpContext http, bool setCookie)
+    private IResult BuildSessionResponse(AuthTokens tokens, HttpContext http, bool setCookie)
     {
+        var user = UserProfileResponse.From(tokens.User);
+        var expiresIn = (int)tokens.AccessTokenLifetime.TotalSeconds;
         if (!setCookie)
-            return Results.Ok(new TokenResponse(tokens.AccessToken, tokens.RefreshToken));
+            return Results.Ok(new SessionResponse(tokens.AccessToken, expiresIn, user, tokens.RefreshToken));
 
         SetSessionCookies(http, tokens);
-        return Results.Ok(new TokenResponse(tokens.AccessToken));
+        return Results.Ok(new SessionResponse(tokens.AccessToken, expiresIn, user));
     }
 
     private static IResult LockedResult(HttpContext http, int secondsRemaining)
