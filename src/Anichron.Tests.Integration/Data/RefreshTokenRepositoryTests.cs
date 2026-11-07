@@ -45,6 +45,38 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
         (await db.RefreshTokens.CountAsync(ct)).Should().Be(1);
     }
 
+    [Fact]
+    public async Task RevokeAllActiveByUserIdAsync_InTheTransactionThatSavesANewToken_RevokesOnlyTheTokensAlreadySavedAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connectionString = await server.CreateMigratedDatabaseAsync(ct);
+        await SeedAsync(connectionString, ct, ("other-device", Now + Duration.FromDays(7)));
+
+        await using (var db = PostgresServer.Context(connectionString))
+        {
+            var userId = await db.Users.Select(u => u.Id).SingleAsync(ct);
+            var repository = new EfRefreshTokenRepository(db);
+            repository.Add(new RefreshToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                TokenHash = "this-device",
+                CreatedAt = Now,
+                ExpiresAt = Now + Duration.FromDays(7),
+            });
+
+            await db.ExecuteInTransactionAsync(async () =>
+            {
+                await repository.RevokeAllActiveByUserIdAsync(userId, Now, ct);
+                await db.SaveChangesAsync(ct);
+            }, ct);
+        }
+
+        await using var check = PostgresServer.Context(connectionString);
+        (await check.RefreshTokens.ToDictionaryAsync(t => t.TokenHash, t => t.RevokedAt, ct))
+            .Should().Equal(new Dictionary<string, Instant?> { ["other-device"] = Now, ["this-device"] = null });
+    }
+
     private static async Task SeedAsync(
         string connectionString, CancellationToken ct, params (string Hash, Instant ExpiresAt)[] tokens)
     {

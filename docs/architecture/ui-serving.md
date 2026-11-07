@@ -59,7 +59,9 @@ for the flashback player, say) adds it to `Permissions-Policy` in its own change
   content type, `Cache-Control` and exact header values. A web root that does not exist stands for
   "no UI built".
 - **Seam 4** (`src/Anichron.UI/e2e/`): Playwright against the image built from the checkout,
-  started by `src/docker-compose.e2e.yml` with PostgreSQL on tmpfs and no Worker. Projects: WebKit
+  started by `src/docker-compose.e2e.yml` with PostgreSQL on tmpfs and no Worker, behind Caddy on
+  `https://localhost:8443` with an internal certificate: the session cookies are `Secure`, and
+  Playwright's Linux WebKit keeps no `Secure` cookie on plain-HTTP `localhost`. Projects: WebKit
   on an iPhone profile, Chromium on a Pixel profile, Firefox at a phone viewport. The smoke test
   loads the app (a visitor without a token lands on `/login`) and asserts the headers, the assets'
   caching, no CSP or Trusted Types violation, no request to another origin, and no axe violations.
@@ -68,5 +70,6 @@ for the flashback player, say) adds it to `Permissions-Policy` in its own change
   API (#360): the compose file sets `BOOTSTRAP_ADMIN_PASSWORD`, and the global setup rotates that
   first password (so it fails on a database that is not fresh), and each test creates its own user
   with the admin API and changes its temporary password. Every request reaches the API from the one
-  Docker bridge address, so the compose file raises `RateLimit__SensitivePermitLimit`; lockout keeps
+  Docker bridge address, so the compose file raises `RateLimit__SensitivePermitLimit` and
+  `RateLimit__RefreshPermitLimit` (every page load refreshes once); lockout keeps
   its production timings. CI runs both in the `E2E` job.

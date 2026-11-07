@@ -185,7 +185,7 @@ public sealed class AuthErrorContractTests
     {
         RefreshFails(AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid));
         await using var app = await StartAsync(rateLimited: true);
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 60; i++)
             (await PostAsync(app, RefreshPath, new { refreshToken = "tok" })).Dispose();
 
         using var response = await PostAsync(app, RefreshPath, new { refreshToken = "tok" });
@@ -241,7 +241,7 @@ public sealed class AuthErrorContractTests
         AuthError error, int status, string code, string field, string detail)
     {
         auth.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail(error));
+            .Returns(AuthResult.Fail<AuthTokens>(error));
         await using var app = await StartAsync();
 
         using var response = await ChangePasswordAsync(app);
