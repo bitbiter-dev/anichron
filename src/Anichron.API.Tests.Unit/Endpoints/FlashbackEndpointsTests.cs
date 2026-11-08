@@ -119,6 +119,52 @@ public sealed class FlashbackEndpointsTests
         later.Years.Should().ContainSingle().Which.Assets.Should().ContainSingle().Which.Id.Should().Be(single.Id);
     }
 
+    [Fact]
+    public async Task OnThisDay_TwentyEighthOfFebruaryInAYearWithoutALeapDay_ShowsTheTwentyNinthInItsYearAsync()
+    {
+        var fixture = new TestFixture();
+        var leapDay = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000001"), new LocalDateTime(2024, 2, 29, 9, 0));
+        var twentyEighth = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000002"), new LocalDateTime(2025, 2, 28, 9, 0));
+        fixture.Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>())
+            .Returns([leapDay, twentyEighth]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(Get("?date=2027-02-28"), TestContext.Current.CancellationToken);
+
+        var body = await response.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
+        body.Should().NotBeNull();
+        body.Years.Select(y => (y.Year, y.Assets.Single().Id)).Should().Equal((2025, twentyEighth.Id), (2024, leapDay.Id));
+        await fixture.Reader.Received(1).ReadAsync(
+            UserId, new OnThisDay(new LocalDate(2027, 2, 28)), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("2027-02-28", true)]
+    [InlineData("2028-02-29", true)]
+    [InlineData("2028-02-28", false)]
+    public async Task OnThisDay_BurstCoveredOnTheTwentyNinthOfFebruary_IsShownOnTheTwentyEighthOnlyWithoutALeapDayAsync(
+        string date, bool shown)
+    {
+        var fixture = new TestFixture();
+        var burstId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
+        var cover = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000001"), new LocalDateTime(2024, 2, 29, 23, 59)) with { BurstId = burstId };
+        AssetView[] views =
+        [
+            cover,
+            AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000002"), new LocalDateTime(2024, 3, 1, 0, 1)) with { BurstId = burstId },
+        ];
+        fixture.Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>()).Returns(views);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(Get($"?date={date}"), TestContext.Current.CancellationToken);
+
+        var body = await response.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
+        body.Should().NotBeNull();
+        body.Years.SelectMany(y => y.Assets).Select(a => a.Id).Should().Equal(shown ? [cover.Id] : []);
+    }
+
     [Theory]
     [InlineData("2026-13-01")]
     [InlineData("14.07.2026")]
