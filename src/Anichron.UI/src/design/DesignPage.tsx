@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { Alert } from '../shared/ui/Alert';
+import { Button, buttonStyles } from '../shared/ui/Button';
+import { inputStyles, TextField } from '../shared/ui/TextField';
 import { contrastRatio, themeColours, type Theme, type ThemeColours } from './contrast';
 
 const themes: Theme[] = ['light', 'dark'];
@@ -34,6 +37,13 @@ export function DesignPage({ tokens }: { tokens: string }) {
         <div className="grid gap-6 md:grid-cols-2">
           {themes.map((theme) => (
             <LoginMock key={theme} theme={theme} />
+          ))}
+        </div>
+      </Section>
+      <Section title="Components">
+        <div className="grid gap-6 md:grid-cols-2">
+          {themes.map((theme) => (
+            <Components key={theme} theme={theme} />
           ))}
         </div>
       </Section>
@@ -104,6 +114,83 @@ function MockField({ label, value }: { label: string; value: string }) {
       <span className="flex min-h-11 items-center rounded-field border border-border bg-surface px-3">
         {value}
       </span>
+    </div>
+  );
+}
+
+function Components({ theme }: { theme: Theme }) {
+  return (
+    <div
+      className="flex flex-col gap-6 rounded-card bg-surface-raised p-4 text-fg"
+      style={{ colorScheme: theme }}
+    >
+      <h3 className="text-small font-semibold">{theme}</h3>
+      <States title="Button">
+        <State name="default">
+          <Button>Sign in</Button>
+        </State>
+        <State name="hover">
+          <span className={buttonStyles({ isHovered: true })}>Sign in</span>
+        </State>
+        <State name="pressed">
+          <span className={buttonStyles({ isHovered: true, isPressed: true })}>Sign in</span>
+        </State>
+        <State name="focused">
+          <span className={buttonStyles({ isFocusVisible: true })}>Sign in</span>
+        </State>
+        <State name="disabled">
+          <Button isDisabled>Sign in</Button>
+        </State>
+      </States>
+      <States title="Text field">
+        <State name="default">
+          <TextField label="Username or email" defaultValue="mira" />
+        </State>
+        <State name="hover">
+          <StaticField state={{ isHovered: true }} />
+        </State>
+        <State name="focused">
+          <StaticField state={{ isFocusVisible: true }} />
+        </State>
+        <State name="disabled">
+          <TextField label="Username or email" defaultValue="mira" isDisabled />
+        </State>
+        <State name="invalid">
+          <TextField label="Username or email" error="login.errors.required" />
+        </State>
+      </States>
+      <States title="Alert">
+        <State name="shown">
+          <Alert message="login.errors.invalidCredentials" />
+        </State>
+      </States>
+    </div>
+  );
+}
+
+function States({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <h4 className="font-semibold">{title}</h4>
+      <div className="grid grid-cols-2 gap-4">{children}</div>
+    </div>
+  );
+}
+
+function State({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-small text-fg-muted">{name}</span>
+      {children}
+    </div>
+  );
+}
+
+function StaticField({ state }: { state: Parameters<typeof inputStyles>[0] }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-small font-medium">Username or email</span>
+      <span className={`flex items-center ${inputStyles(state)}`}>mira</span>
     </div>
   );
 }

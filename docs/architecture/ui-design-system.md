@@ -8,10 +8,13 @@ build settles a detail.
 
 - **Tailwind CSS v4** through its Vite plugin. Component variants are written with
   `tailwind-variants`: typed variants, and a class a screen passes overrides the component's
-  default instead of being added next to it.
+  default instead of being added next to it. Components take `tv` from `src/shared/ui/tv.ts`, whose
+  tailwind-merge config names the type-size and radius tokens: without it, tailwind-merge reads
+  `text-small` as a colour and drops it next to `text-danger`.
 - **React Aria Components** for every interactive control, styled from Adobe's Tailwind starter.
-  Its built-in strings are cut to `en` and `de` by `@react-aria/optimize-locales-plugin`; a new
-  language is added there and to the catalog. The app is wrapped in `I18nProvider` with the locale
+  Its built-in strings are cut to `en` and `de` by `@react-aria/optimize-locales-plugin`, which
+  matches by language, so every region of each is kept; a new language is added there and to the
+  catalog. The app is wrapped in `I18nProvider` with the locale
   from i18next's current language, and `<html lang>` follows the same value.
 - **Icons:** `lucide-react`, imported per icon. A meaningful icon's label comes from the catalog; a
   decorative one is `aria-hidden`. Its first caller is #120's navigation.
@@ -81,22 +84,29 @@ key and values with the toggle.
   React Aria's focus-visible state), never on a tap. A native text input matches `:focus-visible`
   on a tap too, by browser design; React Aria's focus-visible state removes that from #458 on.
   The ring reaches 3:1 against both surfaces; an accent that does not in a theme gives `focus`
-  its own value there.
+  its own value there. A control with the ring does not transition its colours: the outline would
+  fade in from the text colour.
 
 ## Base components
 
 - They live in `src/shared/ui/`. Variant definitions stay in the view file, outside UI mutation
   (ADR 0014); logic goes into a `.ts` module and is mutated.
 - They are form-agnostic: plain props, a field's error given as a message key. A feature connects
-  react-hook-form through `Controller`.
+  react-hook-form through `Controller`, passing `field.ref` as the text field's `inputRef` so a
+  failed submit still focuses the first invalid field.
+- States are `tv` variants named after React Aria's render props (`isHovered`, `isPressed`,
+  `isFocusVisible`, `isDisabled`, `isInvalid`), and each component exports its style function, so
+  the design page can show a state that only interaction reaches.
+- The text field sets `aria-invalid` to `false` when valid, where React Aria leaves it out.
 - Each component ships with its first caller. #346 ships the button, the text field (label, input,
   field error) and the form-level alert, with the login screen rebuilt on them.
 
 ## Checks
 
 - **Seam 2:** a component is tested through the screen that uses it (`renderApp` with MSW), with
-  axe in light and dark, and its keyboard operation through `@testing-library/user-event` (React
-  Aria's press handling ignores bare `fireEvent` events).
+  axe, and its keyboard operation through `@testing-library/user-event` (React Aria's press
+  handling ignores bare `fireEvent` events). jsdom resolves no colour scheme, so axe there checks
+  names, roles and states; light and dark are the E2E run's.
 - **Contrast:** a unit test (`src/app/tokens.test.ts`) reads the token stylesheet and checks each
   semantic foreground and background pair in each theme: 4.5:1 for text, 3:1 for the focus ring
   and borders. Text on glass is checked against the worst case the blur can produce: the card at
@@ -129,5 +139,8 @@ key and values with the toggle.
 
 ## Budgets
 
-The initial JS stays within 150 kB gzip and the CSS within 15 kB (`.size-limit.json`). A PR that
-would exceed one says so and asks the maintainer instead of raising the limit.
+The initial JS stays within 170 kB gzip and the CSS within 15 kB (`.size-limit.json`). A PR that
+would exceed one says so and asks the maintainer instead of raising the limit. The JS limit was
+150 kB until #458: React Aria's button and text field and tailwind-merge took the login screen from
+135 kB to 165 kB. Every screen needs them, so lazy routes would split that cost rather than remove
+it; they are worth adding when screens most users never open (the admin screens) arrive.

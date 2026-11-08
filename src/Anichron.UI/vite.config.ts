@@ -1,3 +1,4 @@
+import optimizeLocales from '@react-aria/optimize-locales-plugin';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
@@ -5,7 +6,12 @@ import browserslistToEsbuild from 'browserslist-to-esbuild';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
+  plugins: [
+    optimizeLocales.vite({ locales: ['en', 'de'] }),
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
+    tailwindcss(),
+  ],
   build: {
     target: browserslistToEsbuild(),
   },

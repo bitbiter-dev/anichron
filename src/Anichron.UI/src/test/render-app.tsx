@@ -10,5 +10,6 @@ export function renderApp(path: string) {
     createApiClient(),
     createMemoryHistory({ initialEntries: [path] }),
   );
-  return { ...render(<App router={router} i18n={createI18n()} />), router };
+  const i18n = createI18n();
+  return { ...render(<App router={router} i18n={i18n} />), router, i18n };
 }
