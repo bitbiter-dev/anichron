@@ -40,11 +40,14 @@ CREATE TABLE "RefreshTokens" (
     "CreatedAt" timestamp with time zone NOT NULL,
     "ExpiresAt" timestamp with time zone NOT NULL,
     "RevokedAt" timestamp with time zone,
+    "ReplacedById" uuid,
     CONSTRAINT "PK_RefreshTokens" PRIMARY KEY ("Id"),
+    CONSTRAINT "FK_RefreshTokens_RefreshTokens_ReplacedById" FOREIGN KEY ("ReplacedById") REFERENCES "RefreshTokens" ("Id") ON DELETE SET NULL,
     CONSTRAINT "FK_RefreshTokens_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "RefreshTokens" IS 'Issued and revoked by the API; expired rows are swept by the Worker''s TokenCleanup work item. One of the few tables both services touch.';
 COMMENT ON COLUMN "RefreshTokens"."TokenHash" IS 'Hash, never the token itself — a database disclosure must not hand out usable sessions.';
+COMMENT ON COLUMN "RefreshTokens"."ReplacedById" IS 'The token this one was rotated into. Presenting this token within 30 seconds of RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017).';
 
 
 CREATE TABLE "StorageConfigs" (
@@ -284,6 +287,9 @@ CREATE INDEX ix_proxyfiles_proxypath ON "ProxyFiles" ("ProxyPath" text_pattern_o
 
 
 CREATE UNIQUE INDEX ix_proxyorphans_sweepid_proxypath ON "ProxyOrphans" ("SweepId", "ProxyPath");
+
+
+CREATE UNIQUE INDEX "IX_RefreshTokens_ReplacedById" ON "RefreshTokens" ("ReplacedById");
 
 
 CREATE UNIQUE INDEX "IX_RefreshTokens_TokenHash" ON "RefreshTokens" ("TokenHash");

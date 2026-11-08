@@ -1,6 +1,7 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
@@ -43,6 +44,48 @@ public sealed class RefreshTokenRepositoryTests
         result.Should().NotBeNull();
         result.User.Should().NotBeNull();
         result.User.Id.Should().Be(user.Id);
+    }
+
+    [Fact]
+    public async Task FindByHashWithUserAsync_RotatedToken_ReturnsItWithItsSuccessorLoaded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = AnichronDbContexts.InMemory();
+        var user = MakeUser();
+        db.Users.Add(user);
+        var successor = MakeToken(user.Id, "tok2");
+        var rotated = MakeToken(user.Id, "tok1", revokedAt: Epoch);
+        rotated.ReplacedById = successor.Id;
+        db.RefreshTokens.AddRange(successor, rotated);
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+
+        var result = await new EfRefreshTokenRepository(db).FindByHashWithUserAsync("tok1", ct);
+
+        result.Should().NotBeNull();
+        result.ReplacedBy.Should().NotBeNull().And.Subject.As<RefreshToken>().TokenHash.Should().Be("tok2");
+    }
+
+    [Fact]
+    public async Task FindByHashWithUserAsync_TokenChangedElsewhereSinceThisContextSawIt_ReturnsItAsItIsNow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var databaseName = Guid.NewGuid().ToString();
+        await using var db = AnichronDbContexts.InMemory(databaseName);
+        var user = MakeUser();
+        db.Users.Add(user);
+        db.RefreshTokens.Add(MakeToken(user.Id, "tok1"));
+        await db.SaveChangesAsync(ct);
+        await using (var elsewhere = AnichronDbContexts.InMemory(databaseName))
+        {
+            (await elsewhere.RefreshTokens.SingleAsync(ct)).RevokedAt = Epoch;
+            await elsewhere.SaveChangesAsync(ct);
+        }
+
+        var result = await new EfRefreshTokenRepository(db).FindByHashWithUserAsync("tok1", ct);
+
+        result.Should().NotBeNull();
+        result.RevokedAt.Should().Be(Epoch);
     }
 
     [Fact]

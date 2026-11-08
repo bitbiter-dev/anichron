@@ -380,6 +380,10 @@ namespace Anichron.Core.Migrations
                     b.Property<Instant>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ReplacedById")
+                        .HasColumnType("uuid")
+                        .HasComment("The token this one was rotated into. Presenting this token within 30 seconds of RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017).");
+
                     b.Property<Instant?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -392,6 +396,9 @@ namespace Anichron.Core.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ReplacedById")
+                        .IsUnique();
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
@@ -763,11 +770,18 @@ namespace Anichron.Core.Migrations
 
             modelBuilder.Entity("Anichron.Core.Domain.RefreshToken", b =>
                 {
+                    b.HasOne("Anichron.Core.Domain.RefreshToken", "ReplacedBy")
+                        .WithOne()
+                        .HasForeignKey("Anichron.Core.Domain.RefreshToken", "ReplacedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Anichron.Core.Domain.User", "User")
                         .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ReplacedBy");
 
                     b.Navigation("User");
                 });
