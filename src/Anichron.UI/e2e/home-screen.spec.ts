@@ -1,0 +1,57 @@
+import { expect, test, type APIRequestContext } from '@playwright/test';
+
+const pngSize = (png: Buffer) => [png.readUInt32BE(16), png.readUInt32BE(20)].join('x');
+
+const fetchPng = async (request: APIRequestContext, path: string) => {
+  const response = await request.get(path);
+  expect(response.status(), path).toBe(200);
+  expect(response.headers()['content-type'], path).toBe('image/png');
+  return pngSize(await response.body());
+};
+
+test('the app links the head tags that put it on the Home Screen', async ({ page }) => {
+  await page.goto('/login');
+  const head = page.locator('head');
+
+  await expect(head.locator('link[rel="manifest"]')).toHaveAttribute(
+    'href',
+    '/manifest.webmanifest',
+  );
+  await expect(head.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
+    'href',
+    '/apple-touch-icon.png',
+  );
+  await expect(
+    head.locator('meta[name="theme-color"][media="(prefers-color-scheme: light)"]'),
+  ).toHaveAttribute('content', '#f7f5f2');
+  await expect(
+    head.locator('meta[name="theme-color"][media="(prefers-color-scheme: dark)"]'),
+  ).toHaveAttribute('content', '#171513');
+});
+
+test('the manifest names the app, its colours and icons that exist at their sizes', async ({
+  request,
+}) => {
+  const response = await request.get('/manifest.webmanifest');
+
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toBe('application/manifest+json');
+  expect(await response.json()).toEqual({
+    name: 'Anichron',
+    short_name: 'Anichron',
+    display: 'standalone',
+    start_url: '/',
+    scope: '/',
+    background_color: '#171513',
+    theme_color: '#171513',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  });
+  expect(await fetchPng(request, '/icon-192.png')).toBe('192x192');
+  expect(await fetchPng(request, '/icon-512.png')).toBe('512x512');
+  expect(await fetchPng(request, '/icon-maskable-512.png')).toBe('512x512');
+  expect(await fetchPng(request, '/apple-touch-icon.png')).toBe('180x180');
+});

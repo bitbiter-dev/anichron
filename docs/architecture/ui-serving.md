@@ -34,6 +34,17 @@ matches every method, so routing would pick it instead of answering `405` for a 
 `/api` is a path segment (`StartsWithSegments`), so `/apiary` is an app path. A dot in the last segment counts as an extension (`Path.HasExtension`), so a client route never ends in one (`/people/j.doe` would be a `404`). The web root is read
 through ASP.NET Core's file provider, never `IFileSystem` (ADR 0007, `api-reads-no-file-system`).
 
+## The Home Screen files
+
+`src/Anichron.UI/public/` holds `manifest.webmanifest`, the icons it names (192 px, 512 px and a
+maskable 512 px), `apple-touch-icon.png` (180 px) and `icon.svg`, their source (#480). Vite copies
+the folder unhashed to the web root, so they fall under the `no-cache` row above. The PNGs are
+exported once from the SVG and committed through Git LFS, not generated during the build, so a new
+icon means exporting all four again. The icon is opaque and full bleed, with the motif inside the
+centred 80% circle that a maskable crop keeps. `index.html` links the manifest and the touch icon
+and carries one `theme-color` per `prefers-color-scheme`, the light and dark surface colours. The
+manifest takes a single colour, the dark surface, which matches the icon's background.
+
 ## Security headers
 
 `UseSecurityHeaders` (`SecurityHeaders.cs`) is the first middleware and sets the headers in
@@ -72,7 +83,8 @@ for the flashback player, say) adds it to `Permissions-Policy` in its own change
   loads the app (a visitor without a token lands on `/login`) and asserts the headers, the assets'
   caching, no CSP or Trusted Types violation, no request to another origin, and no axe violations.
   `login.spec.ts` signs in through the screen: success, a wrong password, a disabled account and a
-  locked account's countdown, each with no CSP violation. Users are seeded only through the public
+  locked account's countdown, each with no CSP violation. `home-screen.spec.ts` checks the Home Screen head tags,
+  the manifest's fields and content type, and that every icon it names is a PNG of its declared size. Users are seeded only through the public
   API (#360): the compose file sets `BOOTSTRAP_ADMIN_PASSWORD`, and the global setup rotates that
   first password (so it fails on a database that is not fresh), and each test creates its own user
   with the admin API and changes its temporary password. Every request reaches the API from the one
