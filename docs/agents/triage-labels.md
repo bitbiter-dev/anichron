@@ -16,7 +16,7 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 
 ## Repo-specific states
 
-This repo adds two states between triage and `ready-for-agent`. The skills do not know them; `docs/agents/design-process.md` says when to apply them, and moving into or out of them is a normal transition.
+This repo adds two states between triage and `ready-for-agent`. The skills do not know them; `.claude/docs/design-process.md` says when to apply them, and moving into or out of them is a normal transition.
 
 | Label            | Meaning                                                                      |
 | ---------------- | ---------------------------------------------------------------------------- |

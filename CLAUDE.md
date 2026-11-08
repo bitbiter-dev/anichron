@@ -71,7 +71,7 @@ Shared test infrastructure lives in `Anichron.Testing`, referenced by the test p
 - **EF**: `AnichronDbContexts.InMemory(...)` for data, `AnichronDbContexts.NpgsqlModel()` for model and SQL assertions; pass `freshModel: true` wherever a test asserts on the model.
 - **DI scopes**: `ScopeFactories.Providing(services => ...)`, a real container rather than substitutes.
 
-`Anichron.Architecture.Tests.Unit` holds the architecture rules (ArchUnitNET): decisions about types and dependencies that fail the build instead of living as prose. Adding one: `docs/agents/design-process.md`, "Adding an architecture rule".
+`Anichron.Architecture.Tests.Unit` holds the architecture rules (ArchUnitNET): decisions about types and dependencies that fail the build instead of living as prose. Adding one: `.claude/docs/design-process.md`, "Adding an architecture rule".
 
 ### Mutation testing
 
@@ -187,7 +187,7 @@ Each user has a private set of `UserStorageConfig` entries pointing to NAS roots
 
 - **Issues** (bug reports, feature requests, epic tracking): https://github.com/bitbiter-dev/anichron/issues
 - **Wiki** (early architecture decisions, e.g. ADR-3 on flashback weighting, which older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
-- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. An open "Architecture review due" issue goes before anything else (procedure: `docs/agents/design-process.md`, "Architecture review"). Otherwise pick an open `ready-for-agent` issue with no open blocker. A `needs-design` issue is picked only to write or approve its design note; a `needs-decision` issue waits for the maintainer.
+- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. An open "Architecture review due" issue goes before anything else (procedure: `.claude/docs/design-process.md`, "Architecture review"). Otherwise pick an open `ready-for-agent` issue with no open blocker. A `needs-design` issue is picked only to write or approve its design note; a `needs-decision` issue waits for the maintainer.
 
 ## Code graph (who uses a symbol)
 
@@ -202,7 +202,7 @@ It builds or refreshes the local, gitignored `graphify-out/` itself (seconds, no
 
 ## Engineering process (objection, first caller, design note)
 
-Agents write issues, designs and code; the maintainer sets requirements in conversation and makes decisions. Before writing an issue, designing, implementing or reviewing, read `docs/agents/design-process.md`. Its three load-bearing terms:
+Agents write issues, designs and code; the maintainer sets requirements in conversation and makes decisions. Before writing an issue, designing, implementing or reviewing, read `.claude/docs/design-process.md`. Its three load-bearing terms:
 
 - **Objection:** when the requirement, design or spec is wrong for the system, object on the issue, relabel it and stop.
 - **First caller:** every building block ships with the code that first uses it.
