@@ -36,6 +36,10 @@ docker build --secret id=sixlabors_license,src=sixlabors.lic -f src/Anichron.Wor
 
 The Worker uses ImageSharp, which needs a [Six Labors licence key](https://sixlabors.com/pricing/) at build time. Put the key, and nothing else, in `sixlabors.lic` at the repository root (it is gitignored); the Worker build takes it as the build secret `sixlabors_license` and fails with "No Six Labors license found" without it. To pass the key from an environment variable instead, use `--secret id=sixlabors_license,env=SIXLABORS_LICENSE_KEY`.
 
+## Try the latest build on a phone
+
+`src/docker-compose.device.yml` runs the latest master build (the `edge` images) on a laptop and serves it to your own phone over HTTPS through Tailscale, with a sample photo folder as one user's library. Its header lists the steps.
+
 ## Documentation
 
 The **[wiki](https://github.com/bitbiter-dev/anichron/wiki)** covers features, architecture, deployment decisions, and the release process.

@@ -1,0 +1,118 @@
+# ============================================================
+# Anichron — the latest build on a phone
+#
+# The edge images (every master build) on this laptop, reached
+# from a phone over HTTPS through Tailscale, so only devices in
+# your tailnet can open it. The API listens on loopback only.
+#
+# Once:
+#   1. Install Tailscale on the laptop and the phone, signed in
+#      to the same tailnet. In the admin console's DNS page,
+#      turn on MagicDNS and HTTPS Certificates. (The machine
+#      name then appears in public certificate logs.)
+#   2. export DEVICE_JWT_SECRET="$(openssl rand -base64 48)"
+#      and keep it, or every session ends on the next `up`.
+#   3. export DEVICE_PHOTOS=/path/to/some/sample/photos
+#      export TZ=<your zone, e.g. Pacific/Auckland>  (default UTC;
+#      "today" for On This Day)
+#      Keep these in your shell profile: every command below,
+#      `down` and `logs` included, needs them.
+#
+# Every time (from the repository root):
+#   docker compose -f src/docker-compose.device.yml pull
+#   docker compose -f src/docker-compose.device.yml up -d --wait
+#   tailscale serve --bg http://127.0.0.1:${DEVICE_PORT:-8090}
+# and open https://<laptop>.<tailnet>.ts.net on the phone
+# (`tailscale serve status` prints it).
+#
+# The first start creates the admin "admin" with the bootstrap
+# passphrase below, which must be changed before anything else.
+# The UI cannot do that yet, nor add a user or a storage
+# config, so the first time, with
+# BASE=http://127.0.0.1:${DEVICE_PORT:-8090}:
+#   a. Sign in and change the admin's passphrase:
+#        POST $BASE/api/v1/auth/login/mobile
+#             {"usernameOrEmail":"admin","password":"device bootstrap passphrase"}
+#        POST $BASE/api/v1/users/me/password  (Authorization: Bearer <accessToken>)
+#             {"currentPassword":"device bootstrap passphrase","newPassword":"<yours>"}
+#   b. Sign in again and create the user who owns the photos
+#      (an admin sees no media):
+#        POST $BASE/api/v1/users  {"username":"mira","email":"mira@example.com"}
+#      The answer carries mira's id and temporaryPassword.
+#   c. Give mira the sample folder; the Worker crawls it within
+#      seconds:
+#        POST $BASE/api/v1/users/<id>/storage-configs
+#             {"rootPath":"/data/originals/mira"}
+#   d. Change mira's temporary passphrase the same way as in a,
+#      then sign in as mira on the phone.
+#
+# The database and the proxies are named volumes, so the account
+# and the library survive `down` and `up`. To stop:
+#   docker compose -f src/docker-compose.device.yml down
+#   tailscale serve --https=443 off
+# Add `--volumes` to `down` to start again from nothing.
+# ============================================================
+
+services:
+  anichron-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: anichron_device
+      POSTGRES_PASSWORD: anichron_device
+      POSTGRES_DB: anichron
+    volumes:
+      - device_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anichron_device -d anichron"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  anichron-api:
+    image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge
+    ports:
+      - "127.0.0.1:${DEVICE_PORT:-8090}:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - TZ=${TZ:-UTC}
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_device
+      - POSTGRES_CONNECTION__PASSWORD=anichron_device
+      - Jwt__Secret=${DEVICE_JWT_SECRET:?export DEVICE_JWT_SECRET, see the header}
+      - Jwt__Issuer=anichron
+      - Jwt__Audience=anichron
+      - BOOTSTRAP_ADMIN_PASSWORD=device bootstrap passphrase
+    volumes:
+      - ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}:/data/originals/mira:ro
+      - device_proxies:/data/proxies:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      anichron-db:
+        condition: service_healthy
+
+  # One Worker for all users: no WORKER__USER, configs come from the admin API.
+  anichron-worker:
+    image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-worker:edge
+    environment:
+      - TZ=${TZ:-UTC}
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_device
+      - POSTGRES_CONNECTION__PASSWORD=anichron_device
+    volumes:
+      - ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}:/data/originals/mira:ro
+      - device_proxies:/data/proxies:rw
+    depends_on:
+      anichron-db:
+        condition: service_healthy
+
+volumes:
+  device_postgres:
+  device_proxies:
