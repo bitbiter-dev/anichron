@@ -40,7 +40,7 @@ A file that records no date is **undated**. It never appears in On This Day or a
 | Offset from the GPS timestamp | The fix can be hours old |
 | The zone corrects the recorded time | The stored date would no longer be what the file says |
 | Last-modified as a marked fallback | Every query would have to filter it out |
-| More sources (`DateTimeDigitized`, `xmp:CreateDate`, GPS date, PNG `tIME`, file names) | A survey of 703 sample files found none that dates a real photo correctly where the chain fails. A source joins when a real file needs it |
+| More sources (`DateTimeDigitized`, `xmp:CreateDate`, GPS date, PNG `tIME`, file names) | In a survey of 703 sample files, each filled a gap only with the wrong date (a scan date, a document's creation, a modified time) or never. A source joins when a real file needs it |
 | A date-only source yields to a later timed one | Date and time from two sources can disagree on the day |
 | A date-only source counts as undated | It names the right day, which is all On This Day needs |
 

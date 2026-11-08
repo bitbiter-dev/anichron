@@ -15,7 +15,11 @@ Kinds: `Crawl` and `BurstDetection` (one per storage config), `TokenCleanup` and
   - **Self-stop:** an attempt whose heartbeats have not reached the database for half a lease cancels itself, so no two attempts touch one config's files at once. `WorkLeaseSeconds` must exceed four heartbeats.
   - An expired lease requeues the item and counts a stall; the `WorkMaxStalls`th fails it. A shutdown releases it without a stall. A handler exception fails it; there are no retries.
   - A Worker claims only the kinds it knows.
-- **Cancelling:** `POST /api/v1/admin/work-items/{id}/cancel` through `EfWorkItemCanceller`. A queued item ends `Cancelled` at once; a running one gets a request that the heartbeat passes to the handler, and it ends `Cancelled` with partial progress. A cancelled periodic item counts as that run.
+- **Superseded:** an item handed back (release or recovery) while another with its key is queued ends `Cancelled`.
+- **Cancelling:** `POST /api/v1/admin/work-items/{id}/cancel` through `EfWorkItemCanceller`.
+  - A queued item ends `Cancelled` at once. A running one gets a request that the heartbeat passes to the handler, and ends `Cancelled` with partial progress.
+  - A requested item is never queued again: release and lease recovery end it `Cancelled`, even at the stall limit.
+  - A cancelled periodic item counts as that run, so the scheduler does not undo the cancel.
 - **Admin view:** list, detail and a Server-Sent Events stream keyed on `UpdatedAt`. The list returns the cursor to subscribe from, so nothing is missed. The API reads items only through `IWorkItemReader`.
 - **Retention:** `WorkItemRetention` deletes finished items after `WorkItemRetentionDays`.
 

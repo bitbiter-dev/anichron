@@ -102,6 +102,8 @@ Mutants that flip between runs:
 - **Hooks:** a commit with a UI file runs `format`, `lint`, `typecheck` and `depcruise`. A push runs `scripts/ui-pre-push.sh`.
 - **CI:** `UI` runs all of them, plus the scoped mutation run and the bundle budget (`.size-limit.json`; a PR that raises a limit says why). `E2E` runs `pnpm e2e` against the PR's API image. Locally, build `anichron-api:e2e` and start `src/docker-compose.e2e.yml` (its header has the commands).
 
+**Session:** before any route renders, the app refreshes once and holds the session in memory. `src/api/client.ts` keeps it alive with one single-flight refresh: on a schedule, on becoming visible, and on a `401` before retrying. Only a `401` from refresh signs out.
+
 **Layout:** `src/app/` (entry, providers, `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, `src/test/`, `src/design/` (dev-only design page).
 
 - dependency-cruiser forbids: a feature importing another feature; `shared/` or `api/` importing `features/` or `app/`; anything but `app/` importing a feature; cycles; production code importing test code or the design page; `.ts` importing `.tsx`.
@@ -139,10 +141,10 @@ Mutants that flip between runs:
 
 - **The Worker is the only writer of media data** (`MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, `BurstCheck`, reconciliation, soft-deletes).
   - The API never touches `AnichronDbContext` outside DI wiring (`api-reaches-data-through-repositories`, `only-worker-writes-media`).
-  - The one exception: `AssetInteraction`, written by the API through `IAssetInteractionWriter`.
-- **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`.
-- **Work items** are inserted only through `IWorkQueue`. The API's only other write to them is an admin's cancel (`IWorkItemCanceller`). Handlers live only in the Worker (`work-queue.md`).
-- **Proxy orphans** are written only by the Worker.
+  - The one exception: `AssetInteraction`, written by the API through `IAssetInteractionWriter` (plain records in and out). It checks only `VisibleTo`, never `NotHiddenFor`, so a hidden asset can be unhidden. A first write that loses the `(UserId, AssetId)` race reloads and reapplies once.
+- **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exception: the Worker's `TokenCleanup` handler deletes expired refresh tokens.
+- **Work items** are inserted only through `IWorkQueue`. The API's only other write to them is an admin's cancel (`IWorkItemCanceller`). Handlers live only in the Worker (`work-queue.md`). Raw SQL naming the table is beyond the architecture rules and is for review.
+- **Proxy orphans** are written only by the Worker (`only-worker-writes-proxy-orphans`).
 - Both hosts migrate at startup under a PostgreSQL advisory lock.
 
 ### Storage Layout
@@ -180,7 +182,7 @@ Read the file before changing its area, and fix what your change makes wrong in 
 ## Conventions
 
 - **Enforced by the build** (`TreatWarningsAsErrors`, `src/.editorconfig`, central package management, `dotnet format`): file-scoped namespaces matching the folder, `camelCase` private fields without underscore in production code, `I`-prefixed interfaces, 4 spaces, LF, `AnalysisMode=Recommended`, package versions only in `Directory.Packages.props`. Fix the code, don't suppress the rule.
-- **Lock files:** CI restores in locked mode. After a package bump, run `dotnet restore src` and commit every changed `packages.lock.json`.
+- **Lock files:** CI restores in locked mode. After a package bump, run `dotnet restore src` and commit every changed `packages.lock.json`; Dependabot misses the test projects that reach a package through a project reference.
 - **XML doc comments** only when they add information beyond the name. A summary needs a `<param>` per parameter (RCS1141); short ones are fine.
 
 ## Multi-User Design
@@ -205,7 +207,7 @@ Read the file before changing its area, and fix what your change makes wrong in 
   - `X-Forwarded-For` is trusted only from loopback, `FORWARDEDHEADERS__KNOWNPROXIES` or `KNOWNNETWORKS`. Rate limits partition on the resulting IP, so a reverse proxy must be listed. Never trust the Docker bridge for a published port.
   - Rate limits: `RATELIMIT__SENSITIVEPERMITLIMIT`, `RATELIMIT__REFRESHPERMITLIMIT`.
 - Registration requires an admin invite, except for the first user (bootstrap admin).
-- **Observability:** `GET /api/v1/healthz`. Logging is the console logger with `LoggerMessage` source generation (`logging-is-source-generated`). No JSON logs or OpenTelemetry.
+- **Observability:** `GET /api/v1/healthz` (not in the OpenAPI document). Logging is the console logger with `LoggerMessage` source generation (`logging-is-source-generated`; `BeginScope` is allowed). No JSON logs or OpenTelemetry.
 - License: AGPL-3.0.
 
 ## GitHub References
