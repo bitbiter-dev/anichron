@@ -382,7 +382,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<Guid?>("ReplacedById")
                         .HasColumnType("uuid")
-                        .HasComment("The token this one was rotated into. Presenting this token within 30 seconds of RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017).");
+                        .HasComment("The token this one was rotated into. Presenting this token shortly after RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017 sets the window).");
 
                     b.Property<Instant?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");

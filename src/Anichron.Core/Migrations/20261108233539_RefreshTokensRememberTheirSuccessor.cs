@@ -16,7 +16,7 @@ namespace Anichron.Core.Migrations
                 table: "RefreshTokens",
                 type: "uuid",
                 nullable: true,
-                comment: "The token this one was rotated into. Presenting this token within 30 seconds of RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017).");
+                comment: "The token this one was rotated into. Presenting this token shortly after RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017 sets the window).");
 
             migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_ReplacedById",

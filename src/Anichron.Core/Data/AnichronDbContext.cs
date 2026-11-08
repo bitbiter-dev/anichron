@@ -263,9 +263,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "sessions.");
 
             entity.Property(r => r.ReplacedById).HasComment(
-                "The token this one was rotated into. Presenting this token within 30 seconds of "
-                + "RevokedAt, while that one is still active, is a lost refresh response, not theft: "
-                + "the successor is rotated in its place (ADR 0017).");
+                "The token this one was rotated into. Presenting this token shortly after RevokedAt, "
+                + "while that one is still active, is a lost refresh response, not theft: the "
+                + "successor is rotated in its place (ADR 0017 sets the window).");
 
             entity.HasIndex(r => r.TokenHash).IsUnique();
             entity.HasIndex(r => new { r.UserId, r.ExpiresAt });

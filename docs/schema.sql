@@ -47,7 +47,7 @@ CREATE TABLE "RefreshTokens" (
 );
 COMMENT ON TABLE "RefreshTokens" IS 'Issued and revoked by the API; expired rows are swept by the Worker''s TokenCleanup work item. One of the few tables both services touch.';
 COMMENT ON COLUMN "RefreshTokens"."TokenHash" IS 'Hash, never the token itself — a database disclosure must not hand out usable sessions.';
-COMMENT ON COLUMN "RefreshTokens"."ReplacedById" IS 'The token this one was rotated into. Presenting this token within 30 seconds of RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017).';
+COMMENT ON COLUMN "RefreshTokens"."ReplacedById" IS 'The token this one was rotated into. Presenting this token shortly after RevokedAt, while that one is still active, is a lost refresh response, not theft: the successor is rotated in its place (ADR 0017 sets the window).';
 
 
 CREATE TABLE "StorageConfigs" (
