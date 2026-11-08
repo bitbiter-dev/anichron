@@ -74,6 +74,11 @@ device in `localStorage`. Applying it before the first paint needs a blocking sc
 into an unhashed `/theme-init.js` (served `no-cache`, like `index.html`), which shares its storage
 key and values with the toggle.
 
+Static files cannot read a CSS variable, so the two surface colours (`--neutral-50`,
+`--neutral-950`) are repeated as literals in `index.html`'s `theme-color` metas, the manifest and
+the icon's background (`ui-serving.md`, "The Home Screen files"). A change to either surface
+changes them too.
+
 ## Motion and focus
 
 - **Motion:** durations are tokens (`--duration-fast`, `--duration-base`) that resolve to `0ms`
