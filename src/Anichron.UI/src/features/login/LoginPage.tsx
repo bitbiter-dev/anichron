@@ -1,90 +1,71 @@
-import type { UseFormRegisterReturn } from 'react-hook-form';
+import { Controller, type Control } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
+import { Alert } from '../../shared/ui/Alert';
+import { Button } from '../../shared/ui/Button';
+import { TextField } from '../../shared/ui/TextField';
 import type { MessageKey } from './messages';
-import { useLoginForm } from './use-login-form';
-
-const focusRing =
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+import { useLoginForm, type LoginFields } from './use-login-form';
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const { register, onSubmit, formError, fieldError, retryIn, blocked } = useLoginForm();
+  const { control, onSubmit, formError, fieldError, retryIn, blocked } = useLoginForm();
   return (
     <main className="grid min-h-dvh place-items-center p-4 glow-backdrop">
       <div className="w-full max-w-sm rounded-card p-6 glass-card">
         <h1 className="mb-6 text-title font-semibold">{t('login.title')}</h1>
         <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)} noValidate>
-          <FormError error={formError} retryIn={retryIn} />
-          <Field
+          <Alert message={formError} />
+          {retryIn > 0 && (
+            <p className="text-small text-fg-muted">{t('login.retryIn', { count: retryIn })}</p>
+          )}
+          <LoginField
+            control={control}
+            name="usernameOrEmail"
             label={t('login.usernameOrEmail')}
             autoComplete="username"
             error={fieldError('usernameOrEmail')}
-            registration={register('usernameOrEmail')}
           />
-          <Field
+          <LoginField
+            control={control}
+            name="password"
             label={t('login.password')}
             type="password"
             autoComplete="current-password"
             error={fieldError('password')}
-            registration={register('password')}
           />
-          <button
-            type="submit"
-            disabled={blocked}
-            className={`mt-2 min-h-11 rounded-full bg-accent px-6 font-semibold text-on-accent lift-accent transition-opacity hover:opacity-90 disabled:opacity-50 ${focusRing}`}
-          >
+          <Button type="submit" isDisabled={blocked} className="mt-2">
             {t('login.submit')}
-          </button>
+          </Button>
         </form>
       </div>
     </main>
   );
 }
 
-function FormError({ error, retryIn }: { error: MessageKey | undefined; retryIn: number }) {
-  const { t } = useTranslation();
-  return (
-    <>
-      <div role="alert" className="text-danger">
-        {error && <p>{t(error)}</p>}
-      </div>
-      {retryIn > 0 && (
-        <p className="text-small text-fg-muted">{t('login.retryIn', { count: retryIn })}</p>
-      )}
-    </>
-  );
-}
-
-interface FieldProps {
+interface LoginFieldProps {
+  control: Control<LoginFields>;
+  name: keyof LoginFields;
   label: string;
   type?: string;
   autoComplete: string;
   error: MessageKey | undefined;
-  registration: UseFormRegisterReturn;
 }
 
-function Field({ label, type = 'text', autoComplete, error, registration }: FieldProps) {
-  const { t } = useTranslation();
-  const errorId = `${registration.name}-error`;
+function LoginField({ control, name, ...props }: LoginFieldProps) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={registration.name} className="text-small font-medium">
-        {label}
-      </label>
-      <input
-        className={`min-h-11 rounded-field border border-border bg-surface px-3 text-fg aria-invalid:border-danger ${focusRing}`}
-        id={registration.name}
-        type={type}
-        autoComplete={autoComplete}
-        aria-invalid={error !== undefined}
-        aria-describedby={error && errorId}
-        {...registration}
-      />
-      {error && (
-        <p id={errorId} className="text-small text-danger">
-          {t(error)}
-        </p>
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <TextField
+          {...props}
+          name={field.name}
+          value={field.value}
+          onChange={field.onChange}
+          onBlur={field.onBlur}
+          inputRef={field.ref}
+        />
       )}
-    </div>
+    />
   );
 }

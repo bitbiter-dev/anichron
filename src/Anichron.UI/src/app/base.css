@@ -1,4 +1,8 @@
 @layer base {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
   body {
     background-color: var(--color-surface);
     color: var(--color-fg);
