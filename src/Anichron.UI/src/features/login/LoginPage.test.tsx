@@ -250,6 +250,7 @@ describe('the login screen', () => {
 
     expect(screen.queryByText(/You can try again/)).toBeNull();
     expect(submitButton()).toBeEnabled();
+    await act(() => vi.runAllTimersAsync());
     expect(await axeResults(container)).toHaveNoViolations();
     server.use(loginSucceeds());
     await user().click(submitButton());

@@ -1,4 +1,4 @@
 import { setupServer } from 'msw/node';
-import { refreshFails } from './handlers/auth';
+import { meAnswersFor, refreshFails } from './handlers/auth';
 
-export const server = setupServer(refreshFails());
+export const server = setupServer(refreshFails(), meAnswersFor());
