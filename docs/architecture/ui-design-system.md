@@ -95,8 +95,11 @@ key and values with the toggle.
   react-hook-form through `Controller`, passing `field.ref` as the text field's `inputRef` so a
   failed submit still focuses the first invalid field.
 - States are `tv` variants named after React Aria's render props (`isHovered`, `isPressed`,
-  `isFocusVisible`, `isDisabled`, `isInvalid`), and each component exports its style function, so
-  the design page can show a state that only interaction reaches.
+  `isFocusVisible`, `isDisabled`, `isInvalid`). A component with a state that only interaction
+  reaches exports that part's style function (`buttonStyles`, `inputStyles`), so the design page
+  can show the state.
+- A caller's `className` goes on the component's outer element: the button, the text field's
+  wrapper, the alert.
 - The text field sets `aria-invalid` to `false` when valid, where React Aria leaves it out.
 - Each component ships with its first caller. #346 ships the button, the text field (label, input,
   field error) and the form-level alert, with the login screen rebuilt on them.
@@ -141,6 +144,6 @@ key and values with the toggle.
 
 The initial JS stays within 170 kB gzip and the CSS within 15 kB (`.size-limit.json`). A PR that
 would exceed one says so and asks the maintainer instead of raising the limit. The JS limit was
-150 kB until #458: React Aria's button and text field and tailwind-merge took the login screen from
+150 kB until #458, when the maintainer raised it (2026-11-08): React Aria's button and text field and tailwind-merge took the login screen from
 135 kB to 165 kB. Every screen needs them, so lazy routes would split that cost rather than remove
 it; they are worth adding when screens most users never open (the admin screens) arrive.
