@@ -85,7 +85,12 @@ services:
       - Jwt__Audience=anichron
       - BOOTSTRAP_ADMIN_PASSWORD=device bootstrap passphrase
     volumes:
-      - ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}:/data/originals/mira:ro
+      - type: bind
+        source: ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}
+        target: /data/originals/mira
+        read_only: true
+        bind:
+          create_host_path: false
       - device_proxies:/data/proxies:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
@@ -107,7 +112,12 @@ services:
       - POSTGRES_CONNECTION__USER=anichron_device
       - POSTGRES_CONNECTION__PASSWORD=anichron_device
     volumes:
-      - ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}:/data/originals/mira:ro
+      - type: bind
+        source: ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}
+        target: /data/originals/mira
+        read_only: true
+        bind:
+          create_host_path: false
       - device_proxies:/data/proxies:rw
     depends_on:
       anichron-db:
