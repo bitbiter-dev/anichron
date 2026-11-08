@@ -150,6 +150,7 @@ CREATE TABLE "MediaAssets" (
     "StorageConfigId" uuid NOT NULL,
     "BurstId" uuid,
     "PairedAssetId" uuid,
+    "IsLivePhotoVideo" boolean NOT NULL,
     "FilePath" text NOT NULL,
     "FileName" text NOT NULL,
     "ContentHash" text NOT NULL,
@@ -170,6 +171,7 @@ CREATE TABLE "MediaAssets" (
 );
 COMMENT ON TABLE "MediaAssets" IS 'One row per media file, scoped to a storage config. Written ONLY by the Worker — the API never writes media data.';
 COMMENT ON COLUMN "MediaAssets"."PairedAssetId" IS 'Live Photo pairing: the photo points at its video. The video is part of the photo, never a memory of its own, and has at most one photo (unique): pairing hands it over, reconciliation soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo is shown as a still photo, so SetNull on delete.';
+COMMENT ON COLUMN "MediaAssets"."IsLivePhotoVideo" IS 'Whether the row is a Live Photo''s video: set when a photo is paired with it, never cleared, even when the photo lets go of it or is purged. Pairing soft-deletes a video its photo lets go of, and a flagged video crawled alone follows only its photo, so it is never a memory of its own (ADR 0019).';
 COMMENT ON COLUMN "MediaAssets"."FilePath" IS 'Path relative to the storage config root. Not to be confused with ProxyFiles.ProxyPath, which is relative to the proxy root.';
 COMMENT ON COLUMN "MediaAssets"."ContentHash" IS 'XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same bytes under two storage configs are two assets, which is what makes multi-user work. A global unique index on this column alone would break that and must never be added.';
 COMMENT ON COLUMN "MediaAssets"."DateCaptured" IS 'The wall-clock time the file records it was captured. NULL when it records none: the asset is undated, never dated by the file''s last-modified time, and is left out of On This Day and burst detection (ADR 0015).';

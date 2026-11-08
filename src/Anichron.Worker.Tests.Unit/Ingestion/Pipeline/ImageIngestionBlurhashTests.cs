@@ -68,7 +68,9 @@ public sealed class ImageIngestionBlurhashTests
                     new NewContentWriter(
                         repository,
                         clock,
-                        new PairedMovResolver(repository, clock, guids, new FakeLogger<PairedMovResolver>()),
+                        new PairedMovResolver(
+                            repository, new StoredContent(repository, Substitute.For<IBurstRepository>(), clock, new FakeLogger<StoredContent>()),
+                            clock, guids, new FakeLogger<PairedMovResolver>()),
                         new PairedMovProxyWriter(
                             [], new TwoLevelHexShardStrategy(), stagingWriter, repository,
                             new FakeLogger<PairedMovProxyWriter>()),

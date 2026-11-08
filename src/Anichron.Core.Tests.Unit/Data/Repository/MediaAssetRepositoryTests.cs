@@ -101,7 +101,7 @@ public sealed class MediaAssetRepositoryTests
             IsSoftDeleted = softDeleted,
         };
 
-    private static async Task<IReadOnlyList<MatchedAsset>> FindByHashesOrPathsAsync(
+    private static async Task<IReadOnlyList<MediaAsset>> FindByHashesOrPathsAsync(
         MediaAsset[] seeded, string[] hashes, string[] paths)
     {
         await using var db = await SeededAsync(seeded);
@@ -126,8 +126,8 @@ public sealed class MediaAssetRepositoryTests
 
         var result = await FindByHashesOrPathsAsync([wanted], ["beef", "cafe"], ["elsewhere.mov"]);
 
-        result.Should().ContainSingle().Which.Asset.Id.Should().Be(wanted.Id);
-        result[0].Asset.ProxyFiles.Should().ContainSingle().Which.ProxyType.Should().Be(ProxyType.WebVideo);
+        result.Should().ContainSingle().Which.Id.Should().Be(wanted.Id);
+        result[0].ProxyFiles.Should().ContainSingle().Which.ProxyType.Should().Be(ProxyType.WebVideo);
     }
 
     [Fact]
@@ -138,38 +138,22 @@ public sealed class MediaAssetRepositoryTests
 
         var result = await new EfMediaAssetRepository(db).FindByHashesOrPathsAsync(ConfigA, ["cafe"], [], ct);
 
-        db.Entry(result.Should().ContainSingle().Which.Asset).State.Should().Be(EntityState.Unchanged);
+        db.Entry(result.Should().ContainSingle().Which).State.Should().Be(EntityState.Unchanged);
     }
-
-    [Fact]
-    public async Task FindByHashesOrPathsAsync_RowNoPhotoPointsAt_IsNotALivePhotoVideo()
-        => (await FindByHashesOrPathsAsync([AssetAt(ConfigA, "cafe", "a.mov")], ["cafe"], []))
-            .Should().ContainSingle().Which.IsLivePhotoVideo.Should().BeFalse();
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FindByHashesOrPathsAsync_RowAPhotoPointsAt_IsALivePhotoVideoEvenWhenThePhotoIsSoftDeleted(bool photoSoftDeleted)
+    public async Task FindByHashesOrPathsAsync_LivePhotoVideo_IsTheStoredFlagWhicheverPhotoPointsAtTheRow(bool flagged)
     {
         var video = AssetAt(ConfigA, "cafe", "a.mov");
-        var photo = AssetAt(ConfigA, "beef", "a.heic", softDeleted: photoSoftDeleted);
+        video.IsLivePhotoVideo = flagged;
+        var photo = AssetAt(ConfigA, "beef", "a.heic");
         photo.PairedAssetId = video.Id;
 
         var result = await FindByHashesOrPathsAsync([video, photo], ["cafe"], []);
 
-        result.Should().ContainSingle().Which.IsLivePhotoVideo.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task FindByHashesOrPathsAsync_PhotoPointingAtAnotherRow_LeavesThisRowNotALivePhotoVideo()
-    {
-        var (video, other) = (AssetAt(ConfigA, "cafe", "a.mov"), AssetAt(ConfigA, "f00d", "b.mov"));
-        var photo = AssetAt(ConfigA, "beef", "b.heic");
-        photo.PairedAssetId = other.Id;
-
-        var result = await FindByHashesOrPathsAsync([video, other, photo], ["cafe"], []);
-
-        result.Should().ContainSingle().Which.IsLivePhotoVideo.Should().BeFalse();
+        result.Should().ContainSingle().Which.IsLivePhotoVideo.Should().Be(flagged);
     }
 
     [Fact]
@@ -179,7 +163,7 @@ public sealed class MediaAssetRepositoryTests
 
         var result = await FindByHashesOrPathsAsync([trashed], ["cafe"], ["b.jpg"]);
 
-        result.Should().ContainSingle().Which.Asset.Id.Should().Be(trashed.Id);
+        result.Should().ContainSingle().Which.Id.Should().Be(trashed.Id);
     }
 
     [Fact]
@@ -195,18 +179,13 @@ public sealed class MediaAssetRepositoryTests
     }
 
     [Fact]
-    public void FindByHashesOrPaths_CountsEveryPhotoPointingAtARowSoftDeletedOrNot()
+    public void FindByHashesOrPaths_ReadsTheStoredLivePhotoVideoFlagWithoutLookingForPhotos()
     {
         using var db = AnichronDbContexts.NpgsqlModel();
 
         var sql = EfMediaAssetRepository.HashesOrPathsQuery(db, ConfigA, ["cafe"], ["a.jpg"]).ToQueryString();
 
-        sql.Should().Contain("""
-            EXISTS (
-                SELECT 1
-                FROM "MediaAssets" AS m0
-                WHERE m0."PairedAssetId" = m."Id")
-            """);
+        sql.Should().Contain("""m."IsLivePhotoVideo",""").And.NotContain("EXISTS");
     }
 
     [Fact]
@@ -217,7 +196,7 @@ public sealed class MediaAssetRepositoryTests
 
         var result = await FindByHashesOrPathsAsync([active, trashed], ["cafe"], ["a.jpg", "b.jpg"]);
 
-        result.Select(row => row.Asset.Id).Should().BeEquivalentTo([active.Id, trashed.Id]);
+        result.Select(row => row.Id).Should().BeEquivalentTo([active.Id, trashed.Id]);
     }
 
     [Fact]

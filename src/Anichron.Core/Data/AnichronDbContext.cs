@@ -130,6 +130,10 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "memory of its own, and has at most one photo (unique): pairing hands it over, reconciliation "
                 + "soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo "
                 + "is shown as a still photo, so SetNull on delete.");
+            entity.Property(m => m.IsLivePhotoVideo).HasComment(
+                "Whether the row is a Live Photo's video: set when a photo is paired with it, never cleared, even "
+                + "when the photo lets go of it or is purged. Pairing soft-deletes a video its photo lets go of, and "
+                + "a flagged video crawled alone follows only its photo, so it is never a memory of its own (ADR 0019).");
             entity.Property(m => m.IsSoftDeleted).HasComment(
                 "Set by reconciliation when a complete crawl did not find the file, or when its path "
                 + "now holds content stored at another path. Soft rather than hard so the user's "

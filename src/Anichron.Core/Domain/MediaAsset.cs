@@ -11,6 +11,9 @@ public class MediaAsset
     /// </summary>
     public Guid? PairedAssetId { get; set; }
 
+    /// <summary>Whether a photo has ever been paired with this row as its video; set at pairing and never cleared.</summary>
+    public bool IsLivePhotoVideo { get; set; }
+
     // File Information
     // Stryker disable once String
     public string FilePath { get; set; } = string.Empty; // Relative to StorageConfig Root

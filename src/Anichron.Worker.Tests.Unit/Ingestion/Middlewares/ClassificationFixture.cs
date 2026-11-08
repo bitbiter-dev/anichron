@@ -28,6 +28,7 @@ internal sealed class ClassificationFixture
     public IVideoProxyGenerator MovGenerator { get; } = Substitute.For<IVideoProxyGenerator>();
     public FakeLogger<KnownFileReconciler> Logger { get; } = new();
     public FakeLogger<ClassificationMiddleware> MiddlewareLogger { get; } = new();
+    public FakeLogger<PairedMovResolver> ResolverLogger { get; } = new();
     public List<ProxyFile> AddedProxies { get; } = [];
 
     public ClassificationFixture()
@@ -39,17 +40,13 @@ internal sealed class ClassificationFixture
     }
 
     public void Store(params MediaAsset[] rows)
-        => StoreMatched([.. rows.Select(row => new MatchedAsset(row, IsLivePhotoVideo: false))]);
-
-    public void StoreMatched(params MatchedAsset[] rows)
     {
         Repository.FindByHashesOrPathsAsync(
                 ConfigId, Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
             .Returns(rows);
-        var tracked = rows.Select(row => row.Asset).ToList();
-        var storedPointers = tracked.Where(row => row.PairedAssetId is not null).ToLookup(row => row.PairedAssetId!.Value);
+        var storedPointers = rows.Where(row => row.PairedAssetId is not null).ToLookup(row => row.PairedAssetId!.Value);
         Repository.FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(call => tracked.FirstOrDefault(row => row.Id == call.Arg<Guid>()));
+            .Returns(call => rows.FirstOrDefault(row => row.Id == call.Arg<Guid>()));
         Repository.FindPhotosOfAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(call => [.. storedPointers[call.Arg<Guid>()]]);
     }
@@ -67,15 +64,17 @@ internal sealed class ClassificationFixture
         var movProxyWriter = new PairedMovProxyWriter(
             [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository, new FakeLogger<PairedMovProxyWriter>());
         var pairer = new LivePhotoPairer(
-            new PairedMovResolver(Repository, Clock, GuidFactory, new FakeLogger<PairedMovResolver>()), movProxyWriter, new FakeLogger<LivePhotoPairer>());
+            new PairedMovResolver(Repository, StoredContent(), Clock, GuidFactory, ResolverLogger), movProxyWriter, new FakeLogger<LivePhotoPairer>());
         return new(
             new IngestionClassifier(Repository, FileSystem),
             pairer,
             new KnownFileReconciler(
-                Clock, Repository, new StoredContent(Repository, Bursts, Clock, new FakeLogger<StoredContent>()), GuidFactory, movProxyWriter, Logger),
+                Clock, Repository, StoredContent(), GuidFactory, movProxyWriter, Logger),
             saver,
             MiddlewareLogger);
     }
+
+    private StoredContent StoredContent() => new(Repository, Bursts, Clock, new FakeLogger<StoredContent>());
 
     public Task DidNotTranscodeAsync()
         => MovGenerator.DidNotReceive().TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -96,6 +95,12 @@ internal sealed class ClassificationFixture
         ContentHash = "abc123",
         SecondaryHash = "cafebabe",
     };
+
+    public static MediaAsset LivePhotoVideo(MediaAsset row)
+    {
+        row.IsLivePhotoVideo = true;
+        return row;
+    }
 
     public static Task NoOpNextAsync(IngestionContext ctx, CancellationToken ct)
     {

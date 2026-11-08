@@ -92,8 +92,9 @@ public sealed class ContentChangedWriterTests
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
             var stagingWriter = new ProxyStagingWriter(FileSystem, clock, GuidFactory, new FakeLogger<ProxyStagingWriter>());
-            return new(new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>()),
-                new PairedMovResolver(Repository, clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
+            var storedContent = new StoredContent(Repository, Bursts, clock, new FakeLogger<StoredContent>());
+            return new(storedContent,
+                new PairedMovResolver(Repository, storedContent, clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),
@@ -395,6 +396,23 @@ public sealed class ContentChangedWriterTests
         await fx.WriteAsync(context);
 
         mov.Captured.Should().Be(new CaptureDate(new LocalDateTime(2019, 3, 4, 5, 6), null, CaptureSource.Recorded, null));
+    }
+
+    [Fact]
+    public async Task WriteAsync_EditedHeicBesideAnotherVideo_RetiresTheVideoItLetsGoOfAndCountsItAsync()
+    {
+        var fx = new TestFixture();
+        var letGo = new MediaAsset { Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), FilePath = "2022/old.mov", IsLivePhotoVideo = true };
+        fx.Stored.PairedAssetId = letGo.Id;
+        fx.Repository.FindAsync(letGo.Id, Arg.Any<CancellationToken>()).Returns(letGo);
+        var mov = new MediaAsset { Id = MovId, ContentHash = "cafebabe", ProxyFiles = [new ProxyFile { ProxyType = ProxyType.WebVideo }] };
+        var context = fx.Context(
+            new LivePhotoPairItem("/abs/2022/live.heic", "2022/live.heic", "/abs/2022/live.mov", "2022/live.mov"), mov);
+
+        var asset = await fx.WriteAsync(context);
+
+        (asset!.PairedAssetId, mov.IsLivePhotoVideo, letGo.IsSoftDeleted).Should().Be((MovId, true, true));
+        context.SoftDeleted.Should().Be(1);
     }
 
     // ==========================================================================
