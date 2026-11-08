@@ -1,18 +1,28 @@
 # Media reads
 
-How the API reads asset lists for a user, and how a user's interactions shape flashbacks.
+How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetViewReader.cs`, `Anichron.API`.
 
 ## Asset lists
 
-**Asset lists are read through `IAssetViewReader`** (`Anichron.Core/Data/Repository/AssetViewReader.cs`, #253). It always applies `VisibleTo` and `NotHiddenFor` to the caller and leaves out a Live Photo's paired MOV (any row that a row visible to the caller references through `PairedAssetId`, so hiding the Live Photo does not surface its video; the MOV reaches the client only as the Live Photo's `PairedMovId`, #320, and a soft-deleted MOV not at all) and every undated asset (`DateCaptured` null, so `AssetView` keeps non-null `Year`/`Month`/`Day`/`DateCaptured` for every selection; #402 widens it), then the caller's `IAssetSelection` (e.g. `OnThisDay`, which filters only on `MediaAsset` columns and also brings every member of a burst with a visible member on the day, or `BurstMembers`, one burst's members), then left-joins the caller's own interaction row, all projected into a flat `AssetView` in one SQL statement. A new list view adds a selection class; it never changes the reader, and no API type touches a media entity (architecture rule `api-reads-media-through-views`). Grouping and ordering happen in memory on the result: `FlashbackYears` collapses each burst to its cover (`Bursts.Cover`: the caller's earliest visible member, starred or liked when any member is, `burst { burstId, isCover, count }`), kept only when the cover falls on the requested day (`OnThisDay.FallsOnTheDay`), then orders years newest first, starred first, then capture time. A requested 28 February in a year without 29 February also matches 29 February, in the selection and in `FallsOnTheDay` alike, so those memories come back every year; a requested 29 February matches 29 February only (#468). The published `mediaType` is `"LivePhoto"` only when the DTO carries the live video URL (the paired MOV is visible and has a `WebVideo` proxy), otherwise `"Image"`; the stored `MediaType` stays `LivePhoto`, so a returning video needs no write (`AssetDtoMapper`, #321).
+- **Every list goes through `IAssetViewReader`**, in one SQL statement projected into a flat `AssetView`. No API type touches a media entity (`api-reads-media-through-views`).
+- The reader always applies `VisibleTo` and `NotHiddenFor` for the caller, and leaves out:
+  - a Live Photo's paired MOV, which reaches the client only as the photo's `PairedMovId`;
+  - undated assets.
+- **A new list view is a new `IAssetSelection`** (e.g. `OnThisDay`, `BurstMembers`). The reader never changes.
+- Grouping and ordering happen in memory. `FlashbackYears` collapses each burst to its cover (`Bursts.Cover`) and orders years newest first, starred first, then by capture time.
+- On This Day for 28 February also matches 29 February in years without one. 29 February matches only itself.
+- The published `mediaType` is `LivePhoto` only when the paired video is visible and has a `WebVideo`; otherwise `Image` (`AssetDtoMapper`).
 
-**Proxy URLs carry their content version (#340).** A row keeps its `Id` when it takes new content (`ContentChanged`, `AutoRestoredContentChanged`, `OverwrittenByMove`, a Live Photo's MOV), so the id alone cannot key a cache. `AssetView` carries the asset's `ContentHash` and the paired MOV's `PairedMovContentHash`, and `ProxyKinds.UrlOf` builds `proxies/{assetId}/{type}?v={hash}`: the asset's own hash for its thumbnail, preview and video, the MOV's for a Live Photo's video. A proxy regenerated from unchanged content keeps its URL, as it keeps its `ETag`. `GET /api/v1/proxies/{assetId}/{type}` sends `private, max-age=31536000, immutable` only when `v` equals the current hash (ordinal); a stale or missing `v` gets the current file with `private, no-cache` and the strong `ETag`, never a `404`, so new bytes are never cached as immutable under an old URL. The route sits under its own `/api/v1/proxies` prefix so the media cookie (ADR 0013) can be scoped to it.
+## Proxy URLs
 
-**The media cookie (ADR 0013, #367).** `ProxyEndpoints` registers a second JWT bearer scheme that reads the access token from the `media_token` cookie and nothing else (no fallback to the header), with the same validation as the default scheme (`AddJwtValidation`), owns the proxy route's policy (that scheme or the bearer header, then the must-change-password requirement), and maps the route; the scheme name is private to it, so no other route can accept the cookie. `AuthResponseMapper` sets the cookie beside the refresh cookie (registration, `/login`, a cookie refresh; never `/login/mobile` or a body refresh): `HttpOnly`, `Secure`, `Path=/api/v1/proxies`, the refresh cookie's `SameSite`, expiring with the access token. Logout deletes it with the same attributes. `JwtTestApp` hosts endpoints with the real authentication registration and real tokens.
+- A row keeps its `Id` when its content changes, so every proxy URL carries the content hash: `proxies/{assetId}/{type}?v={hash}` (`ProxyKinds.UrlOf`).
+- Only a request whose `v` is the current hash is cached `immutable`. A stale or missing `v` gets the current file with `no-cache`, never a `404`.
+- The proxy route also accepts the `media_token` cookie (ADR 0013). `ProxyEndpoints` owns that scheme, privately, so no other route can accept the cookie.
 
-## Flashback Interaction Rules
+## Interaction rules
 
-`AssetInteraction` state is per user and shapes that user's flashback queries (Epic 5+):
-- `hidden = true` → excluded from the user's flashback queries. Applied **at query level** by `NotHiddenFor(userId)` (#48), not a global filter; other users still see the asset
-- `starred = true` → always included; sorted first within its year group
-- `liked = true` → `DisplayWeight` 2.0 (otherwise 1.0), used for candidate weighting when a date has many assets across years. `DisplayWeight` is **computed** by `FlashbackWeight.For` in Core, never stored — there is no such column (#46)
+`AssetInteraction` is per user:
+
+- **hidden:** left out of that user's flashbacks by `NotHiddenFor`, at query level, not a global filter.
+- **starred:** always included, and sorted first within its year.
+- **liked:** `DisplayWeight` 2.0 instead of 1.0. It is computed by `FlashbackWeight.For`, never stored.
