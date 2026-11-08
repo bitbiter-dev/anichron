@@ -105,6 +105,21 @@ describe('a session past its access token', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
+  it('keeps what it already fetched across a refresh', async () => {
+    server.use(
+      refreshAnswers(),
+      meAccepts(() => true),
+    );
+    await openSignedIn();
+    expect(bearers).toHaveLength(1);
+
+    await untilAnswered(renewal);
+    await untilAnswered(renewal);
+    expect(refreshes).toBe(3);
+    expect(bearers).toHaveLength(1);
+    expect(screen.getByText(greeting('mira'))).toBeVisible();
+  });
+
   it('is refreshed on the lifetime of the session a refresh returned', async () => {
     server.use(
       refreshAnswers((n) =>

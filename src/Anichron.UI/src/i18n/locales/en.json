@@ -2,7 +2,8 @@
   "placeholder": {
     "title": "Anichron",
     "body": "You're signed in. Your photo library is on its way.",
-    "greeting": "Signed in as {{username}}."
+    "greeting": "Signed in as {{username}}.",
+    "signOut": "Sign out"
   },
   "login": {
     "title": "Sign in to Anichron",
