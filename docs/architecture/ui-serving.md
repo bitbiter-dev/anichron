@@ -46,6 +46,12 @@ and the fallback `404`s.
 - **Under `/api`:** `X-Content-Type-Options: nosniff` and `Content-Security-Policy: frame-ancestors 'none'`.
 
 The policy has no `Development` branch: only the Vite dev server, which sends no CSP, is looser.
+
+React Aria's `usePress` adds an inline `<style>` (`touch-action` on `[data-react-aria-pressable]`)
+to `<head>` unless an element with the id `react-aria-pressable-style` is already there, and
+`style-src 'self'` blocks it. `index.html` carries an empty `<template>` with that id, and
+`src/app/base.css` ships the rule instead. The E2E run's CSP check fails if a React Aria upgrade
+renames the id.
 Today's bundle runs under Trusted Types in all three browsers, so
 `require-trusted-types-for 'script'` stays. It has no route chunks yet, so Vite's dynamic-import
 preload helper is not in it; the smoke test fails on any Trusted Types violation, so the first lazy
