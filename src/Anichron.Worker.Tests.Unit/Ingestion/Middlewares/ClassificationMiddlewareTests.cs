@@ -720,7 +720,7 @@ public sealed class ClassificationMiddlewareTests
 
     [Theory]
     [InlineData("b1b1", (int)PairingAction.AttachMov)]
-    [InlineData("0ldc", (int)PairingAction.PointAtMov)]
+    [InlineData("c0c0", (int)PairingAction.PointAtMov)]
     public async Task InvokeAsync_PhotoMovedBesideAStoredVideoWhileItsOwnStaysOnDisk_RetiresItsOwnAndTheNextCrawlLeavesItRetiredAsync(
         string storedVideoHash, int pairing)
     {
@@ -774,7 +774,7 @@ public sealed class ClassificationMiddlewareTests
         var fx = new ClassificationFixture();
         var (aHeic, aVideo) = LivePhotoA();
         aVideo.ContentHash = "b1b1";
-        var cVideo = Half(CVideoId, "C.mov", "0ldc");
+        var cVideo = Half(CVideoId, "C.mov", "c0c0");
         fx.Store(aHeic, aVideo, cVideo);
         var context = LivePhoto("C");
 
@@ -793,7 +793,7 @@ public sealed class ClassificationMiddlewareTests
         fx.FileSystem.AddEmptyFile("/abs/A.mov");
         var (aHeic, aVideo) = LivePhotoA();
         aVideo.ContentHash = "b1b1";
-        fx.Store(aHeic, aVideo, Half(CVideoId, "C.mov", "0ldc"));
+        fx.Store(aHeic, aVideo, Half(CVideoId, "C.mov", "c0c0"));
 
         await fx.Build().InvokeAsync(LivePhoto("C"), NoOpNextAsync, CancellationToken.None);
 

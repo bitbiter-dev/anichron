@@ -5,6 +5,7 @@ using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
+using static Anichron.Worker.Tests.Unit.Ingestion.Middlewares.ClassificationFixture;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Classification;
 
@@ -48,12 +49,6 @@ public sealed class IngestionClassifierTests
         AttemptId = Guid.NewGuid(),
         ContentHash = "cafebabe",
     };
-
-    private static MediaAsset LivePhotoVideo(MediaAsset row)
-    {
-        row.IsLivePhotoVideo = true;
-        return row;
-    }
 
     private static IngestionContext Pair(string heicPath = "live.heic", string movPath = "live.mov") => new()
     {
