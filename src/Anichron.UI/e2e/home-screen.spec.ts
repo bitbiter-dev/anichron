@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 
 const pngSize = (png: Buffer) => [png.readUInt32BE(16), png.readUInt32BE(20)].join('x');
 
-const fetchPng = async (request: APIRequestContext, path: string) => {
+const fetchPngSize = async (request: APIRequestContext, path: string) => {
   const response = await request.get(path);
   expect(response.status(), path).toBe(200);
   expect(response.headers()['content-type'], path).toBe('image/png');
@@ -36,7 +36,8 @@ test('the manifest names the app, its colours and icons that exist at their size
 
   expect(response.status()).toBe(200);
   expect(response.headers()['content-type']).toBe('application/manifest+json');
-  expect(await response.json()).toEqual({
+  const manifest = (await response.json()) as { icons: { src: string; sizes: string }[] };
+  expect(manifest).toEqual({
     name: 'Anichron',
     short_name: 'Anichron',
     display: 'standalone',
@@ -50,8 +51,7 @@ test('the manifest names the app, its colours and icons that exist at their size
       { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   });
-  expect(await fetchPng(request, '/icon-192.png')).toBe('192x192');
-  expect(await fetchPng(request, '/icon-512.png')).toBe('512x512');
-  expect(await fetchPng(request, '/icon-maskable-512.png')).toBe('512x512');
-  expect(await fetchPng(request, '/apple-touch-icon.png')).toBe('180x180');
+  for (const icon of manifest.icons)
+    expect(await fetchPngSize(request, icon.src), icon.src).toBe(icon.sizes);
+  expect(await fetchPngSize(request, '/apple-touch-icon.png')).toBe('180x180');
 });
