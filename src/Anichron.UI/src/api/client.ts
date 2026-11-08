@@ -6,6 +6,8 @@ type Schemas = components['schemas'];
 export type LoginRequest = Schemas['LoginRequest'];
 export type UserProfile = Schemas['UserProfileResponse'];
 
+export class SessionNotRenewed extends Error {}
+
 export type Outcome = { ok: true } | { ok: false; problem: Problem };
 
 interface Call<T> {
@@ -21,7 +23,7 @@ export interface ApiClient {
   restore(): Promise<void>;
   isSignedIn(): boolean;
   me(): Promise<UserProfile>;
-  onSessionEnded(listener: () => void): void;
+  setSessionEndedHandler(handler: () => void): void;
   watchVisibility(): () => void;
 }
 
@@ -76,7 +78,7 @@ export function createApiClient(): ApiClient {
     sessionEnded();
   }
 
-  async function renew() {
+  async function sendRefresh() {
     const answer = await send(() => client.POST('/api/v1/auth/refresh'));
     if (answer.ok) {
       open(answer.data);
@@ -94,7 +96,7 @@ export function createApiClient(): ApiClient {
   }
 
   function refresh() {
-    refreshing ??= renew().finally(() => {
+    refreshing ??= sendRefresh().finally(() => {
       refreshing = undefined;
     });
     return refreshing;
@@ -103,10 +105,12 @@ export function createApiClient(): ApiClient {
   async function authorized<T>(
     call: (init: { headers: { Authorization: string } }) => Promise<Call<T>>,
   ) {
+    const sentWith = accessToken;
     const withBearer = () =>
       send(() => call({ headers: { Authorization: `Bearer ${accessToken}` } }));
     let answer = await withBearer();
-    if (answer.status === 401 && (await refresh())) {
+    if (answer.status === 401) {
+      if (accessToken === sentWith && !(await refresh())) throw new SessionNotRenewed();
       answer = await withBearer();
       if (answer.status === 401) end();
     }
@@ -131,8 +135,8 @@ export function createApiClient(): ApiClient {
     },
     isSignedIn: () => accessToken !== '',
     me: () => authorized((init) => client.GET('/api/v1/users/me', init)),
-    onSessionEnded(listener) {
-      sessionEnded = listener;
+    setSessionEndedHandler(handler) {
+      sessionEnded = handler;
     },
     watchVisibility() {
       document.addEventListener('visibilitychange', onVisibilityChange);

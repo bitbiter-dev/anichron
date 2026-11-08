@@ -6,8 +6,9 @@ import { axeResults } from '../test/axe';
 import {
   loginRespondsWith,
   meAnswersFor,
+  meRespondsWith,
   miraSession,
-  problem,
+  problemResponse,
   refreshRespondsWith,
 } from '../test/handlers/auth';
 import { renderApp } from '../test/render-app';
@@ -17,7 +18,9 @@ import { becomes } from '../test/visibility';
 const lifetime = miraSession.expiresIn as number;
 const renewal = lifetime * 800;
 const greeting = (username: string) => `Signed in as ${username}.`;
-const loginHeading = () => screen.queryByRole('heading', { level: 1, name: 'Sign in to Anichron' });
+const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
+const loginHeading = () => screen.queryByRole('heading', loginHeadingName);
+const findLoginHeading = () => screen.findByRole('heading', loginHeadingName);
 
 const tokenNumber = (n: number) => `token-${String(n)}`;
 
@@ -44,23 +47,17 @@ function meAccepts(
   });
 }
 
-const unavailable = () =>
-  HttpResponse.json(problem(503, 'service_unavailable'), {
-    status: 503,
-    headers: { 'Content-Type': 'application/problem+json' },
-  });
-
+const unavailable = () => problemResponse(503, 'service_unavailable');
 const rateLimited = (headers: Record<string, string> = {}) =>
-  HttpResponse.json(problem(429, 'rate_limited'), {
-    status: 429,
-    headers: { 'Content-Type': 'application/problem+json', ...headers },
-  });
-
+  problemResponse(429, 'rate_limited', headers);
 const ends = (code: 'refresh_token_invalid' | 'refresh_token_required' | 'account_disabled') =>
-  HttpResponse.json(problem(401, code), {
-    status: 401,
-    headers: { 'Content-Type': 'application/problem+json' },
-  });
+  problemResponse(401, code);
+
+function signIn(username: string) {
+  fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: username } });
+  fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+}
 
 async function advance(milliseconds: number) {
   await act(() => vi.advanceTimersByTimeAsync(milliseconds));
@@ -139,10 +136,8 @@ describe('a session past its access token', () => {
       meAccepts(() => true),
     );
     renderApp('/login');
-    await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
-    fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'mira' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    await findLoginHeading();
+    signIn('mira');
     expect(await screen.findByText(greeting('mira'))).toBeVisible();
 
     await untilAnswered(renewal - 1);
@@ -225,9 +220,7 @@ describe('becoming visible', () => {
     );
     await openSignedIn();
     await advance(renewal);
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' }),
-    ).toBeVisible();
+    expect(await findLoginHeading()).toBeVisible();
 
     await wakeAfter(lifetime * 5000);
     expect(refreshes).toBe(2);
@@ -238,11 +231,11 @@ describe('an API call answered 401', () => {
   it('is retried once after a refresh', async () => {
     server.use(
       refreshAnswers(),
-      meAccepts((token) => token === 'token-2'),
+      meAccepts((token) => token === tokenNumber(2)),
     );
     const { container } = await openSignedIn();
 
-    expect(bearers).toEqual(['Bearer token-1', 'Bearer token-2']);
+    expect(bearers).toEqual([`Bearer ${tokenNumber(1)}`, `Bearer ${tokenNumber(2)}`]);
     expect(refreshes).toBe(2);
     expect(await axeResults(container)).toHaveNoViolations();
   });
@@ -254,11 +247,9 @@ describe('an API call answered 401', () => {
     );
     const { router } = renderApp('/');
 
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' }),
-    ).toBeVisible();
+    expect(await findLoginHeading()).toBeVisible();
     expect(router.state.location.href).toBe('/login?redirect=%2F');
-    expect(bearers).toEqual(['Bearer token-1', 'Bearer token-2']);
+    expect(bearers).toEqual([`Bearer ${tokenNumber(1)}`, `Bearer ${tokenNumber(2)}`]);
 
     await advance(lifetime * 1000);
     expect(refreshes).toBe(2);
@@ -266,20 +257,62 @@ describe('an API call answered 401', () => {
     expect(loginHeading()).toBeVisible();
   });
 
-  it('keeps the session, without a retry, when the refresh after it fails', async () => {
+  it('keeps the session and waits out Retry-After when the refresh after it fails', async () => {
     server.use(
-      refreshAnswers((n) => (n === 1 ? renews(n) : unavailable())),
+      refreshAnswers((n) => (n === 1 ? renews(n) : rateLimited({ 'Retry-After': '30' }))),
       meAccepts(() => false),
     );
     const { router } = renderApp('/');
-    await vi.waitFor(() => {
-      expect(refreshes).toBe(2);
-    });
-    await advance(0);
+    await advance(100);
+    expect(refreshes).toBe(2);
 
-    expect(bearers).toEqual(['Bearer token-1']);
+    await untilAnswered(30_000 - 1);
+    expect(refreshes).toBe(2);
+    expect(bearers).toEqual([`Bearer ${tokenNumber(1)}`]);
     expect(loginHeading()).toBeNull();
     expect(router.state.location.href).toBe('/');
+  });
+
+  it('is retried with the new token, without another refresh, when one renewed it meanwhile', async () => {
+    server.use(
+      refreshAnswers(async (n) => {
+        if (n === 2) await delay(100);
+        return renews(n);
+      }),
+      meRespondsWith(async (bearer) => {
+        bearers.push(bearer);
+        if (bearers.length === 1 || bearer === `Bearer ${tokenNumber(2)}`)
+          return HttpResponse.json(miraSession.user);
+        await delay(500);
+        return HttpResponse.json({ status: 401 }, { status: 401 });
+      }),
+    );
+    await openSignedIn();
+
+    await wakeAfter(renewal + 1);
+    await advance(1000);
+    expect(refreshes).toBe(2);
+    expect(bearers).toEqual([
+      `Bearer ${tokenNumber(1)}`,
+      `Bearer ${tokenNumber(1)}`,
+      `Bearer ${tokenNumber(2)}`,
+    ]);
+    expect(screen.getByText(greeting('mira'))).toBeVisible();
+  });
+
+  it('is retried by the query when it fails for another reason', async () => {
+    server.use(
+      refreshAnswers(),
+      meRespondsWith((bearer) => {
+        bearers.push(bearer);
+        return unavailable();
+      }),
+    );
+    renderApp('/');
+    await advance(60_000);
+
+    expect(bearers).toHaveLength(4);
+    expect(refreshes).toBe(1);
   });
 
   it('signs out, without a retry, when the refresh after it is answered 401', async () => {
@@ -289,11 +322,9 @@ describe('an API call answered 401', () => {
     );
     const { router } = renderApp('/');
 
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' }),
-    ).toBeVisible();
+    expect(await findLoginHeading()).toBeVisible();
     expect(router.state.location.href).toBe('/login?redirect=%2F');
-    expect(bearers).toEqual(['Bearer token-1']);
+    expect(bearers).toEqual([`Bearer ${tokenNumber(1)}`]);
     expect(refreshes).toBe(2);
   });
 });
@@ -305,18 +336,17 @@ describe('several triggers at once', () => {
         if (n === 2) await delay(1000);
         return renews(n);
       }),
-      meAccepts((token) => token === 'token-2'),
+      meAccepts((token) => token === tokenNumber(2)),
     );
     renderApp('/');
-    await vi.waitFor(() => {
-      expect(refreshes).toBe(2);
-    });
+    await advance(100);
+    expect(refreshes).toBe(2);
 
     await wakeAfter(renewal + 1);
     await advance(1000);
     expect(await screen.findByText(greeting('mira'))).toBeVisible();
     expect(refreshes).toBe(2);
-    expect(bearers).toEqual(['Bearer token-1', 'Bearer token-2']);
+    expect(bearers).toEqual([`Bearer ${tokenNumber(1)}`, `Bearer ${tokenNumber(2)}`]);
   });
 
   it('share the scheduled refresh in flight', async () => {
@@ -421,9 +451,7 @@ describe('a refresh that fails', () => {
       const { router, container } = await openSignedIn();
 
       await advance(renewal);
-      expect(
-        await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' }),
-      ).toBeVisible();
+      expect(await findLoginHeading()).toBeVisible();
       expect(router.state.location.href).toBe('/login?redirect=%2F');
       expect(await axeResults(container)).toHaveNoViolations();
 
@@ -441,9 +469,7 @@ describe('a refresh that fails', () => {
         ),
         meAnswersFor(() => true, alice),
       );
-      fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'alice' } });
-      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+      signIn('alice');
 
       await screen.findByText("You're signed in. Your photo library is on its way.");
       expect(screen.queryByText(greeting('mira'))).toBeNull();
@@ -454,7 +480,7 @@ describe('a refresh that fails', () => {
   it('at start-up leaves the user signed out and is not retried', async () => {
     server.use(refreshAnswers(unavailable));
     renderApp('/');
-    await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
+    await findLoginHeading();
 
     await advance(lifetime * 1000);
     expect(refreshes).toBe(1);

@@ -65,6 +65,23 @@ export function refreshRespondsWith(respond: () => Response | Promise<Response>)
   );
 }
 
+export function problemResponse(
+  status: number,
+  code: string,
+  headers: Record<string, string> = {},
+) {
+  return Response.json(problem(status, code), {
+    status,
+    headers: { ...problemHeaders, ...headers },
+  });
+}
+
+export function meRespondsWith(respond: (bearer: string | null) => Response | Promise<Response>) {
+  return http.get('/api/v1/users/me', async ({ request, response }) =>
+    response.untyped(await respond(request.headers.get('Authorization'))),
+  );
+}
+
 export function meAnswersFor(
   token: (bearer: string | null) => boolean = (bearer) =>
     bearer === `Bearer ${miraSession.accessToken}`,

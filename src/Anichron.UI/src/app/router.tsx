@@ -53,7 +53,7 @@ const routeTree = rootRoute.addChildren([
 
 export function createAppRouter(api: ApiClient, queryClient: QueryClient, history?: RouterHistory) {
   const router = createRouter({ routeTree, history, context: { api, queryClient } });
-  api.onSessionEnded(() => {
+  api.setSessionEndedHandler(() => {
     queryClient.clear();
     void router.invalidate();
   });
