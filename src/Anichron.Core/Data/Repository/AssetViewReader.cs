@@ -34,12 +34,16 @@ public interface IAssetSelection
 
 public sealed record OnThisDay(LocalDate Date) : IAssetSelection
 {
+    private int LastDay
+        => Date is { Month: 2, Day: 28 } && !CalendarSystem.Iso.IsLeapYear(Date.Year) ? 29 : Date.Day;
+
     public bool FallsOnTheDay(AssetView view)
-        => view.Month == Date.Month && view.Day == Date.Day;
+        => view.Month == Date.Month && view.Day >= Date.Day && view.Day <= LastDay;
 
     public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets)
     {
-        var onTheDay = assets.Where(a => a.Month == Date.Month && a.Day == Date.Day && a.Year < Date.Year);
+        var lastDay = LastDay;
+        var onTheDay = assets.Where(a => a.Month == Date.Month && a.Day >= Date.Day && a.Day <= lastDay && a.Year < Date.Year);
         return onTheDay.Union(
             from d in onTheDay
             where d.BurstId != null
