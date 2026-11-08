@@ -13,7 +13,7 @@ const loginSchema = z.object({
   password: z.string().check(required),
 });
 
-type LoginFields = z.infer<typeof loginSchema>;
+export type LoginFields = z.infer<typeof loginSchema>;
 
 const fields = ['usernameOrEmail', 'password'] as const;
 
@@ -21,8 +21,9 @@ export function useLoginForm() {
   const router = useRouter();
   const { api } = router.options.context;
   const countdown = useCountdown();
-  const { register, handleSubmit, setError, formState } = useForm<LoginFields>({
+  const { control, handleSubmit, setError, formState } = useForm<LoginFields>({
     resolver: zodResolver(loginSchema),
+    defaultValues: { usernameOrEmail: '', password: '' },
   });
 
   const onSubmit = handleSubmit(async (values) => {
@@ -39,7 +40,7 @@ export function useLoginForm() {
 
   const { errors, isSubmitting } = formState;
   return {
-    register,
+    control,
     onSubmit,
     formError: errors.root && messageKey(errors.root.message),
     fieldError: (field: (typeof fields)[number]) =>

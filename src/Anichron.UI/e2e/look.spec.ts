@@ -39,6 +39,7 @@ test('the login screen stops its motion when the user asks for less', async ({ p
 
 test('keyboard focus shows the accent ring, and a press shows none', async ({ page }) => {
   await page.goto('/login');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
   for (const control of controls(page)) {
     await page.keyboard.press('Tab');
