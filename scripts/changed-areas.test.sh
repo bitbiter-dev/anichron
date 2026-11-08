@@ -43,6 +43,18 @@ assert_areas 'a quoted path git could not print plainly marks the backend change
   pull_request '"src/Anichron.UI/caf\303\251.ts"'
 assert_areas 'a pull request with no changed path marks the backend changed' 'backend=true' \
   pull_request
+assert_areas 'markdown outside src leaves the backend unchanged' 'backend=false' \
+  pull_request CLAUDE.md docs/architecture/ui-design-system.md docs/adr/0014-ui-mutation-scope-excludes-views.md
+assert_areas 'markdown next to a UI change leaves the backend unchanged' 'backend=false' \
+  pull_request src/Anichron.UI/package.json README.md
+assert_areas 'ADR 0005, which the mutation guard reads, marks the backend changed' 'backend=true' \
+  pull_request docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md
+assert_areas 'markdown under src marks the backend changed' 'backend=true' \
+  pull_request src/Anichron.API/Notes.md
+assert_areas 'a docs file that is not markdown marks the backend changed' 'backend=true' \
+  pull_request docs/schema.sql
+assert_areas 'a path that only ends like markdown is not markdown' 'backend=true' \
+  pull_request docs/notes.md.sh
 
 echo "other events"
 
