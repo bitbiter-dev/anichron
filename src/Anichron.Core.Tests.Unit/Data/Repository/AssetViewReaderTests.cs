@@ -447,10 +447,14 @@ public sealed partial class AssetViewReaderTests
     }
 
     [Theory]
-    [InlineData(2025, 2, 28, false)]
-    [InlineData(2025, 3, 1, false)]
+    [InlineData(2025, 2, 28, true)]
+    [InlineData(2027, 2, 28, true)]
     [InlineData(2028, 2, 29, true)]
-    public async Task OnThisDay_TwentyNinthOfFebruary_IsOnlyMatchedOnALeapDay(int year, int month, int day, bool matched)
+    [InlineData(2028, 2, 28, false)]
+    [InlineData(2025, 3, 1, false)]
+    [InlineData(2027, 2, 27, false)]
+    public async Task OnThisDay_TwentyNinthOfFebruary_IsMatchedOnALeapDayAndOnTheTwentyEighthOfOtherYears(
+        int year, int month, int day, bool matched)
     {
         var library = new Library();
         library.Asset(library.MiraConfig, new LocalDateTime(2024, 2, 29, 9, 0));
@@ -458,6 +462,72 @@ public sealed partial class AssetViewReaderTests
         var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(year, month, day)));
 
         views.Should().HaveCount(matched ? 1 : 0);
+    }
+
+    [Fact]
+    public async Task OnThisDay_TwentyEighthOfFebruaryInAYearWithoutALeapDay_BringsBothDaysOnly()
+    {
+        var library = new Library();
+        var leapDay = library.Asset(library.MiraConfig, new LocalDateTime(2024, 2, 29, 9, 0));
+        var twentyEighth = library.Asset(library.MiraConfig, new LocalDateTime(2025, 2, 28, 9, 0));
+        library.Asset(library.MiraConfig, new LocalDateTime(2025, 2, 27, 9, 0));
+        library.Asset(library.MiraConfig, new LocalDateTime(2025, 3, 1, 9, 0));
+        library.Asset(library.MiraConfig, new LocalDateTime(2024, 3, 29, 9, 0));
+        library.Asset(library.MiraConfig, new LocalDateTime(2024, 1, 29, 9, 0));
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2027, 2, 28)));
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([leapDay.Id, twentyEighth.Id]);
+    }
+
+    [Theory]
+    [InlineData(3, 28, 29)]
+    [InlineData(2, 14, 15)]
+    public async Task OnThisDay_AnotherDayInAYearWithoutALeapDay_DoesNotBringTheNextDay(int month, int day, int nextDay)
+    {
+        var library = new Library();
+        var onTheDay = library.Asset(library.MiraConfig, new LocalDateTime(2019, month, day, 9, 0));
+        library.Asset(library.MiraConfig, new LocalDateTime(2019, month, nextDay, 9, 0));
+
+        var views = await ReadAsync(library, library.Mira, new OnThisDay(new LocalDate(2027, month, day)));
+
+        views.Select(v => v.Id).Should().Equal(onTheDay.Id);
+    }
+
+    [Theory]
+    [InlineData(2027, 2, 28, true)]
+    [InlineData(2028, 2, 29, true)]
+    [InlineData(2027, 3, 1, false)]
+    public async Task OnThisDay_BurstCoveredOnTheTwentyNinthOfFebruary_FallsOnTheDayItIsSelectedFor(
+        int year, int month, int day, bool kept)
+    {
+        var library = new Library();
+        var cover = library.Asset(library.MiraConfig, new LocalDateTime(2024, 2, 29, 23, 59));
+        var afterMidnight = library.Asset(library.MiraConfig, new LocalDateTime(2024, 3, 1, 0, 1));
+        library.Burst(cover, afterMidnight);
+        var selection = new OnThisDay(new LocalDate(year, month, day));
+
+        var views = await ReadAsync(library, library.Mira, selection);
+
+        views.Select(v => v.Id).Should().BeEquivalentTo([cover.Id, afterMidnight.Id]);
+        selection.FallsOnTheDay(views.Single(v => v.Id == cover.Id)).Should().Be(kept);
+    }
+
+    [Theory]
+    [InlineData(3, 28, 29)]
+    [InlineData(2, 14, 15)]
+    public async Task FallsOnTheDay_AnotherDayInAYearWithoutALeapDay_IsNotTheNextDay(int month, int day, int nextDay)
+    {
+        var library = new Library();
+        var beforeMidnight = library.Asset(library.MiraConfig, new LocalDateTime(2019, month, day, 23, 59));
+        var afterMidnight = library.Asset(library.MiraConfig, new LocalDateTime(2019, month, nextDay, 0, 1));
+        library.Burst(beforeMidnight, afterMidnight);
+        var selection = new OnThisDay(new LocalDate(2027, month, day));
+
+        var views = await ReadAsync(library, library.Mira, selection);
+
+        views.Select(v => (v.Id, selection.FallsOnTheDay(v))).Should().BeEquivalentTo(
+            [(beforeMidnight.Id, true), (afterMidnight.Id, false)]);
     }
 
     [Fact]
@@ -655,7 +725,8 @@ public sealed partial class AssetViewReaderTests
         var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new OnThisDay(new LocalDate(2026, 7, 14))).ToQueryString();
 
         sql.Should().Contain("\"Month\" = @Date_Month").And.Contain("@Date_Month='7'")
-            .And.Contain("\"Day\" = @Date_Day").And.Contain("@Date_Day='14'")
+            .And.Contain("\"Day\" >= @Date_Day").And.Contain("@Date_Day='14'")
+            .And.Contain("\"Day\" <= @lastDay").And.Contain("@lastDay='14'")
             .And.Contain("\"Year\" < @Date_Year").And.Contain("@Date_Year='2026'")
             .And.NotContain("EXTRACT")
             .And.NotContain(";");
