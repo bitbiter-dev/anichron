@@ -64,3 +64,15 @@ export function refreshRespondsWith(respond: () => Response | Promise<Response>)
     response.untyped(await respond()),
   );
 }
+
+export function meAnswersFor(
+  token: (bearer: string | null) => boolean = (bearer) =>
+    bearer === `Bearer ${miraSession.accessToken}`,
+  user: Schemas['UserProfileResponse'] = miraSession.user,
+) {
+  return http.get('/api/v1/users/me', ({ request, response }) =>
+    token(request.headers.get('Authorization'))
+      ? response(200).json(user)
+      : response(401).json({ status: 401 }, { headers: problemHeaders }),
+  );
+}

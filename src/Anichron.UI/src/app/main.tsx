@@ -1,3 +1,4 @@
+import { QueryClient } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { z } from 'zod/mini';
@@ -14,7 +15,7 @@ const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
     <StrictMode>
-      <App router={createAppRouter(createApiClient())} i18n={createI18n()} />
+      <App router={createAppRouter(createApiClient(), new QueryClient())} i18n={createI18n()} />
     </StrictMode>,
   );
 }

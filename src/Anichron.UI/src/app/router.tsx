@@ -5,6 +5,7 @@ import {
   redirect,
   type RouterHistory,
 } from '@tanstack/react-router';
+import type { QueryClient } from '@tanstack/react-query';
 import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
 import { PlaceholderPage } from '../features/placeholder/PlaceholderPage';
@@ -13,6 +14,7 @@ import { Splash } from './Splash';
 
 interface RouterContext {
   api: ApiClient;
+  queryClient: QueryClient;
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -49,8 +51,13 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
 ]);
 
-export function createAppRouter(api: ApiClient, history?: RouterHistory) {
-  return createRouter({ routeTree, history, context: { api } });
+export function createAppRouter(api: ApiClient, queryClient: QueryClient, history?: RouterHistory) {
+  const router = createRouter({ routeTree, history, context: { api, queryClient } });
+  api.onSessionEnded(() => {
+    queryClient.clear();
+    void router.invalidate();
+  });
+  return router;
 }
 
 declare module '@tanstack/react-router' {
