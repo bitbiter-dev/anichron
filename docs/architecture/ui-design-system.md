@@ -142,8 +142,11 @@ key and values with the toggle.
 
 ## Budgets
 
-The initial JS stays within 170 kB gzip and the CSS within 15 kB (`.size-limit.json`). A PR that
+The initial JS stays within 180 kB gzip and the CSS within 15 kB (`.size-limit.json`). A PR that
 would exceed one says so and asks the maintainer instead of raising the limit. The JS limit was
 150 kB until #458, when the maintainer raised it (2026-11-08): React Aria's button and text field and tailwind-merge took the login screen from
 135 kB to 165 kB. Every screen needs them, so lazy routes would split that cost rather than remove
-it; they are worth adding when screens most users never open (the admin screens) arrive.
+it; they are worth adding when screens most users never open (the admin screens) arrive. The
+maintainer raised it again to 180 kB in #444 (2026-11-08): TanStack Query (#345's decision) took
+it to 175 kB, and the app's provider and the first signed-in screen's query need it on the first
+render, so it cannot be split off.

@@ -22,6 +22,7 @@ afterEach(() => {
   document.documentElement.removeAttribute('lang');
   server.resetHandlers();
   vi.useRealTimers();
+  Reflect.deleteProperty(document, 'visibilityState');
 });
 
 afterAll(() => {
