@@ -17,29 +17,38 @@
       "name": "format-check",
       "group": "pre-commit",
       "command": "dotnet",
-      "args": ["format", "--verify-no-changes", "src/"]
-    },
-    {
-      "name": "build",
-      "group": "pre-commit",
-      "command": "dotnet",
-      "args": ["build", "src/", "--no-incremental", "-v", "q"]
+      "args": ["format", "whitespace", "src/", "--folder", "--verify-no-changes", "--include", "${staged}"],
+      "filteringRule": "staged",
+      "pathMode": "absolute",
+      "include": ["src/**/*.cs"]
     },
     {
       "name": "ui-format",
       "group": "pre-commit",
       "command": "pnpm",
-      "args": ["--dir", "src/Anichron.UI", "format"],
+      "args": ["--dir", "src/Anichron.UI", "exec", "prettier", "--check", "--cache", "--ignore-unknown", "${staged}"],
       "filteringRule": "staged",
+      "pathMode": "absolute",
       "include": ["src/Anichron.UI/**"]
     },
     {
       "name": "ui-lint",
       "group": "pre-commit",
       "command": "pnpm",
-      "args": ["--dir", "src/Anichron.UI", "lint"],
+      "args": [
+        "--dir",
+        "src/Anichron.UI",
+        "exec",
+        "eslint",
+        "--cache",
+        "--cache-location",
+        "node_modules/.cache/eslint/",
+        "--no-warn-ignored",
+        "${staged}"
+      ],
       "filteringRule": "staged",
-      "include": ["src/Anichron.UI/**"]
+      "pathMode": "absolute",
+      "include": ["src/Anichron.UI/**/*.ts", "src/Anichron.UI/**/*.tsx", "src/Anichron.UI/**/*.js", "src/Anichron.UI/**/*.cjs"]
     },
     {
       "name": "ui-typecheck",
@@ -58,10 +67,16 @@
       "include": ["src/Anichron.UI/**"]
     },
     {
+      "name": "build",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": ["build", "src/", "-v", "q"]
+    },
+    {
       "name": "test",
       "group": "pre-push",
       "command": "dotnet",
-      "args": ["test", "src/", "-v", "q"]
+      "args": ["test", "src/", "--no-build", "-v", "q"]
     },
     {
       "name": "ui-test",
