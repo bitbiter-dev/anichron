@@ -42,8 +42,10 @@ An integration project or filter runs nothing without `-p:TestSuite=Integration`
 
 **The git hooks are the gates; don't run them by hand.**
 
-- `pre-commit`: `scripts/tool-versions.sh` (`dotnet-ef` in `.config/dotnet-tools.json` must match `Microsoft.EntityFrameworkCore`; bump them together), `scripts/lfs-pointers.sh` (a new binary type goes in `.gitattributes`), `dotnet format --verify-no-changes`, a full build.
-- `pre-push`: `git lfs pre-push` and the whole unit suite.
+- `pre-commit`: `scripts/tool-versions.sh` (`dotnet-ef` in `.config/dotnet-tools.json` must match `Microsoft.EntityFrameworkCore`; bump them together), `scripts/lfs-pointers.sh` (a new binary type goes in `.gitattributes`), `scripts/docs-guard.sh`, and `dotnet format whitespace` on the staged C# files.
+- `pre-push`: `git lfs pre-push`, a build and the whole unit suite.
+- The build enforces style and analyzer rules (`EnforceCodeStyleInBuild`); the full `dotnet format --verify-no-changes` runs only in CI.
+- A commit in a worktree runs the main checkout's `task-runner.json` (`core.hooksPath` is absolute), so a hook change takes effect once it is on `master`.
 - While working, run only the tests you touched. No hook runs integration or mutation tests; run those yourself when your change needs them.
 
 **Test projects** are named `*.Tests.Unit` and `*.Tests.Integration`. `Directory.Build.props` gives them xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers` and coverlet. Internals are visible to test projects.
@@ -99,7 +101,7 @@ Mutants that flip between runs:
 
 - **Commands** are the `package.json` scripts, run from `src/Anichron.UI`. `pnpm dev` proxies `/api` to `http://localhost:5207`.
 - **API contract change** (an `ErrorCodes` constant included): run `scripts/derive-openapi.sh`, then `pnpm openapi`; CI fails on a stale `src/api/generated/v1.ts`. A screen's error messages are keyed by `ErrorCode` (`src/api/problem.ts`).
-- **Hooks:** a commit with a UI file runs `format`, `lint`, `typecheck` and `depcruise`. A push runs `scripts/ui-pre-push.sh`.
+- **Hooks:** a commit with a UI file runs prettier and ESLint on the staged files, and `typecheck` (incremental) and `depcruise` on the whole project. A push runs `scripts/ui-pre-push.sh`.
 - **CI:** `UI` runs all of them, plus the scoped mutation run and the bundle budget (`.size-limit.json`; a PR that raises a limit says why). `E2E` runs `pnpm e2e` against the PR's API image. Locally, build `anichron-api:e2e` and start `src/docker-compose.e2e.yml` (its header has the commands).
 
 **Session:** before any route renders, the app refreshes once and holds the session in memory. `src/api/client.ts` keeps it alive with one single-flight refresh: on a schedule, on becoming visible, and on a `401` before retrying. Only a `401` from refresh signs out.

@@ -30,6 +30,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 - Each semantic token is a `light-dark()` of two primitives, so screens need no `dark:` classes.
 - An attribute on `<html>` that sets `color-scheme` overrides the system choice.
 - The System / Light / Dark choice is stored per device. It is applied before first paint by `/theme-init.js`, a separate small build, because the CSP forbids an inline script.
+- The surface colours (`--neutral-50`, `--neutral-950`) are repeated as literals in `index.html`'s `theme-color` metas, the manifest and the icon (`ui-serving.md`, "The Home Screen files"), since static files cannot read a CSS variable. Changing a surface changes them too.
 
 ## Motion and focus
 

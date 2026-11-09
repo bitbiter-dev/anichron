@@ -26,6 +26,13 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 - `/api` is matched as a path segment (`/apiary` is an app path). A dot in the last segment counts as an extension, so client routes never end in one.
 - The web root is read through ASP.NET Core's file provider (ADR 0007).
 
+## The Home Screen files
+
+- `src/Anichron.UI/public/` holds `manifest.webmanifest`, the icons it names, `apple-touch-icon.png` and their source `icon.svg`. Vite copies them unhashed to the web root, so they are served `no-cache`.
+- The PNGs are exported from the SVG once and committed through Git LFS, not built. A new icon means exporting all four again: Playwright's Chromium at device scale 1, the SVG in an `<img>` of N × N px, a screenshot of that clip.
+- The icon is opaque and full bleed, with the motif inside the centred 80% circle a maskable crop keeps.
+- `index.html` links the manifest and the touch icon, with one `theme-color` per colour scheme (the two surface colours). The manifest takes the dark surface, which matches the icon's background.
+
 ## Security headers
 
 - `UseSecurityHeaders` runs first and sets the headers in `OnStarting`, so every response gets them, errors included.
@@ -37,4 +44,4 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 ## Tests
 
 - **Seam 1** (`UiServingTests`, `SecurityHeadersTests`): the in-process host on a fixture web root.
-- **Seam 4** (`src/Anichron.UI/e2e/`): Playwright against the built image (`src/docker-compose.e2e.yml`, Caddy on HTTPS because the cookies are `Secure`). It checks headers, caching, CSP and Trusted Types violations, other-origin requests and axe. Users are created only through the public API, and the compose file raises the rate limits.
+- **Seam 4** (`src/Anichron.UI/e2e/`): Playwright against the built image (`src/docker-compose.e2e.yml`, Caddy on HTTPS because the cookies are `Secure`). It checks headers, caching, CSP and Trusted Types violations, other-origin requests and axe; `home-screen.spec.ts` checks the head tags, the manifest and its icons. Users are created only through the public API, and the compose file raises the rate limits.
