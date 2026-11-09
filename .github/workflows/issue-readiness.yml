@@ -40,7 +40,7 @@ jobs:
           esac
           gh issue edit "$NUMBER" --remove-label ready-for-agent --add-label needs-triage
           {
-            echo 'Moved back to `needs-triage`: `docs/agents/design-process.md` ("What every issue carries") requires these parts before `ready-for-agent`:'
+            echo 'Moved back to `needs-triage`: `.claude/docs/design-process.md` ("What every issue carries") requires these parts before `ready-for-agent`:'
             echo
             sed 's/^/- /' <<<"$missing"
             echo

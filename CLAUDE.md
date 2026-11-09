@@ -1,223 +1,257 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) in this repository.
 
 ## First-time setup
 
 ```bash
-# Git LFS stores every binary file (.gitattributes). Set up its filters once per machine;
-# --skip-repo leaves the hooks alone, since Husky's own hooks call git lfs.
-brew install git-lfs            # or your platform's package
+# Git LFS stores every binary file (.gitattributes). --skip-repo: Husky's hooks call git lfs.
+brew install git-lfs
 git lfs install --skip-repo
 git lfs pull                    # only if you cloned before the line above
 
-# Install local tools (Husky) and wire up the git hooks
-dotnet tool restore
-dotnet husky install
+dotnet tool restore             # local tools (Husky)
+dotnet husky install            # git hooks
 
-# The UI: only pnpm is needed (Node 26 has no corepack); pnpm downloads the pinned Node itself (devEngines.runtime)
+# The UI needs only pnpm; it downloads the pinned Node itself (devEngines.runtime)
 pnpm --dir src/Anichron.UI install
 ```
 
 ## Build & Run
 
 ```bash
-# Build the solution
 dotnet build
-
-# Run full stack (API + Worker + PostgreSQL)
-docker-compose -f src/docker-compose.yml up
-
-# Run API locally (http://localhost:5207)
-dotnet run --project src/Anichron.API
-
-# Run worker locally
+docker-compose -f src/docker-compose.yml up      # API + Worker + PostgreSQL
+dotnet run --project src/Anichron.API            # http://localhost:5207
 dotnet run --project src/Anichron.Worker
 ```
 
-Building needs the Six Labors licence key in the gitignored `sixlabors.lic` at the repo root; building the images from this checkout is in README, "Build the images".
+Building needs the Six Labors licence key in the gitignored `sixlabors.lic` at the repo root. Building the images: README, "Build the images".
 
 ## Testing
 
 ```bash
-# Run the unit tests (the default suite)
-dotnet test
-
-# Run the integration tests (needs a running Docker daemon)
-dotnet test -p:TestSuite=Integration
-
-# Run both
+dotnet test                                   # unit tests (default)
+dotnet test -p:TestSuite=Integration          # integration tests (needs Docker)
 dotnet test -p:TestSuite=All
-
-# Run tests for a specific project
 dotnet test src/SomeProject.Tests.Unit/SomeProject.Tests.Unit.csproj
-
-# Run a single test
 dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 ```
 
-An integration test project, or a filter matching integration tests, runs nothing without `-p:TestSuite=Integration` (or `All`).
+An integration project or filter runs nothing without `-p:TestSuite=Integration` (or `All`).
 
-**The git hooks are the pre-commit and pre-push gates; don't run them by hand as well.** `pre-commit` runs `scripts/tool-versions.sh` (the `dotnet-ef` tool in `.config/dotnet-tools.json` must have the same version as `Microsoft.EntityFrameworkCore`, so bump them together), `scripts/lfs-pointers.sh` (every binary file must be an LFS pointer: add a new binary type to `.gitattributes`), `dotnet format --verify-no-changes` and a full build, and `pre-push` uploads the LFS objects (`git lfs pre-push`) and runs the whole unit suite (`.husky/task-runner.json`). While working, run the test projects or tests you touched. Don't run the full unit suite before committing or pushing; `git push` runs it, and a failure stops the push. No hook runs the integration tests or mutation testing, so run those yourself when your change needs them.
+**The git hooks are the gates; don't run them by hand.**
 
-Test projects are recognised by name: `*.Tests.Unit` for unit tests and `*.Tests.Integration` for integration tests. `Directory.Build.props` applies the test SDK to both: xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers`, and coverlet. `Directory.Build.targets` makes only the projects in the selected `TestSuite` (`Unit` by default, `Integration` or `All`) test projects, so `dotnet test` and Stryker never run the integration suite. Internal members are exposed to test projects via `InternalsVisibleTo`.
+- `pre-commit`: `scripts/tool-versions.sh` (`dotnet-ef` in `.config/dotnet-tools.json` must match `Microsoft.EntityFrameworkCore`; bump them together), `scripts/lfs-pointers.sh` (a new binary type goes in `.gitattributes`), `scripts/docs-guard.sh`, and `dotnet format whitespace` on the staged C# files.
+- `pre-push`: `git lfs pre-push`, a build and the whole unit suite.
+- The build enforces style and analyzer rules (`EnforceCodeStyleInBuild`); the full `dotnet format --verify-no-changes` runs only in CI.
+- A commit in a worktree runs the main checkout's `task-runner.json` (`core.hooksPath` is absolute), so a hook change takes effect once it is on `master`.
+- While working, run only the tests you touched. No hook runs integration or mutation tests; run those yourself when your change needs them.
 
-**Unit or integration?** A test belongs in `Anichron.Tests.Integration` only when its subject is behaviour that only real PostgreSQL has: `ExecuteUpdate`/`ExecuteDelete`, transactions, advisory locks, row locking, constraint and partial-index enforcement. Everything else is a unit test, including a query's SQL shape (assert on `ToQueryString()` with `AnichronDbContexts.NpgsqlModel()`). The integration project starts one PostgreSQL container per run (`PostgresServer`, the same image as `src/docker-compose.yml`). Each test gets its own database, from `CreateMigratedDatabaseAsync` (real migrations) or `CreateDatabaseAsync` (empty). Its CI job is `Integration tests`, and it runs outside mutation testing, so the members it covers keep their `// Stryker disable all` and ADR 0005 rows.
+**Test projects** are named `*.Tests.Unit` and `*.Tests.Integration`. `Directory.Build.props` gives them xUnit v3, **NSubstitute** (not Moq), FluentAssertions, `System.IO.Abstractions.TestingHelpers` and coverlet. Internals are visible to test projects.
 
-Shared test infrastructure lives in `Anichron.Testing`, referenced by the test projects only and tested by `Anichron.Testing.Tests.Unit`; it is excluded from mutation (ADR 0005, rule 4). Use it instead of a private copy:
+**Unit or integration?**
 
-- **Time**: drive time-dependent code through a `Timeline` — its `Clock` is the fake `TimeProvider`, `Record` notes collaborator calls, `Watch` owns the task under test, and `ExpectAsync(...)` states what happens next and fails at the first event that differs. **No real-time waits in tests** (`WaitAsync(timeout)`, `SemaphoreSlim.WaitAsync(timeout)`, `Task.Delay`, an `await` on code that can hang): a broken implementation must fail at once, not when a guess runs out. Work delegates and substitutes used in loops yield and honour cancellation, so a loop that loses its delay cannot spin on the test thread. Recurring background work goes through `RecurringWork` (Worker) and is tested there.
-- **Logging**: `FakeLogger<T>` from `Microsoft.Extensions.Diagnostics.Testing`.
-- **EF**: `AnichronDbContexts.InMemory(...)` for data, `AnichronDbContexts.NpgsqlModel()` for model and SQL assertions; pass `freshModel: true` wherever a test asserts on the model.
-- **DI scopes**: `ScopeFactories.Providing(services => ...)`, a real container rather than substitutes.
+- Integration (`Anichron.Tests.Integration`) only for behaviour that needs real PostgreSQL: `ExecuteUpdate`/`ExecuteDelete`, transactions, advisory locks, row locking, constraint and partial-index enforcement.
+- Everything else is unit, a query's SQL shape included (`ToQueryString()` on `AnichronDbContexts.NpgsqlModel()`).
+- Each integration test gets its own database: `CreateMigratedDatabaseAsync` (migrated) or `CreateDatabaseAsync` (empty).
+- Members covered only there keep their `// Stryker disable all` and ADR 0005 row.
 
-`Anichron.Architecture.Tests.Unit` holds the architecture rules (ArchUnitNET): decisions about types and dependencies that fail the build instead of living as prose. Adding one: `docs/agents/design-process.md`, "Adding an architecture rule".
+**Shared test infrastructure** is `Anichron.Testing` (tested by its own project, excluded from mutation). Use it instead of a private copy:
+
+- **Time:** a `Timeline` (`Clock` is the fake `TimeProvider`, `Record`, `Watch`, `ExpectAsync`).
+  - **No real-time waits in tests** (`Task.Delay`, timeouts, an `await` that can hang): a broken implementation must fail at once.
+  - Delegates and substitutes used in loops yield and honour cancellation.
+  - Recurring background work goes through `RecurringWork`.
+- **Logging:** `FakeLogger<T>`.
+- **EF:** `AnichronDbContexts.InMemory(...)` for data, `NpgsqlModel()` for model and SQL assertions; `freshModel: true` wherever a test asserts on the model.
+- **DI scopes:** `ScopeFactories.Providing(...)`, a real container.
+
+**Architecture rules** live in `Anichron.Architecture.Tests.Unit` (ArchUnitNET). Adding one: `.claude/docs/design-process.md`, "Adding an architecture rule".
 
 ### Mutation testing
 
 ```bash
-dotnet tool restore
-scripts/mutation-changed.sh   # scoped: only C# files changed since origin/master, one Stryker run per project
-cd src && TMPDIR="$(mktemp -d)" dotnet stryker   # full sweep; must run from src/, not the repo root
+scripts/mutation-changed.sh                        # changed files only, one Stryker run per project
+cd src && TMPDIR="$(mktemp -d)" dotnet stryker     # full sweep, from src/
 ```
 
-⚠️ **Never run `dotnet stryker` with the shared `TMPDIR`.** Stryker's MTP runner passes the active mutant through `$TMPDIR/stryker-mutant-<n>.txt`, a path every run on the machine shares, so two agents mutating at the same time corrupt each other's results (survivors that tests do kill, scores down to 0%). `mutation-changed.sh` isolates itself; give a direct run its own `TMPDIR` as above. See `docs/mutation-testing.md`.
-
-`scripts/mutation-guard.sh` (a CI step) enforces the setup rules: every setting lives in `src/stryker-config.json`, so a local run judges exactly as CI does; the `mtp` runner (`vstest` silently reports 0.00% under xUnit v3, ADR 0001); thresholds at 100; no `--since`/`--with-baseline` (in a worktree they test 0 mutants and exit `0`); `--concurrency` only in the divergence job, `--mutate` only in `mutation-changed.sh`, and `--project` only there and in CI's per-project matrix; workflows run Stryker only through `scripts/stryker-sweep.sh` (restores first, fails when Stryker could not analyse a project and silently left it unmutated); an ADR 0005 entry for every Stryker directive and excluded path; and a `!**/<Name>/**` exclusion for exactly the projects that set `IsMutationTarget` to `false` (ADR 0010). When it fails, fix the setup, not the guard.
+- ⚠️ **Never run `dotnet stryker` with the shared `TMPDIR`**: concurrent runs corrupt each other (`docs/mutation-testing.md`). `mutation-changed.sh` isolates itself.
+- `scripts/mutation-guard.sh` (CI) enforces the setup: its rules are in its header. When it fails, fix the setup, not the guard.
 
 #### Surviving mutants: test first, exclude only when equivalent
 
-The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishing any change to production code, run `scripts/mutation-changed.sh` and work through every undetected mutant in the files you touched. It runs the unit suite first and stops on a failing test (Stryker would fail every project's run on it). It maps a changed `<Name>…Tests.cs` to the source it is named after (`docs/mutation-testing.md`, "The scoped local run") and exits `1` for a changed test file it cannot map; pass the source files that test covers, relative to `src/`, as arguments. A changed file in no mutation target project (`scripts/mutation-targets.sh`) is named as `not mutated` and skipped. The full sweep in CI is the authority; run `dotnet stryker` locally as well only when the change reaches beyond the files it touches (`stryker-config.json`, a shared base class, test doubles):
+The gate is **100%**: one surviving or uncovered mutant fails CI. Before finishing a production change, run `scripts/mutation-changed.sh` and resolve every undetected mutant in the files you touched. How it maps tests to sources: `docs/mutation-testing.md`, "The scoped local run". Run the full sweep locally only when the change reaches beyond its files (`stryker-config.json`, a shared base class, test doubles).
 
-1. **Write a test.** A survivor is a missing test until proven otherwise. The test asserts behaviour that the mutant changes, with an expected value from an independent source (a literal, the spec), never recomputed the way the code does.
-2. **Question an exclusion only for an *equivalent* mutant**: one where no input can make the original and the mutant behave differently. Prove it by naming why every input agrees (a square image, a value exactly at the bound, a branch that only logs), or by measuring it. "Hard to test" is not equivalence.
-3. **Prefer a rewrite that removes the equivalent branch** without changing behaviour (a clamp instead of a guard, an early return instead of a logging-only `if`). Suppress only when no such rewrite exists.
-4. **Suppress narrowly.** Add a bare `// Stryker disable once <Mutator>` before the statement, and a row in ADR 0005 saying why. The directive binds to the next syntax node and disables *every* mutation of that mutator on it, so first confirm no killable sibling mutation on the same node gets hidden; if one would, restructure instead. A whole-file exclusion is only for pure wiring with no branching logic, listed by path in `stryker-config.json` and in ADR 0005.
-5. **Code that only real PostgreSQL can exercise** (transactions, `ExecuteUpdate`/`ExecuteDelete`) gets a per-member `// Stryker disable all` and an ADR 0005 row. It is not tested on SQLite or another stand-in engine.
+1. **Write a test.** A survivor is a missing test until proven otherwise. Take the expected value from an independent source, never recomputed as the code does.
+2. **Exclude only an equivalent mutant**: one where no input can tell the original from the mutant. Prove it. "Hard to test" is not equivalence.
+3. **Prefer a rewrite** that removes the equivalent branch (a clamp instead of a guard, an early return instead of a logging-only `if`).
+4. **Suppress narrowly:** a bare `// Stryker disable once <Mutator>` plus an ADR 0005 row. The directive covers every mutation of that mutator on the next syntax node, so check it hides no killable sibling. A whole-file exclusion is only for pure wiring, listed in `stryker-config.json` and ADR 0005.
+5. **PostgreSQL-only code** gets a per-member `// Stryker disable all` and an ADR 0005 row. Never test it on SQLite or another stand-in.
 
-Done when the scoped run reports `100.00%` (or nothing to mutate) and every new directive or exclusion has its ADR 0005 row. Lowering the thresholds is never the fix; the reason is in `docs/mutation-testing.md`, "Why there is no slack".
+Done when the scoped run reports `100.00%` (or nothing to mutate). Never lower the thresholds (`docs/mutation-testing.md`, "Why there is no slack").
 
-Mutants that flip between runs come from `static readonly` initialisers, EF's cached model, and EF's compiled-query cache (a killing assertion that does not depend on the soft-delete filter reads through `IgnoreQueryFilters()`, #312): build such data in a property or method, and build model-asserting test contexts with `EnableServiceProviderCaching(false)` (`AnichronDbContexts.NpgsqlModel()`, or `InMemory(freshModel: true)`). An assertion behind `?.` (`x?.Value.Should()...`) never runs when `x` is null; assert presence first (`ContainSingle(...).Which`). Rationale for every existing exclusion: `docs/adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md`.
+Mutants that flip between runs:
+
+- **`static readonly` initialisers** and **EF's cached model:** build such data in a property or method; model tests use `EnableServiceProviderCaching(false)` (`NpgsqlModel()`, `InMemory(freshModel: true)`).
+- **EF's compiled-query cache:** an assertion that doesn't depend on the soft-delete filter reads through `IgnoreQueryFilters()`.
+- **An assertion behind `?.`** never runs on null: assert presence first (`ContainSingle(...).Which`).
 
 ## The UI (`src/Anichron.UI`)
 
-Commands are the `package.json` scripts, run from `src/Anichron.UI` (`pnpm dev`, `typecheck`, `lint`, `format`, `depcruise`, `test`, `build`, `size`, `mutate`, `e2e`, `openapi`). `pnpm openapi` regenerates `src/api/generated/v1.ts` from `docs/openapi/v1.json`, and CI's `UI` job fails when it is stale, so a change to the API's contract (an `ErrorCodes` constant included) runs `scripts/derive-openapi.sh` and then `pnpm openapi`. A screen's code-to-message map is keyed by `ErrorCode` (`src/api/problem.ts`). `pnpm dev` proxies `/api` to the API on `http://localhost:5207`. The hooks run `format`, `lint`, `typecheck` and `depcruise` before a commit that stages a UI file, and `scripts/ui-pre-push.sh` before a push (a frozen install, then `test`, when the branch changes the UI); CI's `UI` job runs all of them plus the scoped mutation run and the bundle budget (the limits in `.size-limit.json`; a PR that raises one says why). CI's `E2E` job runs `pnpm e2e` (Playwright in `e2e/`: WebKit on an iPhone, Chromium on a Pixel, Firefox at a phone viewport) against the API image built from the PR; locally, build it as `anichron-api:e2e` and start `src/docker-compose.e2e.yml` first (its header lists the commands).
+- **Commands** are the `package.json` scripts, run from `src/Anichron.UI`. `pnpm dev` proxies `/api` to `http://localhost:5207`.
+- **API contract change** (an `ErrorCodes` constant included): run `scripts/derive-openapi.sh`, then `pnpm openapi`; CI fails on a stale `src/api/generated/v1.ts`. A screen's error messages are keyed by `ErrorCode` (`src/api/problem.ts`).
+- **Hooks:** a commit with a UI file runs prettier and ESLint on the staged files, and `typecheck` (incremental) and `depcruise` on the whole project. A push runs `scripts/ui-pre-push.sh`.
+- **CI:** `UI` runs all of them, plus the scoped mutation run and the bundle budget (`.size-limit.json`; a PR that raises a limit says why). `E2E` runs `pnpm e2e` against the PR's API image. Locally, build `anichron-api:e2e` and start `src/docker-compose.e2e.yml` (its header has the commands).
 
-**Layout.** `src/app/` (entry, providers, the code-based route tree in `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, `src/test/` for test support, and `src/design/` for the dev-only design page (`/design.html` under `pnpm dev`, absent from the build; `docs/architecture/ui-design-system.md`). dependency-cruiser (`.dependency-cruiser.cjs`) fails the build when a feature imports another feature, when `shared/` or `api/` import `features/` or `app/`, when anything but `app/` imports a feature, on an import cycle, when production code imports test code or the design page, and when a `.ts` file imports a `.tsx` file. Only `src/api/` touches the network: ESLint's `no-restricted-globals` forbids `fetch`, `EventSource`, `XMLHttpRequest` and `WebSocket` elsewhere, since dependency-cruiser cannot see globals.
+**Session:** before any route renders, the app refreshes once and holds the session in memory. `src/api/client.ts` keeps it alive with one single-flight refresh: on a schedule, on becoming visible, and on a `401` before retrying. Only a `401` from refresh signs out.
 
-**Logic in `.ts`, views in `.tsx`.** Branching, computed values, timers and custom hooks without JSX go in `.ts`. ESLint caps `.tsx` at `complexity` 4 and `max-depth` 2, so a view that grows a branch moves it into a hook. Every user-facing string comes from the English catalog `src/i18n/locales/en.json` through `t(...)` (keys are typed from it; lint fails on a literal in JSX text and in user-visible attributes such as `aria-label`, `alt`, `title` and `placeholder`).
+**Tabs:** login, refresh and logout run under one Web Lock, and signing in or out is announced on a `BroadcastChannel`, so every other tab starts again or signs out. Both go through the port in `src/api/tabs.ts`, composed in `main.tsx`; tests use `src/test/tabs.ts`.
 
-**Tests.** Seam 2 is the default: `renderApp(path)` (`src/test/render-app.tsx`) renders the whole app through its real route tree, MSW (`src/test/server.ts`) is the network boundary and fails on any unhandled request, and assertions are on what the user sees, with `expect(await axeResults(container)).toHaveNoViolations()`. Timers are always fake (`src/test/setup.ts`). Test a `.ts` module directly (seam 3) only for a mutant seam 2 cannot reasonably kill.
+**Layout:** `src/app/` (entry, providers, `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, `src/test/`, `src/design/` (dev-only design page).
 
-**Mutation.** StrykerJS mutates `src/**/*.ts` plus `src/app/router.tsx` at threshold 100; views, tests, declarations, catalogs and test support are out (ADR 0014). Before finishing a UI change, run `scripts/ui-mutation-changed.sh` and work through every survivor with the same rules as the backend above: a test first, a rewrite for an equivalent mutant, a suppression only with an ADR 0014 row. StrykerJS needs no private `TMPDIR`. `scripts/ui-mutation-guard.sh` (a CI step) keeps the config at testRunner `vitest`, thresholds 100, no incremental mode, `--mutate` only in `ui-mutation-changed.sh`, and every mutate entry and directive named in ADR 0014.
+- dependency-cruiser forbids: a feature importing another feature; `shared/` or `api/` importing `features/` or `app/`; anything but `app/` importing a feature; cycles; production code importing test code or the design page; `.ts` importing `.tsx`.
+- Only `src/api/` touches the network: ESLint bans `fetch`, `EventSource`, `XMLHttpRequest` and `WebSocket` elsewhere.
+
+**Logic in `.ts`, views in `.tsx`.** Branching, computed values, timers and hooks without JSX go in `.ts`. ESLint caps `.tsx` at `complexity` 4 and `max-depth` 2. Every user-facing string goes through `t(...)` from `src/i18n/locales/en.json`; lint fails on a literal in JSX text or user-visible attributes.
+
+**Tests.**
+
+- Seam 2 is the default: `renderApp(path)` renders the real route tree, and MSW (`src/test/server.ts`) fails on any unhandled request.
+- Assert what the user sees, plus `expect(await axeResults(container)).toHaveNoViolations()`.
+- Timers are always fake.
+- Test a `.ts` module directly (seam 3) only for a mutant seam 2 cannot reasonably kill.
+
+**Mutation:** StrykerJS mutates `src/**/*.ts` and `src/app/router.tsx` at 100 (ADR 0014). Before finishing, run `scripts/ui-mutation-changed.sh`, with the same survivor rules as the backend; a suppression needs an ADR 0014 row. No private `TMPDIR` needed. `scripts/ui-mutation-guard.sh` (CI) guards the setup.
 
 ## Architecture
 
-Four projects with strict separation of concerns:
-
 | Project | Role |
 |---------|------|
-| `Anichron.Core` | Single source of truth: domain models, `AnichronDbContext`, all Fluent API config, shared utilities (XXHash64, path parsing). Zero dependencies on other projects (every other project references Core, so a reference back would be circular and fail the build). |
-| `Anichron.Infrastructure` | Shared host plumbing used by API and Worker: configuration (`DatabaseConfiguration` reads the connection from `POSTGRES_CONNECTION__*` env vars or Docker secrets; INI bootstrap; `ConfigurationList`), migration under a PostgreSQL advisory lock, and the API's read-only stores (`IProxyStore`, `IOriginalStore`). Each host wires its own DI. |
-| `Anichron.API` | ASP.NET Core Minimal APIs (the only shipped web project: `libraries-are-not-web` keeps ASP.NET Core out of Core, Infrastructure and Worker, and the two hosts never use each other) — owns all identity/auth/admin writes (users, storage configs, refresh tokens, invites, lockout); read-only for media data. Media endpoints so far: proxy serving (#43), On This Day (`GET /api/v1/flashbacks/on-this-day`, #38), a burst's members (`GET /api/v1/bursts/{id}/assets`, #299) and the caller's star/like/hide state (`PATCH /api/v1/assets/{id}/interaction`, #46); originals (#44) are deferred past v1.0. All routes prefixed `/api/v1/`. |
-| `Anichron.Worker` | `BackgroundService`s — NAS crawling, EXIF extraction, FFmpeg transcoding, proxy generation, burst detection, reconciliation (soft-delete and auto-restore), admin-requested proxy sweeps and deletions, and the work queue's executor and scheduler (maintenance such as expired-refresh-token cleanup runs as work items) |
+| `Anichron.Core` | Domain models, `AnichronDbContext`, all Fluent config, shared utilities. References no other project. |
+| `Anichron.Infrastructure` | Host plumbing shared by API and Worker: configuration (`POSTGRES_CONNECTION__*` or Docker secrets, INI bootstrap), migration under an advisory lock, the API's read-only stores. |
+| `Anichron.API` | ASP.NET Core Minimal APIs under `/api/v1/`, the only web project (`libraries-are-not-web`). Owns identity, auth and admin writes; read-only for media. |
+| `Anichron.Worker` | `BackgroundService`s: crawling, metadata, transcoding, proxies, bursts, reconciliation, and the work queue's executor and scheduler. |
+| `Anichron.UI` | React + TypeScript SPA (Vite), served by the API image on the same origin (ADR 0012, `ui-serving.md`). |
 
-The API's HTTP surface is `AddApiSurface` plus `MapApiEndpoints`; `Program.cs` adds the host operations around it (INI bootstrap, start-up validation, migration, seeding). JWT and database settings are options validated at start, so registering the surface needs no secret. The non-shipped `Anichron.OpenApiGenerator` composes only the surface and writes `docs/openapi/v1.json`, the document the UI's client is generated from; `scripts/derive-openapi.sh` regenerates it and CI fails with `--check` when it is stale. `GET /api/v1/healthz` is not in it: `MapHealthChecks` endpoints are invisible to ApiExplorer. Every route declares its responses (`TypedResults` or `Produces*`; `ApiDocumentTests` pins each one), and takes its requirements through `RequireUser`, `RequireAdmin` and `RequireRateLimit` (`EndpointResponses`), which declare the 401, 403 and 429 they cause. Every API error is Problem Details (`UseApiProblems`): a bodiless one under `/api` is filled in by status code pages (UI paths keep their empty `404`s, `ui-serving.md`), an unhandled exception by the exception handler (a `500`, except an unreachable database: `DatabaseUnavailableHandler` answers `503` `service_unavailable` with `Retry-After`, which every route declares), and `EndpointResponses.DescribeErrorsAsProblems` describes it that way in the document.
+**API surface.**
 
-**Write ownership is split by domain, not centralized.**
-- **Worker is the only writer of *media* data** — `MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, `BurstCheck`, plus all reconciliation and soft-deletes happen here. The API never writes media: outside its DI wiring it never touches `AnichronDbContext` (architecture rule `api-reaches-data-through-repositories`), and the media write repository stays out of it (`only-worker-writes-media`). Its one identity-side write is the `TokenCleanup` work item's handler deleting expired refresh tokens.
-- **API owns all *identity/auth/admin* writes** — registration, login/refresh-token issuance and revocation, lockout state, invites, and admin user/storage-config CRUD all persist through API services (`AuthService`, `AdminUserService`, `AdminStorageConfigService`, `TokenService`, etc.) via `IUnitOfWork.SaveChangesAsync`. The API is read-only *only with respect to media*. The one exception is `AssetInteraction` (star/like/hide, #46): per-user state, written by the API through `IAssetInteractionWriter` (Core), which takes and returns plain records so no API type touches the entity. It checks only `VisibleTo` (never `NotHiddenFor`, so a hidden asset can be unhidden), and a first write that loses the `(UserId, AssetId)` unique race reloads and reapplies once.
-- **Work items** are inserted only through `IWorkQueue` (architecture rule `only-work-queue-inserts-work-items`); the API's only other write is an admin's cancel through `IWorkItemCanceller` (`work-items-change-only-through-queue-or-cancel`: outside the Worker, only `EfWorkQueue`, `EfWorkItemReader` and `EfWorkItemCanceller` depend on the `WorkItem` entity; raw SQL naming the table is beyond the rule and is for review); every other state change belongs to the Worker's executor, and handlers live only in the Worker (`work-handlers-live-in-worker`). See `docs/architecture/work-queue.md`.
-- **Proxy orphans** (`ProxyOrphans`, a proxy sweep's report) are written only by the Worker; outside it only `EfProxyOrphanReader` depends on the entity (`only-worker-writes-proxy-orphans`). See `docs/architecture/work-queue.md`, "Proxy sweeps".
-- Both hosts apply EF migrations at startup, serialised by a PostgreSQL advisory lock (`MigrateWithAdvisoryLockAsync`).
+- `AddApiSurface` + `MapApiEndpoints` define the HTTP surface; `Program.cs` adds host operations around it.
+- `Anichron.OpenApiGenerator` composes only the surface and writes `docs/openapi/v1.json` (`scripts/derive-openapi.sh`, checked by CI).
+- Every route declares its responses (`ApiDocumentTests` pins them) and takes its requirements through `RequireUser`, `RequireAdmin` and `RequireRateLimit`.
+- Every API error is Problem Details (`UseApiProblems`). An unreachable database answers `503` with `Retry-After`.
 
-`Anichron.UI` (admin screens and the Instagram Story-style flashbacks) is a React + TypeScript single-page app built with Vite. The API image builds it and serves it on the same origin as `/api/v1`, with immutable hashed assets, an `index.html` fallback that never answers `/api`, and a strict CSP with Trusted Types (ADR 0012, `docs/architecture/ui-serving.md`). It is a pnpm project, not part of the .NET solution; so far it has the login screen and a signed-in placeholder (#360), and a reload keeps the user signed in (#443): before any route renders, the app refreshes once and holds the returned session in memory. The API module keeps it alive (#444, `src/api/client.ts`): one single-flight refresh, on a schedule, on becoming visible and on a `401` before retrying the call; only a `401` from refresh signs out, and a temporary failure is retried later. The placeholder's greeting (`GET /users/me` through TanStack Query, `src/app/query-client.ts`) is the first authenticated call. The work is planned in parent issues #344–#349; see "The UI" below.
+**Write ownership is split by domain.**
+
+- **The Worker is the only writer of media data** (`MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, `BurstCheck`, reconciliation, soft-deletes).
+  - The API never touches `AnichronDbContext` outside DI wiring (`api-reaches-data-through-repositories`, `only-worker-writes-media`).
+  - The one exception: `AssetInteraction`, written by the API through `IAssetInteractionWriter` (plain records in and out). It checks only `VisibleTo`, never `NotHiddenFor`, so a hidden asset can be unhidden. A first write that loses the `(UserId, AssetId)` race reloads and reapplies once.
+- **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exception: the Worker's `TokenCleanup` handler deletes expired refresh tokens.
+- **Work items** are inserted only through `IWorkQueue`. The API's only other write to them is an admin's cancel (`IWorkItemCanceller`). Handlers live only in the Worker (`work-queue.md`). Raw SQL naming the table is beyond the architecture rules and is for review.
+- **Proxy orphans** are written only by the Worker (`only-worker-writes-proxy-orphans`).
+- Both hosts migrate at startup under a PostgreSQL advisory lock.
 
 ### Storage Layout
 
 ```
-/data/originals/   ← NAS (mounted :ro by both API and Worker — originals are never modified)
-  <user>/          ← one mount per user, at the SAME container path in the API and that user's worker
-/data/proxies/     ← Local SSD (Worker writes; API reads for serving) — fixed StoragePath.ProxiesRoot, not a setting, so both always agree
+/data/originals/<user>/   NAS, mounted :ro at the SAME path in the API and that user's worker
+/data/proxies/            local SSD; Worker writes, API reads (fixed StoragePath.ProxiesRoot)
 ```
 
-Proxy files follow a two-level shard path derived from **content, not from the ingestion attempt**: `/data/proxies/{content_hash[0:2]}/{storage_config_id:N}-{content_hash}/{type}` (e.g. `01/3fa85f6457174562b3fc2c963f66afa6-0123456789abcdef/thumbnail.jpg`). Re-ingesting the same file therefore resolves to the same directory, so a retry overwrites its own debris instead of stranding it; the storage config id keeps byte-identical files of two users apart, without which removing one user's config would cascade away the other's proxies. `IProxyDirectoryStrategy` is the single place this rule lives. The API serves them at `GET /api/v1/proxies/{assetId}/{thumbnail|preview|video}` (visibility rule first, then only the stored `ProxyPath` under the proxy root; strong `ETag`, range requests). Every proxy URL the API hands out carries its content version (`?v={ContentHash}`), and only a current one is cached `immutable` (`media-reads.md`, #340). `ProxyFile.ProxyPath` stores the path relative to `/data/proxies/` (note: `FilePath` is on `MediaAsset`, relative to the storage config root — the two are different properties).
-
-The API reads files only through two narrow stores in `Anichron.Infrastructure/Storage/`, never through `IFileSystem` (architecture rule `api-reads-no-file-system`). `IProxyStore.OpenRead(proxyPath)` resolves the path through `StoragePath.ResolveProxy` (the join with the proxy root and the containment check, which the Worker's proxy writes and deletes use too) and owns "missing means `null`"; `IOriginalStore` has only `RootExists()` until serving originals (#44) adds its first reader. Neither has a write method. A new kind of read is a new store method with its own tests, not a general file system. See ADR 0007.
+- Proxy paths derive from content: `/data/proxies/{hash[0:2]}/{storage_config_id:N}-{hash}/{type}`. A retry overwrites its own debris; the config id keeps two users' identical files apart. `IProxyDirectoryStrategy` owns the rule.
+- `ProxyFile.ProxyPath` is relative to `/data/proxies/`; `MediaAsset.FilePath` is relative to the storage config root.
+- The API reads files only through `IProxyStore` and `IOriginalStore`, never `IFileSystem` (ADR 0007). A new kind of read is a new store method.
 
 ### Feature references (`docs/architecture/`)
 
-Each file is the reference for its area. Read it before changing that area, and update it in the same change.
+Read the file before changing its area, and fix what your change makes wrong in it.
 
-- **Data model** (`data-model.md`): the twelve entities, indexes, query filters, value converters, NodaTime. Read before adding an entity, column, index or migration; `docs/schema.sql` stays the authority on columns.
-- **Ingestion** (`ingestion.md`): crawl, classification outcomes, reconciliation (soft-delete, auto-restore, Live Photo as one unit), proxies, burst detection, duplicate reports, failure ownership. Read before touching `Anichron.Worker/Ingestion`, `Crawling` or `Bursts`.
-- **Work queue** (`work-queue.md`): producing, scope, scheduling, executing, cancelling, the admin view, adding a kind, the handler contract, and proxy sweeps. Read before adding a work kind or touching `Anichron.Core/Work` or `Anichron.Worker/Work`.
-- **UI serving** (`ui-serving.md`): how the API image serves the UI, the cache and fallback rules, the security headers, and the end-to-end setup. Read before touching `UiServing`, `SecurityHeaders`, the API Dockerfile's UI stage or `e2e/`.
-- **Media reads** (`media-reads.md`): `IAssetViewReader`, selections, burst covers, published media types, and the hidden/starred/liked rules. Read before adding or changing a media endpoint.
-- **UI design system** (`ui-design-system.md`): the stack, the look, the two token layers, themes, motion and focus, base components, the accessibility checks and how the look is reviewed. Read before adding a component, a token or a screen style.
+- `data-model.md`: entities, indexes, query filters, converters, NodaTime. `docs/schema.sql` is the authority on columns.
+- `ingestion.md`: crawl, classification, reconciliation, Live Photos, proxies, bursts, duplicates, failure ownership.
+- `work-queue.md`: lifecycle, adding a kind, the handler contract, proxy sweeps.
+- `ui-serving.md`: serving rules, security headers, E2E setup.
+- `media-reads.md`: `IAssetViewReader`, selections, proxy URLs, interaction rules.
+- `ui-design-system.md`: stack, tokens, themes, components, accessibility checks.
+
+### Docs
+
+`scripts/docs-guard.sh` (pre-commit and CI's `Docs` job) fails on a paragraph, list item or table cell over its word limit in CLAUDE.md, `docs/` or `.claude/docs/`.
+
+- Docs are outlines: what holds, and where it lives in the code.
+- No history, issue narratives, dates or measurements. Those go in the commit and the PR.
+- Never copy a value, list or rule that lives in code, config or another doc; point to it.
+- When code changes, correct the line that became wrong. Don't add a paragraph about the change.
+- An ADR is Decision / Why / Rejected / Consequences, and states only what still holds.
 
 ## Conventions
 
-- **Enforced by the build** (`TreatWarningsAsErrors`, `src/.editorconfig`, central package management) and by `dotnet format --verify-no-changes`: file-scoped namespaces matching the folder, `camelCase` private fields (static ones too) with no underscore in production code (test projects suppress `IDE1006`), `I`-prefixed interfaces, 4-space indentation with LF line endings, `AnalysisMode=Recommended`, and package versions only in `Directory.Packages.props`. When one fires, fix the code rather than suppress the rule.
-- **Lock files**: CI restores in locked mode (`RestoreLockedMode` when `CI=true`), so a package bump that leaves any project's `packages.lock.json` stale fails with `NU1004`. Run `dotnet restore src` and commit every lock file it changes; Dependabot updates only the projects that reference a package directly, not the test projects that reach it through a project reference.
-- **XML doc comments**: write `/// <summary>` only when it adds information beyond the name. Self-explanatory members (e.g. `DefaultPort`, simple repository methods) go without, overriding any global rule that asks for docs on every public member. Once a member has a summary, RCS1141 requires a `<param>` for each parameter; those short ones (`ct`: "Cancels the read.") are accepted, not a review finding.
+- **Enforced by the build** (`TreatWarningsAsErrors`, `src/.editorconfig`, central package management, `dotnet format`): file-scoped namespaces matching the folder, `camelCase` private fields without underscore in production code, `I`-prefixed interfaces, 4 spaces, LF, `AnalysisMode=Recommended`, package versions only in `Directory.Packages.props`. Fix the code, don't suppress the rule.
+- **Lock files:** CI restores in locked mode. After a package bump, run `dotnet restore src` and commit every changed `packages.lock.json`; Dependabot misses the test projects that reach a package through a project reference.
+- **XML doc comments** only when they add information beyond the name. A summary needs a `<param>` per parameter (RCS1141); short ones are fine.
 
 ## Multi-User Design
 
-Each user has a private set of `UserStorageConfig` entries pointing to NAS roots. `RootPath` is globally unique — a path cannot be assigned to more than one storage config across all users. `UserStorageConfig → MediaAsset` scopes assets to a user's assigned NAS root. `RootPath` is a **container** path read by both the Worker (crawling) and the API (serving originals), so it must resolve to the same folder in every container: each user's NAS folder is mounted at `/data/originals/<user>` everywhere, and only the host side of the mount varies with the NAS layout. Either one worker per user (`WORKER__USER` + `WORKER__ROOTPATH=/data/originals/<user>`, which has no default and is required with `WORKER__USER`, mounting only that user's folder) or one all-user worker (no `WORKER__USER`, configs added through the admin API). Each user has private `AssetInteraction` state — never shared.
-
-**Media is private per user.** Every media read goes through one visibility rule (`MediaAssetVisibility.VisibleTo(userId)`): an asset is visible only to the owner of its storage config, only while that config is active, and never once soft-deleted — `VisibleTo` checks all three itself, so it holds even under `IgnoreQueryFilters()`. It covers the asset only: related data needs its own filter (`Interactions` to the caller's rows, `Burst` members through `VisibleTo` again). Endpoints map "not visible" to **`404`, never `403`**, so other users' asset ids cannot be probed. Admins get no media access — their powers cover identity and storage configs only.
+- Each user has private `UserStorageConfig`s pointing at NAS roots. `RootPath` is globally unique and a **container** path, the same in every container (`/data/originals/<user>`).
+- Workers: one per user (`WORKER__USER` + the required `WORKER__ROOTPATH`), or one for all users (configs added through the admin API).
+- **Media is private per user.** Every media read goes through `MediaAssetVisibility.VisibleTo(userId)`: owner only, active config only, never soft-deleted, even under `IgnoreQueryFilters()`. Related data needs its own filter.
+- "Not visible" is **`404`, never `403`**, so asset ids cannot be probed.
+- Admins get no media access.
+- `AssetInteraction` state is per user, never shared.
 
 ## Infrastructure
 
-- Worker Dockerfile targets `mcr.microsoft.com/dotnet/runtime:10.0-noble` (not Alpine); published as multi-arch (`linux/amd64` + `linux/arm64`). `intel-media-va-driver-non-free` installed on `amd64` only; GPU fallback handles its absence at runtime. OpenCvSharp's native library needs `libatomic1` on `amd64` and `libtesseract5` + `libwebpdemux2` on `arm64` (ADR 0009). Magick.NET's native library (HEIC decoding) needs no extra package (ADR 0016).
-- API Dockerfile uses Alpine (no GPU/FFmpeg needed)
-- CI/CD runs on GitHub Actions (`.github/workflows/ci.yml`); API and Worker images built in parallel; pushed only after `CI gate` passes, tagged `sha-<hash>` on every master build, `edge` on master, SemVer tags on releases
-- Branch protection requires only `CI gate` and `CodeQL`. To make a new job required, add it to the gate's `needs`, never to branch protection. The gate's rule is `scripts/ci-gate.sh`
-- On a pull request that changes nothing outside `src/Anichron.UI/` but Markdown outside `src/` (ADR 0005 excepted: `scripts/mutation-guard.sh` reads it), the backend jobs (`Checks`, `Integration tests`, the .NET mutation jobs, `Docker — Worker`) skip; the UI, E2E and API-image jobs always run. The `Changes` job decides (`scripts/changed-areas.sh`: any other path, and every non-PR event, counts as a backend change). A job that should skip with the backend gets `needs: changes` plus `if: needs.changes.outputs.backend == 'true'` and a `--backend <job>` in the gate's call; `scripts/ci-gate-guard.sh` fails CI when the two drift
-- Merging a PR: wait until CI has finished and `CI gate` and `CodeQL` are green (`gh pr checks <n> --watch`), then ask the maintainer to confirm. Never merge before CI passes, and never without that confirmation.
-- PostgreSQL connection is never hardcoded — always read from `POSTGRES_CONNECTION__*` env vars or Docker secrets
-- CORS allowed origins configured via `CORS__ALLOWEDORIGINS` env var (comma-separated); the same value switches the refresh cookie to `SameSite=None`. Leave empty for same-origin / reverse proxy deployments.
-- `X-Forwarded-For` is honoured only from loopback or from addresses listed in `FORWARDEDHEADERS__KNOWNPROXIES` / `FORWARDEDHEADERS__KNOWNNETWORKS` (comma-separated IPs / CIDRs; `ForwardLimit = 1`). Rate limiting partitions on the resulting client IP, so a reverse-proxy deployment must set one of these or all clients share the proxy's bucket. Never trust the Docker bridge network for a directly published port — that lets any client spoof its IP. The `Sensitive` policy (login, register, change-password, admin user writes) allows `RATELIMIT__SENSITIVEPERMITLIMIT` requests per minute (default 10), and the `Refresh` policy `RATELIMIT__REFRESHPERMITLIMIT` per 15 minutes (default 60; every page load of the UI refreshes once); only `src/docker-compose.e2e.yml` raises them.
-- Registration requires an admin-issued invite token. The first user (bootstrap admin) is exempt.
-- Observability: `GET /api/v1/healthz` (database, proxy storage, originals storage; a missing mount reports Degraded). Logging is the default .NET console logger with `LoggerMessage` source-generated messages (architecture rule `logging-is-source-generated`; `BeginScope` is allowed); structured JSON output and OpenTelemetry are **not** wired up.
+- **Images:** the Worker is `runtime:10.0-noble`, multi-arch (amd64 + arm64); its native packages are in its Dockerfile (ADR 0009, 0016). The API is Alpine.
+- **CI** (`.github/workflows/ci.yml`): images push only after `CI gate` passes, tagged `sha-<hash>`, `edge` on master, SemVer on releases.
+- **Branch protection** requires only `CI gate` and `CodeQL`. A new required job goes into the gate's `needs` (`scripts/ci-gate.sh`), never into branch protection.
+- **Backend jobs skip** on a PR that changes only `src/Anichron.UI/` and Markdown outside `src/` (except ADR 0005), as `scripts/changed-areas.sh` decides. A job that should skip with the backend gets `needs: changes`, `if: needs.changes.outputs.backend == 'true'` and a `--backend <job>` in the gate's call; `scripts/ci-gate-guard.sh` checks they agree.
+- **Merging a PR:** wait until `CI gate` and `CodeQL` are green (`gh pr checks <n> --watch`), then ask the maintainer to confirm. Never merge before CI passes, and never without that confirmation.
+- **Configuration** (env vars):
+  - The PostgreSQL connection comes only from `POSTGRES_CONNECTION__*` or Docker secrets.
+  - `CORS__ALLOWEDORIGINS`: empty for same-origin; when set, the refresh cookie becomes `SameSite=None`.
+  - `X-Forwarded-For` is trusted only from loopback, `FORWARDEDHEADERS__KNOWNPROXIES` or `KNOWNNETWORKS`. Rate limits partition on the resulting IP, so a reverse proxy must be listed. Never trust the Docker bridge for a published port.
+  - Rate limits: `RATELIMIT__SENSITIVEPERMITLIMIT`, `RATELIMIT__REFRESHPERMITLIMIT`.
+- Registration requires an admin invite, except for the first user (bootstrap admin).
+- **Observability:** `GET /api/v1/healthz` (not in the OpenAPI document). Logging is the console logger with `LoggerMessage` source generation (`logging-is-source-generated`; `BeginScope` is allowed). No JSON logs or OpenTelemetry.
 - License: AGPL-3.0.
 
 ## GitHub References
 
-- **Issues** (bug reports, feature requests, epic tracking): https://github.com/bitbiter-dev/anichron/issues
-- **Wiki** (early architecture decisions, e.g. ADR-3 on flashback weighting, which older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
-- **What to work on next**: the v1.0 order lives on GitHub, not here — each epic milestone's description lists its sequence, and each issue carries native *blocked by* links. An open "Architecture review due" issue goes before anything else (procedure: `docs/agents/design-process.md`, "Architecture review"). Otherwise pick an open `ready-for-agent` issue with no open blocker. A `needs-design` issue is picked only to write or approve its design note; a `needs-decision` issue waits for the maintainer.
+- **Issues:** https://github.com/bitbiter-dev/anichron/issues
+- **Wiki** (early ADRs that older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
+- **What to work on next:**
+  1. An open "Architecture review due" issue goes first (`.claude/docs/design-process.md`, "Architecture review").
+  2. Otherwise, an open `ready-for-agent` issue with no open blocker, in the order the epic milestones list.
+  - A `needs-design` issue is picked only to write or approve its note; a `needs-decision` issue waits for the maintainer.
 
 ## Code graph (who uses a symbol)
 
-To find what calls, references or implements a C# symbol, ask the graph before grepping:
+Ask the graph before grepping for a C# symbol's callers, references or implementations:
 
 ```bash
-scripts/graph.sh affected <Symbol>   # everything that depends on it, tests included (depth 2, file:line)
-scripts/graph.sh explain <Symbol>    # its direct callers and callees
+scripts/graph.sh affected <Symbol>   # everything that depends on it, tests included
+scripts/graph.sh explain <Symbol>    # direct callers and callees
 ```
 
-It builds or refreshes the local, gitignored `graphify-out/` itself (seconds, no LLM). Use symbol names; free-text `graphify query` and `GRAPH_REPORT.md` are noisy and not worth the tokens. Grep stays the tool for text, config and anything that is not a symbol.
+Grep stays the tool for text, config and anything that is not a symbol.
 
 ## Engineering process (objection, first caller, design note)
 
-Agents write issues, designs and code; the maintainer sets requirements in conversation and makes decisions. Before writing an issue, designing, implementing or reviewing, read `docs/agents/design-process.md`. Its three load-bearing terms:
+Agents write issues, designs and code; the maintainer sets requirements and decides. Before writing an issue, designing, implementing or reviewing, read `.claude/docs/design-process.md`.
 
 - **Objection:** when the requirement, design or spec is wrong for the system, object on the issue, relabel it and stop.
 - **First caller:** every building block ships with the code that first uses it.
-- **Design note:** issues that change the system's shape get one, approved before `ready-for-agent`.
+- **Design note:** an issue that changes the system's shape gets one, approved before `ready-for-agent`.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues live as GitHub issues in `bitbiter-dev/anichron`, driven via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+GitHub issues in `bitbiter-dev/anichron`, through the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-The five canonical triage roles, each label string equal to its name, plus the repo's `needs-design` and `needs-decision`. See `docs/agents/triage-labels.md`.
+The five canonical roles plus `needs-design` and `needs-decision`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context — one `GLOSSARY.md` (not created yet; written lazily by `/domain-modeling`) plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: one `GLOSSARY.md` (written lazily by `/domain-modeling`) plus `docs/adr/`. See `docs/agents/domain.md`.

@@ -9,6 +9,8 @@ public class RefreshToken
     public Instant CreatedAt { get; set; }
     public Instant ExpiresAt { get; set; }
     public Instant? RevokedAt { get; set; }
+    public Guid? ReplacedById { get; set; }
 
     public virtual User User { get; set; } = null!;
+    public virtual RefreshToken? ReplacedBy { get; set; }
 }

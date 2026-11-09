@@ -8,6 +8,7 @@ public interface IRefreshTokenRepository
     Task<RefreshToken?> FindByHashWithUserAsync(string tokenHash, CancellationToken ct);
     Task<RefreshToken?> FindByHashAsync(string tokenHash, CancellationToken ct);
     void Add(RefreshToken token);
+    Task<bool> TryRotateAsync(Guid tokenId, RefreshToken successor, CancellationToken ct);
     Task RevokeAllActiveByUserIdAsync(Guid userId, Instant revokedAt, CancellationToken ct);
     Task<int> DeleteExpiredAsync(Instant before, CancellationToken ct);
 }
@@ -15,13 +16,41 @@ public interface IRefreshTokenRepository
 public sealed class EfRefreshTokenRepository(AnichronDbContext db) : IRefreshTokenRepository
 {
     public Task<RefreshToken?> FindByHashWithUserAsync(string tokenHash, CancellationToken ct)
-        => db.RefreshTokens.Include(r => r.User).FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
+        => db.RefreshTokens
+            .AsNoTracking()
+            .Include(r => r.User)
+            .Include(r => r.ReplacedBy)
+            .FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
 
     public Task<RefreshToken?> FindByHashAsync(string tokenHash, CancellationToken ct)
         => db.RefreshTokens.FirstOrDefaultAsync(r => r.TokenHash == tokenHash, ct);
 
     public void Add(RefreshToken token)
         => db.RefreshTokens.Add(token);
+
+    // Stryker disable all
+    public async Task<bool> TryRotateAsync(Guid tokenId, RefreshToken successor, CancellationToken ct)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        db.RefreshTokens.Add(successor);
+        await db.SaveChangesAsync(ct);
+
+        var rotated = await db.RefreshTokens
+            .Where(t => t.Id == tokenId && t.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.RevokedAt, successor.CreatedAt)
+                .SetProperty(t => t.ReplacedById, successor.Id), ct);
+
+        if (rotated == 0)
+        {
+            await tx.RollbackAsync(ct);
+            db.Entry(successor).State = EntityState.Detached;
+            return false;
+        }
+
+        await tx.CommitAsync(ct);
+        return true;
+    }
 
     // Stryker disable all
     public Task RevokeAllActiveByUserIdAsync(Guid userId, Instant revokedAt, CancellationToken ct)

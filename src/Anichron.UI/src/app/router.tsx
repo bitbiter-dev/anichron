@@ -10,6 +10,7 @@ import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
 import { PlaceholderPage } from '../features/placeholder/PlaceholderPage';
 import { returnPath } from './return-path';
+import { SignedIn } from './SignedIn';
 import { Splash } from './Splash';
 
 interface RouterContext {
@@ -25,6 +26,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const signedInRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'signed-in',
+  component: SignedIn,
   beforeLoad: ({ context, location }) => {
     if (!context.api.isSignedIn())
       throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
@@ -53,7 +55,8 @@ const routeTree = rootRoute.addChildren([
 
 export function createAppRouter(api: ApiClient, queryClient: QueryClient, history?: RouterHistory) {
   const router = createRouter({ routeTree, history, context: { api, queryClient } });
-  api.setSessionEndedHandler(() => {
+  api.onSessionChange(() => {
+    if (api.isSignedIn()) return;
     queryClient.clear();
     void router.invalidate();
   });

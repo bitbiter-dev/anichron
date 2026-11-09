@@ -6,7 +6,7 @@
 # "Architecture review due" issue labelled ready-for-agent, or updates the count
 # in the title of the one already open. Needs `gh` authenticated (GH_TOKEN in
 # CI) and the tags fetched. The review procedure is in
-# docs/agents/design-process.md, "Architecture review".
+# .claude/docs/design-process.md, "Architecture review".
 set -euo pipefail
 
 threshold="${1:-10}"
@@ -40,7 +40,7 @@ $count PRs have merged since \`$tag\`, the last architecture review.
 
 ## What to build
 
-The architecture review of \`$tag..master\`, following "Architecture review" in \`docs/agents/design-process.md\`: findings re-verified against master, filed as issues, placed next in the milestone orders, and the reviewed commit tagged.
+The architecture review of \`$tag..master\`, following "Architecture review" in \`.claude/docs/design-process.md\`: findings re-verified against master, filed as issues, placed next in the milestone orders, and the reviewed commit tagged.
 
 ## First caller
 
@@ -48,6 +48,6 @@ The maintainer, who decides on the findings, and the next issues picked from the
 
 ## Design
 
-Design: not needed because the review procedure is already defined in \`docs/agents/design-process.md\`.
+Design: not needed because the review procedure is already defined in \`.claude/docs/design-process.md\`.
 EOF
 echo "opened: $title"

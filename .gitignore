@@ -445,6 +445,7 @@ src/Anichron.API/configuration/
 # AI agent
 .claude/*
 !.claude/settings.json
+!.claude/docs/
 
 # Local code graph (scripts/graph.sh)
 graphify-out/
