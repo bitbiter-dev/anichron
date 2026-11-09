@@ -4,17 +4,25 @@ using Anichron.API.Settings;
 using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
+using Anichron.Testing.Time;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 
 namespace Anichron.API.Tests.Unit.Services;
 
-public sealed class TokenServiceTests
+public sealed class TokenServiceTests : IAsyncDisposable
 {
     private static readonly Instant FixedNow = Instant.FromUtc(2026, 1, 1, 12, 0, 0);
+    private static readonly Guid SuccessorId = Guid.Parse("00000000-0000-0000-0000-000000000002");
 
     // Must be a valid base64 string because HashToken calls Convert.FromBase64String internally.
     private static readonly string ValidRawToken = Convert.ToBase64String(new byte[64]);
+
+    private readonly Timeline timeline = new();
+
+    public TokenServiceTests() => timeline.Clock.SetUtcNow(FixedNow.ToDateTimeOffset());
+
+    public ValueTask DisposeAsync() => timeline.DisposeAsync();
 
     private sealed class TestFixture
     {
@@ -24,11 +32,15 @@ public sealed class TokenServiceTests
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
         private readonly IJwtFactory _jwtFactory = Substitute.For<IJwtFactory>();
 
-        public TestFixture()
+        public TestFixture(Timeline? timeline = null)
         {
-            _clock.GetCurrentInstant().Returns(FixedNow);
+            if (timeline is null)
+                _clock.GetCurrentInstant().Returns(FixedNow);
+            else
+                _clock.GetCurrentInstant().Returns(_ => Instant.FromDateTimeOffset(timeline.Clock.GetUtcNow()));
             _guidFactory.NewGuid().Returns(Guid.Parse("00000000-0000-0000-0000-000000000001"));
             _jwtFactory.Create(Arg.Any<User>()).Returns("access_token");
+            Tokens.TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>()).Returns(true);
         }
 
         public TestFixture CaptureAddedToken(Action<RefreshToken> capture)
@@ -37,9 +49,15 @@ public sealed class TokenServiceTests
             return this;
         }
 
-        public TestFixture WithToken(RefreshToken token)
+        public TestFixture WithToken(RefreshToken token, params RefreshToken[] onLaterReads)
         {
-            Tokens.FindByHashWithUserAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(token);
+            Tokens.FindByHashWithUserAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(token, onLaterReads);
+            return this;
+        }
+
+        public TestFixture LosingRotationsOf(Guid tokenId)
+        {
+            Tokens.TryRotateAsync(tokenId, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>()).Returns(false);
             return this;
         }
 
@@ -64,6 +82,18 @@ public sealed class TokenServiceTests
         ExpiresAt = FixedNow + Duration.FromDays(30),
         User = user,
     };
+
+    private static RefreshToken RotatedToken(User user, Instant rotatedAt, bool successorActive = true)
+    {
+        var token = ActiveToken(user);
+        token.RevokedAt = rotatedAt;
+        token.ReplacedBy = ActiveToken(user);
+        token.ReplacedBy.Id = SuccessorId;
+        token.ReplacedBy.CreatedAt = rotatedAt;
+        token.ReplacedBy.RevokedAt = successorActive ? null : rotatedAt + Duration.FromSeconds(1);
+        token.ReplacedById = SuccessorId;
+        return token;
+    }
 
     // ==========================================================================
     // Issue
@@ -243,53 +273,158 @@ public sealed class TokenServiceTests
     }
 
     [Fact]
-    public async Task RefreshAsync_ValidToken_RevokesOldTokenAndReturnsNewTokens()
+    public async Task RefreshAsync_ValidToken_RotatesItIntoTheNewTokenAndReturnsTheNewSession()
     {
-        var user = new User();
+        RefreshToken? successor = null;
+        var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
         var token = ActiveToken(user);
         var fixture = new TestFixture().WithToken(token);
+        fixture.Tokens.TryRotateAsync(token.Id, Arg.Do<RefreshToken>(t => successor = t), Arg.Any<CancellationToken>())
+            .Returns(true);
         var testee = fixture.CreateTestee();
+
+        var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        var expectedHash = Convert.ToBase64String(SHA256.HashData(Convert.FromBase64String(result.Value!.RefreshToken)));
+        Assert.Multiple(() =>
+        {
+            result.IsSuccess.Should().BeTrue();
+            result.Value.AccessToken.Should().Be("access_token");
+            result.Value.User.Should().BeSameAs(user);
+            successor.Should().NotBeNull();
+            successor.Id.Should().Be(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+            successor.UserId.Should().Be(user.Id);
+            successor.TokenHash.Should().Be(expectedHash);
+            successor.CreatedAt.Should().Be(FixedNow);
+            successor.ExpiresAt.Should().Be(FixedNow + Duration.FromDays(30));
+        });
+        fixture.Tokens.DidNotReceive().Add(Arg.Any<RefreshToken>());
+        await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RefreshAsync_RotationThrows_PropagatesException()
+    {
+        var token = ActiveToken(new User());
+        var fixture = new TestFixture().WithToken(token);
+        fixture.Tokens.TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(new InvalidOperationException("DB error")));
+        var testee = fixture.CreateTestee();
+
+        var act = async () => await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    // ==========================================================================
+    // RefreshAsync: a just-rotated token (ADR 0017)
+    // ==========================================================================
+
+    [Theory]
+    [InlineData(29)]
+    [InlineData(30)]
+    public async Task RefreshAsync_TokenRotatedLastWithinTheWindow_RotatesItsSuccessorAndReturnsANewSession(int secondsLater)
+    {
+        var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
+        var fixture = new TestFixture(timeline).WithToken(RotatedToken(user, FixedNow));
+        var testee = fixture.CreateTestee();
+        timeline.Clock.Advance(TimeSpan.FromSeconds(secondsLater));
 
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeTrue();
-            result.Value!.AccessToken.Should().Be("access_token");
-            token.RevokedAt.Should().Be(FixedNow);
+            result.Value!.User.Should().BeSameAs(user);
         });
+        await fixture.Tokens.Received(1).TryRotateAsync(
+            SuccessorId,
+            Arg.Is<RefreshToken>(t => t.UserId == user.Id && t.CreatedAt == FixedNow + Duration.FromSeconds(secondsLater)),
+            Arg.Any<CancellationToken>());
+        await fixture.Tokens.DidNotReceive()
+            .RevokeAllActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RefreshAsync_ValidToken_SavesTheRevocationAndTheNewTokenOnce()
+    public async Task RefreshAsync_TokenRotatedLastAfterTheWindow_RevokesEverySessionAndReturnsTokenInvalid()
     {
-        var token = ActiveToken(new User());
-        var fixture = new TestFixture().WithToken(token);
+        var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
+        var fixture = new TestFixture(timeline).WithToken(RotatedToken(user, FixedNow));
         var testee = fixture.CreateTestee();
+        timeline.Clock.Advance(TimeSpan.FromSeconds(31));
 
-        await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+        var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        Received.InOrder(() =>
-        {
-            fixture.Tokens.Add(Arg.Any<RefreshToken>());
-            _ = fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>());
-        });
-        await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        result.Error.Should().Be(AuthError.TokenInvalid);
+        await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
+            user.Id, FixedNow + Duration.FromSeconds(31), Arg.Any<CancellationToken>());
+        await fixture.Tokens.DidNotReceive()
+            .TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RefreshAsync_SaveChangesThrows_PropagatesException()
+    public async Task RefreshAsync_OlderTokenWithinTheWindow_RevokesEverySessionAndReturnsTokenInvalid()
     {
-        var user = new User();
-        var token = ActiveToken(user);
-        var fixture = new TestFixture().WithToken(token);
-        fixture.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<int>(new InvalidOperationException("DB error")));
+        var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
+        var fixture = new TestFixture(timeline).WithToken(RotatedToken(user, FixedNow, successorActive: false));
+        var testee = fixture.CreateTestee();
+        timeline.Clock.Advance(TimeSpan.FromSeconds(2));
+
+        var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.TokenInvalid);
+        await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
+            user.Id, FixedNow + Duration.FromSeconds(2), Arg.Any<CancellationToken>());
+        await fixture.Tokens.DidNotReceive()
+            .TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RefreshAsync_TokenRotatedLastForADisabledUser_ReturnsAccountDisabledWithoutRotating()
+    {
+        var user = new User { IsDisabled = true };
+        var fixture = new TestFixture(timeline).WithToken(RotatedToken(user, FixedNow));
+        var testee = fixture.CreateTestee();
+        timeline.Clock.Advance(TimeSpan.FromSeconds(1));
+
+        var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.AccountDisabled);
+        await fixture.Tokens.DidNotReceive()
+            .TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ASimultaneousRefreshRotatedTheTokenFirst_RotatesItsSuccessorInstead()
+    {
+        var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
+        var presented = ActiveToken(user);
+        var rotatedMeanwhile = RotatedToken(user, FixedNow);
+        rotatedMeanwhile.Id = presented.Id;
+        var fixture = new TestFixture(timeline).WithToken(presented, rotatedMeanwhile).LosingRotationsOf(presented.Id);
         var testee = fixture.CreateTestee();
 
-        var act = async () => await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+        var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        result.IsSuccess.Should().BeTrue();
+        await fixture.Tokens.Received(1).TryRotateAsync(SuccessorId, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+        await fixture.Tokens.DidNotReceive()
+            .RevokeAllActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ASimultaneousRefreshRotatedTheSuccessorFirst_RevokesEverySessionAndReturnsTokenInvalid()
+    {
+        var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
+        var fixture = new TestFixture(timeline).WithToken(RotatedToken(user, FixedNow)).LosingRotationsOf(SuccessorId);
+        var testee = fixture.CreateTestee();
+        timeline.Clock.Advance(TimeSpan.FromSeconds(1));
+
+        var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
+
+        result.Error.Should().Be(AuthError.TokenInvalid);
+        await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
+            user.Id, FixedNow + Duration.FromSeconds(1), Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================

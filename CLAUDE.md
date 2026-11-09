@@ -106,6 +106,8 @@ Mutants that flip between runs:
 
 **Session:** before any route renders, the app refreshes once and holds the session in memory. `src/api/client.ts` keeps it alive with one single-flight refresh: on a schedule, on becoming visible, and on a `401` before retrying. Only a `401` from refresh signs out.
 
+**Tabs:** login, refresh and logout run under one Web Lock, and signing in or out is announced on a `BroadcastChannel`, so every other tab starts again or signs out. Both go through the port in `src/api/tabs.ts`, composed in `main.tsx`; tests use `src/test/tabs.ts`.
+
 **Layout:** `src/app/` (entry, providers, `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, `src/test/`, `src/design/` (dev-only design page).
 
 - dependency-cruiser forbids: a feature importing another feature; `shared/` or `api/` importing `features/` or `app/`; anything but `app/` importing a feature; cycles; production code importing test code or the design page; `.ts` importing `.tsx`.

@@ -93,3 +93,16 @@ export function meAnswersFor(
       : response(401).json({ status: 401 }, { headers: problemHeaders }),
   );
 }
+
+export function logoutSucceeds(onRequest: (bearer: string | null) => void = () => undefined) {
+  return http.post('/api/v1/auth/logout', ({ request, response }) => {
+    onRequest(request.headers.get('Authorization'));
+    return response(204).empty();
+  });
+}
+
+export function logoutRespondsWith(respond: () => Response | Promise<Response>) {
+  return http.post('/api/v1/auth/logout', async ({ response }) =>
+    response.untyped(await respond()),
+  );
+}

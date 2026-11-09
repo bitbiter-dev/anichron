@@ -18,7 +18,7 @@ Fluent API only (`domain-has-no-data-annotations`). Columns are PascalCase. Tabl
 | `BurstCheck` | One row per photo burst detection has checked |
 | `AssetInteraction` | Per-user star, like, hide, views |
 | `UserStorageConfig` | A user's NAS root |
-| `User`, `RefreshToken`, `Invite` | Identity; expired refresh tokens are deleted by the Worker's `TokenCleanup` |
+| `User`, `RefreshToken`, `Invite` | Identity; expired refresh tokens are deleted by the Worker's `TokenCleanup`; `ReplacedById` names the token a refresh rotated into, so a refresh recognises the token rotated last (ADR 0017) |
 | `WorkItem` | One unit of Worker work (`work-queue.md`) |
 | `ProxyOrphan` | A file a proxy sweep found with no `ProxyFile` row |
 
