@@ -67,6 +67,7 @@ Tested in `Anichron.Tests.Integration`, which is outside the Stryker run. Never 
 | --- | --- |
 | `AnichronDbContext.ExecuteInTransactionAsync` | Real transactions |
 | `EfRefreshTokenRepository.RevokeAllActiveByUserIdAsync`, `DeleteExpiredAsync` | `ExecuteUpdate`/`ExecuteDelete` |
+| `EfRefreshTokenRepository.TryRotateAsync` | A transaction, and row locking on the `RevokedAt IS NULL` guard, so two refreshes cannot both rotate a token (ADR 0017); what to rotate is `TokenService`, in scope |
 | `EfBurstRepository.DeleteMemberlessAsync` | `ExecuteDelete` |
 | `EfMediaAssetRepository.SoftDeleteAsync` (batched) | `ExecuteUpdate`; which rows are missing is `MissingFileSweep`, in scope |
 | `EfWorkQueue.TryInsertAsync` | The partial unique index on `DedupKey` |

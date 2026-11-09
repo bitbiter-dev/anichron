@@ -1,6 +1,7 @@
 import createClient from 'openapi-fetch';
 import type { components, paths } from './generated/v1';
 import { toProblem, unknownProblem, unreachableProblem, type Problem } from './problem';
+import type { TabMessage, Tabs } from './tabs';
 
 type Schemas = components['schemas'];
 export type LoginRequest = Schemas['LoginRequest'];
@@ -20,11 +21,12 @@ type Answer<T> = { status?: number } & ({ ok: true; data: T } | { ok: false; pro
 
 export interface ApiClient {
   login(request: LoginRequest): Promise<Outcome>;
+  logout(): Promise<void>;
   restore(): Promise<void>;
-  isSignedIn(): boolean;
+  isSignedIn: () => boolean;
   me(): Promise<UserProfile>;
-  setSessionEndedHandler(handler: () => void): void;
-  watchVisibility(): () => void;
+  onSessionChange: (listener: () => void) => () => void;
+  watch(): () => void;
 }
 
 const renewAtShare = 0.8;
@@ -48,7 +50,9 @@ async function send<T>(call: () => Promise<Call<T>>): Promise<Answer<T>> {
   }
 }
 
-export function createApiClient(): ApiClient {
+const ignore = () => undefined;
+
+export function createApiClient(tabs: Tabs): ApiClient {
   const client = createClient<paths>({ baseUrl: location.origin });
   let accessToken = '';
   let renewAt = Infinity;
@@ -56,7 +60,11 @@ export function createApiClient(): ApiClient {
   let refreshing: Promise<boolean> | undefined;
   let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let sessionEnded = () => {};
+  const sessionListeners = new Set<() => void>();
+
+  function sessionChanged() {
+    for (const listener of sessionListeners) listener();
+  }
 
   function wakeIn(milliseconds: number) {
     clearTimeout(timer);
@@ -69,13 +77,14 @@ export function createApiClient(): ApiClient {
     renewAt = Date.now() + renewIn;
     failures = 0;
     wakeIn(renewIn);
+    sessionChanged();
   }
 
   function end() {
     clearTimeout(timer);
     accessToken = '';
     renewAt = Infinity;
-    sessionEnded();
+    sessionChanged();
   }
 
   async function sendRefresh() {
@@ -96,13 +105,13 @@ export function createApiClient(): ApiClient {
   }
 
   function refresh() {
-    refreshing ??= sendRefresh().finally(() => {
+    refreshing ??= tabs.exclusively(sendRefresh).finally(() => {
       refreshing = undefined;
     });
     return refreshing;
   }
 
-  async function authorized<T>(
+  async function withSession<T>(
     call: (init: { headers: { Authorization: string } }) => Promise<Call<T>>,
   ) {
     const sentWith = accessToken;
@@ -114,6 +123,13 @@ export function createApiClient(): ApiClient {
       answer = await withBearer();
       if (answer.status === 401) end();
     }
+    return answer;
+  }
+
+  async function authorized<T>(
+    call: (init: { headers: { Authorization: string } }) => Promise<Call<T>>,
+  ) {
+    const answer = await withSession(call);
     if (!answer.ok) throw new Error(answer.problem.code);
     return answer.data;
   }
@@ -122,12 +138,30 @@ export function createApiClient(): ApiClient {
     if (document.visibilityState === 'visible' && Date.now() > renewAt) void refresh();
   }
 
+  const onTabMessage: Record<TabMessage, () => void> = {
+    'signed-in'() {
+      restored = undefined;
+      end();
+    },
+    'signed-out': end,
+  };
+
   return {
     async login(body) {
-      const answer = await send(() => client.POST('/api/v1/auth/login', { body }));
+      const answer = await tabs.exclusively(() =>
+        send(() => client.POST('/api/v1/auth/login', { body })),
+      );
       if (!answer.ok) return answer;
       open(answer.data);
+      tabs.announce('signed-in');
       return { ok: true };
+    },
+    async logout() {
+      await withSession((init) =>
+        tabs.exclusively(() => client.POST('/api/v1/auth/logout', init)),
+      ).catch(ignore);
+      end();
+      tabs.announce('signed-out');
     },
     restore() {
       restored ??= refresh().then(() => undefined);
@@ -135,13 +169,18 @@ export function createApiClient(): ApiClient {
     },
     isSignedIn: () => accessToken !== '',
     me: () => authorized((init) => client.GET('/api/v1/users/me', init)),
-    setSessionEndedHandler(handler) {
-      sessionEnded = handler;
+    onSessionChange(listener) {
+      sessionListeners.add(listener);
+      return () => sessionListeners.delete(listener);
     },
-    watchVisibility() {
+    watch() {
       document.addEventListener('visibilitychange', onVisibilityChange);
+      const stopListening = tabs.listen((message) => {
+        onTabMessage[message]();
+      });
       return () => {
         document.removeEventListener('visibilitychange', onVisibilityChange);
+        stopListening();
       };
     },
   };

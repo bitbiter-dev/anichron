@@ -77,6 +77,73 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
             .Should().Equal(new Dictionary<string, Instant?> { ["other-device"] = Now, ["this-device"] = null });
     }
 
+    [Fact]
+    public async Task TryRotateAsync_TwoRotationsOfTheSameTokenAtOnce_OnlyOneRotatesItAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connectionString = await server.CreateMigratedDatabaseAsync(ct);
+        await SeedAsync(connectionString, ct, ("presented", Now + Duration.FromDays(7)));
+        RefreshToken presented;
+        await using (var db = PostgresServer.Context(connectionString))
+            presented = await db.RefreshTokens.SingleAsync(ct);
+
+        await using var first = PostgresServer.Context(connectionString);
+        await using var second = PostgresServer.Context(connectionString);
+        var rotations = await Task.WhenAll(
+            new EfRefreshTokenRepository(first).TryRotateAsync(presented.Id, Successor(presented.UserId, "first"), ct),
+            new EfRefreshTokenRepository(second).TryRotateAsync(presented.Id, Successor(presented.UserId, "second"), ct));
+
+        rotations.Should().ContainSingle(rotated => rotated);
+        var winner = rotations[0] ? "first" : "second";
+        await using var check = PostgresServer.Context(connectionString);
+        var stored = await check.RefreshTokens.Include(t => t.ReplacedBy).ToListAsync(ct);
+        Assert.Multiple(() =>
+        {
+            stored.Select(t => t.TokenHash).Should().BeEquivalentTo("presented", winner);
+            var rotated = stored.Should().ContainSingle(t => t.TokenHash == "presented").Which;
+            rotated.ReplacedBy.Should().NotBeNull().And.Subject.As<RefreshToken>().TokenHash.Should().Be(winner);
+            rotated.RevokedAt.Should().Be(Now);
+        });
+    }
+
+    [Fact]
+    public async Task TryRotateAsync_RevokedToken_LeavesItAndStoresNoSuccessorAsync()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connectionString = await server.CreateMigratedDatabaseAsync(ct);
+        await SeedAsync(connectionString, ct, ("revoked", Now + Duration.FromDays(7)));
+        await using (var db = PostgresServer.Context(connectionString))
+        {
+            await db.RefreshTokens.ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, Now - Duration.FromMinutes(1)), ct);
+        }
+
+        await using (var db = PostgresServer.Context(connectionString))
+        {
+            var token = await db.RefreshTokens.SingleAsync(ct);
+            var rotated = await new EfRefreshTokenRepository(db).TryRotateAsync(token.Id, Successor(token.UserId, "late"), ct);
+
+            rotated.Should().BeFalse();
+        }
+
+        await using var check = PostgresServer.Context(connectionString);
+        var stored = await check.RefreshTokens.SingleAsync(ct);
+        Assert.Multiple(() =>
+        {
+            stored.TokenHash.Should().Be("revoked");
+            stored.RevokedAt.Should().Be(Now - Duration.FromMinutes(1));
+            stored.ReplacedById.Should().BeNull();
+        });
+    }
+
+    private static RefreshToken Successor(Guid userId, string hash) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        TokenHash = hash,
+        CreatedAt = Now,
+        ExpiresAt = Now + Duration.FromDays(30),
+    };
+
     private static async Task SeedAsync(
         string connectionString, CancellationToken ct, params (string Hash, Instant ExpiresAt)[] tokens)
     {
