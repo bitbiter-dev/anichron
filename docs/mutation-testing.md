@@ -1,555 +1,92 @@
 # Mutation testing
 
-Line coverage tells you which code the tests *execute*. Mutation testing tells you whether the
-assertions would **notice if that code were wrong**. Stryker.NET rewrites the production code in
-small, deliberately wrong ways — a `<` becomes `<=`, a `&&` becomes `||`, a statement is removed —
-and re-runs the suite against each mutant. A mutant no test fails on is a **survivor**: a real
-behaviour change the suite is blind to.
+Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with survivors is in CLAUDE.md, "Mutation testing". This file covers how the setup works and why.
 
 ## Running it
 
-From `src/` — not the repository root:
-
-```bash
-dotnet tool restore
-cd src
-dotnet stryker
-```
-
-**The working directory matters.** Stryker resolves projects relative to the current directory, so
-running it from the repository root fails with `No .csproj or .fsproj file found` even though the
-solution file parses correctly.
-
-No flags are needed locally and no **measurement-affecting** flag should be added. Every value that
-affects what gets measured lives in `src/stryker-config.json`, which is what makes a local run and
-the CI run comparable. The one local exception is the scoped run below, which deliberately measures
-less and is never compared with CI.
-
-CI passes no flags either: the gate is the `thresholds` in `stryker-config.json`, all `100` (see
-[The gate](#the-gate)). Running `dotnet stryker` locally therefore measures and judges exactly as
-CI does.
-
-CI runs Stryker through `scripts/stryker-sweep.sh`, which restores the solution first and fails
-the run when Stryker logs `Analysis of project … failed`. On a runner with nothing restored,
-Stryker's project analysis restores several projects at once, and when one of those restores
-fails, Stryker leaves that project unmutated with only a warning and reports the rest as the
-score. That happened to `Anichron.Worker` on master: the gate passed at 100% with 846 mutants
-instead of about 1,400. `mutation-guard.sh` keeps workflows from calling `dotnet stryker`
-directly.
-
-> **Partly wired into CI.** The gate runs on every pull request and fails below the `break`
-> threshold (#180). The first hosted run has now been observed: it scored **46.58%**, the same
-> score the `42` threshold was calibrated against on a developer machine, so the headroom is
-> measured on both and not just locally
-> ([run 35577766467](https://github.com/bitbiter-dev/anichron/actions/runs/35577766467)). The
-> badge (#182), the published report (#181) and the weekly divergence check (#184) are live. The
-> threshold ratchet (#183) was removed once the committed gate reached 100%, where it could no
-> longer raise anything.
-
-A full sweep shows live progress as it goes. It finishes with the kill summary and the score; open the HTML report it prints the path
-to for the detail — it shows each surviving mutant in its source context, which is how you find the
-line that needs a test. The markdown report beside it has the per-file breakdown.
+- **Full sweep:** from `src/`, with its own `TMPDIR` (CLAUDE.md). Every setting that affects the measurement lives in `src/stryker-config.json`, so a local run judges exactly as CI does. Pass no flags.
+- **CI runs Stryker only through `scripts/stryker-sweep.sh`.** It restores first and fails on `Analysis of project … failed`. Without that, Stryker silently leaves the project unmutated and still reports a score for the rest.
+- Stryker exits `2` below `break`, so CI treats any non-zero exit as failure.
+- The HTML report shows each survivor in its source context.
 
 ### The scoped local run
 
-A full sweep mutates the whole solution, and CI mutates every project on every pull request
-anyway. While working on a change, run only the files it touches:
+`scripts/mutation-changed.sh [--base <ref>] [--print] [source files…]`
 
-```bash
-scripts/mutation-changed.sh                     # changed since the merge-base with origin/master
-scripts/mutation-changed.sh --base <ref>        # a different base
-scripts/mutation-changed.sh --print             # show the Stryker arguments, run nothing
-scripts/mutation-changed.sh Anichron.API/Endpoints/AdminUserEndpoints.cs   # add source files
-```
-
-It collects every changed `.cs` file under `src/` — committed, staged, unstaged and untracked —
-groups the files by project, and runs Stryker once per changed project, one after another:
-`--project <Name>.csproj`, each of that project's files as `--mutate`, and the exclusions from
-`stryker-config.json`. Mutants outside those files are reported as `Removed by mutate filter`, so
-the score and the `break` threshold apply to the changed files alone. Each run tests its mutants
-against every test that covers them, so a file's result matches what the full sweep reports for
-that file. Every project's run goes ahead even when an earlier one fails, and the script exits with
-the worst status.
-
-Why one run per project and not one over the solution: in solution mode, Stryker captures per-test
-coverage once for each project it mutates, and each capture runs every test of every test
-assembly. The captures all record the same thing. With `--project`, a run captures coverage once.
-The measurements are in [ADR 0010](adr/0010-scoped-mutation-runs-per-project.md).
-
-The projects Stryker mutates are the **mutation targets**: every project for which MSBuild evaluates
-`IsMutationTarget` to `true`. `Directory.Build.props` sets it for every non-test project, and
-`Anichron.Testing` sets it back to `false`. `scripts/mutation-targets.sh` lists them. A changed
-file in no target project (the `Anichron.Testing` library, the integration tests) is named on one
-line as `not mutated` and does not fail the run. The full sweep still runs in solution mode and does
-not read `IsMutationTarget`, so an opted-out project also needs its `!**/<Name>/**` entry in
-`stryker-config.json`. `mutation-guard.sh` checks that the two agree.
-
-A changed test file `<Name>Tests.cs` in `<Project>.Tests.Unit` selects, in `<Project>`, the first
-of these that names exactly one file: `<Name>.cs`; the file declaring the type `<Name>`
-(`EfProxyOrphanStoreTests` → `ProxyOrphanStore.cs`); the file named after the longest leading
-CamelCase part of `<Name>` (`ProxySweepEndpointsHttpTests` → `ProxySweepEndpoints.cs`). A test
-project with no production project (`Anichron.Architecture.Tests.Unit`) is named as `not mutated`.
-The rest (route-table and registration tests, test doubles, helpers) exit `1` and are listed,
-because silently mutating nothing would read as a pass. Pass the source files they cover as
-arguments, relative to `src/`.
-
-Before the first Stryker run, the script runs the unit suite once (`dotnet test`) and exits `1` if a
-test fails. Stryker tests every mutant against every test project, so one failing test, even in a
-project the change did not touch, fails each project's run at its initial test run.
-
-What the scoped run cannot see, and the full sweep in CI catches:
-
-- a change in one file that weakens the tests of a file it did not touch
-- a change to `stryker-config.json`, a shared base class or a test double, whose effect is not
-  confined to the files in the diff — run `dotnet stryker` for those
-
-**Concurrent local runs corrupt each other unless each has its own temp directory.** The MTP
-runner hands the active mutant to the test hosts through a memory-mapped file at a fixed path,
-`$TMPDIR/stryker-mutant-<n>.txt`, where `<n>` is only the runner index (0 to `concurrency − 1`).
-Two Stryker runs on one machine — two agents in two worktrees — overwrite each other's mutant IDs,
-so tests run against the wrong mutant and killable mutants are reported as survivors. Measured on
-the same 138 mutants: 137 killed and 100% alone; 98.55% and 94.93% for two simultaneous runs; 100%
-for both again when each had its own `TMPDIR`. Earlier symptoms were runs that swung between 89 and
-174 survivors on unchanged code, and one at 0.00%. `mutation-changed.sh` therefore runs Stryker
-with a private `TMPDIR` that it removes afterwards; run a full sweep the same way (see CLAUDE.md).
-CI is unaffected: each job runs alone on its own runner.
-
-**Why not Stryker's own `--since`.** It is the obvious tool and it is unusable here: Stryker
-resolves the repository through its main working directory, so inside a git worktree — where every
-agent works — it diffs the main checkout against the target instead. Measured on a worktree with an
-untested method: it listed the main checkout's changed files, tested 0 mutants, printed "unable to
-calculate a mutation score" and **exited `0`**. `--with-baseline` builds on the same diff.
+- It collects every changed `.cs` file (committed, staged, unstaged, untracked) and runs Stryker once per project (ADR 0010). It runs the unit suite first, because one failing test fails every project's run.
+- **Test → source mapping** for a changed `<Name>Tests.cs`: `<Name>.cs`, else the file declaring type `<Name>`, else the file named after the longest leading CamelCase part. A test it cannot map exits `1`; pass the sources it covers.
+- **Mutation targets** are the projects where `IsMutationTarget` is `true` (`scripts/mutation-targets.sh`). The full sweep ignores the property, so an opted-out project also needs `!**/<Name>/**` in `stryker-config.json`.
+- **What it cannot see:** a change that weakens the tests of an untouched file, or a change to `stryker-config.json`, a shared base class or a test double. Run the full sweep for those.
+- **Why a private `TMPDIR`:** the MTP runner passes the active mutant through `$TMPDIR/stryker-mutant-<n>.txt`. Two runs on one machine overwrite each other's mutant and report false survivors.
+- **Why not `--since`:** inside a worktree it diffs the main checkout, tests 0 mutants and exits `0`. `--with-baseline` has the same flaw.
 
 ## The UI
 
-The UI (`src/Anichron.UI`) is mutated by StrykerJS with the Vitest runner, configured in
-`src/Anichron.UI/stryker.config.json` at the same 100 thresholds. Its scope is ADR 0014, its
-guard `scripts/ui-mutation-guard.sh`, and its scoped run `scripts/ui-mutation-changed.sh`: only
-the changed files when every changed UI file is in scope, otherwise the whole scope (a changed
-test, view or config can stop a mutant anywhere from being killed, and the scope is small). CI's
-`UI` job runs it against the pull request's base, and with `--all` on master.
+- StrykerJS with the Vitest runner, configured in `src/Anichron.UI/stryker.config.json`. Scope: ADR 0014. Guard: `scripts/ui-mutation-guard.sh`.
+- `scripts/ui-mutation-changed.sh` mutates only the changed files when all of them are in scope, otherwise the whole scope. CI runs it against the PR's base, and with `--all` on master.
+- No `TMPDIR` hazard: each worktree has its own sandbox, and the mutant is passed in process.
+- **After a runner upgrade, prove the gate both ways:** a known survivor must fail the run, and a test inside a `describe` must kill (stryker-js#6265).
+- Don't use `--logLevel debug`: it crashes the Vitest runner (stryker-js#6272).
 
-**The shared-`TMPDIR` hazard does not apply** (checked on StrykerJS 10.1.1). Its sandboxes are
-directories under `.stryker-tmp` in the UI project itself, so each worktree has its own, and the
-Vitest runner hands the active mutant to the tests in process (Vitest's `provide`/`inject`), not
-through a file. Its per-worker setup file is written inside the sandbox. Two runs at once
-therefore cannot read each other's mutant, and the scoped run sets no private `TMPDIR`.
+## CI
 
-**The gate was proven both ways** when it was set up: one survivor (the since-removed
-`initAsync: false` in `createI18n`) failed the run at 91.67%, and the seam-2 test,
-which sits inside a `describe`, killed the route tree's mutants. The latter matters because of a
-StrykerJS bug, closed a day before 10.1.1: no tests ran per mutant for tests inside `describe`
-on Vitest 5 (stryker-js#6265). Check a runner upgrade the same way.
-Run Stryker at its default log level: `--logLevel debug` crashes the Vitest 5
-runner (stryker-js#6272).
-
-## Reading the result
-
-```
-Killed:   447     a test failed — the mutant was detected
-Survived: 207     no test failed — a real gap
-Timeout:    3     the mutant hung the tests; counts as detected
-```
-
-Uncovered mutants (`NoCoverage`) count against the score too, so the score is
-`detected / (detected + survived + uncovered)`.
-
-Stryker exits `2` when the score is below the `break` threshold in the config — not `1`, despite
-what its documentation says — so CI treats any non-zero value as failure rather than matching on a
-specific code.
-
-In CI the sweep is split by project, as the scoped run is ([ADR 0010](adr/0010-scoped-mutation-runs-per-project.md)):
-
-- `Mutation targets` lists the projects with `scripts/mutation-targets.sh`, so a new project is
-  mutated without a workflow edit, and a list that comes back empty fails.
-- `Mutation — <project>`, one matrix job per target, runs `scripts/stryker-sweep.sh --project
-  <Name>.csproj` at the configured concurrency, posts its own markdown summary and uploads its JSON
-  report. It fails below the thresholds.
-- `Mutation` merges the reports with `scripts/mutation-report.sh merge`, posts the merged score,
-  uploads the `mutation-report` artifact (the merged JSON and our viewer page) and builds the
-  badge payload. Its **last** step fails unless the target list, every project job and the merge
-  succeeded.
-
-The merge refuses when a target project left no report, when a source file is in two reports, when a
-test id has two names, and when schema versions or thresholds differ, or the version is not the
-schema's version 2. Each refusal means one of the reports is not what the merge assumes, so a merged
-score would be built on it. Mutant ids are per-run counters, so the merge prefixes each with its
-report's position. Each run's `projectRoot` is its own project folder, so the merged one is the
-deepest folder they share (`src/`). The weekly divergence check and the local full sweep stay
-solution-mode runs.
-
-The jobs take that shape because of three constraints, and changing any part of it tends to break
-one of the others:
-
-- GitHub applies an implicit `success()` to any `if:` without a status-check function. A step that
-  aborted mid-job would therefore silently skip the summary, the report upload and the badge
-  payload — so enforcement has to be deferred to the end.
-- The `Mutation` job is not itself a required check. It blocks a merge through `CI gate`, the one
-  required check this workflow reports, which fails unless `Checks`, `Mutation` and the pull-request
-  Docker builds all succeeded (`scripts/ci-gate.sh`). On a pull request that changes nothing
-  outside `src/Anichron.UI/`, the backend jobs (`Mutation` among them) skip and the gate accepts
-  that skip; see CLAUDE.md, "Infrastructure". `Mutation` runs with `!cancelled()` and fails on
-  its upstream results itself, so a failed project job still gets its report merged and published.
-- A job-level `if:` does **not** relax a `needs:` success requirement — only `always()` or
-  `!cancelled()` does, and the implicit `success()` looks at *every* upstream job, not only the
-  direct ones. So `publish` uses `!cancelled()` plus an explicit `needs.checks.result`, and
-  `deploy-pages` uses `!cancelled()` guarded on the Pages artifact actually having been uploaded.
-  That keeps the reports publishing when the gate fails, while still skipping cleanly when an
-  earlier failure meant no artifact was produced.
-
-A mutation regression therefore fails `CI gate` and blocks the merge, without suppressing the
-coverage artifact, the badge or the Pages deployment. Image pushes do get skipped: they run only
-after `CI gate` succeeds.
+- `Mutation targets` lists the projects, and an empty list fails. `Mutation — <project>` runs one matrix job per target. `Mutation` merges the reports (`scripts/mutation-report.sh merge`) and fails in its **last** step, so the summary, report and badge still publish.
+- The merge refuses inputs it cannot trust: a missing project report, a file in two reports, a test id with two names, or differing schemas or thresholds.
+- `Mutation` is not a required check itself. It blocks merges through `CI gate`.
+- A job-level `if:` does not relax `needs:`; only `always()` or `!cancelled()` does. That is why `publish` and `deploy-pages` use `!cancelled()` with explicit result checks.
 
 ## Configuration
 
-| Setting | Value | Why |
-| --- | --- | --- |
-| `test-runner` | `mtp` | **Required.** See [ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md). |
-| `mutate` | excludes `Migrations/**`, the `Anichron.Testing/**` test-support library and a short, explicit list of pure-wiring files | See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). Paths are listed one by one — never a wildcard. |
-| `ignore-methods` | `Log.*`, `*BeginScope`, `UnreachableException.ctor` | Calls whose mutants no test can meaningfully kill. See [ADR 0005](adr/0005-mutation-scope-excludes-unkillable-and-wiring-code.md). |
-| `thresholds` | `break`, `low` and `high` all `100` | The target since ADR 0005, reached with #233. All three move together because Stryker validates `break <= low <= high` before it mutates anything. They are the whole gate — see [The gate](#the-gate). |
-| `concurrency` | `4` | The vCPU count of the hosted `ubuntu-latest` runner, so the CI sweep uses every core rather than Stryker's default of half of them. Pinned in the config rather than passed as a flag so a local run measures with the same number of runners. Raise it only together with the runner size: oversubscribing a runner turns slow kills into timeouts, and timeouts count as *detected*, which inflates the score. |
-
-> **Do not change `test-runner` back to Stryker's default (`vstest`).** It cannot observe xUnit v3
-> test failures at all and produces a silent `0.00%` with no error — which reads as a catastrophic
-> test suite rather than a broken measurement. The reasons are in ADR 0001.
-
-## When to re-measure the baseline
-
-The MTP runner carries an open upstream defect that can silently under-report kills. Why that
-matters, and why a version pin doesn't guard it, is in
-[ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md#consequences) — the short version is that
-it is test-shape-dependent, so a change to the test suite can introduce it with no dependency
-change at all.
-
-Re-run the sweep single-threaded and compare the **detected count** (not the score, not the total)
-against a normal run after:
-
-- upgrading Stryker, or
-- a significant change to the shape of the test suite.
-
-```bash
-cd src
-dotnet stryker --concurrency 1
-```
-
-Note that Stryker's own documented cross-check — re-running with coverage analysis disabled — does
-**not** detect this defect. Comparing detected counts across concurrency levels is what does.
-
-Also: scoping a run to a single file is reported upstream to lose kills even single-threaded, so
-bisecting a score change file-by-file is unreliable. Read the HTML report instead.
-
-## Post-processing the report
-
-`scripts/mutation-report.sh` derives the two things CI needs from a JSON report. It needs only
-bash and `jq`, and runs anywhere with no CI context.
-
-```bash
-# shields.io endpoint payload for the badge
-scripts/mutation-report.sh badge mutation/reports/mutation-report.json
-
-# compare two runs' detected counts; non-zero exit means they diverged
-scripts/mutation-report.sh compare run-a.json run-b.json
-```
-
-The badge's colour bands come from the **report's own** `thresholds` object, which Stryker copies
-from `stryker-config.json` — so the badge cannot drift from the configured gate. At or above
-`high` is `brightgreen`, at or above `low` is `yellow`, below that is `red`. Both keys must be
-present: jq evaluates `x >= null` as true, so a partial `thresholds` object would otherwise
-silently colour a failing score green.
-
-`compare` deliberately compares **detected counts**, not scores. The upstream defect it guards
-keeps killed-plus-survived constant while moving the split between them, so a single run looks
-internally consistent and a score comparison can miss it.
-
-Both subcommands distinguish a **bad measurement** from a **bad score**, and fail loudly on the
-first. A missing file, malformed JSON, a report whose `thresholds` are absent or partial, or a
-report with no *detectable* mutants at all is an error — never a number.
-
-A detected count of zero, on the other hand, is a legitimate measurement of a suite that killed
-nothing, and does report `0%`. The distinction matters most for `compare`: two runs that each
-measured nothing would otherwise "agree" and pass the divergence gate, which is the likeliest way
-a collapsed measurement could look healthy. Both are refused instead.
-
-A report containing `Pending` mutants is also refused. Pending means the run never finished, and
-since those mutants are absent from the denominator the resulting score would read *better* than
-reality — the one direction of error a quality gate must never make.
-
-That whole guard exists because a silent zero looks like a catastrophic test suite rather than a
-broken measurement — the same failure shape as the VSTest runner in
-[ADR 0001](adr/0001-mutation-testing-on-the-mtp-runner.md).
-
-## Publishing the badge
-
-`scripts/publish-badges.sh` writes the coverage and mutation badges onto the orphan `badges`
-branch, which the README reads from. CI runs it on default-branch builds only, so a pull request
-cannot move a badge.
-
-```bash
-MUTATION_BADGE=/path/to/mutation.json scripts/publish-badges.sh coverage/report/badge_linecoverage.svg
-```
-
-It **adds** to the branch rather than rebuilding it. The earlier inline version cleared the branch
-on every run, which was harmless while `coverage.svg` was the only artifact but would have deleted
-the mutation badge.
-
-The payload is **validated, not just existence-checked**: an absent, empty, truncated, or
-non-conforming `MUTATION_BADGE` leaves any existing `mutation.json` untouched. That matters because
-a generator which fails *after* its output has been redirected leaves a zero-byte file behind, and
-force-pushing that would destroy a working badge and render as `invalid`. Keeping the last good
-badge always beats overwriting it with junk.
-
-Because it force-pushes, it also refuses to guess about the remote. `git ls-remote` distinguishes
-"the branch does not exist yet" from "I could not reach origin": the first creates the branch, the
-second aborts. Treating an unreachable origin as a missing branch would recreate `badges` from
-scratch and wipe every artifact on it. The fetch is forcing, so a local `badges` left over from an
-earlier run cannot diverge and then be pushed over the top of the remote.
-
-Note the ordering constraint in CI: the badge payload is generated **before** this script runs,
-because checking out `badges` removes `scripts/` from the work tree. The `Mutation` job writes the
-payload and hands it to the `publish` job as the `mutation-state`
-artifact, which is downloaded into `$RUNNER_TEMP`, outside the repository entirely. A file missing
-from that artifact means "nothing new", exactly as an absent path does.
-
-## Publishing the report
-
-`scripts/assemble-pages.sh` builds the Pages site from both reports:
-
-```
-pages-site/
-  index.html                landing page linking whichever reports are present
-  coverage/                 the coverage report
-  mutation/                 the mutation report
-  .nojekyll                 so Pages serves paths beginning with an underscore
-  .assembled-by-anichron    the output guard's sentinel — see below
-```
-
-`.assembled-by-anichron` is published along with everything else, because
-`upload-pages-artifact` takes the whole directory. That is accepted rather than worked around: the
-sentinel has to live in the output directory to mark it, and deleting it after a successful run
-would make the next run refuse to rebuild. A 60-byte text file at the site root is a cheap price
-for a delete that cannot escape.
-
-The coverage report moved out of the site root into `coverage/`, so **the coverage URL changed** to
-`https://bitbiter-dev.github.io/anichron/coverage/`. That was #181's call: serving two reports means
-subdirectories, and a root that arbitrarily served one of them was accidental rather than designed.
-The README badges point at the new locations.
-
-It runs on default-branch builds only, so a pull request still gets the report as a CI artifact and
-the score in the job summary, never a URL. User stories 8 and 9 read as though contributors get a
-URL on every PR; they do not.
-
-### Why the mutation report is optional, and the earlier rule that got reversed
-
-The `mutation/` page is ours, not Stryker's: `scripts/mutation-viewer.html` loads the merged
-`mutation-report.json` into `mutation-testing-elements`, pinned by version and SRI hash. Stryker's
-own HTML embeds one run's report, and there is no merged run to render it from.
-
-If a project's run crashes or the merge refuses, there is no merged report. The script publishes
-coverage alone and the landing page says the mutation report is unavailable *for this build*,
-naming the distinction that matters: the sweep **failed** rather than scored badly.
-
-An earlier draft of this script enforced "both reports or neither" and failed when either was
-missing. That was wrong in two ways. It would fail CI a second time for a reason that is only
-about publishing, when the mutation gate had already reported the real
-problem. And it would publish *nothing* — losing the coverage report, which used to ship regardless
-of the mutation outcome. A missing report is honest; a stale one is misleading; neither is worth
-blocking a merge over.
-
-### Why it runs before the badge step
-
-`.github/workflows/ci.yml` assembles the site **before** `Update quality badges`, and the order is
-load-bearing. `publish-badges.sh` switches the work tree to the orphan `badges` branch and restores
-it in an `EXIT` trap that swallows its own failure and still exits 0 — so a failed restore leaves
-every later step running on a branch where neither `scripts/` nor `coverage/` exists. Assembling
-first means a restore failure can cost the upload but not the assembly.
-
-`pages-site/` is gitignored on purpose. `publish-badges.sh` manipulates the work tree with
-`git checkout --force`, `git checkout --orphan`, `git rm -rf .`, `git reset` and a plain
-`git checkout` to restore — and crucially **no `git clean`**, which is the one that would take an
-ignored directory with it. So the assembled site survives the branch switch. Verified by reading
-that script; a `git clean -fdx` added to it later would silently break this.
-
-### The output guard, and why it is a sentinel rather than a blocklist
-
-The script has to clear its output directory before rebuilding it. An earlier version did that with
-an unguarded `rm -rf "$output"`, and on 2026-09-21 a test written to prove it *refused* dangerous
-paths was run before that guard existed, passed `$HOME`, and deleted a home directory. BSD `rm`
-self-protects `/`, `.` and `..`; nothing protects `$HOME`.
-
-The fix is not a longer list of forbidden paths — a blocklist is only as good as its author's
-imagination, and the path that did the damage was supplied by the caller at runtime. Instead the
-delete is made self-limiting: the script writes a sentinel file (`.assembled-by-anichron`) into the
-directory as its first act, and **removes a directory only if that sentinel is present.** A
-directory it did not create is refused, not deleted. The cheap checks for `/`, `$HOME`, `.`, `..`,
-and for an output that contains one of its own inputs, are kept as a second layer that gives a
-clearer message.
-
-⚠️ The corollary for anyone extending `scripts/assemble-pages.test.sh`: every dangerous path in that
-file is a **fake** built inside a temp directory, and a fake `$HOME` is injected with
-`env HOME=...`. A test that needs the guard to work in order to be safe is a test that can only be
-run once.
-
-### Verifying the scripts
-
-```bash
-scripts/mutation-report.test.sh
-scripts/publish-badges.test.sh
-scripts/assemble-pages.test.sh
-```
-
-`mutation-report.test.sh` covers `badge`, `compare` and `tally`. The `tally` cases matter to the
-divergence job specifically. `tally` counts through the shared `TALLY` expression and then computes
-the percentage, and `badge` is built **on top of** `tally` rather than beside it — so the job
-summary cannot disagree with the badge about either number, and a run with pending mutants is
-refused on that path too rather than reporting a score that reads better than reality.
-
-All three run in CI, in the `Checks` job — so they are skipped, not run, if the build, tests,
-coverage or formatting steps have already failed.
-
-`publish-badges.test.sh` executes real `git push` commands, but the `Checks` job's checkout holds
-only a read token; push rights exist only in the master-only `publish` job. The test script still
-guards itself twice — every setup step is checked, and it refuses to run at all unless `origin`
-resolves inside its own temp directory.
-
-One consequence worth knowing: because the `publish` job needs `Checks` to succeed, a failing
-helper test stops the coverage badge and the Pages upload too. That is intended for the badge — a
-publisher whose tests fail should not publish — but it does mean the Pages site can go stale on a
-failure unrelated to coverage.
-
-`publish-badges.test.sh` builds a throwaway repository with a bare remote and exercises the real
-push path. The cases that matter are the destructive ones: an artifact the script knows nothing
-about survives an update; an empty or truncated payload does not overwrite a good badge; a *diverged*
-local branch does not clobber the remote; an unreachable origin is refused rather than treated as a
-missing branch; and a detached HEAD is restored rather than left on `badges`.
-
-`mutation-report.test.sh` is fixture-driven, no network, about a second. The fixtures in
-`scripts/fixtures/` are deliberately
-tiny and hand-written rather than real reports — a real one embeds the full source of every mutated
-file and runs to megabytes. `divergent-a.json` and `divergent-b.json` both hold ten mutants with
-`Killed + Survived = 10` and differ only in the split (8/2 versus 5/5), reproducing the upstream
-defect's signature so the comparison is tested against the thing it exists to catch.
+| Setting | Rule |
+|---|---|
+| `test-runner` | `mtp`. Never `vstest`: it reports a silent 0.00% (ADR 0001) |
+| `mutate` | Exclusions listed one by one (ADR 0005) |
+| `ignore-methods` | Logging and unreachable throws (ADR 0005) |
+| `thresholds` | `break`, `low`, `high` all `100` |
+| `concurrency` | The hosted runner's vCPU count. Raise it only with the runner size: timeouts count as detected and inflate the score |
 
 ## The gate
 
-The gate is the `thresholds` block in `stryker-config.json`: `break`, `low` and `high` all `100`.
-CI passes no threshold flags, so the committed file is the whole rule and a local run judges
-exactly as CI does. A ratchet that derived the gate from a stored high-water mark (#183) carried
-the score up from 46.58%; it was removed once the committed gate reached 100, where it could no
-longer raise anything.
-
 ### Why there is no slack
 
-**The smallest slack Stryker can express already hides about 1% of all mutants.** Thresholds are
-whole percentages, so the only gates above 99 are 100 and nothing. With 983 mutants in scope, one
-mutant is 0.10 points:
-
-| Gate | Survivors that still pass |
-| --- | --- |
-| 100 | 0 |
-| 99 | 9 (974/983 = 99.08%) |
-| 95 | 49 |
-
-That count grows with the codebase — about 1% of it — so slack cannot be tuned to "a couple".
-
-**Slack only buys anything if the measurement is noisy, and it is not.** The variance seen while
-reaching 100% came from `static readonly` initialisers and EF's cached model (up to 16 mutants
-between runs), both removed. The MTP under-reporting defect showed no divergence and is watched by
-the weekly job, and timeouts count as detected. Every remaining source of noise can only lower the
-score — a spurious failure, never a false pass — and slack does not cure that; it only hides real
-regressions. If flakiness returns, fix its cause rather than lowering the gate.
-
-**Equivalent mutants in new code do not need slack either.** ADR 0005 gives them a route: a bare
-`// Stryker disable once` plus an ADR row with the reason, which review can see.
+- Thresholds are whole percentages. 99 already lets about 1% of all mutants survive, and that count grows with the codebase.
+- The measurement isn't noisy: the known noise sources were removed, and any remaining noise only lowers the score.
+- An equivalent mutant has its own route: a suppression plus an ADR 0005 row.
 
 ## The weekly divergence check
 
-`.github/workflows/mutation-divergence.yml` runs the sweep **twice on the same commit and the same
-runner** — once at the concurrency CI normally uses, once with `--concurrency 1` — and compares the
-**detected-mutant counts**. Equal counts mean the measurement is sound. Different counts mean the
-score the pull-request gate has been enforcing is not measuring what we think it is, and the job
-fails so a human finds out.
+- `.github/workflows/mutation-divergence.yml` runs the sweep twice on the same commit, at normal concurrency and at `--concurrency 1`, and fails when the **detected counts** differ. It runs weekly and on demand, and never gates a merge.
+- **Why counts:** the MTP defect (ADR 0001) keeps killed plus survived constant and moves the split between them, so a single run looks consistent. A score comparison would also fire on ordinary quality changes.
+- This is the only place a measurement-affecting flag is passed.
 
-It runs weekly and on `workflow_dispatch`. It never runs on a pull request and never gates a merge.
+### When to run it by hand
 
-### ⚠️ When to run it by hand, rather than waiting for Monday
+Run it from the Actions tab after:
 
-Re-run it from the Actions tab (`Mutation divergence` → *Run workflow*) after either of these:
+1. A Stryker upgrade.
+2. A significant change in the shape of the test suite: the defect depends on test shape, not on version.
 
-1. **A Stryker upgrade** — any change to the pinned version in `.config/dotnet-tools.json`.
-2. **A significant change in the shape of the test suite** — deleting or splitting a test class,
-   changing the test runner, or a large change in how many tests there are.
+Don't reach for these:
 
-The second one is the unintuitive trigger, and it is the important one. **The defect is
-test-shape-dependent, not version-dependent.** Upstream demonstrated an earlier release that
-measured correctly and then started under-reporting once a test class was deleted — no dependency
-change at all. So a version pin cannot guard this, and "we did not upgrade anything" is not a reason
-to skip the check.
+- Stryker's documented cross-check (coverage analysis off) does not detect the defect.
+- Don't bisect a score change file by file: single-file runs lose kills upstream.
+- A failure is a measurement problem. Investigate it; don't rerun until it's green.
 
-### Why it compares counts rather than scores
+## A survivor that only appears after a query-filter mutant
 
-The upstream defect under-reports kills non-deterministically at concurrency above 1 on exactly this
-stack (.NET 10, xUnit v3, Stryker 5.0.0). Its signature is that **killed-plus-survived stays
-constant while the split between them moves** — so a single run looks perfectly self-consistent, and
-a green build looks identical whether or not kills have started silently vanishing.
+- EF caches compiled queries per process, and one test host serves many mutants. A query compiled while a `HasQueryFilter` mutant was active keeps the mutated filter, so later mutants survive in some runs and not others.
+- Fix it in the test: an assertion that doesn't depend on the filter reads through `IgnoreQueryFilters()`. A fresh EF service provider per test also fixes it, but was rejected as far too slow.
 
-The score moves too, of course. But comparing scores would also fire on an ordinary quality change,
-and comparing *detectable totals* would not fire at all. The detected count is the discriminating
-number, which is why `scripts/mutation-report.sh compare` compares exactly that.
+## Publishing
 
-### What not to reach for when a run looks wrong
+- `scripts/mutation-report.sh` (`badge`, `compare`, `merge`, `tally`) refuses a bad measurement instead of returning a number: a missing or malformed report, partial thresholds, no detectable mutants, or pending mutants.
+- `scripts/publish-badges.sh` adds the badges to the orphan `badges` branch, on master only. It keeps the last good badge when the payload is invalid, and refuses when origin is unreachable.
+- `scripts/assemble-pages.sh` builds the Pages site (`coverage/`, and `mutation/` with `scripts/mutation-viewer.html`). It deletes only a directory that carries its sentinel `.assembled-by-anichron`. Its tests fake every dangerous path, `$HOME` included.
 
-- ⛔ **Stryker's documented cross-check does not work for this.** The docs suggest re-running with
-  coverage analysis disabled to verify a suspicious result. The upstream reporter showed it does not
-  detect the concurrency defect, and we reproduced the same thing locally: disabling coverage
-  analysis returned an identical score, which told us nothing about the runner.
-- ⛔ **Do not bisect a score change file by file.** Scoping a run to a single file is reported
-  upstream to lose kills even single-threaded, so the numbers you get from narrowing are not
-  comparable to the numbers you started from. Read the HTML report instead.
+### Why the mutation report is optional
 
-### When it fails
+Without a merged report, coverage still publishes and the landing page says the sweep failed. Failing the publish as well would only block on publishing; the gate has already reported the real problem.
 
-The job summary carries both detected counts, both detectable totals and both scores, so the
-divergence is diagnosable without downloading anything. Both reports are uploaded as artifacts for
-when it is not.
+### Why it runs before the badge step
 
-When a sweep produced no *usable* report — it crashed, or was interrupted and left a report full of
-pending mutants — the summary says so in that sweep's row and quotes the reason, and it does **not**
-claim the measurement is sound. That distinction is deliberate: a file being present is not the same
-as a file being trustworthy, and an interrupted run leaves one that exists and lies.
-
-A failure means the gate has been enforcing a number that does not mean what it says. It does not
-mean the build is broken — nothing merges differently because of it — so the response is to
-investigate the measurement, not to rerun until it goes green.
-
-⚠️ Note the job passes `--concurrency`, which is the one place in this repo that passes a
-**measurement-affecting** flag to Stryker. Everywhere else the rule is that every value affecting
-what gets measured lives in `src/stryker-config.json`, so a local run and the CI run stay
-comparable. Here concurrency is the variable under test, so it has to come from the command line.
-
-### A survivor that only appears after a query-filter mutant
-
-Stryker's MTP runner keeps one test host running across many mutants, and EF Core caches compiled
-queries for the whole process. A mutant inside a `HasQueryFilter` lambda is evaluated once, when a
-query is compiled, so a filtered query compiled while it was active keeps the mutated filter for
-every later mutant tested on that host. In #312, `BurstChecks.CountAsync()` was compiled with an
-inverted soft-delete filter, and `RemoveCheckAsync`'s block-removal mutant then passed its killing
-test, because the cached query counted 0 rows that were still there. Which mutant runs after which
-depends on concurrency and on how the run is split, so the mutant survived in some runs and not in
-others.
-
-The fix is in the test: a killing assertion that does not depend on the filter reads through
-`IgnoreQueryFilters()`, a query shape the filter mutant never compiles. Giving every test its own
-EF service provider also removes the leak, but it was measured on #305 and rejected: it made the unit
-suite 2.4× slower and took `Mutation — Anichron.Core` past its 20-minute limit.
-
-## Known weak spots
-
-The worst-scoring files are real test debt, not noise:
-
-- The DbContext's EF Fluent API configuration — 50 survivors, 0 killed. These encode real
-  invariants (global uniqueness of storage root paths, the config-scoped content-hash index) and
-  are killable with model-metadata assertions.
-- The media type detector — 16 survivors.
-- The video processor — 30 survivors.
+`publish-badges.sh` switches the work tree to `badges`, where `scripts/` does not exist. `pages-site/` is gitignored and survives the switch, because the script never runs `git clean`.

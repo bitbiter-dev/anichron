@@ -3,7 +3,7 @@
 #
 # Reads `gh issue view <n> --json number,labels,body,comments` on stdin and
 # checks that a `ready-for-agent` issue carries the parts that
-# docs/agents/design-process.md ("What every issue carries") requires: a first
+# .claude/docs/design-process.md ("What every issue carries") requires: a first
 # caller and a design part, in the issue body or in an `## Agent Brief` comment.
 #
 # Exit 0: ready, or not subject to the check (not ready-for-agent, an epic, or a

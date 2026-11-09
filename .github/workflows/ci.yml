@@ -120,6 +120,7 @@ jobs:
           scripts/graph-hint.test.sh
           scripts/tool-versions.test.sh
           scripts/lfs-pointers.test.sh
+          scripts/docs-guard.test.sh
 
       - name: Mutation setup matches its rules
         run: scripts/mutation-guard.sh
@@ -148,6 +149,17 @@ jobs:
 
       - name: Every binary is an LFS pointer
         run: scripts/lfs-pointers.sh
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Docs are outlines
+        run: scripts/docs-guard.sh
 
   integration:
     name: Integration tests
@@ -541,7 +553,7 @@ jobs:
   gate:
     name: CI gate
     runs-on: ubuntu-latest
-    needs: [changes, checks, lfs, integration, mutation, ui, e2e, docker-api, docker-worker]
+    needs: [changes, checks, lfs, docs, integration, mutation, ui, e2e, docker-api, docker-worker]
     if: always()
     permissions:
       contents: read
