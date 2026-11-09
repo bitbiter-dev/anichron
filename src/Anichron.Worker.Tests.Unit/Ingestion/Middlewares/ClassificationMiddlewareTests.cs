@@ -1,5 +1,4 @@
 using Anichron.Core.Data;
-using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Anichron.Testing.Domain;
@@ -72,7 +71,7 @@ public sealed class ClassificationMiddlewareTests
         fx.Repository.FindByHashesOrPathsAsync(
                 Arg.Is<Guid>(id => id != ConfigId), Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns([new MatchedAsset(Stored("photo.jpg"), IsLivePhotoVideo: false)]);
+            .Returns([Stored("photo.jpg")]);
 
         (await NextCalledAsync(fx, Single())).Should().BeTrue();
     }
@@ -545,9 +544,9 @@ public sealed class ClassificationMiddlewareTests
         var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "a0a0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
         var (bHeic, bVideo) = (Half(BHeicId, "B.heic", "b0b0", BVideoId), Half(BVideoId, "B.mov", "b1b1"));
         bVideo.ProxyFiles = [new ProxyFile { AssetId = BVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video_720p.mp4" }];
-        fx.StoreMatched(
-            new MatchedAsset(aHeic, IsLivePhotoVideo: false), new MatchedAsset(aVideo, IsLivePhotoVideo: true),
-            new MatchedAsset(bHeic, IsLivePhotoVideo: false), new MatchedAsset(bVideo, IsLivePhotoVideo: true));
+        fx.Store(
+            aHeic, LivePhotoVideo(aVideo),
+            bHeic, LivePhotoVideo(bVideo));
         var context = LivePhoto("A");
 
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
@@ -569,11 +568,11 @@ public sealed class ClassificationMiddlewareTests
     public async Task InvokeAsync_WholeLivePhotoMovedOntoAnotherLosesTheRace_SavesNothingAndCountsNothingAsync()
     {
         var fx = new ClassificationFixture();
-        fx.StoreMatched(
-            new MatchedAsset(Half(AHeicId, "A.heic", "a0a0", AVideoId), IsLivePhotoVideo: false),
-            new MatchedAsset(Half(AVideoId, "A.mov", "a1a1"), IsLivePhotoVideo: true),
-            new MatchedAsset(Half(BHeicId, "B.heic", "b0b0", BVideoId), IsLivePhotoVideo: false),
-            new MatchedAsset(Half(BVideoId, "B.mov", "b1b1"), IsLivePhotoVideo: true));
+        fx.Store(
+            Half(AHeicId, "A.heic", "a0a0", AVideoId),
+            LivePhotoVideo(Half(AVideoId, "A.mov", "a1a1")),
+            Half(BHeicId, "B.heic", "b0b0", BVideoId),
+            LivePhotoVideo(Half(BVideoId, "B.mov", "b1b1")));
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(DatabaseErrors.UniqueViolation(MediaAssetIndexNames.ActiveContentHashUnique));
         var context = LivePhoto("A");
@@ -592,10 +591,10 @@ public sealed class ClassificationMiddlewareTests
         fx.FileSystem.AddEmptyFile("/abs/B.mov");
         var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "b0b0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
         var bVideo = Half(BVideoId, "B.mov", "b1b1");
-        fx.StoreMatched(
-            new MatchedAsset(aHeic, IsLivePhotoVideo: false),
-            new MatchedAsset(aVideo, IsLivePhotoVideo: true),
-            new MatchedAsset(bVideo, IsLivePhotoVideo: true));
+        fx.Store(
+            aHeic,
+            LivePhotoVideo(aVideo),
+            LivePhotoVideo(bVideo));
         var context = LivePhoto("A");
 
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
@@ -614,10 +613,10 @@ public sealed class ClassificationMiddlewareTests
         var fx = new ClassificationFixture();
         var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "b0b0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
         var bVideo = Half(BVideoId, "B.mov", "b1b1");
-        fx.StoreMatched(
-            new MatchedAsset(aHeic, IsLivePhotoVideo: false),
-            new MatchedAsset(aVideo, IsLivePhotoVideo: true),
-            new MatchedAsset(bVideo, IsLivePhotoVideo: true));
+        fx.Store(
+            aHeic,
+            LivePhotoVideo(aVideo),
+            LivePhotoVideo(bVideo));
 
         await fx.Build().InvokeAsync(LivePhoto("A"), NoOpNextAsync, CancellationToken.None);
 
@@ -633,10 +632,10 @@ public sealed class ClassificationMiddlewareTests
         fx.FileSystem.AddEmptyFile("/abs/B.heic");
         var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "a0a0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
         var bHeic = Half(BHeicId, "B.heic", "b0b0", BVideoId);
-        fx.StoreMatched(
-            new MatchedAsset(aHeic, IsLivePhotoVideo: false),
-            new MatchedAsset(aVideo, IsLivePhotoVideo: true),
-            new MatchedAsset(bHeic, IsLivePhotoVideo: false));
+        fx.Store(
+            aHeic,
+            LivePhotoVideo(aVideo),
+            bHeic);
         var context = LivePhoto("A");
 
         await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
@@ -700,5 +699,105 @@ public sealed class ClassificationMiddlewareTests
         videoHashAtNext.Should().Be("b1b1");
         await fx.MovGenerator.Received(1).TranscodeAsync("/abs/A.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
         await fx.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    // ==========================================================================
+    // The video a photo lets go of at pairing
+    // ==========================================================================
+
+    private static readonly Guid CVideoId = Guid.Parse("c2c2c2c2-0000-0000-0000-000000000000");
+
+    private static IngestionContext LoneVideo(string relativePath, string contentHash) => new()
+    {
+        Item = new SingleFileItem($"/abs/{relativePath}", relativePath, MediaType.Video),
+        Config = new UserStorageConfig { Id = ConfigId, UserId = Guid.NewGuid(), RootPath = "/abs" },
+        AttemptId = Guid.NewGuid(),
+        ContentHash = contentHash,
+    };
+
+    private static (MediaAsset Photo, MediaAsset Video) LivePhotoA()
+        => (Half(AHeicId, "A.heic", "b0b0", AVideoId), LivePhotoVideo(Half(AVideoId, "A.mov", "a1a1")));
+
+    [Theory]
+    [InlineData("b1b1", (int)PairingAction.AttachMov)]
+    [InlineData("c0c0", (int)PairingAction.PointAtMov)]
+    public async Task InvokeAsync_PhotoMovedBesideAStoredVideoWhileItsOwnStaysOnDisk_RetiresItsOwnAndTheNextCrawlLeavesItRetiredAsync(
+        string storedVideoHash, int pairing)
+    {
+        var fx = new ClassificationFixture();
+        var (aHeic, aVideo) = LivePhotoA();
+        var cVideo = Half(CVideoId, "C.mov", storedVideoHash);
+        fx.FileSystem.AddEmptyFile("/abs/A.mov");
+        fx.Store(aHeic, cVideo);
+        fx.Repository.FindAsync(AVideoId, Arg.Any<CancellationToken>()).Returns(aVideo);
+        var context = LivePhoto("C");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Classification!.Pairing.Should().Be((PairingAction)pairing);
+        (aHeic.FilePath, aHeic.PairedAssetId, cVideo.IsLivePhotoVideo).Should().Be(("C.heic", CVideoId, true));
+        (aVideo.IsSoftDeleted, context.SoftDeleted).Should().Be((true, 1));
+        fx.ResolverLogger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
+            "Soft-deleted asset a2a2a2a2-0000-0000-0000-000000000000 at A.mov: its photo, asset "
+            + "a1a1a1a1-0000-0000-0000-000000000000, now has another video, asset c2c2c2c2-0000-0000-0000-000000000000.");
+
+        var next = new ClassificationFixture();
+        next.Store(aVideo);
+        var lone = LoneVideo("A.mov", "a1a1");
+
+        await next.Build().InvokeAsync(lone, NoOpNextAsync, CancellationToken.None);
+
+        lone.Classification!.Primary.Should().Be(new FileClassification(FileOutcome.LoneLivePhotoVideo, aVideo));
+        (aVideo.IsSoftDeleted, lone.AutoRestored).Should().Be((true, 0));
+        await next.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WholeLivePhotoMovedAndItsVideoEdited_RetiresTheOldVideoWithoutASweepAsync()
+    {
+        var fx = new ClassificationFixture();
+        var (aHeic, aVideo) = LivePhotoA();
+        fx.Store(aHeic);
+        fx.Repository.FindAsync(AVideoId, Arg.Any<CancellationToken>()).Returns(aVideo);
+        fx.GuidFactory.NewGuid().Returns(CVideoId);
+        var context = LivePhoto("C");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        (aHeic.PairedAssetId, aVideo.IsSoftDeleted, context.SoftDeleted).Should().Be((CVideoId, true, 1));
+        fx.Repository.Received(1).Add(Arg.Is<MediaAsset>(added => added.Id == CVideoId && added.IsLivePhotoVideo));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WholeLivePhotoMovedOntoAStandaloneVideosName_RetiresItsVideoOnceAsTheMovedRowAsync()
+    {
+        var fx = new ClassificationFixture();
+        var (aHeic, aVideo) = LivePhotoA();
+        aVideo.ContentHash = "b1b1";
+        var cVideo = Half(CVideoId, "C.mov", "c0c0");
+        fx.Store(aHeic, aVideo, cVideo);
+        var context = LivePhoto("C");
+
+        await fx.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+
+        context.Classification!.Secondary.Should().Be(new FileClassification(FileOutcome.OverwrittenByMove, cVideo, Retired: aVideo));
+        (aHeic.PairedAssetId, cVideo.ContentHash).Should().Be((CVideoId, "b1b1"));
+        (aVideo.IsSoftDeleted, context.SoftDeleted).Should().Be((true, 1));
+        fx.ResolverLogger.Collector.Count.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WholeLivePhotoCopiedOntoAStandaloneVideosName_KeepsItsVideoAsync()
+    {
+        var fx = new ClassificationFixture();
+        fx.FileSystem.AddEmptyFile("/abs/A.mov");
+        var (aHeic, aVideo) = LivePhotoA();
+        aVideo.ContentHash = "b1b1";
+        fx.Store(aHeic, aVideo, Half(CVideoId, "C.mov", "c0c0"));
+
+        await fx.Build().InvokeAsync(LivePhoto("C"), NoOpNextAsync, CancellationToken.None);
+
+        (aHeic.PairedAssetId, aVideo.IsSoftDeleted).Should().Be((AVideoId, false));
+        fx.ResolverLogger.Collector.Count.Should().Be(0);
     }
 }

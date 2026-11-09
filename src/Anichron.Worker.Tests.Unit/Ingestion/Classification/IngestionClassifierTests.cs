@@ -5,6 +5,7 @@ using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
 using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
+using static Anichron.Worker.Tests.Unit.Ingestion.Middlewares.ClassificationFixture;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Classification;
 
@@ -23,9 +24,6 @@ public sealed class IngestionClassifierTests
         public MockFileSystem FileSystem { get; } = new();
 
         public void Store(params MediaAsset[] rows)
-            => StoreMatched([.. rows.Select(row => new MatchedAsset(row, IsLivePhotoVideo: false))]);
-
-        public void StoreMatched(params MatchedAsset[] rows)
             => Repository.FindByHashesOrPathsAsync(
                     ConfigId, Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
                 .Returns(rows);
@@ -51,10 +49,6 @@ public sealed class IngestionClassifierTests
         AttemptId = Guid.NewGuid(),
         ContentHash = "cafebabe",
     };
-
-    private static MatchedAsset LivePhotoVideo(MediaAsset row) => new(row, IsLivePhotoVideo: true);
-
-    private static MatchedAsset Standalone(MediaAsset row) => new(row, IsLivePhotoVideo: false);
 
     private static IngestionContext Pair(string heicPath = "live.heic", string movPath = "live.mov") => new()
     {
@@ -336,7 +330,7 @@ public sealed class IngestionClassifierTests
         var fx = new TestFixture();
         var heic = Row("abc123", "2023/live.heic", pairedAssetId: MovId);
         var mov = Row("cafebabe", "2023/live.mov", id: MovId);
-        fx.StoreMatched(Standalone(heic), LivePhotoVideo(mov));
+        fx.Store(heic, LivePhotoVideo(mov));
 
         var result = await fx.ClassifyAsync(Pair("2024/live.heic", "2024/live.mov"));
 
@@ -482,7 +476,7 @@ public sealed class IngestionClassifierTests
         fx.FileSystem.AddEmptyFile("/abs/C.mov");
         var heic = Row("abc123", "A.heic", pairedAssetId: MovId);
         var (aVideo, cVideo) = (Row("beef", "A.mov", id: MovId), Row("cafebabe", "C.mov"));
-        fx.StoreMatched(Standalone(heic), LivePhotoVideo(aVideo), LivePhotoVideo(cVideo));
+        fx.Store(heic, LivePhotoVideo(aVideo), LivePhotoVideo(cVideo));
 
         var result = await fx.ClassifyAsync(Pair("A.heic", "A.mov"));
 
@@ -500,7 +494,7 @@ public sealed class IngestionClassifierTests
         fx.FileSystem.AddEmptyFile("/abs/C.mov");
         var aVideo = Row("beef", "A.mov", softDeleted: true, id: MovId);
         var cVideo = Row("cafebabe", "C.mov");
-        fx.StoreMatched(Standalone(Row("abc123", "A.heic", pairedAssetId: MovId)), LivePhotoVideo(aVideo), LivePhotoVideo(cVideo));
+        fx.Store(Row("abc123", "A.heic", pairedAssetId: MovId), LivePhotoVideo(aVideo), LivePhotoVideo(cVideo));
 
         var result = await fx.ClassifyAsync(Pair("A.heic", "A.mov"));
 
@@ -514,7 +508,7 @@ public sealed class IngestionClassifierTests
         var fx = new TestFixture();
         var heic = Row("abc123", "A.heic", pairedAssetId: MovId);
         var (aVideo, cVideo) = (Row("beef", "A.mov", id: MovId), Row("cafebabe", "C.mov"));
-        fx.StoreMatched(Standalone(heic), LivePhotoVideo(aVideo), LivePhotoVideo(cVideo));
+        fx.Store(heic, LivePhotoVideo(aVideo), LivePhotoVideo(cVideo));
 
         var result = await fx.ClassifyAsync(Pair("A.heic", "A.mov"));
 
@@ -530,7 +524,7 @@ public sealed class IngestionClassifierTests
         var bMovId = Guid.NewGuid();
         var (bHeic, bMov) = (Row("abc123", "B.heic", pairedAssetId: bMovId), Row("cafebabe", "B.mov", id: bMovId));
         var (aHeic, aMov) = (Row("f00d", "A.heic", pairedAssetId: MovId), Row("beef", "A.mov", id: MovId));
-        fx.StoreMatched(Standalone(bHeic), LivePhotoVideo(bMov), Standalone(aHeic), LivePhotoVideo(aMov));
+        fx.Store(bHeic, LivePhotoVideo(bMov), aHeic, LivePhotoVideo(aMov));
 
         var result = await fx.ClassifyAsync(Pair("A.heic", "A.mov"));
 
@@ -547,7 +541,7 @@ public sealed class IngestionClassifierTests
         var bMovId = Guid.NewGuid();
         var (bHeic, bMov) = (Row("abc123", "B.heic", pairedAssetId: bMovId), Row("cafebabe", "B.mov", id: bMovId));
         var aHeic = Row("f00d", "A.heic");
-        fx.StoreMatched(Standalone(bHeic), LivePhotoVideo(bMov), Standalone(aHeic));
+        fx.Store(bHeic, LivePhotoVideo(bMov), aHeic);
 
         var result = await fx.ClassifyAsync(Pair("A.heic", "A.mov"));
 
@@ -562,7 +556,7 @@ public sealed class IngestionClassifierTests
         var fx = new TestFixture();
         var aHeic = Row("abc123", "A.heic", pairedAssetId: MovId);
         var video = Row("cafebabe", "A.mov", id: MovId);
-        fx.StoreMatched(Standalone(aHeic), Standalone(Row("abc123", "B.heic", softDeleted: true)), LivePhotoVideo(video));
+        fx.Store(aHeic, Row("abc123", "B.heic", softDeleted: true), LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(Pair("A.heic", "A.mov"));
 
@@ -578,7 +572,7 @@ public sealed class IngestionClassifierTests
         var bHeic = Row("abc123", "B.heic", pairedAssetId: MovId);
         var bMov = Row("cafebabe", "B.mov", id: MovId);
         var standalone = Row("f00d", "X.mov", softDeleted: true);
-        fx.StoreMatched(Standalone(bHeic), LivePhotoVideo(bMov), Standalone(standalone));
+        fx.Store(bHeic, LivePhotoVideo(bMov), standalone);
 
         var result = await fx.ClassifyAsync(Pair("X.heic", "X.mov"));
 
@@ -623,7 +617,7 @@ public sealed class IngestionClassifierTests
         var cHeic = Row("abc123", "C.heic", pairedAssetId: Guid.NewGuid());
         var dHeic = Row("f00d", "D.heic", pairedAssetId: MovId);
         var dVideo = Row("beef", "D.mov", id: MovId);
-        fx.StoreMatched(Standalone(cHeic), Standalone(dHeic), LivePhotoVideo(dVideo));
+        fx.Store(cHeic, dHeic, LivePhotoVideo(dVideo));
 
         var result = await fx.ClassifyAsync(Pair("D.heic", "D.mov"));
 
@@ -668,7 +662,7 @@ public sealed class IngestionClassifierTests
         var fx = new TestFixture();
         var heic = Row("abc123", "2023/live.heic", softDeleted: true, pairedAssetId: MovId);
         var mov = Row("cafebabe", "2023/live.mov", softDeleted: true, id: MovId);
-        fx.StoreMatched(Standalone(heic), LivePhotoVideo(mov));
+        fx.Store(heic, LivePhotoVideo(mov));
 
         var result = await fx.ClassifyAsync(Pair("2024/live.heic", "2024/live.mov"));
 
@@ -694,7 +688,7 @@ public sealed class IngestionClassifierTests
     {
         var fx = new TestFixture();
         var video = Row("cafebabe", "2023/live.mov");
-        fx.StoreMatched(LivePhotoVideo(video));
+        fx.Store(LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(LoneVideo("2023/live.mov"));
 
@@ -707,7 +701,7 @@ public sealed class IngestionClassifierTests
     {
         var fx = new TestFixture();
         var video = Row("cafebabe", "2023/live.mov", softDeleted: true);
-        fx.StoreMatched(LivePhotoVideo(video));
+        fx.Store(LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(LoneVideo("2023/live.mov"));
 
@@ -719,7 +713,7 @@ public sealed class IngestionClassifierTests
     {
         var fx = new TestFixture();
         var video = Row("cafebabe", "2023/live.mov", softDeleted: true);
-        fx.StoreMatched(LivePhotoVideo(video));
+        fx.Store(LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(LoneVideo("elsewhere/live.mov"));
 
@@ -731,7 +725,7 @@ public sealed class IngestionClassifierTests
     {
         var fx = new TestFixture();
         var video = Row("cafebabe", "2023/live.mov");
-        fx.StoreMatched(LivePhotoVideo(video));
+        fx.Store(LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(LoneVideo("elsewhere/live.mov"));
 
@@ -745,7 +739,7 @@ public sealed class IngestionClassifierTests
         fx.FileSystem.AddEmptyFile("/abs/LP/A.mov");
         var video = Row("cafebabe", "LP/A.mov");
         var standalone = Row("f00d", "X.mov");
-        fx.StoreMatched(LivePhotoVideo(video), Standalone(standalone));
+        fx.Store(LivePhotoVideo(video), standalone);
 
         var result = await fx.ClassifyAsync(LoneVideo("X.mov"));
 
@@ -759,7 +753,7 @@ public sealed class IngestionClassifierTests
     {
         var fx = new TestFixture();
         var video = Row("cafebabe", "LP/A.mov");
-        fx.StoreMatched(LivePhotoVideo(video), Standalone(Row("f00d", "X.mov", softDeleted: true)));
+        fx.Store(LivePhotoVideo(video), Row("f00d", "X.mov", softDeleted: true));
 
         var result = await fx.ClassifyAsync(LoneVideo("X.mov"));
 
@@ -771,7 +765,7 @@ public sealed class IngestionClassifierTests
     {
         var fx = new TestFixture();
         var video = Row("f00d", "2023/live.mov");
-        fx.StoreMatched(LivePhotoVideo(video));
+        fx.Store(LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(LoneVideo("2023/live.mov"));
 
@@ -785,7 +779,7 @@ public sealed class IngestionClassifierTests
         var fx = new TestFixture();
         var heic = Row("abc123", "live.heic", pairedAssetId: MovId);
         var mov = Row("cafebabe", "live.mov", id: MovId);
-        fx.StoreMatched(Standalone(heic), LivePhotoVideo(mov));
+        fx.Store(heic, LivePhotoVideo(mov));
 
         var result = await fx.ClassifyAsync(Pair());
 
@@ -801,7 +795,7 @@ public sealed class IngestionClassifierTests
         var copied = Row("abc123", "B.heic", pairedAssetId: Guid.NewGuid());
         var overwritten = Row("f00d", "live.heic", pairedAssetId: MovId);
         var video = Row("cafebabe", "live.mov", id: MovId);
-        fx.StoreMatched(Standalone(copied), Standalone(overwritten), LivePhotoVideo(video));
+        fx.Store(copied, overwritten, LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(Pair());
 
@@ -817,7 +811,7 @@ public sealed class IngestionClassifierTests
         var copied = Row("abc123", "B.heic", pairedAssetId: Guid.NewGuid());
         var overwritten = Row("f00d", "live.heic", softDeleted: true, pairedAssetId: MovId);
         var video = Row("cafebabe", "live.mov", softDeleted: true, id: MovId);
-        fx.StoreMatched(Standalone(copied), Standalone(overwritten), LivePhotoVideo(video));
+        fx.Store(copied, overwritten, LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(Pair());
 
@@ -832,7 +826,7 @@ public sealed class IngestionClassifierTests
         var fx = new TestFixture();
         var heic = Row("abc123", "live.heic");
         var video = Row("cafebabe", "live.mov", id: MovId);
-        fx.StoreMatched(Standalone(heic), LivePhotoVideo(video));
+        fx.Store(heic, LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(Pair());
 
@@ -847,7 +841,7 @@ public sealed class IngestionClassifierTests
         var fx = new TestFixture();
         var heic = Row("abc123", "live.heic", softDeleted: true, pairedAssetId: MovId);
         var video = Row("cafebabe", "live.mov", softDeleted: true, id: MovId);
-        fx.StoreMatched(Standalone(heic), LivePhotoVideo(video));
+        fx.Store(heic, LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(Pair());
 
@@ -863,7 +857,7 @@ public sealed class IngestionClassifierTests
         var heic = Row("abc123", "live.heic");
         var unpaired = Row("f00d", "live.mov");
         var video = Row("cafebabe", "LP/A.mov");
-        fx.StoreMatched(Standalone(heic), Standalone(unpaired), LivePhotoVideo(video));
+        fx.Store(heic, unpaired, LivePhotoVideo(video));
 
         var result = await fx.ClassifyAsync(Pair());
 

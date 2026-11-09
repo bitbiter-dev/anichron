@@ -59,7 +59,9 @@ public sealed class NewContentWriterTests
                 GuidFactory,
                 new FakeLogger<ProxyStagingWriter>());
             return new(Repository, Clock,
-                new PairedMovResolver(Repository, Clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
+                new PairedMovResolver(
+                    Repository, new StoredContent(Repository, Substitute.For<IBurstRepository>(), Clock, new FakeLogger<StoredContent>()),
+                    Clock, GuidFactory, new FakeLogger<PairedMovResolver>()),
                 new PairedMovProxyWriter(
                     [MovGenerator], new TwoLevelHexShardStrategy(), stagingWriter, Repository,
                     new FakeLogger<PairedMovProxyWriter>()),

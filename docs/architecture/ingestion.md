@@ -30,7 +30,7 @@ For a file with content H at path P, first match wins (ADR 0011 for the path-hol
 
 | Situation | Outcome |
 |---|---|
-| A video alone that matches a Live Photo's video | `LoneLivePhotoVideo`: the video row is left alone (it follows its photo) |
+| A video alone that matches a row with `IsLivePhotoVideo` set | `LoneLivePhotoVideo`: the video row is left alone (it follows its photo) |
 | An active row holds H at P | `Unchanged` |
 | An active row holds H at Q, Q still exists, an active row at P | `OverwrittenByCopy`: P's row is soft-deleted |
 | … Q still exists, no active row at P | `DuplicateCopy`, reported |
@@ -51,6 +51,7 @@ For a file with content H at path P, first match wins (ADR 0011 for the path-hol
 
 - **One unit.** The photo is classified first. The MOV half then runs the same table against the photo's paired row, unless another row holds the MOV's path: the path holder wins and the photo is re-pointed to it.
 - **A video has one photo, and a soft-deleted photo never points at an active video.** Pairing goes only through `PairedMovResolver.PairAsync`; a unique index on `PairedAssetId` backs it. Retiring a photo retires its video.
+- **A video a photo lets go of is retired.** When `PairAsync` points a photo at another video, it soft-deletes the previous one through `StoredContent.RetireAsync`, unless the item's MOV half already retires it. Pairing sets `IsLivePhotoVideo`, which is never cleared, so the let-go video never comes back as a memory of its own (ADR 0019).
 - The paired MOV is its own asset and owns its `WebVideo`, which `PairedMovProxyWriter` writes when the MOV takes content or still lacks one.
 - The video takes its photo's whole capture date, in one place: `PairedMovResolver.DateFromPhoto`.
 

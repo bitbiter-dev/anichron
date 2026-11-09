@@ -208,7 +208,9 @@ public sealed class IngestionSaverTests(PostgresServer server)
             };
             var repository = new EfMediaAssetRepository(db);
             await new PairedMovResolver(
-                    repository, Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
+                    repository,
+                    new StoredContent(repository, Substitute.For<IBurstRepository>(), Substitute.For<IClock>(), NullLogger<StoredContent>.Instance),
+                    Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
                     NullLogger<PairedMovResolver>.Instance)
                 .PairAsync(context, atPath, Ct);
             (moved.IsSoftDeleted, atPath.ContentHash, video.FilePath) = (true, "b0b0", "A.mov");

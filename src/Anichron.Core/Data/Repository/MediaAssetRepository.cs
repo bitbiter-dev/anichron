@@ -11,21 +11,16 @@ public sealed record ContentLocation(Guid UserId, string ContentHash, Guid Stora
 /// <param name="PairedAssetId">The video the row points at, when it is a Live Photo's photo.</param>
 public sealed record AssetPath(Guid Id, string FilePath, Guid? PairedAssetId = null);
 
-/// <summary>A row the classification query found.</summary>
-/// <param name="Asset">The tracked row, with its proxy rows.</param>
-/// <param name="IsLivePhotoVideo">Whether some photo, active or soft-deleted, points at the row as its video.</param>
-public sealed record MatchedAsset(MediaAsset Asset, bool IsLivePhotoVideo);
-
 public interface IMediaAssetRepository
 {
     Task<MediaAsset?> FindByHashAsync(string contentHash, Guid storageConfigId, CancellationToken ct);
 
-    /// <summary>The config's rows that match, each with its proxy rows and whether it is a Live Photo's video.</summary>
+    /// <summary>The config's rows that match, tracked, each with its proxy rows.</summary>
     /// <param name="storageConfigId">The config whose rows are searched.</param>
     /// <param name="contentHashes">Matches active and soft-deleted rows.</param>
     /// <param name="filePaths">Matches active and soft-deleted rows, as the unique path index does.</param>
     /// <param name="ct">Cancels the query.</param>
-    Task<IReadOnlyList<MatchedAsset>> FindByHashesOrPathsAsync(
+    Task<IReadOnlyList<MediaAsset>> FindByHashesOrPathsAsync(
         Guid storageConfigId,
         IReadOnlyCollection<string> contentHashes,
         IReadOnlyCollection<string> filePaths,
@@ -76,14 +71,14 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .IgnoreQueryFilters()
             .Where(a => a.ContentHash == contentHash && a.StorageConfigId == storageConfigId && !a.IsSoftDeleted);
 
-    public async Task<IReadOnlyList<MatchedAsset>> FindByHashesOrPathsAsync(
+    public async Task<IReadOnlyList<MediaAsset>> FindByHashesOrPathsAsync(
         Guid storageConfigId,
         IReadOnlyCollection<string> contentHashes,
         IReadOnlyCollection<string> filePaths,
         CancellationToken ct)
         => await HashesOrPathsQuery(db, storageConfigId, contentHashes, filePaths).ToListAsync(ct);
 
-    internal static IQueryable<MatchedAsset> HashesOrPathsQuery(
+    internal static IQueryable<MediaAsset> HashesOrPathsQuery(
         AnichronDbContext db,
         Guid storageConfigId,
         IReadOnlyCollection<string> contentHashes,
@@ -94,8 +89,7 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .Where(a => a.StorageConfigId == storageConfigId
                 && ((!a.IsSoftDeleted && contentHashes.Contains(a.ContentHash))
                     || (a.IsSoftDeleted && contentHashes.Contains(a.ContentHash))
-                    || filePaths.Contains(a.FilePath)))
-            .Select(a => new MatchedAsset(a, db.MediaAssets.IgnoreQueryFilters().Any(photo => photo.PairedAssetId == a.Id)));
+                    || filePaths.Contains(a.FilePath)));
 
     public async Task<IReadOnlyList<ContentLocation>> FindSharedContentAsync(
         IReadOnlyCollection<Guid> storageConfigIds, CancellationToken ct)

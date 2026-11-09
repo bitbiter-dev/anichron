@@ -11,7 +11,7 @@ Fluent API only (`domain-has-no-data-annotations`). Columns are PascalCase. Tabl
 
 | Entity | What it is |
 |---|---|
-| `MediaAsset` | One file under a storage config: path, `ContentHash`, capture date (ADR 0015), media type, soft-delete flag, `PairedAssetId` (Live Photo → its MOV) |
+| `MediaAsset` | One file under a storage config: path, `ContentHash`, capture date (ADR 0015), media type, soft-delete flag, `PairedAssetId` (Live Photo → its MOV), `IsLivePhotoVideo` (ADR 0019) |
 | `Metadata` | 1:1 with an asset: the owned `MediaDescription` (size, GPS, orientation, camera, duration) and the BlurHash |
 | `ProxyFile` | One generated file per asset and `ProxyType` |
 | `Burst` | Photos of one config taken moments apart; `PrimaryAssetId` is the cover |

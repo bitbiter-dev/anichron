@@ -14,18 +14,16 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
         string[] hashes = mov is null ? [contentHash] : [contentHash, secondaryHash];
         string[] paths = mov is null ? [item.RelativePath] : [item.RelativePath, mov.RelativePath];
 
-        var matched = await repository.FindByHashesOrPathsAsync(context.Config.Id, hashes, paths, ct);
-        var rows = matched.Select(row => row.Asset).ToList();
+        var rows = await repository.FindByHashesOrPathsAsync(context.Config.Id, hashes, paths, ct);
 
         var rootPath = context.Config.RootPath;
-        var primary = (mov is null ? LoneLivePhotoVideo(matched, item.RelativePath, ownVideoIds: []) : null)
+        var primary = (mov is null ? LoneLivePhotoVideo(rows, item.RelativePath, ownVideoIds: []) : null)
             ?? Classify(rows, contentHash, item.RelativePath, rootPath, AtPath(rows, item.RelativePath));
-        var secondary = mov is null ? null : ClassifyVideo(matched, rows, primary, secondaryHash, mov.RelativePath, rootPath);
+        var secondary = mov is null ? null : ClassifyVideo(rows, primary, secondaryHash, mov.RelativePath, rootPath);
         return new(primary, secondary, PairingFor(primary, secondary));
     }
 
     private FileClassification ClassifyVideo(
-        IReadOnlyList<MatchedAsset> matched,
         IReadOnlyList<MediaAsset> rows,
         FileClassification photo,
         string contentHash,
@@ -40,7 +38,7 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
         }
 
         var movedPhoto = photo.Outcome == FileOutcome.OverwrittenByMove ? photo.Retired : null;
-        return LoneLivePhotoVideo(matched, relativePath, [photo.Row?.PairedAssetId, movedPhoto?.PairedAssetId])
+        return LoneLivePhotoVideo(rows, relativePath, [photo.Row?.PairedAssetId, movedPhoto?.PairedAssetId])
             ?? Classify(rows, contentHash, relativePath, rootPath, AtPath(rows, relativePath));
     }
 
@@ -48,16 +46,16 @@ internal sealed class IngestionClassifier(IMediaAssetRepository repository, IFil
         => rows.FirstOrDefault(row => row.FilePath == relativePath);
 
     private static FileClassification? LoneLivePhotoVideo(
-        IReadOnlyList<MatchedAsset> matched, string relativePath, Guid?[] ownVideoIds)
+        IReadOnlyList<MediaAsset> rows, string relativePath, Guid?[] ownVideoIds)
     {
-        if (matched.FirstOrDefault(row => row.IsLivePhotoVideo && !ownVideoIds.Contains(row.Asset.Id)) is not { } video)
+        if (rows.FirstOrDefault(row => row.IsLivePhotoVideo && !ownVideoIds.Contains(row.Id)) is not { } video)
             return null;
 
-        var atPath = matched.FirstOrDefault(row => row.Asset.FilePath == relativePath);
+        var atPath = AtPath(rows, relativePath);
         return new(
             FileOutcome.LoneLivePhotoVideo,
-            video.Asset,
-            Retired: atPath is { IsLivePhotoVideo: false, Asset.IsSoftDeleted: false } ? atPath.Asset : null);
+            video,
+            Retired: atPath is { IsLivePhotoVideo: false, IsSoftDeleted: false } ? atPath : null);
     }
 
     private FileClassification Classify(

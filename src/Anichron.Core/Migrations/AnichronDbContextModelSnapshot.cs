@@ -204,6 +204,10 @@ namespace Anichron.Core.Migrations
                         .HasColumnType("text")
                         .HasComment("Path relative to the storage config root. Not to be confused with ProxyFiles.ProxyPath, which is relative to the proxy root.");
 
+                    b.Property<bool>("IsLivePhotoVideo")
+                        .HasColumnType("boolean")
+                        .HasComment("Whether the row is a Live Photo's video: set when a photo is paired with it, never cleared, even when the photo lets go of it or is purged. Pairing soft-deletes a video its photo lets go of, and a flagged video crawled alone follows only its photo, so it is never a memory of its own (ADR 0019).");
+
                     b.Property<bool>("IsSoftDeleted")
                         .HasColumnType("boolean")
                         .HasComment("Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user's interactions survive, and a crawl that finds the file again clears it (auto-restore).");
