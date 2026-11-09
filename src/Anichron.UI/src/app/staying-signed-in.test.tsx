@@ -457,7 +457,7 @@ describe('a refresh that fails', () => {
   });
 
   it.each(['refresh_token_invalid', 'refresh_token_required', 'account_disabled'] as const)(
-    'answered 401 %s signs out, and the next user never sees the previous one',
+    'answered 401 %s signs out and stops refreshing',
     async (code) => {
       server.use(
         refreshAnswers((n) => (n === 1 ? renews(n) : ends(code))),
@@ -472,6 +472,19 @@ describe('a refresh that fails', () => {
 
       await advance(lifetime * 1000);
       expect(refreshes).toBe(2);
+    },
+  );
+
+  it.each(['refresh_token_invalid', 'refresh_token_required', 'account_disabled'] as const)(
+    'answered 401 %s signs out, and the next user never sees the previous one',
+    async (code) => {
+      server.use(
+        refreshAnswers((n) => (n === 1 ? renews(n) : ends(code))),
+        meAccepts(() => true),
+      );
+      await openSignedIn();
+      await advance(renewal);
+      await findLoginHeading();
 
       const alice = {
         ...miraSession.user,
@@ -482,12 +495,16 @@ describe('a refresh that fails', () => {
         loginRespondsWith(() =>
           HttpResponse.json({ ...miraSession, accessToken: 'alice', user: alice }),
         ),
-        meAnswersFor(() => true, alice),
+        meRespondsWith(async () => {
+          await delay(1000);
+          return HttpResponse.json(alice);
+        }),
       );
       signIn('alice');
 
       await screen.findByText("You're signed in. Your photo library is on its way.");
       expect(screen.queryByText(greeting('mira'))).toBeNull();
+      await advance(1000);
       expect(await screen.findByText(greeting('alice'))).toBeVisible();
     },
   );
