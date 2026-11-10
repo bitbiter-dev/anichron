@@ -38,9 +38,17 @@
     "account": "Account",
     "signOut": "Sign out"
   },
-  "unreachable": {
-    "title": "Can't reach Anichron",
-    "body": "Check your connection, or try again in a moment.",
-    "retry": "Retry"
+  "startFailed": {
+    "unreachable": {
+      "title": "Can't reach Anichron",
+      "body": "Check your connection, or try again in a moment."
+    },
+    "rateLimited": {
+      "title": "Too many attempts",
+      "body": "Anichron is limiting attempts from this device. Wait a moment, then try again."
+    },
+    "retry": "Retry",
+    "retryIn_one": "You can try again in {{count}} second.",
+    "retryIn_other": "You can try again in {{count}} seconds."
   }
 }

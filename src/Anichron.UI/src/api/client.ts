@@ -9,7 +9,14 @@ export type UserProfile = Schemas['UserProfileResponse'];
 
 export class SessionNotRenewed extends Error {}
 
-export class ServerUnreachable extends Error {}
+export class SessionNotRestored extends Error {
+  readonly problem: Problem;
+
+  constructor(problem: Problem) {
+    super(problem.code);
+    this.problem = problem;
+  }
+}
 
 export type Outcome = { ok: true } | { ok: false; problem: Problem };
 
@@ -163,7 +170,7 @@ export function createApiClient(tabs: Tabs): ApiClient {
       restored ??= refresh().then((answer) => {
         if (answer.ok || answer.status === 401) return;
         restored = undefined;
-        throw new ServerUnreachable();
+        throw new SessionNotRestored(answer.problem);
       });
       return restored;
     },
