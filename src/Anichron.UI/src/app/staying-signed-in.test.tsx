@@ -21,6 +21,7 @@ const greeting = (username: string) => `Signed in as ${username}.`;
 const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
 const loginHeading = () => screen.queryByRole('heading', loginHeadingName);
 const findLoginHeading = () => screen.findByRole('heading', loginHeadingName);
+const unreachableHeadingName = { level: 1, name: "Can't reach Anichron" } as const;
 
 const tokenNumber = (n: number) => `token-${String(n)}`;
 
@@ -512,7 +513,7 @@ describe('a refresh that fails', () => {
   it('at start-up says the server cannot be reached and is not retried on a schedule', async () => {
     server.use(refreshAnswers(unavailable));
     renderApp('/');
-    await screen.findByRole('heading', { level: 1, name: "Can't reach Anichron" });
+    await screen.findByRole('heading', unreachableHeadingName);
 
     await advance(lifetime * 1000);
     expect(refreshes).toBe(1);

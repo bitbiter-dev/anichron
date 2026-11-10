@@ -18,7 +18,7 @@ import { returnPath } from './return-path';
 import { Shell } from './Shell';
 import { SignedIn } from './SignedIn';
 import { Splash } from './Splash';
-import { StartFailed } from './Unreachable';
+import { StartFailed } from './StartFailed';
 
 interface RouterContext {
   api: ApiClient;

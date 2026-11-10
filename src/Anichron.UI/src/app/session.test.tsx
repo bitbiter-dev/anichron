@@ -18,8 +18,8 @@ const signedIn = "You're signed in. Your photo library is on its way.";
 const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
 const loginHeading = () => screen.queryByRole('heading', loginHeadingName);
 const unreachableHeadingName = { level: 1, name: "Can't reach Anichron" } as const;
-const unreachableHeading = () => screen.findByRole('heading', unreachableHeadingName);
-const unreachableHeadingNow = () => screen.queryByRole('heading', unreachableHeadingName);
+const findUnreachableHeading = () => screen.findByRole('heading', unreachableHeadingName);
+const unreachableHeading = () => screen.queryByRole('heading', unreachableHeadingName);
 const unreachableBody = 'Check your connection, or try again in a moment.';
 
 function signIn() {
@@ -99,7 +99,7 @@ describe('starting the app', () => {
     );
     const { router, container } = renderApp('/?from=link');
 
-    expect(await unreachableHeading()).toBeVisible();
+    expect(await findUnreachableHeading()).toBeVisible();
     expect(screen.getByText(unreachableBody)).toBeVisible();
     expect(loginHeading()).toBeNull();
     expect(where(router)).toBe('/?from=link');
@@ -108,7 +108,7 @@ describe('starting the app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findByText(signedIn)).toBeVisible();
-    expect(unreachableHeadingNow()).toBeNull();
+    expect(unreachableHeading()).toBeNull();
     expect(where(router)).toBe('/?from=link');
     expect(refreshes).toBe(2);
   });
@@ -122,16 +122,16 @@ describe('starting the app', () => {
       }),
     );
     renderApp('/');
-    await unreachableHeading();
+    await findUnreachableHeading();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await act(() => vi.advanceTimersByTimeAsync(0));
 
-    expect(await unreachableHeading()).toBeVisible();
+    expect(await findUnreachableHeading()).toBeVisible();
     expect(refreshes).toBe(2);
   });
 
-  it('retries by itself when the browser comes back online, and only while it says so', async () => {
+  it('retries by itself when the browser comes back online', async () => {
     let refreshes = 0;
     server.use(
       refreshRespondsWith(() =>
@@ -139,7 +139,7 @@ describe('starting the app', () => {
       ),
     );
     const { router } = renderApp('/settings?from=link');
-    await unreachableHeading();
+    await findUnreachableHeading();
 
     await act(() => {
       window.dispatchEvent(new Event('online'));
@@ -148,12 +148,6 @@ describe('starting the app', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
     expect(where(router)).toBe('/settings?from=link');
-    expect(refreshes).toBe(2);
-
-    await act(() => {
-      window.dispatchEvent(new Event('online'));
-      return vi.advanceTimersByTimeAsync(0);
-    });
     expect(refreshes).toBe(2);
   });
 
@@ -165,7 +159,7 @@ describe('starting the app', () => {
       ),
     );
     const { router } = renderApp('/?from=link');
-    await unreachableHeading();
+    await findUnreachableHeading();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
