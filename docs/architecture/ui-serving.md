@@ -30,8 +30,8 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 
 - `src/Anichron.UI/public/` holds `manifest.webmanifest`, the icons it names, `apple-touch-icon.png` and their source `icon.svg`. Vite copies them unhashed to the web root, so they are served `no-cache`.
 - The PNGs are exported from the SVG once and committed through Git LFS, not built. A new icon means exporting all four again: Playwright's Chromium at device scale 1, the SVG in an `<img>` of N × N px, a screenshot of that clip.
-- The icon is opaque and full bleed, with the motif inside the centred 80% circle a maskable crop keeps.
-- `index.html` links the manifest and the touch icon, with one `theme-color` per colour scheme (the two surface colours). The manifest takes the dark surface, which matches the icon's background.
+- One icon serves iOS and Android. It is opaque and full bleed, with the sun and its reflection inside the centred 80% circle a maskable crop keeps.
+- `index.html` links the manifest and the touch icon, with one `theme-color` per colour scheme (the two surface colours). The manifest takes the dark surface.
 
 ## Security headers
 
