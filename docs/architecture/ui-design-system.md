@@ -28,9 +28,21 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 ## Themes
 
 - Each semantic token is a `light-dark()` of two primitives, so screens need no `dark:` classes.
-- An attribute on `<html>` that sets `color-scheme` overrides the system choice.
-- The System / Light / Dark choice is stored per device. It is applied before first paint by `/theme-init.js`, a separate small build, because the CSP forbids an inline script.
+- `data-theme` on `<html>` sets `color-scheme` and so overrides the system choice; without it, the device decides.
+- The System / Light / Dark choice is stored per device (`src/shared/theme.ts`, which owns the storage key), followed across tabs through the `storage` event, and System when storage is unavailable.
+- `/theme-init.js` applies it before first paint: a second Vite build (`vite.theme-init.config.ts`) of `src/app/theme-init.ts`, because the CSP forbids an inline script. `pnpm dev` serves it through a plugin in `vite.config.ts`.
+- A Light or Dark choice puts a `theme-color` tag without `media` first, copying that scheme's colour from its own tag; System removes it.
 - The surface colours (`--neutral-50`, `--neutral-950`) are repeated as literals in `index.html`'s `theme-color` metas and the manifest (`ui-serving.md`, "The Home Screen files"), since static files cannot read a CSS variable. Changing a surface changes them too.
+
+## The shell
+
+The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays outside it.
+
+- **Home** has the bottom bar: a floating glass pill above `env(safe-area-inset-bottom)` (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
+- **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.
+- **Every other screen** has the top bar instead: a back control and its title, from the route's `staticData.screen` (title key and parent path) in `router.tsx`.
+- **Back rule** (`back.ts`): when the previous history entry is the parent, back goes back in history; otherwise it replaces the current entry with the parent. So the back control, Android's back button and Safari's edge swipe agree.
+- On wide screens the same layout is centred at a readable width (`Shell.tsx`).
 
 ## Motion and focus
 

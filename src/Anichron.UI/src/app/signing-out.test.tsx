@@ -24,6 +24,8 @@ const findLoginHeading = () =>
 async function openSignedIn() {
   const rendered = renderApp('/');
   expect(await screen.findByText(greeting)).toBeVisible();
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
+  expect(await screen.findByRole('button', { name: 'Sign out' })).toBeVisible();
   return rendered;
 }
 
@@ -108,6 +110,8 @@ describe('signing out', () => {
     fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'noor' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(
       await screen.findByText("You're signed in. Your photo library is on its way."),
     ).toBeVisible();
