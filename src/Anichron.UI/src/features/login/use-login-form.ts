@@ -6,14 +6,15 @@ import { fieldCodes, type ErrorCode } from '../../api/problem';
 import { useCountdown } from '../../shared/use-countdown';
 import { messageKey } from './messages';
 
-const required = z.minLength(1, { error: 'required' satisfies ErrorCode });
+function loginSchema() {
+  const required = z.minLength(1, { error: 'required' satisfies ErrorCode });
+  return z.object({
+    usernameOrEmail: z.string().check(z.trim(), required),
+    password: z.string().check(required),
+  });
+}
 
-const loginSchema = z.object({
-  usernameOrEmail: z.string().check(z.trim(), required),
-  password: z.string().check(required),
-});
-
-export type LoginFields = z.infer<typeof loginSchema>;
+export type LoginFields = z.infer<ReturnType<typeof loginSchema>>;
 
 const fields = ['usernameOrEmail', 'password'] as const;
 
@@ -22,7 +23,7 @@ export function useLoginForm() {
   const { api } = router.options.context;
   const countdown = useCountdown();
   const { control, handleSubmit, setError, formState } = useForm<LoginFields>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(loginSchema()),
     defaultValues: { usernameOrEmail: '', password: '' },
   });
 

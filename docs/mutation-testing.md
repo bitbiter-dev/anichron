@@ -25,6 +25,7 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 - StrykerJS with the Vitest runner, configured in `src/Anichron.UI/stryker.config.json`. Scope: ADR 0014. Guard: `scripts/ui-mutation-guard.sh`.
 - `scripts/ui-mutation-changed.sh` mutates only the changed files when all of them are in scope, otherwise the whole scope. CI runs it against the PR's base, and with `--all` on master.
 - No `TMPDIR` hazard: each worktree has its own sandbox, and the mutant is passed in process.
+- **Keep code out of import time.** Code run outside a test (module scope, a test file's top level, a request still in flight when a test ends) makes its mutants static: each one runs the whole suite. Build values in a function and await what a test starts.
 - **After a runner upgrade, prove the gate both ways:** a known survivor must fail the run, and a test inside a `describe` must kill (stryker-js#6265).
 - Don't use `--logLevel debug`: it crashes the Vitest runner (stryker-js#6272).
 

@@ -15,6 +15,7 @@ import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
 const signedIn = "You're signed in. Your photo library is on its way.";
+const greeting = 'Signed in as mira.';
 const loginHeading = () => screen.queryByRole('heading', { level: 1, name: 'Sign in to Anichron' });
 
 function signIn() {
@@ -130,6 +131,7 @@ describe('starting the app', () => {
     const { router } = renderApp(path);
 
     expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByText(greeting)).toBeVisible();
     expect(where(router)).toBe(landing);
     expect(loginHeading()).toBeNull();
   });

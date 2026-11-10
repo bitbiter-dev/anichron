@@ -7,6 +7,7 @@ import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
 const signedIn = "You're signed in. Your photo library is on its way.";
+const greeting = 'Signed in as mira.';
 
 async function openHome() {
   server.use(refreshSucceeds());
@@ -176,6 +177,7 @@ describe('a screen below Home', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByText(greeting)).toBeVisible();
     expect(router.history.length).toBe(1);
     expect(router.history.canGoBack()).toBe(false);
   });

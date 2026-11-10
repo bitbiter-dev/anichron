@@ -9,22 +9,24 @@ export interface Problem {
   retryAfterSeconds: number;
 }
 
-const problemBody = z.catch(
-  z.object({
-    code: z.catch(z.optional(z.string()), undefined),
-    errors: z.catch(
-      z.record(
-        z.string(),
-        z.pipe(
-          z.tuple([z.string()], z.string()),
-          z.transform(([first]) => first),
+function problemBody() {
+  return z.catch(
+    z.object({
+      code: z.catch(z.optional(z.string()), undefined),
+      errors: z.catch(
+        z.record(
+          z.string(),
+          z.pipe(
+            z.tuple([z.string()], z.string()),
+            z.transform(([first]) => first),
+          ),
         ),
+        {},
       ),
-      {},
-    ),
-  }),
-  { code: undefined, errors: {} },
-);
+    }),
+    { code: undefined, errors: {} },
+  );
+}
 
 export const unknownProblem: Problem = { code: undefined, fields: {}, retryAfterSeconds: 0 };
 
@@ -35,7 +37,7 @@ export const unreachableProblem: Problem = {
 };
 
 export function toProblem(error: unknown, response: Response): Problem {
-  const body = problemBody.parse(error);
+  const body = problemBody().parse(error);
   return {
     code: body.code,
     fields: body.errors,
