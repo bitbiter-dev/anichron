@@ -242,7 +242,7 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     {
         var calls = 0;
         store.ClaimAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
-            .Returns<ClaimedWork?>(_ =>
+            .Returns(_ =>
             {
                 timeline.Record("claim");
                 if (++calls == 1)
