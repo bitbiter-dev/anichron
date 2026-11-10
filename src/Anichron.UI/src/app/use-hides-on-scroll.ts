@@ -17,7 +17,7 @@ function createBarVisibility() {
     hidden: () => hidden,
     subscribe: (onChange: () => void) => {
       notify = onChange;
-      return listen('scroll', () => {
+      return listen(window, 'scroll', () => {
         const y = position();
         if (y < last) start = y;
         last = y;

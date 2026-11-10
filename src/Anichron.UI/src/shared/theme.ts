@@ -42,11 +42,11 @@ export function applyTheme(theme: Theme) {
 
 export function createThemeChoice() {
   let current = storedTheme();
-  const listeners = new Set<() => void>();
+  const changes = new EventTarget();
   const change = (theme: Theme) => {
     current = theme;
     applyTheme(theme);
-    for (const listener of listeners) listener();
+    changes.dispatchEvent(new Event('change'));
   };
   return {
     get: () => current,
@@ -54,18 +54,13 @@ export function createThemeChoice() {
       store(theme);
       change(theme);
     },
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe: (listener: () => void) => listen(changes, 'change', listener),
     watch: () => {
       const follow = () => {
         change(storedTheme());
       };
       follow();
-      return listen('storage', follow);
+      return listen(window, 'storage', follow);
     },
   };
 }

@@ -1,9 +1,6 @@
-export function listen<K extends keyof WindowEventMap>(
-  type: K,
-  handler: (event: WindowEventMap[K]) => void,
-) {
-  window.addEventListener(type, handler);
+export function listen(target: EventTarget, type: string, handler: () => void) {
+  target.addEventListener(type, handler);
   return () => {
-    window.removeEventListener(type, handler);
+    target.removeEventListener(type, handler);
   };
 }

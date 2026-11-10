@@ -1,7 +1,12 @@
 import { Link } from '@tanstack/react-router';
+import { CalendarHeart, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { barItems } from './bar-items';
 import { useHidesOnScroll } from './use-hides-on-scroll';
+
+const barItems = [
+  { to: '/', label: 'shell.today', icon: CalendarHeart },
+  { to: '/settings', label: 'shell.settings', icon: Settings },
+] as const;
 
 export function BottomBar() {
   const { t } = useTranslation();
