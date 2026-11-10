@@ -432,7 +432,7 @@ public sealed class FileIngestionPipelineTests
     }
 
     [Fact]
-    public async Task RunAsync_CountsAsIngestedTheItemsWhoseContentWasReadThatSucceeded_ALivePhotoPairAsOneAsync()
+    public async Task RunAsync_CountsIngestedItemsAndUnsupportedFiles_ALivePhotoPairAsOneAndExcludedFilesNotAtAllAsync()
     {
         var fixture = new TestFixture();
         fixture.FileSystem.AddFile("/nas/IMG_0001.HEIC", new MockFileData([]));
@@ -444,6 +444,10 @@ public sealed class FileIngestionPipelineTests
         fixture.FileSystem.AddFile("/nas/e.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/f.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/g.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/IMG_0002.AAE", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/notes.txt", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/._a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/@eaDir/notes.txt", new MockFileData([]));
         var middleware = new ScriptedClassificationMiddleware(
             new ScriptedItem(FileOutcome.New, FileOutcome.New),
             new ScriptedItem(FileOutcome.New),
@@ -457,7 +461,7 @@ public sealed class FileIngestionPipelineTests
         var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
-        result.Result.Should().Be(new CrawlResult(Found: 8, Processed: 7, Failed: 1) { Ingested = 4 });
+        result.Result.Should().Be(new CrawlResult(Found: 8, Processed: 7, Failed: 1) { Ingested = 4, SkippedUnsupported = 2 });
     }
 
     [Fact]
