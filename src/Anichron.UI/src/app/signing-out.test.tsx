@@ -1,14 +1,12 @@
 import { fireEvent, screen } from '@testing-library/react';
-import { delay, HttpResponse } from 'msw';
+import { HttpResponse } from 'msw';
 import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { axeResults } from '../test/axe';
 import {
   loginRespondsWith,
   logoutRespondsWith,
   logoutSucceeds,
-  meAnswersFor,
-  meRespondsWith,
   miraSession,
   problemResponse,
   refreshRespondsWith,
@@ -59,7 +57,6 @@ describe('signing out', () => {
       refreshRespondsWith(() =>
         HttpResponse.json({ ...miraSession, accessToken: `token-${String(++refreshes)}` }),
       ),
-      meAnswersFor(() => true),
       logoutRespondsWith(() => {
         bearers.push(`token-${String(refreshes)}`);
         return refreshes === 1
@@ -74,6 +71,33 @@ describe('signing out', () => {
     expect(await findLoginHeading()).toBeVisible();
     expect(bearers).toEqual(['token-1', 'token-2']);
   });
+
+  it.each([
+    ['answered 401', 401, 'refresh_token_invalid'],
+    ['unavailable', 503, 'service_unavailable'],
+  ] as const)(
+    'signs out without asking the server again when the refresh after a 401 is %s',
+    async (_, status, code) => {
+      let refreshes = 0;
+      let logouts = 0;
+      server.use(
+        refreshRespondsWith(() =>
+          ++refreshes === 1 ? HttpResponse.json(miraSession) : problemResponse(status, code),
+        ),
+        logoutRespondsWith(() => {
+          logouts++;
+          return problemResponse(401, 'unauthorized');
+        }),
+      );
+      await openSignedIn();
+
+      signOut();
+
+      expect(await findLoginHeading()).toBeVisible();
+      expect(refreshes).toBe(2);
+      expect(logouts).toBe(1);
+    },
+  );
 
   it('signs out this tab even when the server cannot be reached', async () => {
     server.use(
@@ -97,11 +121,6 @@ describe('signing out', () => {
       loginRespondsWith(() =>
         HttpResponse.json({ ...miraSession, accessToken: 'token-noor', user: noor }),
       ),
-      meRespondsWith(async (bearer) => {
-        if (bearer !== 'Bearer token-noor') return HttpResponse.json(miraSession.user);
-        await delay(1000);
-        return HttpResponse.json(noor);
-      }),
     );
     await openSignedIn();
     signOut();
@@ -117,7 +136,6 @@ describe('signing out', () => {
     ).toBeVisible();
 
     expect(screen.queryByText(greeting)).toBeNull();
-    await act(() => vi.advanceTimersByTimeAsync(1000));
-    expect(await screen.findByText('Signed in as noor.')).toBeVisible();
+    expect(screen.getByText('Signed in as noor.')).toBeVisible();
   });
 });

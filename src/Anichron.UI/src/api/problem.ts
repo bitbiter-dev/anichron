@@ -34,6 +34,18 @@ export const unreachableProblem: Problem = {
   retryAfterSeconds: 0,
 };
 
+export class ProblemError extends Error {
+  readonly problem: Problem;
+
+  constructor(problem: Problem) {
+    super(problem.code);
+    this.problem = problem;
+  }
+}
+
+export const problemOf = (error: unknown) =>
+  error instanceof ProblemError ? error.problem : unknownProblem;
+
 export function toProblem(error: unknown, response: Response): Problem {
   const body = problemBody.parse(error);
   return {

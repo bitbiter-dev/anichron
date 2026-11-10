@@ -6,7 +6,6 @@ import type { components } from '../api/generated/v1';
 import {
   loginRespondsWith,
   logoutSucceeds,
-  meRespondsWith,
   miraSession,
   problemResponse,
   refreshRespondsWith,
@@ -53,13 +52,6 @@ function refreshTakes(milliseconds: number, signedOutOn = new Set<number>()) {
   });
 }
 
-function meByToken() {
-  return meRespondsWith((bearer) => {
-    const user = users.get(bearer?.replace('Bearer token-', '') ?? '');
-    return user ? HttpResponse.json(user) : problemResponse(401, 'unauthorized');
-  });
-}
-
 async function advance(milliseconds: number) {
   await act(() => vi.advanceTimersByTimeAsync(milliseconds));
 }
@@ -80,7 +72,7 @@ beforeEach(() => {
 
 describe('two tabs of one browser', () => {
   it('refresh one after the other, each with the cookie the other left', async () => {
-    server.use(refreshTakes(1000), meByToken());
+    server.use(refreshTakes(1000));
 
     const [first, second] = openTabs('/', '/');
     await advance(500);
@@ -104,7 +96,6 @@ describe('two tabs of one browser', () => {
     let logouts = 0;
     server.use(
       refreshTakes(0),
-      meByToken(),
       logoutSucceeds(() => logouts++),
     );
     const [first, second] = openTabs('/settings', '/');
@@ -122,7 +113,6 @@ describe('two tabs of one browser', () => {
   it('start again as the user who signed in in the other', async () => {
     server.use(
       refreshTakes(1000, new Set([1])),
-      meByToken(),
       loginRespondsWith(() => {
         signedIn = 'noor';
         return sessionOf('noor');
@@ -151,7 +141,6 @@ describe('two tabs of one browser', () => {
   it('leave a tab that was closed alone', async () => {
     server.use(
       refreshTakes(0, new Set([1])),
-      meByToken(),
       loginRespondsWith(() => {
         signedIn = 'noor';
         return sessionOf('noor');
