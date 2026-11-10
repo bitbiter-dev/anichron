@@ -107,8 +107,8 @@ describe('two tabs of one browser', () => {
       meByToken(),
       logoutSucceeds(() => logouts++),
     );
-    const [first, second] = openTabs('/', '/');
-    expect(await first.findByText(greeting('mira'))).toBeVisible();
+    const [first, second] = openTabs('/settings', '/');
+    expect(await first.findByRole('button', { name: 'Sign out' })).toBeVisible();
     expect(await second.findByText(greeting('mira'))).toBeVisible();
 
     fireEvent.click(first.getByRole('button', { name: 'Sign out' }));
