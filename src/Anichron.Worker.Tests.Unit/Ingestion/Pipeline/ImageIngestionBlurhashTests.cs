@@ -59,7 +59,7 @@ public sealed class ImageIngestionBlurhashTests
                 fileSystem,
                 new FakeLogger<ImageProxyMiddleware>()),
             new VideoProxyMiddleware(
-                [new Video720PGenerator(videoProcessor)],
+                [new WebVideoGenerator(videoProcessor)],
                 new TwoLevelHexShardStrategy(),
                 stagingWriter,
                 new FakeLogger<VideoProxyMiddleware>()),
@@ -133,6 +133,6 @@ public sealed class ImageIngestionBlurhashTests
         ingested.ProxyRows.Should().OnlyContain(p => p.AssetId == ingested.Asset.Id);
         ingested.ProxyRows.Select(p => p.ProxyType)
             .Should().BeEquivalentTo([ProxyType.Thumbnail, ProxyType.FullPreview, ProxyType.WebVideo]);
-        ingested.ProxyFileNames.Should().BeEquivalentTo("thumbnail.jpg", "preview.jpg", "video_720p.mp4");
+        ingested.ProxyFileNames.Should().BeEquivalentTo("thumbnail.jpg", "preview.jpg", "video.mp4");
     }
 }

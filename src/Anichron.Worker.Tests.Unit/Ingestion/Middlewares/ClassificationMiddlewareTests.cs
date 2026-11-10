@@ -115,7 +115,7 @@ public sealed class ClassificationMiddlewareTests
         heic.Captured = Recorded.At(new LocalDateTime(2023, 6, 15, 10, 0));
         var mov = StoredMov("photo.mov");
         mov.ContentHash = "0ldm0v";
-        var webVideo = new ProxyFile { AssetId = mov.Id, ProxyType = ProxyType.WebVideo, ProxyPath = "0l/old/video_720p.mp4" };
+        var webVideo = new ProxyFile { AssetId = mov.Id, ProxyType = ProxyType.WebVideo, ProxyPath = "0l/old/video.mp4" };
         mov.ProxyFiles = [webVideo];
         heic.PairedAssetId = mov.Id;
         fx.Store(heic, mov);
@@ -131,7 +131,7 @@ public sealed class ClassificationMiddlewareTests
             MediaType = MediaType.Video,
             LastSeenOnNas = Now,
         });
-        webVideo.ProxyPath.Should().Be("ca/11111111111111111111111111111111-cafebabe/video_720p.mp4");
+        webVideo.ProxyPath.Should().Be("ca/11111111111111111111111111111111-cafebabe/video.mp4");
         await fx.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
         context.ProxyFiles.Should().BeEmpty();
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
@@ -543,7 +543,7 @@ public sealed class ClassificationMiddlewareTests
         var fx = new ClassificationFixture();
         var (aHeic, aVideo) = (Half(AHeicId, "A.heic", "a0a0", AVideoId), Half(AVideoId, "A.mov", "a1a1"));
         var (bHeic, bVideo) = (Half(BHeicId, "B.heic", "b0b0", BVideoId), Half(BVideoId, "B.mov", "b1b1"));
-        bVideo.ProxyFiles = [new ProxyFile { AssetId = BVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video_720p.mp4" }];
+        bVideo.ProxyFiles = [new ProxyFile { AssetId = BVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video.mp4" }];
         fx.Store(
             aHeic, LivePhotoVideo(aVideo),
             bHeic, LivePhotoVideo(bVideo));
@@ -556,7 +556,7 @@ public sealed class ClassificationMiddlewareTests
         (bHeic.IsSoftDeleted, bVideo.IsSoftDeleted).Should().Be((true, true));
         bHeic.PairedAssetId.Should().Be(BVideoId);
         fx.AddedProxies.Should().ContainSingle().Which.Should().BeEquivalentTo(
-            new { AssetId = AVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video_720p.mp4" });
+            new { AssetId = AVideoId, ProxyType = ProxyType.WebVideo, ProxyPath = "b1/b/video.mp4" });
         await fx.DidNotTranscodeAsync();
         await SoftDeletedAsync(fx, BHeicId, BVideoId);
         await fx.UnitOfWork.Received(1).ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());

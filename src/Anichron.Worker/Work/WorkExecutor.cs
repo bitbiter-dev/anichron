@@ -17,6 +17,7 @@ public sealed partial class WorkExecutor(
 {
     private readonly WorkerSettings settings = options.Value;
     private readonly string claimant = ClaimantName(options.Value, Environment.MachineName);
+    private readonly OutageLog outage = new(logger, "Claiming or finishing work");
 
     internal static string ClaimantName(WorkerSettings settings, string host)
         => $"{(settings.User.Length == 0 ? "all" : settings.User)}@{host}";
@@ -35,13 +36,20 @@ public sealed partial class WorkExecutor(
     {
         try
         {
-            while (await store.ClaimAsync(claimant, workerState.ResolvedUserId, Now, Lease, stopping) is { } work)
+            while (await ClaimAsync(stopping) is { } work)
                 await RunAsync(work, stopping);
         }
         catch (Exception ex) when (!stopping.IsCancellationRequested)
         {
-            Log.QueueFailed(logger, ex);
+            outage.Failed(ex);
         }
+    }
+
+    private async Task<ClaimedWork?> ClaimAsync(CancellationToken stopping)
+    {
+        var work = await store.ClaimAsync(claimant, workerState.ResolvedUserId, Now, Lease, stopping);
+        outage.Succeeded();
+        return work;
     }
 
     private async Task RunAsync(ClaimedWork work, CancellationToken stopping)
@@ -141,9 +149,6 @@ public sealed partial class WorkExecutor(
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Error, Message = "Claiming or finishing work failed; will retry at the next poll.")]
-        public static partial void QueueFailed(ILogger logger, Exception ex);
-
         [LoggerMessage(Level = LogLevel.Error, Message = "Work item {Id} ({Kind}) failed.")]
         public static partial void Failed(ILogger logger, Guid id, Core.Domain.WorkKind kind, Exception ex);
 

@@ -6,10 +6,16 @@ namespace Anichron.Worker.Crawling;
 
 /// <summary>A crawl's results summary. A Live Photo pair counts as one item.</summary>
 /// <param name="Found">Items the walk queued for ingestion.</param>
-/// <param name="Processed">Items ingested without an error.</param>
+/// <param name="Processed">Items handled without an error, unchanged ones included.</param>
 /// <param name="Failed">Items whose ingestion failed.</param>
 public sealed record CrawlResult(long Found, long Processed, long Failed)
 {
+    /// <summary>Processed items whose content was read: new, edited, or restored with changed content.</summary>
+    public long Ingested { get; init; }
+
+    /// <summary>Files the walk reached and found no media type for; excluded folders and files are not counted.</summary>
+    public int SkippedUnsupported { get; init; }
+
     /// <summary>The duplicate report for the crawled config, or null when the report failed.</summary>
     public DuplicateCounts? Duplicates { get; init; }
 
@@ -49,10 +55,12 @@ internal sealed class CrawlTally(IWorkProgress progress)
     private long found;
     private long processed;
     private long failed;
+    private long ingested;
     private int duplicateCopies;
     private int softDeleted;
     private int autoRestored;
     private int skippedLinks;
+    private int skippedUnsupported;
     private bool walked;
     private bool folderSkipped;
 
@@ -62,7 +70,13 @@ internal sealed class CrawlTally(IWorkProgress progress)
         {
             lock (gate)
             {
-                return new CrawlRun(new CrawlResult(found, processed, failed) { SkippedLinks = skippedLinks }, duplicateCopies)
+                var result = new CrawlResult(found, processed, failed)
+                {
+                    Ingested = ingested,
+                    SkippedLinks = skippedLinks,
+                    SkippedUnsupported = skippedUnsupported,
+                };
+                return new CrawlRun(result, duplicateCopies)
                 {
                     SoftDeleted = softDeleted,
                     AutoRestored = autoRestored,
@@ -93,11 +107,19 @@ internal sealed class CrawlTally(IWorkProgress progress)
             skippedLinks++;
     }
 
+    public void UnsupportedSkipped()
+    {
+        lock (gate)
+            skippedUnsupported++;
+    }
+
     public void Walked() => Update(() => walked = true);
 
     public void Processed(IngestionContext context) => Update(() =>
     {
         processed++;
+        if (context.Classification?.NeedsProcessing == true)
+            ingested++;
         duplicateCopies += context.Classification?.DuplicateCopies ?? 0;
         softDeleted += context.SoftDeleted;
         autoRestored += context.AutoRestored;
