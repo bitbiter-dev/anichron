@@ -6,7 +6,7 @@ import { axeResults } from '../test/axe';
 import {
   loginSucceeds,
   miraSession,
-  problem,
+  problemResponse,
   refreshFails,
   refreshRespondsWith,
   refreshSucceeds,
@@ -15,7 +15,12 @@ import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
 const signedIn = "You're signed in. Your photo library is on its way.";
-const loginHeading = () => screen.queryByRole('heading', { level: 1, name: 'Sign in to Anichron' });
+const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
+const loginHeading = () => screen.queryByRole('heading', loginHeadingName);
+const unreachableHeadingName = { level: 1, name: "Can't reach Anichron" } as const;
+const unreachableHeading = () => screen.findByRole('heading', unreachableHeadingName);
+const unreachableHeadingNow = () => screen.queryByRole('heading', unreachableHeadingName);
+const unreachableBody = 'Check your connection, or try again in a moment.';
 
 function signIn() {
   fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'mira' } });
@@ -61,13 +66,6 @@ describe('starting the app', () => {
     ['without a refresh cookie', refreshFails('refresh_token_required')],
     ['with a revoked refresh cookie', refreshFails('refresh_token_invalid')],
     ['when the account was disabled', refreshFails('account_disabled')],
-    [
-      'when the server is unavailable',
-      refreshRespondsWith(() =>
-        HttpResponse.json(problem(503, 'service_unavailable'), { status: 503 }),
-      ),
-    ],
-    ['when the server cannot be reached', refreshRespondsWith(() => HttpResponse.error())],
   ])(
     'sends a reload %s to the login screen, then back to the requested page',
     async (_, refresh) => {
@@ -89,6 +87,91 @@ describe('starting the app', () => {
       expect(where(router)).toBe('/?from=link');
     },
   );
+
+  it.each([
+    ['cannot be reached', () => HttpResponse.error()],
+    ['is unavailable', () => problemResponse(503, 'service_unavailable')],
+    ['limits the rate', () => problemResponse(429, 'rate_limited')],
+  ])('says so when the server %s, and Retry lands on the requested page', async (_, failure) => {
+    let refreshes = 0;
+    server.use(
+      refreshRespondsWith(() => (++refreshes === 1 ? failure() : HttpResponse.json(miraSession))),
+    );
+    const { router, container } = renderApp('/?from=link');
+
+    expect(await unreachableHeading()).toBeVisible();
+    expect(screen.getByText(unreachableBody)).toBeVisible();
+    expect(loginHeading()).toBeNull();
+    expect(where(router)).toBe('/?from=link');
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(unreachableHeadingNow()).toBeNull();
+    expect(where(router)).toBe('/?from=link');
+    expect(refreshes).toBe(2);
+  });
+
+  it('keeps saying so while Retry still cannot reach the server', async () => {
+    let refreshes = 0;
+    server.use(
+      refreshRespondsWith(() => {
+        refreshes++;
+        return HttpResponse.error();
+      }),
+    );
+    renderApp('/');
+    await unreachableHeading();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(await unreachableHeading()).toBeVisible();
+    expect(refreshes).toBe(2);
+  });
+
+  it('retries by itself when the browser comes back online, and only while it says so', async () => {
+    let refreshes = 0;
+    server.use(
+      refreshRespondsWith(() =>
+        ++refreshes === 1 ? HttpResponse.error() : HttpResponse.json(miraSession),
+      ),
+    );
+    const { router } = renderApp('/settings?from=link');
+    await unreachableHeading();
+
+    await act(() => {
+      window.dispatchEvent(new Event('online'));
+      return vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+    expect(where(router)).toBe('/settings?from=link');
+    expect(refreshes).toBe(2);
+
+    await act(() => {
+      window.dispatchEvent(new Event('online'));
+      return vi.advanceTimersByTimeAsync(0);
+    });
+    expect(refreshes).toBe(2);
+  });
+
+  it('goes to the login screen when Retry is answered with an auth problem', async () => {
+    let refreshes = 0;
+    server.use(
+      refreshRespondsWith(() =>
+        ++refreshes === 1 ? HttpResponse.error() : problemResponse(401, 'refresh_token_invalid'),
+      ),
+    );
+    const { router } = renderApp('/?from=link');
+    await unreachableHeading();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByRole('heading', loginHeadingName)).toBeVisible();
+    expect(where(router)).toBe('/login?redirect=%2F%3Ffrom%3Dlink');
+  });
 
   it.each([
     ['another origin', 'https://evil.example/'],

@@ -37,5 +37,10 @@
     },
     "account": "Account",
     "signOut": "Sign out"
+  },
+  "unreachable": {
+    "title": "Can't reach Anichron",
+    "body": "Check your connection, or try again in a moment.",
+    "retry": "Retry"
   }
 }

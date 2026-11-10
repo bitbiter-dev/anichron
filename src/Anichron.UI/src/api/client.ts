@@ -9,6 +9,8 @@ export type UserProfile = Schemas['UserProfileResponse'];
 
 export class SessionNotRenewed extends Error {}
 
+export class ServerUnreachable extends Error {}
+
 export type Outcome = { ok: true } | { ok: false; problem: Problem };
 
 interface Call<T> {
@@ -57,7 +59,7 @@ export function createApiClient(tabs: Tabs): ApiClient {
   let accessToken = '';
   let renewAt = Infinity;
   let restored: Promise<void> | undefined;
-  let refreshing: Promise<boolean> | undefined;
+  let refreshing: ReturnType<typeof sendRefresh> | undefined;
   let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const sessionListeners = new Set<() => void>();
@@ -89,19 +91,13 @@ export function createApiClient(tabs: Tabs): ApiClient {
 
   async function sendRefresh() {
     const answer = await send(() => client.POST('/api/v1/auth/refresh'));
-    if (answer.ok) {
-      open(answer.data);
-      return true;
-    }
-    if (answer.status === 401) {
-      end();
-      return false;
-    }
-    if (accessToken) {
+    if (answer.ok) open(answer.data);
+    else if (answer.status === 401) end();
+    else if (accessToken) {
       failures++;
       wakeIn((answer.problem.retryAfterSeconds || backoffSeconds(failures)) * 1000);
     }
-    return false;
+    return answer;
   }
 
   function refresh() {
@@ -119,7 +115,7 @@ export function createApiClient(tabs: Tabs): ApiClient {
       send(() => call({ headers: { Authorization: `Bearer ${accessToken}` } }));
     let answer = await withBearer();
     if (answer.status === 401) {
-      if (accessToken === sentWith && !(await refresh())) throw new SessionNotRenewed();
+      if (accessToken === sentWith && !(await refresh()).ok) throw new SessionNotRenewed();
       answer = await withBearer();
       if (answer.status === 401) end();
     }
@@ -164,7 +160,11 @@ export function createApiClient(tabs: Tabs): ApiClient {
       tabs.announce('signed-out');
     },
     restore() {
-      restored ??= refresh().then(() => undefined);
+      restored ??= refresh().then((answer) => {
+        if (answer.ok || answer.status === 401) return;
+        restored = undefined;
+        throw new ServerUnreachable();
+      });
       return restored;
     },
     isSignedIn: () => accessToken !== '',

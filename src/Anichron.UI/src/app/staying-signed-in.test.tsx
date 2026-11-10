@@ -509,10 +509,10 @@ describe('a refresh that fails', () => {
     },
   );
 
-  it('at start-up leaves the user signed out and is not retried', async () => {
+  it('at start-up says the server cannot be reached and is not retried on a schedule', async () => {
     server.use(refreshAnswers(unavailable));
     renderApp('/');
-    await findLoginHeading();
+    await screen.findByRole('heading', { level: 1, name: "Can't reach Anichron" });
 
     await advance(lifetime * 1000);
     expect(refreshes).toBe(1);
