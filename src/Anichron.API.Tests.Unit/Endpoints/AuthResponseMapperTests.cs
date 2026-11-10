@@ -5,6 +5,7 @@ using Anichron.Core.Domain;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
@@ -16,14 +17,17 @@ public sealed class AuthResponseMapperTests
     {
         private readonly IClock _clock = Substitute.For<IClock>();
         private readonly AuthCookieSettings _cookieSettings;
+        private readonly PasswordPolicy _passwordPolicy;
 
-        public TestFixture(SameSiteMode sameSite = SameSiteMode.Strict)
+        public TestFixture(SameSiteMode sameSite = SameSiteMode.Strict, PasswordPolicy? passwordPolicy = null)
         {
+            _passwordPolicy = passwordPolicy ?? new PasswordPolicy();
             _clock.GetCurrentInstant().Returns(FixedNow);
             _cookieSettings = new() { SameSite = sameSite, AccessTokenMinutes = 15, RefreshTokenDays = 7 };
         }
 
-        public AuthResponseMapper CreateTestee() => new(_cookieSettings, _clock);
+        public AuthResponseMapper CreateTestee()
+            => new(_cookieSettings, _clock, Options.Create(new UsernamePolicy()), Options.Create(_passwordPolicy));
     }
 
     private static DefaultHttpContext NewHttp()
@@ -59,8 +63,8 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRegistrationResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())),
-            http, new PasswordPolicy(), new UsernamePolicy());
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()),
+            http);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -85,7 +89,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetLoginResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: true);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: true);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
         var setCookie = http.Response.Headers.SetCookie.ToString();
@@ -106,7 +110,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetLoginResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: false);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -130,7 +134,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRefreshResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: true);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: true);
         await result.ExecuteAsync(http);
 
         Assert.Multiple(() =>
@@ -147,7 +151,7 @@ public sealed class AuthResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRefreshResult(
-            AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User())), http, setCookie: false);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -173,10 +177,10 @@ public sealed class AuthResponseMapperTests
 
     private static IResult SignIn(AuthResponseMapper testee, string kind, HttpContext http, bool setCookie)
     {
-        var tokens = AuthResult.Ok(new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()));
+        var tokens = new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User());
         return kind switch
         {
-            "register" => testee.GetRegistrationResult(tokens, http, new PasswordPolicy(), new UsernamePolicy()),
+            "register" => testee.GetRegistrationResult(tokens, http),
             "login" => testee.GetLoginResult(tokens, http, setCookie),
             _ => testee.GetRefreshResult(tokens, http, setCookie),
         };
@@ -207,78 +211,6 @@ public sealed class AuthResponseMapperTests
         await SignIn(testee, kind, http, setCookie: false).ExecuteAsync(http);
 
         http.Response.Headers.SetCookie.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void GetRegistrationResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetRegistrationResult(
-            AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials),
-            NewHttp(), new PasswordPolicy(), new UsernamePolicy());
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetRegistrationResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetRegistrationResult(
-            AuthResult.Fail<AuthTokens>((AuthError)999),
-            NewHttp(), new PasswordPolicy(), new UsernamePolicy());
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>().WithMessage("Unexpected AuthError in Register: 999");
-    }
-
-    [Fact]
-    public void GetLoginResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetLoginResult(
-            AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken),
-            NewHttp(), setCookie: false);
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetLoginResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetLoginResult(
-            AuthResult.Fail<AuthTokens>((AuthError)999),
-            NewHttp(), setCookie: false);
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetRefreshResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetRefreshResult(
-            AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken),
-            NewHttp(), setCookie: false);
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetRefreshResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetRefreshResult(
-            AuthResult.Fail<AuthTokens>((AuthError)999),
-            NewHttp(), setCookie: false);
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
 
     // ==========================================================================
@@ -318,10 +250,10 @@ public sealed class AuthResponseMapperTests
     public async Task GetChangePasswordResult_PasswordTooShort_Returns422WithPolicyTooShortMessage()
     {
         var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
         var policy = new PasswordPolicy { MinLength = 16 };
+        var testee = new TestFixture(passwordPolicy: policy).CreateTestee();
 
-        var result = testee.GetChangePasswordResult(AuthResult.Fail<AuthTokens>(AuthError.PasswordTooShort), NewHttp(), setCookie: false, policy);
+        var result = testee.GetChangePasswordResult(new PasswordTooShort(), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -336,10 +268,10 @@ public sealed class AuthResponseMapperTests
     public async Task GetChangePasswordResult_PasswordTooLong_Returns422WithPolicyTooLongMessage()
     {
         var http = NewHttp();
-        var testee = new TestFixture().CreateTestee();
         var policy = new PasswordPolicy { MaxLength = 64 };
+        var testee = new TestFixture(passwordPolicy: policy).CreateTestee();
 
-        var result = testee.GetChangePasswordResult(AuthResult.Fail<AuthTokens>(AuthError.PasswordTooLong), NewHttp(), setCookie: false, policy);
+        var result = testee.GetChangePasswordResult(new PasswordTooLong(), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -348,26 +280,6 @@ public sealed class AuthResponseMapperTests
             http.Response.StatusCode.Should().Be(422);
             body.Should().Contain(policy.TooLongMessage);
         });
-    }
-
-    [Fact]
-    public void GetChangePasswordResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetChangePasswordResult(AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken), NewHttp(), setCookie: false, new PasswordPolicy());
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetChangePasswordResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetChangePasswordResult(AuthResult.Fail<AuthTokens>((AuthError)999), NewHttp(), setCookie: false, new PasswordPolicy());
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>().WithMessage("Unexpected AuthError in ChangePassword: 999");
     }
 
     // ==========================================================================
@@ -381,46 +293,13 @@ public sealed class AuthResponseMapperTests
         var created = new AdminCreatedUser(userId, "alice", "alice@example.com", "TempPass==");
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetAdminCreateUserResult(AuthResult.Ok(created));
+        var result = testee.GetAdminCreateUserResult(created);
 
         var ok = result.Should()
             .BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<AdminCreatedUserResponse>>().Subject;
         ok.StatusCode.Should().Be(201);
         ok.Location.Should().Contain(userId.ToString());
         ok.Value.Should().Be(new AdminCreatedUserResponse(userId, "alice", "alice@example.com", "TempPass=="));
-    }
-
-    [Theory]
-    [InlineData(AuthError.UsernameTaken, 409)]
-    [InlineData(AuthError.EmailTaken, 409)]
-    public void GetAdminCreateUserResult_Failure_ReturnsExpectedStatusCode(AuthError error, int expectedStatus)
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminCreateUserResult(AuthResult.Fail<AdminCreatedUser>(error));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
-            .Which.StatusCode.Should().Be(expectedStatus);
-    }
-
-    [Fact]
-    public void GetAdminCreateUserResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminCreateUserResult(AuthResult.Fail<AdminCreatedUser>(AuthError.InvalidCredentials));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetAdminCreateUserResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminCreateUserResult(AuthResult.Fail<AdminCreatedUser>((AuthError)999));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
 
     // ==========================================================================
@@ -548,51 +427,11 @@ public sealed class AuthResponseMapperTests
             StorageConfigs = [],
         };
 
-        var ok = testee.GetAdminPatchUserResult(AuthResult.Ok(user))
+        var ok = testee.GetAdminPatchUserResult(user)
             .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<AdminUserResponse>>().Subject;
 
         ok.StatusCode.Should().Be(200);
         ok.Value.Should().Be(new AdminUserResponse(userId, "carol", "carol@example.com", true, false, 0));
-    }
-
-    [Fact]
-    public void GetAdminPatchUserResult_UserNotFound_Returns404()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminPatchUserResult(AuthResult.Fail<User>(AuthError.UserNotFound));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
-    }
-
-    [Fact]
-    public void GetAdminPatchUserResult_CannotModifySelf_Returns403()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminPatchUserResult(AuthResult.Fail<User>(AuthError.CannotModifySelf));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(403);
-    }
-
-    [Fact]
-    public void GetAdminPatchUserResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminPatchUserResult(AuthResult.Fail<User>(AuthError.InvalidCredentials));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetAdminPatchUserResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminPatchUserResult(AuthResult.Fail<User>((AuthError)999));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
 
     // ==========================================================================
@@ -604,49 +443,9 @@ public sealed class AuthResponseMapperTests
     {
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetAdminDeleteUserResult(AuthResult.Ok());
+        var result = testee.GetAdminDeleteUserResult(null);
 
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
-    }
-
-    [Fact]
-    public void GetAdminDeleteUserResult_UserNotFound_Returns404()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminDeleteUserResult(AuthResult.Fail(AuthError.UserNotFound));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
-    }
-
-    [Fact]
-    public void GetAdminDeleteUserResult_CannotModifySelf_Returns403()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminDeleteUserResult(AuthResult.Fail(AuthError.CannotModifySelf));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(403);
-    }
-
-    [Fact]
-    public void GetAdminDeleteUserResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminDeleteUserResult(AuthResult.Fail(AuthError.InvalidCredentials));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetAdminDeleteUserResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminDeleteUserResult(AuthResult.Fail((AuthError)999));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
 
     // ==========================================================================
@@ -664,7 +463,7 @@ public sealed class AuthResponseMapperTests
             new() { Id = configId, UserId = userId, RootPath = "/nas/photos", IsActive = true },
         };
 
-        var ok = testee.GetAdminGetStorageConfigsResult(AuthResult.Ok(configs))
+        var ok = testee.GetAdminGetStorageConfigsResult(configs)
             .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<List<AdminStorageConfigResponse>>>().Subject;
 
         ok.StatusCode.Should().Be(200);
@@ -672,25 +471,13 @@ public sealed class AuthResponseMapperTests
     }
 
     [Fact]
-    public void GetAdminGetStorageConfigsResult_UserNotFound_Returns404()
+    public void GetAdminGetStorageConfigsResult_NoUser_Returns404()
     {
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetAdminGetStorageConfigsResult(
-            AuthResult.Fail<List<UserStorageConfig>>(AuthError.UserNotFound));
+        var result = testee.GetAdminGetStorageConfigsResult(null);
 
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
-    }
-
-    [Fact]
-    public void GetAdminGetStorageConfigsResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminGetStorageConfigsResult(
-            AuthResult.Fail<List<UserStorageConfig>>(AuthError.InvalidCredentials));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
 
     // ==========================================================================
@@ -711,56 +498,12 @@ public sealed class AuthResponseMapperTests
             IsActive = true,
         };
 
-        var created = testee.GetAdminCreateStorageConfigResult(AuthResult.Ok(config))
+        var created = testee.GetAdminCreateStorageConfigResult(config)
             .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<AdminStorageConfigResponse>>().Subject;
 
         created.StatusCode.Should().Be(201);
         created.Location.Should().Be($"/api/v1/users/{userId}/storage-configs/{configId}");
         created.Value.Should().Be(new AdminStorageConfigResponse(configId, userId, "/nas/photos", true));
-    }
-
-    [Fact]
-    public void GetAdminCreateStorageConfigResult_UserNotFound_Returns404()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminCreateStorageConfigResult(
-            AuthResult.Fail<UserStorageConfig>(AuthError.UserNotFound));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
-    }
-
-    [Fact]
-    public void GetAdminCreateStorageConfigResult_PathAlreadyAssigned_Returns409()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminCreateStorageConfigResult(
-            AuthResult.Fail<UserStorageConfig>(AuthError.PathAlreadyAssigned));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(409);
-    }
-
-    [Fact]
-    public void GetAdminCreateStorageConfigResult_PathOverlaps_Returns409()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminCreateStorageConfigResult(
-            AuthResult.Fail<UserStorageConfig>(AuthError.PathOverlaps));
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(409);
-    }
-
-    [Fact]
-    public void GetAdminCreateStorageConfigResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminCreateStorageConfigResult(
-            AuthResult.Fail<UserStorageConfig>(AuthError.InvalidCredentials));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
 
     // ==========================================================================
@@ -772,38 +515,18 @@ public sealed class AuthResponseMapperTests
     {
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetAdminDeleteStorageConfigResult(AuthResult.Ok());
+        var result = testee.GetAdminDeleteStorageConfigResult(deleted: true);
 
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
     }
 
     [Fact]
-    public void GetAdminDeleteStorageConfigResult_StorageConfigNotFound_Returns404()
+    public void GetAdminDeleteStorageConfigResult_NotDeleted_Returns404()
     {
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetAdminDeleteStorageConfigResult(AuthResult.Fail(AuthError.StorageConfigNotFound));
+        var result = testee.GetAdminDeleteStorageConfigResult(deleted: false);
 
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
-    }
-
-    [Fact]
-    public void GetAdminDeleteStorageConfigResult_ErrorFromOtherContext_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminDeleteStorageConfigResult(AuthResult.Fail(AuthError.InvalidCredentials));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
-    }
-
-    [Fact]
-    public void GetAdminDeleteStorageConfigResult_UndefinedAuthError_ThrowsUnreachableException()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var act = () => testee.GetAdminDeleteStorageConfigResult(AuthResult.Fail((AuthError)999));
-
-        act.Should().Throw<System.Diagnostics.UnreachableException>();
     }
 }

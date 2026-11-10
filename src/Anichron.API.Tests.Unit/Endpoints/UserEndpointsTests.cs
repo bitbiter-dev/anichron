@@ -1,10 +1,8 @@
 using Anichron.API.Endpoints;
 using Anichron.API.Services;
-using Anichron.API.Settings;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
@@ -103,10 +101,9 @@ public sealed class UserEndpointsTests
     {
         var authService = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var options = Options.Create(new PasswordPolicy());
 
         var result = await UserEndpoints.ChangePasswordAsync(
-            ValidRequest, PrincipalWithoutNameIdentifier(), new DefaultHttpContext(), authService, mapper, options,
+            ValidRequest, PrincipalWithoutNameIdentifier(), new DefaultHttpContext(), authService, mapper,
             CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>();
@@ -119,10 +116,9 @@ public sealed class UserEndpointsTests
     {
         var authService = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var options = Options.Create(new PasswordPolicy());
 
         var result = await UserEndpoints.ChangePasswordAsync(
-            ValidRequest, PrincipalWithClaim("not-a-guid"), new DefaultHttpContext(), authService, mapper, options,
+            ValidRequest, PrincipalWithClaim("not-a-guid"), new DefaultHttpContext(), authService, mapper,
             CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>();
@@ -140,14 +136,13 @@ public sealed class UserEndpointsTests
         var userId = Guid.NewGuid();
         var authService = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var options = Options.Create(new PasswordPolicy());
         authService.ChangePasswordAsync(userId, ValidRequest.CurrentPassword, ValidRequest.NewPassword, Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
-        mapper.GetChangePasswordResult(Arg.Any<AuthResult<AuthTokens>>(), Arg.Any<HttpContext>(), Arg.Any<bool>(), Arg.Any<PasswordPolicy>())
+            .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
+        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>(), Arg.Any<bool>())
             .Returns(Results.NoContent());
 
         await UserEndpoints.ChangePasswordAsync(
-            ValidRequest, PrincipalWithGuid(userId), new DefaultHttpContext(), authService, mapper, options,
+            ValidRequest, PrincipalWithGuid(userId), new DefaultHttpContext(), authService, mapper,
             CancellationToken.None);
 
         await authService.Received(1).ChangePasswordAsync(
@@ -160,15 +155,14 @@ public sealed class UserEndpointsTests
         var userId = Guid.NewGuid();
         var authService = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var options = Options.Create(new PasswordPolicy());
         var expectedResult = Results.NoContent();
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User())));
-        mapper.GetChangePasswordResult(Arg.Any<AuthResult<AuthTokens>>(), Arg.Any<HttpContext>(), Arg.Any<bool>(), Arg.Any<PasswordPolicy>())
+            .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
+        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>(), Arg.Any<bool>())
             .Returns(expectedResult);
 
         var result = await UserEndpoints.ChangePasswordAsync(
-            ValidRequest, PrincipalWithGuid(userId), new DefaultHttpContext(), authService, mapper, options,
+            ValidRequest, PrincipalWithGuid(userId), new DefaultHttpContext(), authService, mapper,
             CancellationToken.None);
 
         result.Should().BeSameAs(expectedResult);
@@ -184,20 +178,18 @@ public sealed class UserEndpointsTests
         var userId = Guid.NewGuid();
         var authService = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
-        var policy = new PasswordPolicy();
-        var options = Options.Create(policy);
-        var failureResult = AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials);
+        ServiceResult<AuthTokens, IChangePasswordError> failureResult = new CurrentPasswordWrong();
         var expectedResult = Results.Problem(statusCode: 400);
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(failureResult);
-        mapper.GetChangePasswordResult(failureResult, Arg.Any<HttpContext>(), false, policy)
+        mapper.GetChangePasswordResult(failureResult, Arg.Any<HttpContext>(), false)
             .Returns(expectedResult);
 
         var result = await UserEndpoints.ChangePasswordAsync(
-            ValidRequest, PrincipalWithGuid(userId), new DefaultHttpContext(), authService, mapper, options,
+            ValidRequest, PrincipalWithGuid(userId), new DefaultHttpContext(), authService, mapper,
             CancellationToken.None);
 
         result.Should().BeSameAs(expectedResult);
-        mapper.Received(1).GetChangePasswordResult(failureResult, Arg.Any<HttpContext>(), false, policy);
+        mapper.Received(1).GetChangePasswordResult(failureResult, Arg.Any<HttpContext>(), false);
     }
 }

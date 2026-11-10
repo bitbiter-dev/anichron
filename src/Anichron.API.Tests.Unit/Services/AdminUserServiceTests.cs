@@ -118,7 +118,7 @@ public sealed class AdminUserServiceTests
         var result = await fixture.CreateTestee().UpdateAsync(Guid.NewGuid(), user.Id, isAdmin: null, isDisabled: null, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().BeSameAs(user);
+        result.Value().Should().BeSameAs(user);
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
         // Nothing is written, so opening a transaction would be cost without purpose.
         await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
@@ -133,7 +133,7 @@ public sealed class AdminUserServiceTests
         var result = await fixture.CreateTestee().UpdateAsync(id, id, isAdmin: false, isDisabled: null, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.CannotModifySelf);
+        result.Error().Should().Be(new CannotModifySelf());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -147,7 +147,7 @@ public sealed class AdminUserServiceTests
         var result = await fixture.CreateTestee().UpdateAsync(Guid.NewGuid(), targetId, isAdmin: true, isDisabled: null, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.UserNotFound);
+        result.Error().Should().Be(new UserNotFound());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
         await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
@@ -162,7 +162,7 @@ public sealed class AdminUserServiceTests
         var result = await fixture.CreateTestee().UpdateAsync(Guid.NewGuid(), user.Id, isAdmin: true, isDisabled: null, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value!.IsAdmin.Should().BeTrue();
+        result.Value().IsAdmin.Should().BeTrue();
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -222,8 +222,7 @@ public sealed class AdminUserServiceTests
 
         var result = await fixture.CreateTestee().DeleteAsync(id, id, CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.CannotModifySelf);
+        result.Should().Be(new CannotModifySelf());
         fixture.Users.DidNotReceive().Remove(Arg.Any<User>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -237,8 +236,7 @@ public sealed class AdminUserServiceTests
 
         var result = await fixture.CreateTestee().DeleteAsync(Guid.NewGuid(), targetId, CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.UserNotFound);
+        result.Should().Be(new UserNotFound());
         fixture.Users.DidNotReceive().Remove(Arg.Any<User>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
         await fixture.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
@@ -253,7 +251,7 @@ public sealed class AdminUserServiceTests
 
         var result = await fixture.CreateTestee().DeleteAsync(Guid.NewGuid(), user.Id, CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
+        result.Should().BeNull();
         await fixture.TokenService.Received(1).MarkAllSessionsRevokedAsync(user.Id, FixedNow, Arg.Any<CancellationToken>());
         fixture.Users.Received(1).Remove(user);
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
