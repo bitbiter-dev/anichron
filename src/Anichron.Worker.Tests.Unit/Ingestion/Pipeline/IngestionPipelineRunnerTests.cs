@@ -166,7 +166,7 @@ public sealed class IngestionPipelineRunnerTests
         var classification = new ClassificationFixture();
         var fileSystem = classification.FileSystem;
         var movId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-        fileSystem.AddFile("/data/proxies/0l/old/video_720p.mp4", new MockFileData([0x02]));
+        fileSystem.AddFile("/data/proxies/0l/old/video.mp4", new MockFileData([0x02]));
         classification.Store(
             new MediaAsset { Id = Guid.NewGuid(), FilePath = "photo.heic", ContentHash = "abc123", PairedAssetId = movId },
             new MediaAsset
@@ -174,7 +174,7 @@ public sealed class IngestionPipelineRunnerTests
                 Id = movId,
                 FilePath = "photo.mov",
                 ContentHash = "0ldm0v",
-                ProxyFiles = [new ProxyFile { AssetId = movId, ProxyType = ProxyType.WebVideo, ProxyPath = "0l/old/video_720p.mp4" }],
+                ProxyFiles = [new ProxyFile { AssetId = movId, ProxyType = ProxyType.WebVideo, ProxyPath = "0l/old/video.mp4" }],
             });
         classification.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new DbUpdateException("down"));
         var runner = new IngestionPipelineRunner(
@@ -184,8 +184,8 @@ public sealed class IngestionPipelineRunnerTests
 
         await act.Should().ThrowAsync<DbUpdateException>();
         await classification.MovGenerator.Received(1).TranscodeAsync("/abs/photo.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
-        fileSystem.FileExists($"/data/proxies/ca/{ClassificationFixture.ConfigId:N}-cafebabe/video_720p.mp4").Should().BeFalse();
-        fileSystem.FileExists("/data/proxies/0l/old/video_720p.mp4").Should().BeTrue();
+        fileSystem.FileExists($"/data/proxies/ca/{ClassificationFixture.ConfigId:N}-cafebabe/video.mp4").Should().BeFalse();
+        fileSystem.FileExists("/data/proxies/0l/old/video.mp4").Should().BeTrue();
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public sealed class IngestionPipelineRunnerTests
     public async Task RunAsync_StepThrows_DeletesTemporarySiblingsAsync()
     {
         var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/data/proxies/ab/cd/video_720p.mp4" + AttemptTemporarySuffix, new MockFileData([0x01]));
+        fixture.FileSystem.AddFile("/data/proxies/ab/cd/video.mp4" + AttemptTemporarySuffix, new MockFileData([0x01]));
         var runner = fixture.Build(
             new ProxyWritingMiddleware(10, fixture.FileSystem, "ab/cd/thumbnail.jpg"),
             new ThrowingMiddleware(20, new InvalidOperationException("boom")));
@@ -229,7 +229,7 @@ public sealed class IngestionPipelineRunnerTests
         var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
-        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video_720p.mp4" + AttemptTemporarySuffix).Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video.mp4" + AttemptTemporarySuffix).Should().BeFalse();
     }
 
     [Fact]
@@ -350,7 +350,7 @@ public sealed class IngestionPipelineRunnerTests
     public async Task RunAsync_StepThrowsBeforeRegisteringAnyProxy_DeletesTemporaryFilesAsync()
     {
         var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/data/proxies/ab/cd/video_720p.mp4" + AttemptTemporarySuffix, new MockFileData([0x01]));
+        fixture.FileSystem.AddFile("/data/proxies/ab/cd/video.mp4" + AttemptTemporarySuffix, new MockFileData([0x01]));
         var runner = fixture.Build(
             new ProxyDirectoryCreatingMiddleware(10, fixture.FileSystem),
             new ThrowingMiddleware(20, new InvalidOperationException("boom")));
@@ -358,7 +358,7 @@ public sealed class IngestionPipelineRunnerTests
         var act = () => runner.RunAsync(MakeContext(), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
-        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video_720p.mp4" + AttemptTemporarySuffix).Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video.mp4" + AttemptTemporarySuffix).Should().BeFalse();
     }
 
     [Fact]
@@ -366,7 +366,7 @@ public sealed class IngestionPipelineRunnerTests
     {
         var fixture = new TestFixture();
         fixture.DirectoryStrategy.GetDirectory(Arg.Any<Guid>(), "fedcba9876543210").Returns("fe/mov");
-        fixture.FileSystem.AddFile("/data/proxies/fe/mov/video_720p.mp4" + AttemptTemporarySuffix, new MockFileData([0x01]));
+        fixture.FileSystem.AddFile("/data/proxies/fe/mov/video.mp4" + AttemptTemporarySuffix, new MockFileData([0x01]));
         var context = MakeContext();
         context.SecondaryHash = "fedcba9876543210";
         var runner = fixture.Build(new ThrowingMiddleware(10, new InvalidOperationException("boom")));
@@ -374,7 +374,7 @@ public sealed class IngestionPipelineRunnerTests
         var act = () => runner.RunAsync(context, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
-        fixture.FileSystem.FileExists("/data/proxies/fe/mov/video_720p.mp4" + AttemptTemporarySuffix).Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/fe/mov/video.mp4" + AttemptTemporarySuffix).Should().BeFalse();
         fixture.FileSystem.Directory.Exists("/data/proxies/fe/mov").Should().BeFalse();
     }
 
@@ -382,7 +382,7 @@ public sealed class IngestionPipelineRunnerTests
     public async Task RunAsync_StepThrows_LeavesAConcurrentAttemptsTemporaryFileAloneAsync()
     {
         var fixture = new TestFixture();
-        const string concurrent = "/data/proxies/ab/cd/video_720p.mp4.cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd.tmp";
+        const string concurrent = "/data/proxies/ab/cd/video.mp4.cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd.tmp";
         fixture.FileSystem.AddFile(concurrent, new MockFileData([0x01]));
         var runner = fixture.Build(new ThrowingMiddleware(10, new InvalidOperationException("boom")));
 

@@ -127,6 +127,7 @@ internal sealed partial class FileIngestionPipeline(
             if (mediaType is null)
             {
                 Log.UnsupportedFile(logger, filePath);
+                tally.UnsupportedSkipped();
                 continue;
             }
 
@@ -172,7 +173,7 @@ internal sealed partial class FileIngestionPipeline(
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping unsupported file type: {Path}.")]
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Skipping unsupported file type: {Path}.")]
         public static partial void UnsupportedFile(ILogger logger, string path);
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Failed to ingest {Path}.")]

@@ -211,6 +211,56 @@ public sealed class WorkExecutorTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_Outages_LogEachFirstFailureAsAnErrorTheRestAtDebugAndEachRecoveryOnceAsync()
+    {
+        var calls = 0;
+        store.ClaimAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+            .Returns<ClaimedWork?>(_ =>
+            {
+                timeline.Record("claim");
+                return ++calls is 2 or 3 or 4 or 7 ? throw new InvalidOperationException("db down") : null;
+            });
+        await StartAsync();
+        await timeline.ExpectAsync(new Called("claim"), new TimerArmed(Poll));
+
+        for (var poll = 0; poll < 6; poll++)
+        {
+            timeline.Clock.Advance(Poll);
+            await timeline.ExpectAsync(new TimerFired(Poll), new Called("claim"), new TimerArmed(Poll));
+        }
+
+        logger.Collector.GetSnapshot().Select(e => (e.Level, e.Message, e.Exception?.Message)).Should().Equal(
+            (LogLevel.Error, "Claiming or finishing work failed; will retry at the next poll.", "db down"),
+            (LogLevel.Debug, "Claiming or finishing work failed again; will retry at the next poll.", null),
+            (LogLevel.Debug, "Claiming or finishing work failed again; will retry at the next poll.", null),
+            (LogLevel.Information, "Claiming or finishing work works again.", null),
+            (LogLevel.Error, "Claiming or finishing work failed; will retry at the next poll.", "db down"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RecoveryWhoseFirstClaimStartsAnItem_LogsTheRecoveryBeforeTheItemEndsAsync()
+    {
+        var calls = 0;
+        store.ClaimAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<Instant>(), Arg.Any<Duration>(), Arg.Any<CancellationToken>())
+            .Returns<ClaimedWork?>(_ =>
+            {
+                timeline.Record("claim");
+                if (++calls == 1)
+                    throw new InvalidOperationException("db down");
+                return queued.TryDequeue(out var work) ? work : null;
+            });
+        await StartAsync(Work());
+        await timeline.ExpectAsync(new Called("claim"), new TimerArmed(Poll));
+
+        timeline.Clock.Advance(Poll);
+
+        await timeline.ExpectAsync(
+            new TimerFired(Poll), new Called("claim"), new TimerArmed(SelfStop), new TimerArmed(Heartbeat), new Called("run"));
+        logger.Collector.LatestRecord.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Information
+            && e.Message == "Claiming or finishing work works again.");
+    }
+
+    [Fact]
     public async Task ExecuteAsync_TwoItemsQueued_RunsThemOneAtATimeAsync()
     {
         await StartAsync(Work(), Work(attempt: 2));

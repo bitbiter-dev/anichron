@@ -9,6 +9,7 @@ How the Worker turns files on the NAS into assets. Code: `Anichron.Worker/Crawli
 - **Never follows a link.** Every link under the root is skipped at listing and counted as `skippedLinks`; the root itself is not checked.
 - An unreadable subfolder is logged and skipped, which makes the walk incomplete. An unreadable or missing root fails the item.
 - `MediaTypeDetector` decides what is ingested. A video format counts only when MetadataExtractor reads its size and duration (QuickTime, AVI; not `.mkv` or `.wmv`).
+- A file it finds no type for (an `.AAE` sidecar, a `.txt`) is logged at `Debug` and counted as `skippedUnsupported`.
 - Files flow through a bounded `Channel<T>` to `Worker:MaxConcurrentFiles` consumers. Processing is idempotent.
 
 ## One item, step by step
@@ -69,6 +70,7 @@ For a file with content H at path P, first match wins (ADR 0011 for the path-hol
 - A photo's come from the photo. A standalone video gets its `WebVideo` and a poster (thumbnail, preview, BlurHash) from its frame at 1 s. A Live Photo's video gets only its `WebVideo`.
 - A photo is decoded once through `IUprightImageDecoder` (HEIC by its bytes to Magick.NET, ADR 0016; everything else to ImageSharp), then shrunk largest-first; each generator gets its own copy.
 - Sizes are edge-based and never upscale. The video encoder is picked at runtime: QuickSync, NVENC, AMF, then software.
+- A new `Worker:VideoShortEdge` sizes only videos ingested afterwards; an existing `WebVideo` keeps its size until its file changes. Its file name, `video.mp4`, names no size.
 - Proxy paths derive from content (CLAUDE.md, "Storage Layout").
 
 ## Failure ownership

@@ -198,7 +198,7 @@ public sealed class FfmpegVideoProcessorTests
         var fixture = new TestFixture();
         var calls = CaptureCalls(fixture);
 
-        await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video_720p.mp4.0123abcd.tmp", CancellationToken.None);
+        await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video.mp4.0123abcd.tmp", CancellationToken.None);
 
         calls[^1].Should().Equal(
             "-hide_banner",
@@ -215,7 +215,7 @@ public sealed class FfmpegVideoProcessorTests
             "-movflags", "+faststart",
             "-f", "mp4",
             "-y",
-            "/out/video_720p.mp4.0123abcd.tmp");
+            "/out/video.mp4.0123abcd.tmp");
     }
 
     [Fact]
