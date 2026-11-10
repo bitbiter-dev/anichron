@@ -10,7 +10,6 @@ export const segmentStyles = tv({
       true: 'outline-2 outline-offset-2 outline-focus transition-none',
       false: 'outline-none',
     },
-    isDisabled: { true: 'opacity-50' },
   },
 });
 

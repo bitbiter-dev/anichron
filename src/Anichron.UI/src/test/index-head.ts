@@ -1,6 +1,5 @@
 import indexHtml from '../../index.html?raw';
-
-const themeColour = 'meta[name="theme-color"]';
+import { themeColour } from '../shared/theme';
 
 export function addThemeColourTags() {
   const index = new DOMParser().parseFromString(indexHtml, 'text/html');

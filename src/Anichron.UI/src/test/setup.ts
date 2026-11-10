@@ -7,7 +7,6 @@ import { server } from './server';
 
 expect.extend(matchers);
 
-// A lazy route loads in real time, which a findBy* under the fake clock does not wait for.
 import.meta.glob('../features/*/*Page.tsx', { eager: true });
 
 // Testing Library advances fake timers only when it finds a `jest` global.

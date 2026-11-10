@@ -5,7 +5,7 @@ export type Theme = (typeof themes)[number];
 export type ThemeChoice = ReturnType<typeof createThemeChoice>;
 
 const key = 'anichron.theme';
-const themeColour = 'meta[name="theme-color"]';
+export const themeColour = 'meta[name="theme-color"]';
 
 export function storedTheme(): Theme {
   try {
@@ -20,7 +20,7 @@ function store(theme: Theme) {
   try {
     localStorage.setItem(key, theme);
   } catch {
-    // Without storage the choice lasts until the page is left.
+    // Storage unavailable.
   }
 }
 

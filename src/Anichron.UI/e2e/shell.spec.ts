@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectAccessible } from './accessibility';
 import { createAccount, type Account } from './accounts';
+import { surface } from './surfaces';
 
 const signedIn = "You're signed in. Your photo library is on its way.";
-const surface = { light: 'rgb(247, 245, 242)', dark: 'rgb(23, 21, 19)' };
 
 async function signIn(page: Page, account: Account) {
   await page.goto('/login');

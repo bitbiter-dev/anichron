@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Alert } from '../shared/ui/Alert';
 import { Button, buttonStyles } from '../shared/ui/Button';
+import { themes as themeNames, type Theme as ThemeName } from '../shared/theme';
 import { SegmentedControl, segmentStyles } from '../shared/ui/SegmentedControl';
 import { inputStyles, TextField } from '../shared/ui/TextField';
 import { contrastRatio, themeColours, type Theme, type ThemeColours } from './contrast';
@@ -153,7 +154,7 @@ function Components({ theme }: { theme: Theme }) {
       </States>
       <States title="Segmented control">
         <State name="default">
-          <ThemeChoice />
+          <ThemeDemo />
         </State>
         <State name="segment hover">
           <span className={segmentStyles({ isHovered: true })}>Light</span>
@@ -188,14 +189,10 @@ function Components({ theme }: { theme: Theme }) {
   );
 }
 
-const themeOptions = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-] as const;
+const themeOptions = themeNames.map((value) => ({ value, label: value }));
 
-function ThemeChoice() {
-  const [value, setValue] = useState<(typeof themeOptions)[number]['value']>('system');
+function ThemeDemo() {
+  const [value, setValue] = useState<ThemeName>('system');
   return (
     <SegmentedControl label="Theme" options={themeOptions} value={value} onChange={setValue} />
   );
