@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert } from '../shared/ui/Alert';
 import { Button, buttonStyles } from '../shared/ui/Button';
+import { SegmentedControl, segmentStyles } from '../shared/ui/SegmentedControl';
 import { inputStyles, TextField } from '../shared/ui/TextField';
 import { contrastRatio, themeColours, type Theme, type ThemeColours } from './contrast';
 
@@ -141,6 +142,25 @@ function Components({ theme }: { theme: Theme }) {
         <State name="disabled">
           <Button isDisabled>Sign in</Button>
         </State>
+        <State name="danger">
+          <Button variant="danger">Sign out</Button>
+        </State>
+        <State name="danger, focused">
+          <span className={buttonStyles({ variant: 'danger', isFocusVisible: true })}>
+            Sign out
+          </span>
+        </State>
+      </States>
+      <States title="Segmented control">
+        <State name="default">
+          <ThemeChoice />
+        </State>
+        <State name="segment hover">
+          <span className={segmentStyles({ isHovered: true })}>Light</span>
+        </State>
+        <State name="segment focused">
+          <span className={segmentStyles({ isSelected: true, isFocusVisible: true })}>Light</span>
+        </State>
       </States>
       <States title="Text field">
         <State name="default">
@@ -165,6 +185,19 @@ function Components({ theme }: { theme: Theme }) {
         </State>
       </States>
     </div>
+  );
+}
+
+const themeOptions = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+] as const;
+
+function ThemeChoice() {
+  const [value, setValue] = useState<(typeof themeOptions)[number]['value']>('system');
+  return (
+    <SegmentedControl label="Theme" options={themeOptions} value={value} onChange={setValue} />
   );
 }
 

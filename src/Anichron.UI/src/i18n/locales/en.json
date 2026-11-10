@@ -2,8 +2,7 @@
   "placeholder": {
     "title": "Anichron",
     "body": "You're signed in. Your photo library is on its way.",
-    "greeting": "Signed in as {{username}}.",
-    "signOut": "Sign out"
+    "greeting": "Signed in as {{username}}."
   },
   "login": {
     "title": "Sign in to Anichron",
@@ -21,5 +20,22 @@
       "serviceUnavailable": "Anichron is temporarily unavailable. Try again shortly.",
       "generic": "Something went wrong. Try again."
     }
+  },
+  "shell": {
+    "today": "Today",
+    "settings": "Settings",
+    "back": "Back"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "account": "Account",
+    "signOut": "Sign out"
   }
 }

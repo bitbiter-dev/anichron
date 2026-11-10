@@ -2,9 +2,13 @@ import { cleanup } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import * as matchers from 'vitest-axe/matchers';
+import { addThemeColourTags, removeThemeColourTags } from './index-head';
 import { server } from './server';
 
 expect.extend(matchers);
+
+// A lazy route loads in real time, which a findBy* under the fake clock does not wait for.
+import.meta.glob('../features/*/*Page.tsx', { eager: true });
 
 // Testing Library advances fake timers only when it finds a `jest` global.
 Object.assign(globalThis, { jest: { advanceTimersByTime: vi.advanceTimersByTime.bind(vi) } });
@@ -15,14 +19,20 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  addThemeColourTags();
 });
 
 afterEach(() => {
   cleanup();
   document.documentElement.removeAttribute('lang');
+  document.documentElement.removeAttribute('data-theme');
+  removeThemeColourTags();
+  localStorage.clear();
   server.resetHandlers();
   vi.useRealTimers();
   Reflect.deleteProperty(document, 'visibilityState');
+  Reflect.deleteProperty(document.documentElement, 'scrollHeight');
+  Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
 });
 
 afterAll(() => {

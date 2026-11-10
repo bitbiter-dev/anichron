@@ -56,6 +56,7 @@ test('two tabs reload together and both stay signed in, until one signs out', as
   await expect(second.getByText(signedIn)).toBeVisible();
   await expectAccessible(second);
 
+  await first.getByRole('link', { name: 'Settings' }).click();
   await first.getByRole('button', { name: 'Sign out' }).click();
   const loginHeading = { level: 1, name: 'Sign in to Anichron' } as const;
   await expect(first.getByRole('heading', loginHeading)).toBeVisible();
