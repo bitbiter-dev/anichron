@@ -25,7 +25,7 @@ public sealed class PairedMovProxyWriterTests
 
         public TestFixture()
         {
-            Generator.FileName.Returns("video_720p.mp4");
+            Generator.FileName.Returns("video.mp4");
             Generator.ProxyType.Returns(ProxyType.WebVideo);
             DirectoryStrategy.GetDirectory(ConfigId, "cafebabe").Returns("ca/mov");
             DirectoryStrategy.GetDirectory(ConfigId, "0ldm0v").Returns("0l/old");
@@ -76,7 +76,7 @@ public sealed class PairedMovProxyWriterTests
 
         wrote.Should().BeTrue();
         fixture.TranscodedSources.Should().Equal("/nas/photo.mov");
-        fixture.FileSystem.FileExists("/data/proxies/ca/mov/video_720p.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ca/mov/video.mp4").Should().BeTrue();
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class PairedMovProxyWriterTests
         var row = added.Should().ContainSingle().Which;
         row.AssetId.Should().Be(MovId);
         row.ProxyType.Should().Be(ProxyType.WebVideo);
-        row.ProxyPath.Should().Be("ca/mov/video_720p.mp4");
+        row.ProxyPath.Should().Be("ca/mov/video.mp4");
         context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(row);
     }
 
@@ -159,10 +159,10 @@ public sealed class PairedMovProxyWriterTests
         var written = await fixture.Build().WriteForNewContentAsync(context, mov, CancellationToken.None);
 
         fixture.TranscodedSources.Should().Equal("/nas/photo.mov");
-        fixture.FileSystem.FileExists("/data/proxies/ca/mov/video_720p.mp4").Should().BeTrue();
-        fixture.FileSystem.FileExists("/data/proxies/0l/old/video_720p.mp4").Should().BeFalse();
+        fixture.FileSystem.FileExists("/data/proxies/ca/mov/video.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/0l/old/video.mp4").Should().BeFalse();
         var proxy = written.Should().ContainSingle().Which;
-        proxy.Should().BeEquivalentTo(new { AssetId = MovId, ProxyType = ProxyType.WebVideo, ProxyPath = "ca/mov/video_720p.mp4" });
+        proxy.Should().BeEquivalentTo(new { AssetId = MovId, ProxyType = ProxyType.WebVideo, ProxyPath = "ca/mov/video.mp4" });
         context.ProxyFiles.Should().ContainSingle().Which.Should().BeSameAs(proxy);
         fixture.Repository.DidNotReceive().AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>());
     }

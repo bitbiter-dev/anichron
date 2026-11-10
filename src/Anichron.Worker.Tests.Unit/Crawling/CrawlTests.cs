@@ -52,7 +52,8 @@ public sealed class CrawlTests
         var other = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
         configs.GetActiveByUserIdAsync(MiraId, Ct).Returns([config, other]);
-        var run = new CrawlRun(new CrawlResult(5, 4, 1), DuplicateCopies: 2) { SoftDeleted = 1, AutoRestored = 3 };
+        var counted = new CrawlResult(5, 4, 1) { Ingested = 2, SkippedLinks = 6, SkippedUnsupported = 7 };
+        var run = new CrawlRun(counted, DuplicateCopies: 2) { SoftDeleted = 1, AutoRestored = 3 };
         pipeline.RunAsync(config, progress, Ct).Returns(run);
         sweep.SweepAsync(config, run, Ct).Returns(new MissingFiles(SoftDeleted: 4, SkippedBecause: null));
         reporter.ReportAsync(config, Arg.Is<IReadOnlyCollection<UserStorageConfig>>(c => c.SequenceEqual(new[] { config, other })), 2, Ct)
@@ -62,6 +63,9 @@ public sealed class CrawlTests
 
         result.Should().Be(new CrawlResult(5, 4, 1)
         {
+            Ingested = 2,
+            SkippedLinks = 6,
+            SkippedUnsupported = 7,
             Duplicates = new DuplicateCounts(2, 1),
             Reconciliation = new ReconciliationCounts(SoftDeleted: 5, AutoRestored: 3, SkippedBecause: null),
         });
@@ -306,4 +310,9 @@ public sealed class CrawlTests
     public void Result_NamesTheSkippedLinksInItsJson()
         => WorkJson.SerializeResult(new CrawlResult(0, 0, 0) { SkippedLinks = 3 })
             .Should().Contain("\"skippedLinks\":3");
+
+    [Fact]
+    public void Result_NamesTheIngestedAndSkippedUnsupportedCountsInItsJson()
+        => WorkJson.SerializeResult(new CrawlResult(0, 0, 0) { Ingested = 4, SkippedUnsupported = 5 })
+            .Should().Contain("\"ingested\":4").And.Contain("\"skippedUnsupported\":5");
 }

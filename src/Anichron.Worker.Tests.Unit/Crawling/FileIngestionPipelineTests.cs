@@ -266,6 +266,24 @@ public sealed class FileIngestionPipelineTests
             .Which.AbsolutePath.Should().Be("/nas/photo.jpg");
     }
 
+    [Fact]
+    public async Task RunAsync_UnsupportedFile_IsCountedAndLoggedAtDebugUnlikeExcludedOnesAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/IMG_0001.AAE", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/notes.txt", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/._IMG_0001.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/@eaDir/notes.txt", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+
+        var result = await fixture.Build().RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        result.Result.SkippedUnsupported.Should().Be(2);
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Message.Contains("IMG_0001.AAE"))
+            .Which.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Debug
+                && e.Message == "Skipping unsupported file type: /nas/IMG_0001.AAE.");
+    }
+
     // ==========================================================================
     // Relative paths
     // ==========================================================================
@@ -389,7 +407,7 @@ public sealed class FileIngestionPipelineTests
         var run = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), progress, CancellationToken.None);
 
-        run.Result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1));
+        run.Result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1) { SkippedUnsupported = 1 });
         progress.Reports[^1].Should().Be(new WorkProgress(3, 3, "3 found, 2 processed, 1 failed"));
     }
 
@@ -411,6 +429,39 @@ public sealed class FileIngestionPipelineTests
             .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         (result.Result, result.DuplicateCopies).Should().Be((new CrawlResult(Found: 4, Processed: 3, Failed: 1), 3));
+    }
+
+    [Fact]
+    public async Task RunAsync_CountsIngestedItemsAndUnsupportedFiles_ALivePhotoPairAsOneAndExcludedFilesNotAtAllAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/IMG_0001.HEIC", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/IMG_0001.MOV", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/c.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/d.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/e.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/f.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/g.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/IMG_0002.AAE", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/notes.txt", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/._a.jpg", new MockFileData([]));
+        fixture.FileSystem.AddFile("/nas/@eaDir/notes.txt", new MockFileData([]));
+        var middleware = new ScriptedClassificationMiddleware(
+            new ScriptedItem(FileOutcome.New, FileOutcome.New),
+            new ScriptedItem(FileOutcome.New),
+            new ScriptedItem(FileOutcome.ContentChanged),
+            new ScriptedItem(FileOutcome.AutoRestoredContentChanged),
+            new ScriptedItem(FileOutcome.Unchanged),
+            new ScriptedItem(FileOutcome.Moved),
+            new ScriptedItem(FileOutcome.DuplicateCopy),
+            new ScriptedItem(FileOutcome.New, Fails: true));
+
+        var result = await fixture.BuildWithMiddlewares([middleware], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        result.Result.Should().Be(new CrawlResult(Found: 8, Processed: 7, Failed: 1) { Ingested = 4, SkippedUnsupported = 2 });
     }
 
     [Fact]
