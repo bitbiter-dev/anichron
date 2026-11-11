@@ -16,7 +16,7 @@ RUN pnpm build
 # 3. Build Stage
 # $BUILDPLATFORM = CI runner arch (amd64). dotnet publish produces arch-neutral IL,
 # so compiling natively avoids QEMU emulation overhead without affecting the output.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0-alpine AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
