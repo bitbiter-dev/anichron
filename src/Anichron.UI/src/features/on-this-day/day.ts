@@ -2,13 +2,10 @@ import { queryOptions } from '@tanstack/react-query';
 import type { ApiClient } from '../../api/client';
 import type { YearGroup } from '../../api/flashbacks';
 
-const minuteMilliseconds = 60_000;
+const twoDigits = (value: number) => String(value).padStart(2, '0');
 
-export function localDate(now = new Date()) {
-  return new Date(now.getTime() - now.getTimezoneOffset() * minuteMilliseconds)
-    .toISOString()
-    .slice(0, 10);
-}
+export const localDate = (now = new Date()) =>
+  `${String(now.getFullYear())}-${twoDigits(now.getMonth() + 1)}-${twoDigits(now.getDate())}`;
 
 export const utcDay = (date: string) => new Date(`${date}T00:00:00Z`);
 
