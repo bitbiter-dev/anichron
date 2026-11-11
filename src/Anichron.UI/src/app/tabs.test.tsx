@@ -39,18 +39,35 @@ const sessionOf = (username: string) =>
     user: users.get(username) ?? miraSession.user,
   });
 
-function refreshTakes(milliseconds: number, signedOutOn = new Set<number>()) {
+function refreshTakes(
+  milliseconds: number,
+  signedOutOn = new Set<number>(),
+  unavailableOn = new Set<number>(),
+) {
   let refreshes = 0;
   return refreshRespondsWith(async () => {
     const n = ++refreshes;
     events.push(`refresh ${String(n)} sent`);
     await delay(milliseconds);
     events.push(`refresh ${String(n)} answered`);
+    if (unavailableOn.has(n)) return problemResponse(503, 'service_unavailable');
     return signedOutOn.has(n)
       ? problemResponse(401, 'refresh_token_required')
       : sessionOf(signedIn);
   });
 }
+
+function signInAsNoor(tab: ReturnType<typeof openTabs>[number]) {
+  fireEvent.change(tab.getByLabelText('Username or email'), { target: { value: 'noor' } });
+  fireEvent.change(tab.getByLabelText('Password'), { target: { value: 'hunter2' } });
+  fireEvent.click(tab.getByRole('button', { name: 'Sign in' }));
+}
+
+const noorSignsIn = () =>
+  loginRespondsWith(() => {
+    signedIn = 'noor';
+    return sessionOf('noor');
+  });
 
 async function advance(milliseconds: number) {
   await act(() => vi.advanceTimersByTimeAsync(milliseconds));
@@ -136,6 +153,35 @@ describe('two tabs of one browser', () => {
 
     await advance(500);
     expect(await second.findByText(greeting('noor'))).toBeVisible();
+  });
+
+  it('take a tab on the login screen into the app when the other signs in', async () => {
+    server.use(refreshTakes(0, new Set([1, 2])), noorSignsIn());
+    const [first, second] = openTabs('/login', '/login');
+    expect(await first.findByRole('heading', loginHeading)).toBeVisible();
+    expect(await second.findByRole('heading', loginHeading)).toBeVisible();
+
+    signInAsNoor(first);
+
+    expect(await first.findByText(greeting('noor'))).toBeVisible();
+    expect(await second.findByText(greeting('noor'))).toBeVisible();
+    expect(second.queryByRole('heading', loginHeading)).toBeNull();
+  });
+
+  it('leave a tab signed out, without retrying, when its fresh start cannot refresh', async () => {
+    server.use(refreshTakes(0, new Set([1]), new Set([3])), noorSignsIn());
+    const [first, second] = openTabs('/login', '/');
+    expect(await first.findByRole('heading', loginHeading)).toBeVisible();
+    expect(await second.findByText(greeting('mira'))).toBeVisible();
+    events = [];
+
+    signInAsNoor(first);
+    expect(await first.findByText(greeting('noor'))).toBeVisible();
+    expect(await second.findByRole('heading', loginHeading)).toBeVisible();
+
+    await advance(60_000);
+    expect(events).toEqual(['refresh 3 sent', 'refresh 3 answered']);
+    expect(second.getByRole('heading', loginHeading)).toBeVisible();
   });
 
   it('leave a tab that was closed alone', async () => {

@@ -84,11 +84,7 @@ export function createAppRouter(
     history,
     context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
   });
-  api.session.onChange(() => {
-    if (api.session.isSignedIn()) return;
-    queryClient.clear();
-    void router.invalidate();
-  });
+  api.session.onChange(() => void router.invalidate());
   return router;
 }
 

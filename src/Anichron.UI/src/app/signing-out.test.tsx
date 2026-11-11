@@ -1,7 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../test/axe';
 import {
   loginRespondsWith,
@@ -98,6 +98,25 @@ describe('signing out', () => {
       expect(logouts).toBe(1);
     },
   );
+
+  it('stops renewing the session it ended', async () => {
+    let refreshes = 0;
+    server.use(
+      refreshRespondsWith(() => {
+        refreshes++;
+        return HttpResponse.json(miraSession);
+      }),
+      logoutSucceeds(),
+    );
+    await openSignedIn();
+
+    signOut();
+    expect(await findLoginHeading()).toBeVisible();
+
+    await act(() => vi.advanceTimersByTimeAsync(Number(miraSession.expiresIn) * 1000));
+    expect(refreshes).toBe(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign in to Anichron' })).toBeVisible();
+  });
 
   it('signs out this tab even when the server cannot be reached', async () => {
     server.use(
