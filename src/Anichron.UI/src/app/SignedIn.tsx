@@ -1,8 +1,7 @@
-import { Outlet, useRouter } from '@tanstack/react-router';
-import { useSyncExternalStore } from 'react';
+import { Outlet } from '@tanstack/react-router';
+import { useUser } from '../shared/use-user';
 import { Splash } from './Splash';
 
 export function SignedIn() {
-  const { api } = useRouter().options.context;
-  return useSyncExternalStore(api.onSessionChange, api.isSignedIn) ? <Outlet /> : <Splash />;
+  return useUser() ? <Outlet /> : <Splash />;
 }

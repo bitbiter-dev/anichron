@@ -76,24 +76,6 @@ export function problemResponse(
   });
 }
 
-export function meRespondsWith(respond: (bearer: string | null) => Response | Promise<Response>) {
-  return http.get('/api/v1/users/me', async ({ request, response }) =>
-    response.untyped(await respond(request.headers.get('Authorization'))),
-  );
-}
-
-export function meAnswersFor(
-  token: (bearer: string | null) => boolean = (bearer) =>
-    bearer === `Bearer ${miraSession.accessToken}`,
-  user: Schemas['UserProfileResponse'] = miraSession.user,
-) {
-  return http.get('/api/v1/users/me', ({ request, response }) =>
-    token(request.headers.get('Authorization'))
-      ? response(200).json(user)
-      : response(401).json({ status: 401 }, { headers: problemHeaders }),
-  );
-}
-
 export function logoutSucceeds(onRequest: (bearer: string | null) => void = () => undefined) {
   return http.post('/api/v1/auth/logout', ({ request, response }) => {
     onRequest(request.headers.get('Authorization'));
