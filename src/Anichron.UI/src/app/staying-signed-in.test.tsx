@@ -18,6 +18,7 @@ const renewal = lifetime * 800;
 const greeting = (username: string) => `Signed in as ${username}.`;
 const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
 const findLoginHeading = () => screen.findByRole('heading', loginHeadingName);
+const unreachableHeadingName = { level: 1, name: "Can't reach Anichron" } as const;
 
 const tokenNumber = (n: number) => `token-${String(n)}`;
 
@@ -318,10 +319,10 @@ describe('a refresh that fails', () => {
     },
   );
 
-  it('at start-up leaves the user signed out and is not retried', async () => {
+  it('at start-up says the server cannot be reached and is not retried on a schedule', async () => {
     server.use(refreshAnswers(unavailable));
     renderApp('/');
-    await findLoginHeading();
+    await screen.findByRole('heading', unreachableHeadingName);
 
     await advance(lifetime * 1000);
     expect(refreshes).toBe(1);

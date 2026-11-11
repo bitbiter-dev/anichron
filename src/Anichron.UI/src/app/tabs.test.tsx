@@ -28,6 +28,7 @@ const users = new Map([
 ]);
 const greeting = (username: string) => `Signed in as ${username}.`;
 const loginHeading = { level: 1, name: 'Sign in to Anichron' } as const;
+const unreachableHeading = { level: 1, name: "Can't reach Anichron" } as const;
 
 let signedIn: string;
 let events: string[];
@@ -168,7 +169,7 @@ describe('two tabs of one browser', () => {
     expect(second.queryByRole('heading', loginHeading)).toBeNull();
   });
 
-  it('leave a tab signed out, without retrying, when its fresh start cannot refresh', async () => {
+  it('leave a tab saying so, without retrying, when its fresh start cannot reach the server', async () => {
     server.use(refreshTakes(0, new Set([1]), new Set([3])), noorSignsIn());
     const [first, second] = openTabs('/login', '/');
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
@@ -177,11 +178,11 @@ describe('two tabs of one browser', () => {
 
     signInAsNoor(first);
     expect(await first.findByText(greeting('noor'))).toBeVisible();
-    expect(await second.findByRole('heading', loginHeading)).toBeVisible();
+    expect(await second.findByRole('heading', unreachableHeading)).toBeVisible();
 
     await advance(60_000);
     expect(events).toEqual(['refresh 3 sent', 'refresh 3 answered']);
-    expect(second.getByRole('heading', loginHeading)).toBeVisible();
+    expect(second.getByRole('heading', unreachableHeading)).toBeVisible();
   });
 
   it('leave a tab that was closed alone', async () => {
