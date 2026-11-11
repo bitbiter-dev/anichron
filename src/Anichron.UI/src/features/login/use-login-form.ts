@@ -2,12 +2,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
-import { fieldCodes, problemOf, type ErrorCode } from '../../api/problem';
+import { fieldCodes, problemOf, type ValidationCode } from '../../api/problem';
 import { useCountdown } from '../../shared/use-countdown';
 import { messageKey } from './messages';
 
 function loginSchema() {
-  const required = z.minLength(1, { error: 'required' satisfies ErrorCode });
+  const required = z.minLength(1, { error: 'required' satisfies ValidationCode });
   return z.object({
     usernameOrEmail: z.string().check(z.trim(), required),
     password: z.string().check(required),
