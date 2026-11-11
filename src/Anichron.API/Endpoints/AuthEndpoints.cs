@@ -1,8 +1,6 @@
 using Anichron.API.Infrastructure;
 using Anichron.API.Services;
-using Anichron.API.Settings;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using System.Text.Json.Serialization;
 
 namespace Anichron.API.Endpoints;
@@ -41,12 +39,10 @@ public static class AuthEndpoints
         IAuthService auth,
         IAuthResponseMapper mapper,
         HttpContext http,
-        IOptions<PasswordPolicy> passwordPolicy,
-        IOptions<UsernamePolicy> usernamePolicy,
         CancellationToken ct)
     {
         var result = await auth.RegisterAsync(request.Username, request.Email, request.Password, request.InviteToken, ct);
-        return mapper.GetRegistrationResult(result, http, passwordPolicy.Value, usernamePolicy.Value);
+        return mapper.GetRegistrationResult(result, http);
     }
 
     internal static Task<IResult> LoginWebAsync(

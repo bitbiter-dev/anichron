@@ -6,9 +6,9 @@ namespace Anichron.API.Services;
 
 public interface IRegistrationValidator
 {
-    AuthError? ValidateIdentity(string username, string email);
-    Task<AuthError?> ValidateAsync(string username, string email, string password, CancellationToken ct);
-    Task<AuthError?> ValidatePasswordAsync(string password, CancellationToken ct);
+    IIdentityRejection? ValidateIdentity(string username, string email);
+    Task<IRegisterError?> ValidateAsync(string username, string email, string password, CancellationToken ct);
+    Task<PasswordRejected?> ValidatePasswordAsync(string password, CancellationToken ct);
 }
 
 public sealed class RegistrationValidator(
@@ -19,42 +19,37 @@ public sealed class RegistrationValidator(
     private readonly PasswordPolicy passwordPolicy = passwordPolicyOptions.Value;
     private readonly UsernamePolicy usernamePolicy = usernamePolicyOptions.Value;
 
-    public AuthError? ValidateIdentity(string username, string email)
+    public IIdentityRejection? ValidateIdentity(string username, string email)
     {
         if (username.Length < usernamePolicy.MinLength
             || username.Length > usernamePolicy.MaxLength
             || !UsernamePolicy.AllowedCharacters().IsMatch(username))
         {
-            return AuthError.InvalidUsername;
+            return new InvalidUsername();
         }
 
         if (!IsValidEmail(email))
-            return AuthError.InvalidEmail;
+            return new InvalidEmail();
 
         return null;
     }
 
-    public Task<AuthError?> ValidateAsync(string username, string email, string password, CancellationToken ct)
-        => ValidateIdentity(username, email) is { } identityError
-            ? Task.FromResult<AuthError?>(identityError)
-            : ValidatePasswordRulesAsync(password, ct);
+    public async Task<IRegisterError?> ValidateAsync(string username, string email, string password, CancellationToken ct)
+        => ValidateIdentity(username, email) ?? (IRegisterError?)await ValidatePasswordAsync(password, ct);
 
-    public Task<AuthError?> ValidatePasswordAsync(string password, CancellationToken ct)
-        => ValidatePasswordRulesAsync(password, ct);
-
-    private async Task<AuthError?> ValidatePasswordRulesAsync(string password, CancellationToken ct)
+    public async Task<PasswordRejected?> ValidatePasswordAsync(string password, CancellationToken ct)
     {
         if (password.Length < passwordPolicy.MinLength)
-            return AuthError.PasswordTooShort;
+            return new PasswordTooShort();
 
         if (password.Length > passwordPolicy.MaxLength)
-            return AuthError.PasswordTooLong;
+            return new PasswordTooLong();
 
         // IDE0046 suppressed: collapsing an async condition into a ternary reduces readability
 #pragma warning disable IDE0046
         if (passwordPolicy.CheckPwnedPasswords && await pwnedClient.IsPwnedAsync(password, ct))
 #pragma warning restore IDE0046
-            return AuthError.PasswordPwned;
+            return new PasswordPwned();
 
         return null;
     }

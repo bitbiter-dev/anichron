@@ -76,7 +76,7 @@ public sealed class SessionResponseTests
     [InlineData("/api/v1/auth/login/mobile", Session + ""","refreshToken":"the-refresh"}""")]
     public async Task Login_AnswersTheSession_WithTheRefreshTokenOnlyForTheMobileClientAsync(string path, string expected)
     {
-        auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(AuthResult.Ok(Tokens));
+        auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Tokens);
         await using var app = await StartAsync();
 
         using var response = await app.Client.PostAsJsonAsync(
@@ -89,7 +89,7 @@ public sealed class SessionResponseTests
     public async Task Register_AnswersTheSession_AndSetsTheSessionCookiesAsync()
     {
         auth.RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(Tokens));
+            .Returns(Tokens);
         await using var app = await StartAsync();
 
         using var response = await app.Client.PostAsJsonAsync(
@@ -104,7 +104,7 @@ public sealed class SessionResponseTests
     [Fact]
     public async Task Refresh_WithTheCookieAndNoBody_AnswersTheSession_AndRenewsTheCookiesAsync()
     {
-        auth.RefreshAsync("the-old-refresh", Arg.Any<CancellationToken>()).Returns(AuthResult.Ok(Tokens));
+        auth.RefreshAsync("the-old-refresh", Arg.Any<CancellationToken>()).Returns(Tokens);
         await using var app = await StartAsync();
         using var request = WithRefreshCookie(new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh"));
 
@@ -117,7 +117,7 @@ public sealed class SessionResponseTests
     [Fact]
     public async Task Refresh_WithTheTokenInTheBody_AnswersTheSessionWithTheNewRefreshTokenAsync()
     {
-        auth.RefreshAsync("the-old-refresh", Arg.Any<CancellationToken>()).Returns(AuthResult.Ok(Tokens));
+        auth.RefreshAsync("the-old-refresh", Arg.Any<CancellationToken>()).Returns(Tokens);
         await using var app = await StartAsync();
 
         using var response = await app.Client.PostAsJsonAsync(
@@ -131,7 +131,7 @@ public sealed class SessionResponseTests
     public async Task ChangePassword_WithTheRefreshCookie_AnswersTheSession_AndSetsNewSessionCookiesAsync()
     {
         auth.ChangePasswordAsync(Arg.Any<Guid>(), "OldPass1!", "NewPass1!", Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(Tokens));
+            .Returns(Tokens);
         await using var app = await StartAsync();
         using var request = WithRefreshCookie(ChangePassword());
 
@@ -146,7 +146,7 @@ public sealed class SessionResponseTests
     public async Task ChangePassword_WithoutTheRefreshCookie_AnswersTheSessionWithTheNewRefreshTokenAsync()
     {
         auth.ChangePasswordAsync(Arg.Any<Guid>(), "OldPass1!", "NewPass1!", Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(Tokens));
+            .Returns(Tokens);
         await using var app = await StartAsync();
         using var request = ChangePassword();
 
