@@ -27,7 +27,7 @@ public sealed class VideoProxyMiddlewareTests
             clock.GetCurrentInstant().Returns(Now);
             Clock = clock;
 
-            Generator.FileName.Returns("video_720p.mp4");
+            Generator.FileName.Returns("video.mp4");
             Generator.ProxyType.Returns(ProxyType.WebVideo);
             DirectoryStrategy.GetDirectory(Arg.Any<Guid>(), Arg.Any<string>()).Returns("ab/cd");
 
@@ -182,7 +182,7 @@ public sealed class VideoProxyMiddlewareTests
 
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
-        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video.mp4").Should().BeTrue();
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public sealed class VideoProxyMiddlewareTests
         await fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
 
         await fixture.Generator.Received(1).TranscodeAsync(
-            "/nas/video.mp4", $"/data/proxies/ab/cd/video_720p.mp4.{context.AttemptId:N}.tmp", Arg.Any<CancellationToken>());
+            "/nas/video.mp4", $"/data/proxies/ab/cd/video.mp4.{context.AttemptId:N}.tmp", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public sealed class VideoProxyMiddlewareTests
         var act = () => middleware.InvokeAsync(MakeContext(), NoOpNextAsync, cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
-        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video_720p.mp4").Should().BeTrue();
+        fixture.FileSystem.FileExists("/data/proxies/ab/cd/video.mp4").Should().BeTrue();
     }
 
     private static IVideoProxyGenerator CancellingGenerator(TestFixture fixture, CancellationTokenSource cts)

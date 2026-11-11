@@ -6,7 +6,7 @@ using NodaTime;
 
 namespace Anichron.Worker.Work;
 
-public sealed partial class WorkScheduler(
+public sealed class WorkScheduler(
     IWorkItemStore store,
     IEnumerable<IWorkScheduleSource> sources,
     IServiceScopeFactory scopeFactory,
@@ -15,6 +15,7 @@ public sealed partial class WorkScheduler(
     ILogger<WorkScheduler> logger) : BackgroundService
 {
     private readonly WorkerSettings settings = options.Value;
+    private readonly OutageLog outage = new(logger, "Scheduling work or recovering leases");
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
         => RecurringWork.RunAsync(
@@ -25,10 +26,11 @@ public sealed partial class WorkScheduler(
         try
         {
             await TickAsync(ct);
+            outage.Succeeded();
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            Log.TickFailed(logger, ex);
+            outage.Failed(ex);
         }
     }
 
@@ -46,11 +48,5 @@ public sealed partial class WorkScheduler(
                     await schedule.EnqueueAsync(queue, ct);
             }
         }
-    }
-
-    private static partial class Log
-    {
-        [LoggerMessage(Level = LogLevel.Error, Message = "Scheduling work or recovering leases failed; will retry at the next poll.")]
-        public static partial void TickFailed(ILogger logger, Exception ex);
     }
 }

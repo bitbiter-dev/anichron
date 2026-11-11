@@ -122,7 +122,7 @@ public sealed class MediaAssetRepositoryTests
     public async Task FindByHashesOrPathsAsync_ActiveRowOfAHash_ComesBackWithItsProxyRows()
     {
         var wanted = AssetAt(ConfigA, "cafe", "a.mov");
-        wanted.ProxyFiles = [new ProxyFile { Id = Guid.NewGuid(), ProxyType = ProxyType.WebVideo, ProxyPath = "ca/x/video_720p.mp4" }];
+        wanted.ProxyFiles = [new ProxyFile { Id = Guid.NewGuid(), ProxyType = ProxyType.WebVideo, ProxyPath = "ca/x/video.mp4" }];
 
         var result = await FindByHashesOrPathsAsync([wanted], ["beef", "cafe"], ["elsewhere.mov"]);
 
