@@ -6,8 +6,16 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-const visibleAttributes =
-  '/^(alt|title|placeholder|aria-label|aria-description|aria-placeholder|aria-roledescription|aria-valuetext)$/';
+const textAttributes = [
+  'title',
+  'placeholder',
+  'aria-label',
+  'aria-description',
+  'aria-placeholder',
+  'aria-roledescription',
+  'aria-valuetext',
+];
+const attributePattern = (names) => `/^(${names.join('|')})$/`;
 const networkGlobals = ['fetch', 'EventSource', 'XMLHttpRequest', 'WebSocket'];
 const onlyApi = (name) => ({
   name,
@@ -58,8 +66,9 @@ export default defineConfig([
       'no-restricted-syntax': [
         'error',
         ...[
-          `JSXAttribute[name.name=${visibleAttributes}] > Literal[value!=""]`,
-          `JSXAttribute[name.name=${visibleAttributes}] > JSXExpressionContainer > :matches(Literal, TemplateLiteral)`,
+          `JSXAttribute[name.name=${attributePattern(textAttributes)}] > Literal`,
+          `JSXAttribute[name.name="alt"] > Literal[value!=""]`,
+          `JSXAttribute[name.name=${attributePattern(['alt', ...textAttributes])}] > JSXExpressionContainer > :matches(Literal, TemplateLiteral)`,
         ].map((selector) => ({
           selector,
           message: 'A user-visible attribute takes its text from the catalog through t(...).',

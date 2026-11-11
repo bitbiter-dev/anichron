@@ -10,8 +10,10 @@ export function localDate(now = new Date()) {
     .slice(0, 10);
 }
 
+export const utcDay = (date: string) => new Date(`${date}T00:00:00Z`);
+
 export function isCalendarDate(text: string) {
-  const date = new Date(`${text}T00:00:00Z`);
+  const date = utcDay(text);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
 }
 
@@ -31,5 +33,5 @@ export const startGroup = (years: readonly YearGroup[], year: number | undefined
     years.findIndex((group) => group.year === year),
   );
 
-// Stryker disable once ArrowFunction,ObjectLiteral
+// Stryker disable next-line ArrowFunction,ObjectLiteral
 export const storySearch = (search: Record<string, unknown>) => ({ year: Number(search.year) });

@@ -7,7 +7,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
   const [{ snapshot, story }] = useState(() => ({
     snapshot: years,
     story: createStory(
-      years.map((group) => group.memories.length),
+      years.map((group) => group.memories.map((memory) => memory.proxies.preview !== null)),
       startGroup(years, year),
       close,
     ),

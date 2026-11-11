@@ -164,6 +164,62 @@ describe('a story playing', () => {
     expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
   });
 
+  it.each(['Video', 'LivePhoto'])(
+    'shows a %s as its preview for 5 s, like a photo',
+    async (mediaType) => {
+      years = [
+        yearGroup(
+          2025,
+          memory(ids.a2025, 2025, {
+            mediaType,
+            proxies: {
+              thumbnail: `proxies/${ids.a2025}/thumbnail?v=0123456789abcdef`,
+              preview: `proxies/${ids.a2025}/preview?v=0123456789abcdef`,
+              video: `proxies/${ids.a2025}/video?v=0123456789abcdef`,
+            },
+          }),
+          memory(ids.b2025, 2025),
+        ),
+      ];
+      await openStory('/day/2026-11-11?year=2025');
+
+      expect(story().querySelectorAll('img')).toHaveLength(1);
+      expect(story().querySelector('video')).toBeNull();
+      await shown();
+      await advance(4999);
+      expect(picture().getAttribute('src')).toBe(preview(ids.a2025));
+      await advance(1);
+      expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
+    },
+  );
+
+  it('shows a memory without a preview for 5 s from the moment it is on screen', async () => {
+    const bare = (id: string) =>
+      memory(id, 2025, { proxies: { thumbnail: null, preview: null, video: null } });
+    years = [
+      yearGroup(2025, bare(ids.a2025), memory(ids.b2025, 2025)),
+      yearGroup(2023, bare(ids.a2023)),
+      yearGroup(2021, memory(ids.a2021, 2021)),
+    ];
+    renderApp('/day/2026-11-11?year=2025');
+    await screen.findByRole('dialog', { name: storyName });
+    await vi.waitFor(() => {
+      expect(story().querySelectorAll('ol > li')).toHaveLength(2);
+    });
+    expect(picture()).toBeNull();
+
+    await advance(5000);
+    expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
+    await shown();
+    await advance(5000);
+    expect(picture()).toBeNull();
+    expect(within(story()).getByText('3 years ago · 2023')).toBeVisible();
+    await advance(4999);
+    expect(picture()).toBeNull();
+    await advance(1);
+    expect(picture().getAttribute('src')).toBe(preview(ids.a2021));
+  });
+
   it('counts a picture that loads but fails to decode as shown', async () => {
     await openStory('/day/2026-11-11?year=2025');
     vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(new Error('EncodingError'));
@@ -223,12 +279,18 @@ describe('a story playing', () => {
     const segment = (index: number) =>
       story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 
+    const states = () =>
+      [...story().querySelectorAll('ol > li > span')].map((span) =>
+        span.getAttribute('data-state'),
+      );
+    expect(states()).toEqual(['playing', 'next']);
     expect(segment(0).style.animationDuration).toBe('5000ms');
     expect(segment(0).style.animationPlayState).toBe('paused');
     await shown();
     expect(segment(0).style.animationPlayState).toBe('running');
     await advance(5000);
     expect(segment(1).style.animationPlayState).toBe('paused');
+    expect(states()).toEqual(['seen', 'playing']);
     await shown();
     await advance(5000);
     expect(segment(0).style.animationPlayState).toBe('paused');

@@ -4,12 +4,11 @@ import { X } from 'lucide-react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
-import { tv } from '../../shared/ui/tv';
-import { dayQuery, yearsAgo } from './day';
+import { dayQuery, utcDay, yearsAgo } from './day';
 import { dayView } from './day-view';
 import { Failed } from './Failed';
 import { ProxyImage } from './ProxyImage';
-import { memoryMilliseconds } from './story';
+import { memoryMilliseconds, segmentState } from './story';
 import { useStory } from './use-story';
 
 const story = getRouteApi('/signed-in/shell/on-this-day/day/$date');
@@ -29,7 +28,7 @@ export function StoryPage() {
       <Modal className="size-full">
         <Dialog
           aria-label={t('story.title', {
-            date: new Date(`${date}T00:00:00Z`),
+            date: utcDay(date),
             formatParams: { date: { dateStyle: 'long', timeZone: 'UTC' } },
           })}
           className="relative size-full text-on-player outline-none"
@@ -86,17 +85,6 @@ function Player({ date, year, years, close }: PlayerProps) {
   );
 }
 
-const segment = tv({
-  base: 'block h-full origin-left bg-on-player',
-  variants: {
-    state: {
-      seen: 'scale-x-100',
-      playing: 'animate-story-fill',
-      next: 'scale-x-0',
-    },
-  },
-});
-
 interface SegmentsProps {
   count: number;
   current: number;
@@ -113,9 +101,8 @@ function Segments({ count, current, running }: SegmentsProps) {
               animationDuration: `${String(memoryMilliseconds)}ms`,
               animationPlayState: running ? 'running' : 'paused',
             }}
-            className={segment({
-              state: index < current ? 'seen' : index === current ? 'playing' : 'next',
-            })}
+            data-state={segmentState(index, current)}
+            className="block h-full origin-left bg-on-player data-[state=next]:scale-x-0 data-[state=playing]:animate-story-fill data-[state=seen]:scale-x-100"
           />
         </li>
       ))}
