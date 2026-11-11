@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
-const secondsUntil = (deadline: number) => Math.ceil((deadline - Date.now()) / 1000);
+function secondsUntil(deadline: number) {
+  return Math.ceil((deadline - Date.now()) / 1000);
+}
 
 export function useCountdown(initialSeconds = 0) {
   const [deadline, setDeadline] = useState<number | undefined>(
