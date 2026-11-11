@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import './tokens.css';
+@import '../shared/ui/tokens.css';
 @import './base.css';
 @import './glass.css';
 

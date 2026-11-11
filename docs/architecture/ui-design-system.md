@@ -4,7 +4,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 ## Stack
 
-- **Tailwind CSS v4** with `tailwind-variants`. Components take `tv` from `src/shared/ui/tv.ts`; its tailwind-merge config knows the size and radius tokens, which it would otherwise misread as colours.
+- **Tailwind CSS v4** with `tailwind-variants`. Components take `tv` from `src/shared/ui/tv.ts`; its tailwind-merge config reads the size and radius tokens from `tokens.css`, which it would otherwise misread as colours.
 - **React Aria Components** for every interactive control. Its strings are cut to the app's languages (`@react-aria/optimize-locales-plugin`), so a new language is added there and to the catalog.
 - **Icons:** `lucide-react`, one import per icon. A meaningful icon gets a label from the catalog; a decorative one is `aria-hidden`.
 - **Fonts:** the system font stack.
@@ -19,7 +19,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 ## Tokens
 
-- **Primitives** (`--neutral-*`, `--accent-*`, …) are plain CSS variables in `src/app/tokens.css`. No utility class reads them.
+- **Primitives** (`--neutral-*`, `--accent-*`, …) are plain CSS variables in `src/shared/ui/tokens.css`. No utility class reads them.
 - **Semantic tokens** are the only ones registered with Tailwind (`surface`, `fg`, `accent`, `danger`, `focus`, `player`, …). Tailwind's default palette is cleared, so an off-palette class generates nothing.
 - Radius and type size follow the same split. Spacing keeps Tailwind's scale.
 - A new kind of colour starts as a semantic token with a value for each theme.
