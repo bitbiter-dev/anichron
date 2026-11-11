@@ -4,18 +4,18 @@ FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS base
 WORKDIR /app
 ARG TARGETARCH
 
-# intel-media-va-driver-non-free does not exist in arm64 apt repos; skip it there.
-# OpenCvSharp's native library needs libtesseract and libwebpdemux on arm64, libatomic on amd64 (ADR 0009).
+# OpenCvSharp's native library needs GTK 3 on both architectures, libtesseract and libwebpdemux on arm64, libatomic on amd64 (ADR 0009).
+# Intel QuickSync needs the iHD VA driver and the oneVPL runtime; neither exists in the arm64 apt repos.
 # TARGETARCH is injected automatically by BuildKit.
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         libexif12 \
+        libgtk-3-0t64 \
     && if [ "$TARGETARCH" = "arm64" ]; then \
          apt-get install -y --no-install-recommends libtesseract5 libwebpdemux2; \
        fi \
     && if [ "$TARGETARCH" = "amd64" ]; then \
-         apt-get install -y --no-install-recommends libatomic1 \
-         && apt-get install -y intel-media-va-driver-non-free vainfo; \
+         apt-get install -y --no-install-recommends libatomic1 intel-media-va-driver-non-free libmfx-gen1.2; \
        fi \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,19 +46,19 @@ RUN --mount=type=secret,id=sixlabors_license,env=SixLaborsLicenseKey \
     dotnet build "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # 3. Publish Stage
-# The publish output carries OpenCV's and Magick.NET's native libraries for every platform; keep only the target's.
+# The publish output carries native libraries for every platform; keep only the target's runtimes folder.
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 ARG TARGETARCH
 RUN --mount=type=secret,id=sixlabors_license,env=SixLaborsLicenseKey \
     dotnet publish "./Anichron.Worker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false \
     && case "$TARGETARCH" in \
-         amd64) unused=linux-arm64 ;; \
-         arm64) unused=linux-x64 ;; \
+         amd64) target=linux-x64 ;; \
+         arm64) target=linux-arm64 ;; \
          *) echo "unsupported TARGETARCH '$TARGETARCH'" >&2; exit 1 ;; \
        esac \
-    && rm -r /app/publish/runtimes/osx-arm64 /app/publish/runtimes/win-* /app/publish/runtimes/linux-musl-x64 \
-         "/app/publish/runtimes/$unused"
+    && test -d "/app/publish/runtimes/$target" \
+    && find /app/publish/runtimes -mindepth 1 -maxdepth 1 ! -name "$target" -exec rm -r {} +
 
 # 4. Final Stage
 FROM base AS final

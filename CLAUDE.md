@@ -100,11 +100,11 @@ Mutants that flip between runs:
 ## The UI (`src/Anichron.UI`)
 
 - **Commands** are the `package.json` scripts, run from `src/Anichron.UI`. `pnpm dev` proxies `/api` to `http://localhost:5207`.
-- **API contract change** (an `ErrorCodes` constant included): run `scripts/derive-openapi.sh`, then `pnpm openapi`; CI fails on a stale `src/api/generated/v1.ts`. A screen's error messages are keyed by `ErrorCode` (`src/api/problem.ts`).
+- **API contract change** (an `ErrorCodes` constant included): run `scripts/derive-openapi.sh`, then `pnpm openapi`; CI fails on a stale `src/api/generated/v1.ts`. A screen's error messages are keyed by the server's `ErrorCode` and the client's `ValidationCode` (`src/api/problem.ts`).
 - **Hooks:** a commit with a UI file runs prettier and ESLint on the staged files, and `typecheck` (incremental) and `depcruise` on the whole project. A push runs `scripts/ui-pre-push.sh`.
 - **CI:** `UI` runs all of them, plus the scoped mutation run and the bundle budget (`.size-limit.js`, over what `index.html` loads; a PR that raises a limit says why). `E2E` runs `pnpm e2e` against the PR's API image. Locally, build `anichron-api:e2e` and start `src/docker-compose.e2e.yml` (its header has the commands).
 
-**Session:** before any route renders, the app refreshes once and holds the session, its user included, in memory. `src/api/session.ts` keeps it alive with one single-flight refresh: on a schedule, on becoming visible, and on a `401` before retrying. Only a `401` from refresh signs out; any other failed start shows `src/app/StartFailed.tsx`. Data calls live apart, one module per area (`docs/architecture/ui-api.md`).
+**Session:** before any route renders, the app refreshes once and holds the session and user in memory. `src/api/session.ts` renews it with one single-flight refresh on a schedule and when visible again. A `401` from refresh signs out; a `401` from logout refreshes and retries once. Other failed starts show `src/app/StartFailed.tsx`. Data calls live apart, one module per area (`docs/architecture/ui-api.md`).
 
 **Tabs:** login, refresh and logout run under one Web Lock, and signing in or out is announced on a `BroadcastChannel`, so every other tab starts again or signs out. Both go through the port in `src/api/tabs.ts`, composed in `main.tsx`; tests use `src/test/tabs.ts`.
 
@@ -146,7 +146,7 @@ Mutants that flip between runs:
 - **The Worker is the only writer of media data** (`MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, `BurstCheck`, reconciliation, soft-deletes).
   - The API never touches `AnichronDbContext` outside DI wiring (`api-reaches-data-through-repositories`, `only-worker-writes-media`).
   - The one exception: `AssetInteraction`, written by the API through `IAssetInteractionWriter` (plain records in and out). It checks only `VisibleTo`, never `NotHiddenFor`, so a hidden asset can be unhidden. A first write that loses the `(UserId, AssetId)` race reloads and reapplies once.
-- **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exception: the Worker's `TokenCleanup` handler deletes expired refresh tokens.
+- **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exceptions: refresh rotation runs its own transaction (`EfRefreshTokenRepository.RotateAsync`, ADR 0017), and the Worker's `TokenCleanup` handler deletes expired refresh tokens.
 - **Work items** are inserted only through `IWorkQueue`. The API's only other write to them is an admin's cancel (`IWorkItemCanceller`). Handlers live only in the Worker (`work-queue.md`). Raw SQL naming the table is beyond the architecture rules and is for review.
 - **Proxy orphans** are written only by the Worker (`only-worker-writes-proxy-orphans`).
 - Both hosts migrate at startup under a PostgreSQL advisory lock.

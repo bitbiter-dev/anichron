@@ -146,15 +146,29 @@ describe('the bottom bar while scrolling', () => {
 });
 
 describe('a screen below Home', () => {
-  it('has a top bar with its title and a back control, and no bottom bar', async () => {
+  it('has a top bar with its title and a back control, and the bottom bar', async () => {
     const { router, container } = await openHome();
 
     await openSettings(router);
 
     expect(screen.getByRole('banner')).toHaveTextContent('Settings');
     expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Back' })).toBeVisible();
-    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(within(bar()).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(bar()).getByRole('link', { name: 'Today' })).not.toHaveAttribute('aria-current');
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('leads back to Home through the bottom bar', async () => {
+    const { router } = await openHome();
+    await openSettings(router);
+
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Today' }));
+
+    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(router.state.location.pathname).toBe('/');
   });
 
   it('goes back in history when it was opened from Home', async () => {

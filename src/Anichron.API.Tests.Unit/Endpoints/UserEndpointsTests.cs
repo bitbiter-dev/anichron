@@ -138,7 +138,7 @@ public sealed class UserEndpointsTests
         var mapper = Substitute.For<IAuthResponseMapper>();
         authService.ChangePasswordAsync(userId, ValidRequest.CurrentPassword, ValidRequest.NewPassword, Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
-        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>(), Arg.Any<bool>())
+        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>())
             .Returns(Results.NoContent());
 
         await UserEndpoints.ChangePasswordAsync(
@@ -158,7 +158,7 @@ public sealed class UserEndpointsTests
         var expectedResult = Results.NoContent();
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
-        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>(), Arg.Any<bool>())
+        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>())
             .Returns(expectedResult);
 
         var result = await UserEndpoints.ChangePasswordAsync(
@@ -182,7 +182,7 @@ public sealed class UserEndpointsTests
         var expectedResult = Results.Problem(statusCode: 400);
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(failureResult);
-        mapper.GetChangePasswordResult(failureResult, Arg.Any<HttpContext>(), false)
+        mapper.GetChangePasswordResult(failureResult, Arg.Any<HttpContext>())
             .Returns(expectedResult);
 
         var result = await UserEndpoints.ChangePasswordAsync(
@@ -190,6 +190,6 @@ public sealed class UserEndpointsTests
             CancellationToken.None);
 
         result.Should().BeSameAs(expectedResult);
-        mapper.Received(1).GetChangePasswordResult(failureResult, Arg.Any<HttpContext>(), false);
+        mapper.Received(1).GetChangePasswordResult(failureResult, Arg.Any<HttpContext>());
     }
 }

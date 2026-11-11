@@ -50,7 +50,7 @@ public static class UserEndpoints
             return Results.Unauthorized();
 
         var result = await auth.ChangePasswordAsync(userId, req.CurrentPassword, req.NewPassword, ct);
-        return mapper.GetChangePasswordResult(result, http, AuthEndpoints.CameWithRefreshCookie(http));
+        return mapper.GetChangePasswordResult(result, http);
     }
 }
 

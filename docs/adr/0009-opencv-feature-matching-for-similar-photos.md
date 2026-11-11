@@ -22,8 +22,8 @@ Burst detection compares the stored thumbnails of neighbouring frames with OpenC
 
 ## Consequences
 
-- The Worker image carries a large native library. The publish stage deletes the other platforms' copies.
-- The native library needs `libatomic1` on amd64, and `libtesseract5` and `libwebpdemux2` on arm64.
+- The Worker image carries a large native library. The publish stage keeps only the target platform's copy.
+- The native library needs GTK 3 (`libgtk-3-0t64`) on both architectures, `libatomic1` on amd64, and `libtesseract5` and `libwebpdemux2` on arm64.
 - Only `OrbThumbnailMatcher` touches OpenCV (`opencv-stays-in-the-matcher`). Callers see `IThumbnailMatcher`.
 - Tests assert which side of the threshold a score falls on, never its exact value.
 - A changed threshold applies only to photos checked from then on.

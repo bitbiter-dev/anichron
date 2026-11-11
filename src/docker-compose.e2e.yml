@@ -14,22 +14,31 @@
 
 services:
   anichron-db:
-    image: postgres:17-alpine
+    extends:
+      file: docker-compose.yml
+      service: anichron-db
+    container_name: !reset null
+    restart: !reset null
     environment:
-      POSTGRES_USER: anichron_e2e
-      POSTGRES_PASSWORD: anichron_e2e
-      POSTGRES_DB: anichron
+      - POSTGRES_USER=anichron_e2e
+      - POSTGRES_PASSWORD=anichron_e2e
+    volumes: !reset []
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U anichron_e2e -d anichron"]
       interval: 2s
-      timeout: 5s
       retries: 30
 
   anichron-api:
+    extends:
+      file: docker-compose.yml
+      service: anichron-api
     image: ${E2E_API_IMAGE:-anichron-api:e2e}
-    environment:
+    container_name: !reset null
+    restart: !reset null
+    ports: !reset []
+    environment: !override
       - ASPNETCORE_ENVIRONMENT=Production
       - POSTGRES_CONNECTION__HOST=anichron-db
       - POSTGRES_CONNECTION__DBNAME=anichron
@@ -42,14 +51,11 @@ services:
       - BOOTSTRAP_ADMIN_PASSWORD=end-to-end bootstrap passphrase
       - RateLimit__SensitivePermitLimit=10000
       - RateLimit__RefreshPermitLimit=10000
+    volumes: !reset []
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
       interval: 2s
-      timeout: 5s
       retries: 30
-    depends_on:
-      anichron-db:
-        condition: service_healthy
+      start_period: !reset null
 
   anichron-tls:
     image: caddy:2.10-alpine

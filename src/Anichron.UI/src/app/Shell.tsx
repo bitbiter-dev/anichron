@@ -6,10 +6,10 @@ import { TopBar } from './TopBar';
 export function Shell() {
   const screen = useScreen();
   return (
-    <div className={screen ? 'mx-auto min-h-dvh max-w-5xl' : 'mx-auto min-h-dvh max-w-5xl pb-24'}>
+    <div className="mx-auto min-h-dvh max-w-5xl pb-24">
       {screen && <TopBar {...screen} />}
       <Outlet />
-      {!screen && <BottomBar />}
+      <BottomBar />
     </div>
   );
 }

@@ -4,7 +4,15 @@ import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import browserslistToEsbuild from 'browserslist-to-esbuild';
 import { build, type Plugin } from 'vite';
+import { readdirSync } from 'node:fs';
+import { basename } from 'node:path';
 import { defineConfig } from 'vitest/config';
+
+function catalogLocales() {
+  return readdirSync(new URL('src/i18n/locales', import.meta.url)).map((file) =>
+    basename(file, '.json'),
+  );
+}
 
 function themeInitInDev(): Plugin {
   return {
@@ -31,7 +39,7 @@ function themeInitInDev(): Plugin {
 
 export default defineConfig({
   plugins: [
-    optimizeLocales.vite({ locales: ['en', 'de'] }),
+    optimizeLocales.vite({ locales: catalogLocales() }),
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),

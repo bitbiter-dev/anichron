@@ -1,8 +1,6 @@
-using Anichron.Core.Domain;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.IO.Abstractions;
 
@@ -11,8 +9,7 @@ namespace Anichron.Worker.Ingestion.Middlewares;
 internal sealed partial class ImageProxyMiddleware(
     IEnumerable<IImageProxyGenerator> generators,
     BlurhashEncoder blurhashEncoder,
-    IUprightImageDecoder decoder,
-    IVideoFrameExtractor frameExtractor,
+    IUprightImageSource imageSource,
     IProxyDirectoryStrategy proxyDirectoryStrategy,
     ProxyStagingWriter stagingWriter,
     IFileSystem fileSystem,
@@ -25,7 +22,7 @@ internal sealed partial class ImageProxyMiddleware(
     {
         // Ordering guarantees ContentHashingMiddleware ran first; suppression is safe.
         var proxyDirectoryName = proxyDirectoryStrategy.GetDirectory(context.Config.Id, context.ContentHash!);
-        using var image = await DecodeUprightAsync(context.Item, ct);
+        using var image = await imageSource.LoadAsync(context.Item, ct);
 
         var proxySteps = generators
             .Select(g => new Step(g.Bound, () => WriteProxyAsync(g)))
@@ -68,13 +65,6 @@ internal sealed partial class ImageProxyMiddleware(
             using var copy = image.Clone();
             context.Blurhash = await blurhashEncoder.EncodeAsync(copy, ct);
         }
-    }
-
-    private async Task<Image<Rgb24>> DecodeUprightAsync(IngestionItem item, CancellationToken ct)
-    {
-        if (item.PrimaryMediaType == MediaType.Video)
-            return await frameExtractor.ExtractAsync(item.AbsolutePath, ct);
-        return await decoder.DecodeAsync(await fileSystem.File.ReadAllBytesAsync(item.AbsolutePath, ct), ct);
     }
 
     private sealed record Step(ProxyBound Bound, Func<Task> RunAsync);

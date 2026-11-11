@@ -1,7 +1,9 @@
 import { z } from 'zod/mini';
 import type { components } from './generated/v1';
 
-export type ErrorCode = components['schemas']['ErrorCode'] | 'required';
+export type ErrorCode = components['schemas']['ErrorCode'];
+
+export type ValidationCode = 'required';
 
 export interface Problem {
   code: string | undefined;

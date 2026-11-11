@@ -26,6 +26,6 @@ Reconsider FFmpeg once the distro's FFmpeg merges tile grids.
 - **Recognised by bytes:** an ISO-BMFF `ftyp` box with major brand `heic`, `heix` or `mif1` goes to `MagickHeifDecoder`. Everything else, AVIF included, goes to ImageSharp.
 - **Upright exactly once:** libheif applies the container's `irot`/`imir`, which wins over EXIF. `AutoOrient` stays on the ImageSharp path.
 - **Colour** is handled as for JPEG: the ICC profile is carried onto the proxies, not applied, and the HDR gain map is ignored.
-- A large native library in the Worker image. The publish stage deletes the other platforms' copies, and no extra package is needed.
+- A large native library in the Worker image. The publish stage keeps only the target platform's copy, and no extra package is needed.
 - libheif and libde265 are LGPL-3.0. Shipping the HEVC decoder was accepted by the maintainer.
 - Only `MagickHeifDecoder` touches Magick.NET (`magick-stays-in-the-decoder`). Callers see `IUprightImageDecoder`.
