@@ -38,9 +38,9 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays outside it.
 
-- **Home** has the bottom bar: a floating glass pill above `env(safe-area-inset-bottom)` (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
+- **Every screen** has the bottom bar: a floating glass pill above `env(safe-area-inset-bottom)` (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
 - **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.
-- **Every other screen** has the top bar instead: a back control and its title, from the route's `staticData.screen` (title key and parent path) in `router.tsx`.
+- **Every screen below Home** also has the top bar: a back control and its title, from the route's `staticData.screen` (title key and parent path) in `router.tsx`.
 - **Back rule** (`back.ts`): when the previous history entry is the parent, back goes back in history; otherwise it replaces the current entry with the parent. So the back control, Android's back button and Safari's edge swipe agree.
 - On wide screens the same layout is centred at a readable width (`Shell.tsx`).
 
