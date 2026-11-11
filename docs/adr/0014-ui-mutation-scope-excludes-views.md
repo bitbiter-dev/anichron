@@ -30,7 +30,11 @@ Starts from `src/**/*.ts`. Every other entry is listed here, and `scripts/ui-mut
 
 ### Individual sites (`// Stryker disable`)
 
-None yet. A directive needs a row naming its file and the ADR 0005 proof: no input tells the mutant apart, and no rewrite removes the branch.
+A directive needs a row naming its file and the ADR 0005 proof: no input tells the mutant apart, and no rewrite removes the branch.
+
+| File | Site | Proof |
+| --- | --- | --- |
+| `src/features/on-this-day/day.ts` | `storySearch` (`ArrowFunction`, `ObjectLiteral`) | The router keeps the root's parsed search, so the story reads `year` whatever the validator returns, and `startGroup` opens any unknown year at the first group. TanStack types a route's search only through `validateSearch`, so every form of it keeps the same equivalent mutants. |
 
 ## Consequences
 

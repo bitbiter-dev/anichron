@@ -2,7 +2,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { expectAccessible } from './accessibility';
 import { createAccount } from './accounts';
 
-const signedIn = "You're signed in. Your photo library is on its way.";
+const signedIn = { level: 1, name: 'On This Day' } as const;
 const pageErrors: string[] = [];
 const pages: Page[] = [];
 
@@ -43,17 +43,17 @@ test('two tabs reload together and both stay signed in, until one signs out', as
   await first.getByLabel('Username or email').fill(account.username);
   await first.getByLabel('Password').fill(account.password);
   await first.getByRole('button', { name: 'Sign in' }).click();
-  await expect(first.getByText(signedIn)).toBeVisible();
+  await expect(first.getByRole('heading', signedIn)).toBeVisible();
   await second.goto('/');
-  await expect(second.getByText(signedIn)).toBeVisible();
+  await expect(second.getByRole('heading', signedIn)).toBeVisible();
 
   await Promise.all([first.reload(), second.reload()]);
-  await expect(first.getByText(signedIn)).toBeVisible();
-  await expect(second.getByText(signedIn)).toBeVisible();
+  await expect(first.getByRole('heading', signedIn)).toBeVisible();
+  await expect(second.getByRole('heading', signedIn)).toBeVisible();
 
   await Promise.all([first.reload(), second.reload()]);
-  await expect(first.getByText(signedIn)).toBeVisible();
-  await expect(second.getByText(signedIn)).toBeVisible();
+  await expect(first.getByRole('heading', signedIn)).toBeVisible();
+  await expect(second.getByRole('heading', signedIn)).toBeVisible();
   await expectAccessible(second);
 
   await first.getByRole('link', { name: 'Settings' }).click();

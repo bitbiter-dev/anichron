@@ -13,7 +13,7 @@ type Schemas = components['schemas'];
 export type LoginRequest = Schemas['LoginRequest'];
 export type User = Schemas['UserProfileResponse'];
 
-interface Call<T> {
+export interface Call<T> {
   data?: T;
   error?: unknown;
   response: Response;
@@ -21,8 +21,15 @@ interface Call<T> {
 
 type Answer<T> = { status?: number } & ({ ok: true; data: T } | { ok: false; problem: Problem });
 
+export type Authorized = <T>(
+  call: (init: { headers: { Authorization: string } }) => Promise<Call<T>>,
+) => Promise<T>;
+
+export class SessionNotRenewed extends ProblemError {}
+
 export interface Session {
   restore(): Promise<void>;
+  renew(): Promise<void>;
   login(request: LoginRequest): Promise<void>;
   logout(): Promise<void>;
   user: () => User | undefined;
@@ -52,7 +59,10 @@ async function send<T>(call: () => Promise<Call<T>>): Promise<Answer<T>> {
   }
 }
 
-export function createSession(client: Client<paths>, tabs: Tabs): Session {
+export function createSession(
+  client: Client<paths>,
+  tabs: Tabs,
+): { session: Session; authorized: Authorized } {
   let accessToken = '';
   let user: User | undefined;
   let renewAt = Infinity;
@@ -107,6 +117,23 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
     return refreshing;
   }
 
+  async function authorized<T>(
+    call: (init: { headers: { Authorization: string } }) => Promise<Call<T>>,
+  ) {
+    const sentWith = accessToken;
+    const withBearer = () =>
+      send(() => call({ headers: { Authorization: `Bearer ${accessToken}` } }));
+    let answer = await withBearer();
+    if (answer.status === 401) {
+      const renewed = accessToken === sentWith ? await refresh() : { ok: true as const };
+      if (!renewed.ok) throw new SessionNotRenewed(renewed.problem);
+      answer = await withBearer();
+      if (answer.status === 401) end();
+    }
+    if (!answer.ok) throw new ProblemError(answer.problem);
+    return answer.data;
+  }
+
   function endOnServer() {
     return send(() =>
       tabs.exclusively(() =>
@@ -129,7 +156,7 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
     'signed-out': end,
   };
 
-  return {
+  const session: Session = {
     restore() {
       restored ??= refresh().then((answer) => {
         if (answer.ok || answer.status === 401) return;
@@ -137,6 +164,9 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
         throw new ProblemError(answer.problem);
       });
       return restored;
+    },
+    async renew() {
+      await refresh();
     },
     async login(body) {
       const answer = await tabs.exclusively(() =>
@@ -168,4 +198,5 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
       };
     },
   };
+  return { session, authorized };
 }

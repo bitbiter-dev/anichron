@@ -71,6 +71,7 @@
   --color-backdrop-warm: light-dark(var(--peach-200), var(--peach-800));
   --color-backdrop-cool: light-dark(var(--blue-100), var(--blue-800));
   --color-player: var(--black);
+  --color-on-player: var(--neutral-0);
 
   --radius-*: initial;
   --radius-field: 0.75rem;
@@ -85,4 +86,6 @@
   --text-title--line-height: 2rem;
 
   --default-transition-duration: var(--duration-fast);
+
+  --animate-story-fill: story-fill linear forwards;
 }

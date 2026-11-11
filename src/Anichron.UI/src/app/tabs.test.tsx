@@ -10,6 +10,7 @@ import {
   problemResponse,
   refreshRespondsWith,
 } from '../test/handlers/auth';
+import { everyoneHasMemories, memoriesOf } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 import { sharedTabs } from '../test/tabs';
@@ -26,7 +27,6 @@ const users = new Map([
   ['mira', miraSession.user],
   ['noor', noor],
 ]);
-const greeting = (username: string) => `Signed in as ${username}.`;
 const loginHeading = { level: 1, name: 'Sign in to Anichron' } as const;
 const unreachableHeading = { level: 1, name: "Can't reach Anichron" } as const;
 
@@ -84,6 +84,7 @@ function openTabs(firstPath: string, secondPath: string) {
 }
 
 beforeEach(() => {
+  server.use(everyoneHasMemories());
   signedIn = 'mira';
   events = [];
 });
@@ -98,7 +99,7 @@ describe('two tabs of one browser', () => {
 
     await advance(1000);
     expect(events).toEqual(['refresh 1 sent', 'refresh 1 answered', 'refresh 2 sent']);
-    expect(await first.findByText(greeting('mira'))).toBeVisible();
+    expect(await first.findByRole('link', memoriesOf('mira'))).toBeVisible();
 
     await advance(1000);
     expect(events).toEqual([
@@ -107,7 +108,7 @@ describe('two tabs of one browser', () => {
       'refresh 2 sent',
       'refresh 2 answered',
     ]);
-    expect(await second.findByText(greeting('mira'))).toBeVisible();
+    expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
   });
 
   it('are both signed out when one signs out', async () => {
@@ -118,13 +119,13 @@ describe('two tabs of one browser', () => {
     );
     const [first, second] = openTabs('/settings', '/');
     expect(await first.findByRole('button', { name: 'Sign out' })).toBeVisible();
-    expect(await second.findByText(greeting('mira'))).toBeVisible();
+    expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
 
     fireEvent.click(first.getByRole('button', { name: 'Sign out' }));
 
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
     expect(await second.findByRole('heading', loginHeading)).toBeVisible();
-    expect(second.queryByText(greeting('mira'))).toBeNull();
+    expect(second.queryByRole('link', memoriesOf('mira'))).toBeNull();
     expect(logouts).toBe(1);
   });
 
@@ -139,21 +140,21 @@ describe('two tabs of one browser', () => {
     const [first, second] = openTabs('/login', '/');
     await advance(2000);
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
-    expect(await second.findByText(greeting('mira'))).toBeVisible();
+    expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
     events = [];
 
     fireEvent.change(first.getByLabelText('Username or email'), { target: { value: 'noor' } });
     fireEvent.change(first.getByLabelText('Password'), { target: { value: 'hunter2' } });
     fireEvent.click(first.getByRole('button', { name: 'Sign in' }));
-    expect(await first.findByText(greeting('noor'))).toBeVisible();
+    expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
 
     await advance(500);
     expect(events).toEqual(['refresh 3 sent']);
-    expect(second.queryByText(greeting('mira'))).toBeNull();
-    expect(second.queryByText(greeting('noor'))).toBeNull();
+    expect(second.queryByRole('link', memoriesOf('mira'))).toBeNull();
+    expect(second.queryByRole('link', memoriesOf('noor'))).toBeNull();
 
     await advance(500);
-    expect(await second.findByText(greeting('noor'))).toBeVisible();
+    expect(await second.findByRole('link', memoriesOf('noor'))).toBeVisible();
   });
 
   it('take a tab on the login screen into the app when the other signs in', async () => {
@@ -164,8 +165,8 @@ describe('two tabs of one browser', () => {
 
     signInAsNoor(first);
 
-    expect(await first.findByText(greeting('noor'))).toBeVisible();
-    expect(await second.findByText(greeting('noor'))).toBeVisible();
+    expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
+    expect(await second.findByRole('link', memoriesOf('noor'))).toBeVisible();
     expect(second.queryByRole('heading', loginHeading)).toBeNull();
   });
 
@@ -173,11 +174,11 @@ describe('two tabs of one browser', () => {
     server.use(refreshTakes(0, new Set([1]), new Set([3])), noorSignsIn());
     const [first, second] = openTabs('/login', '/');
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
-    expect(await second.findByText(greeting('mira'))).toBeVisible();
+    expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
     events = [];
 
     signInAsNoor(first);
-    expect(await first.findByText(greeting('noor'))).toBeVisible();
+    expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     expect(await second.findByRole('heading', unreachableHeading)).toBeVisible();
 
     await advance(60_000);
@@ -195,14 +196,14 @@ describe('two tabs of one browser', () => {
     );
     const [first, second] = openTabs('/login', '/');
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
-    expect(await second.findByText(greeting('mira'))).toBeVisible();
+    expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
     second.unmount();
     events = [];
 
     fireEvent.change(first.getByLabelText('Username or email'), { target: { value: 'noor' } });
     fireEvent.change(first.getByLabelText('Password'), { target: { value: 'hunter2' } });
     fireEvent.click(first.getByRole('button', { name: 'Sign in' }));
-    expect(await first.findByText(greeting('noor'))).toBeVisible();
+    expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     await advance(1000);
 
     expect(events).toEqual([]);

@@ -13,6 +13,7 @@ const text = [
     ['danger', surface],
   ]),
   ['on-accent', 'accent'],
+  ['on-player', 'player'],
 ];
 const nonText = surfaces.flatMap((surface) => [
   ['focus', surface],
@@ -40,6 +41,7 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
       'fg-muted',
       'focus',
       'on-accent',
+      'on-player',
       'player',
       'surface',
       'surface-raised',

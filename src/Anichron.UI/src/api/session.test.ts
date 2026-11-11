@@ -9,7 +9,7 @@ import { createSession } from './session';
 describe('a session listener', () => {
   it('hears about a new session until it stops listening', async () => {
     server.use(loginSucceeds());
-    const session = createSession(
+    const { session } = createSession(
       createClient<paths>({ baseUrl: location.origin }),
       sharedTabs().tab(),
     );

@@ -6,13 +6,12 @@ import { refreshSucceeds } from '../test/handlers/auth';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
-const signedIn = "You're signed in. Your photo library is on its way.";
-const greeting = 'Signed in as mira.';
+const signedIn = { level: 1, name: 'On This Day' } as const;
 
 async function openHome() {
   server.use(refreshSucceeds());
   const rendered = renderApp('/');
-  expect(await screen.findByText(signedIn)).toBeVisible();
+  expect(await screen.findByRole('heading', signedIn)).toBeVisible();
   return rendered;
 }
 
@@ -168,7 +167,7 @@ describe('a screen below Home', () => {
 
     fireEvent.click(within(bar()).getByRole('link', { name: 'Today' }));
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(router.state.location.pathname).toBe('/');
   });
 
@@ -178,7 +177,7 @@ describe('a screen below Home', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(router.state.location.pathname).toBe('/');
     expect(router.history.canGoBack()).toBe(false);
   });
@@ -190,8 +189,7 @@ describe('a screen below Home', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
-    expect(await screen.findByText(greeting)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(router.history.length).toBe(1);
     expect(router.history.canGoBack()).toBe(false);
   });
@@ -201,13 +199,12 @@ describe('a screen below Home', () => {
     const { router } = renderApp('/settings');
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     await openSettings(router);
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
-    expect(await screen.findByText(greeting)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(router.history.canGoBack()).toBe(false);
   });
 });

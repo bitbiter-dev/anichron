@@ -3,14 +3,14 @@ import { expectAccessible } from './accessibility';
 import { createAccount, type Account } from './accounts';
 import { surface } from './surfaces';
 
-const signedIn = "You're signed in. Your photo library is on its way.";
+const signedIn = { level: 1, name: 'On This Day' } as const;
 
 async function signIn(page: Page, account: Account) {
   await page.goto('/login');
   await page.getByLabel('Username or email').fill(account.username);
   await page.getByLabel('Password').fill(account.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page.getByRole('heading', signedIn)).toBeVisible();
 }
 
 test('the start-up theme script is served unhashed and never cached stale', async ({ request }) => {
@@ -41,7 +41,7 @@ test('a stored Dark choice paints dark from the first frame on a light device', 
 
   await page.reload();
 
-  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page.getByRole('heading', signedIn)).toBeVisible();
   expect(await page.evaluate(() => Reflect.get(window, 'firstFrame') as unknown)).toEqual({
     theme: 'dark',
     background: surface.dark,

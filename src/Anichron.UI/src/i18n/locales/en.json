@@ -1,8 +1,16 @@
 {
-  "placeholder": {
-    "title": "Anichron",
-    "body": "You're signed in. Your photo library is on its way.",
-    "greeting": "Signed in as {{username}}."
+  "onThisDay": {
+    "title": "On This Day",
+    "yearsAgo_one": "{{count}} year ago · {{year}}",
+    "yearsAgo_other": "{{count}} years ago · {{year}}",
+    "nothing": "Nothing from this day in earlier years",
+    "unreachable": "Can't reach Anichron. Check your connection.",
+    "failed": "Couldn't load this day.",
+    "retry": "Try again"
+  },
+  "story": {
+    "title": "Memories of {{date, datetime}}",
+    "close": "Close"
   },
   "login": {
     "title": "Sign in to Anichron",
@@ -48,5 +56,10 @@
     "retry": "Retry"
   },
   "retryIn_one": "You can try again in {{count}} second.",
-  "retryIn_other": "You can try again in {{count}} seconds."
+  "retryIn_other": "You can try again in {{count}} seconds.",
+  "notFound": {
+    "title": "Page not found",
+    "body": "There is nothing at this address.",
+    "home": "Go to On This Day"
+  }
 }

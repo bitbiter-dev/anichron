@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { expectAccessible } from './accessibility';
 import { createAccount, disable, lockOut } from './accounts';
 
-const signedIn = "You're signed in. Your photo library is on its way.";
+const signedIn = { level: 1, name: 'On This Day' } as const;
 const pageErrors: string[] = [];
 
 test.beforeEach(async ({ page }) => {
@@ -37,12 +37,12 @@ test('a user signs in, lands on the signed-in page and stays signed in across a 
 
   await signIn(page, account.username, account.password);
 
-  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page.getByRole('heading', signedIn)).toBeVisible();
   await expect(page).toHaveURL('/');
   await expectAccessible(page);
 
   await page.reload();
-  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page.getByRole('heading', signedIn)).toBeVisible();
   await expect(page).toHaveURL('/');
 });
 
@@ -58,7 +58,7 @@ test('a signed-out visitor signs in and returns to the requested page', async ({
   await page.getByLabel('Password').fill(account.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page.getByRole('heading', signedIn)).toBeVisible();
   await expect(page).toHaveURL('/?from=link');
   await page.goto('/login');
   await expect(page).toHaveURL('/');
@@ -105,5 +105,5 @@ test('a locked account counts down, then signs in', async ({ page, request }) =>
   await expect(page.getByText(/You can try again/)).toBeHidden();
   await submit.click();
 
-  await expect(page.getByText(signedIn)).toBeVisible();
+  await expect(page.getByRole('heading', signedIn)).toBeVisible();
 });

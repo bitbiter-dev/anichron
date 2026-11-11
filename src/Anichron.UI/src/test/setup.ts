@@ -38,5 +38,12 @@ afterAll(() => {
   server.close();
 });
 
+// jsdom decodes no images; a test fires `load` or `error` on the <img> itself.
+Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+  value: () => Promise.resolve(),
+  configurable: true,
+  writable: true,
+});
+
 // jsdom has no scrolling; the router restores the scroll position on every navigation.
 Object.defineProperty(window, 'scrollTo', { value: () => undefined });
