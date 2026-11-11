@@ -113,7 +113,7 @@ describe('signing out', () => {
     signOut();
     expect(await findLoginHeading()).toBeVisible();
 
-    await act(() => vi.advanceTimersByTimeAsync(Number(miraSession.expiresIn) * 1000));
+    await act(() => vi.advanceTimersByTimeAsync(miraSession.expiresIn * 1000));
     expect(refreshes).toBe(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Sign in to Anichron' })).toBeVisible();
   });

@@ -72,7 +72,7 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
   }
 
   function open(session: Schemas['SessionResponse']) {
-    const renewIn = Number(session.expiresIn) * 1000 * renewAtShare;
+    const renewIn = session.expiresIn * 1000 * renewAtShare;
     accessToken = session.accessToken;
     user = session.user;
     renewAt = Date.now() + renewIn;
