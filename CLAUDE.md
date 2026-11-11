@@ -146,7 +146,7 @@ Mutants that flip between runs:
 - **The Worker is the only writer of media data** (`MediaAsset`, `Metadata`, `ProxyFile`, `Burst`, `BurstCheck`, reconciliation, soft-deletes).
   - The API never touches `AnichronDbContext` outside DI wiring (`api-reaches-data-through-repositories`, `only-worker-writes-media`).
   - The one exception: `AssetInteraction`, written by the API through `IAssetInteractionWriter` (plain records in and out). It checks only `VisibleTo`, never `NotHiddenFor`, so a hidden asset can be unhidden. A first write that loses the `(UserId, AssetId)` race reloads and reapplies once.
-- **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exceptions: refresh rotation runs its own transaction (`EfRefreshTokenRepository.TryRotateAsync`, ADR 0017), and the Worker's `TokenCleanup` handler deletes expired refresh tokens.
+- **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exceptions: refresh rotation runs its own transaction (`EfRefreshTokenRepository.RotateAsync`, ADR 0017), and the Worker's `TokenCleanup` handler deletes expired refresh tokens.
 - **Work items** are inserted only through `IWorkQueue`. The API's only other write to them is an admin's cancel (`IWorkItemCanceller`). Handlers live only in the Worker (`work-queue.md`). Raw SQL naming the table is beyond the architecture rules and is for review.
 - **Proxy orphans** are written only by the Worker (`only-worker-writes-proxy-orphans`).
 - Both hosts migrate at startup under a PostgreSQL advisory lock.

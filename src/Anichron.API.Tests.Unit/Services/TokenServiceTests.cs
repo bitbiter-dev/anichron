@@ -40,7 +40,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
                 _clock.GetCurrentInstant().Returns(_ => Instant.FromDateTimeOffset(timeline.Clock.GetUtcNow()));
             _guidFactory.NewGuid().Returns(Guid.Parse("00000000-0000-0000-0000-000000000001"));
             _jwtFactory.Create(Arg.Any<User>()).Returns("access_token");
-            Tokens.TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>()).Returns(TokenRotation.Rotated);
+            Tokens.RotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>()).Returns(TokenRotation.Rotated);
         }
 
         public TestFixture CaptureAddedToken(Action<RefreshToken> capture)
@@ -57,7 +57,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         public TestFixture LosingRotationsOf(Guid tokenId)
         {
-            Tokens.TryRotateAsync(tokenId, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>()).Returns(TokenRotation.Lost);
+            Tokens.RotateAsync(tokenId, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>()).Returns(TokenRotation.Lost);
             return this;
         }
 
@@ -278,7 +278,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
         var token = ActiveToken(user);
         var fixture = new TestFixture().WithToken(token);
-        fixture.Tokens.TryRotateAsync(token.Id, Arg.Do<RefreshToken>(t => successor = t), Arg.Any<CancellationToken>())
+        fixture.Tokens.RotateAsync(token.Id, Arg.Do<RefreshToken>(t => successor = t), Arg.Any<CancellationToken>())
             .Returns(TokenRotation.Rotated);
         var testee = fixture.CreateTestee();
 
@@ -306,7 +306,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
     {
         var token = ActiveToken(new User());
         var fixture = new TestFixture().WithToken(token);
-        fixture.Tokens.TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
+        fixture.Tokens.RotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException<TokenRotation>(new InvalidOperationException("DB error")));
         var testee = fixture.CreateTestee();
 
@@ -336,7 +336,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
             result.IsSuccess.Should().BeTrue();
             result.Value().User.Should().BeSameAs(user);
         });
-        await fixture.Tokens.Received(1).TryRotateAsync(
+        await fixture.Tokens.Received(1).RotateAsync(
             SuccessorId,
             Arg.Is<RefreshToken>(t => t.UserId == user.Id && t.CreatedAt == FixedNow + Duration.FromSeconds(secondsLater)),
             Arg.Any<CancellationToken>());
@@ -358,7 +358,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
             user.Id, FixedNow + Duration.FromSeconds(31), Arg.Any<CancellationToken>());
         await fixture.Tokens.DidNotReceive()
-            .TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+            .RotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -375,7 +375,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
             user.Id, FixedNow + Duration.FromSeconds(2), Arg.Any<CancellationToken>());
         await fixture.Tokens.DidNotReceive()
-            .TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+            .RotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -390,7 +390,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         result.Error().Should().Be(new AccountDisabled());
         await fixture.Tokens.DidNotReceive()
-            .TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+            .RotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -406,7 +406,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        await fixture.Tokens.Received(1).TryRotateAsync(SuccessorId, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+        await fixture.Tokens.Received(1).RotateAsync(SuccessorId, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
         await fixture.Tokens.DidNotReceive()
             .RevokeAllActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
     }
@@ -437,7 +437,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
         result.Error().Should().Be(new RefreshTokenInvalid());
-        await fixture.Tokens.Received(2).TryRotateAsync(presented.Id, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
+        await fixture.Tokens.Received(2).RotateAsync(presented.Id, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
         await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(user.Id, FixedNow, Arg.Any<CancellationToken>());
     }
 

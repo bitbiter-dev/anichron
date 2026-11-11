@@ -62,7 +62,7 @@ public sealed class TokenService(
             return new AccountLocked(Math.Max(1, (int)Math.Ceiling((lockedUntil - now).TotalSeconds)));
 
         var (successor, issued) = NewSession(stored.User);
-        if (await tokens.TryRotateAsync(rotating.Id, successor, ct) == TokenRotation.Rotated)
+        if (await tokens.RotateAsync(rotating.Id, successor, ct) == TokenRotation.Rotated)
             return issued;
 
         if (retryALostRotation && rotating == stored)

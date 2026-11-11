@@ -78,7 +78,7 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
     }
 
     [Fact]
-    public async Task TryRotateAsync_TwoRotationsOfTheSameTokenAtOnce_OnlyOneRotatesItAsync()
+    public async Task RotateAsync_TwoRotationsOfTheSameTokenAtOnce_OnlyOneRotatesItAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var connectionString = await server.CreateMigratedDatabaseAsync(ct);
@@ -90,8 +90,8 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
         await using var first = PostgresServer.Context(connectionString);
         await using var second = PostgresServer.Context(connectionString);
         var rotations = await Task.WhenAll(
-            new EfRefreshTokenRepository(first).TryRotateAsync(presented.Id, Successor(presented.UserId, "first"), ct),
-            new EfRefreshTokenRepository(second).TryRotateAsync(presented.Id, Successor(presented.UserId, "second"), ct));
+            new EfRefreshTokenRepository(first).RotateAsync(presented.Id, Successor(presented.UserId, "first"), ct),
+            new EfRefreshTokenRepository(second).RotateAsync(presented.Id, Successor(presented.UserId, "second"), ct));
 
         rotations.Should().ContainSingle(rotation => rotation == TokenRotation.Rotated);
         var winner = rotations[0] == TokenRotation.Rotated ? "first" : "second";
@@ -107,7 +107,7 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
     }
 
     [Fact]
-    public async Task TryRotateAsync_RevokedToken_LeavesItAndStoresNoSuccessorAsync()
+    public async Task RotateAsync_RevokedToken_LeavesItAndStoresNoSuccessorAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var connectionString = await server.CreateMigratedDatabaseAsync(ct);
@@ -120,7 +120,7 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
         await using (var db = PostgresServer.Context(connectionString))
         {
             var token = await db.RefreshTokens.SingleAsync(ct);
-            var rotated = await new EfRefreshTokenRepository(db).TryRotateAsync(token.Id, Successor(token.UserId, "late"), ct);
+            var rotated = await new EfRefreshTokenRepository(db).RotateAsync(token.Id, Successor(token.UserId, "late"), ct);
 
             rotated.Should().Be(TokenRotation.Lost);
         }
