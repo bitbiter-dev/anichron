@@ -57,7 +57,7 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
   let user: User | undefined;
   let renewAt = Infinity;
   let restored: Promise<void> | undefined;
-  let refreshing: Promise<boolean> | undefined;
+  let refreshing: ReturnType<typeof sendRefresh> | undefined;
   let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
@@ -91,19 +91,13 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
 
   async function sendRefresh() {
     const answer = await send(() => client.POST('/api/v1/auth/refresh'));
-    if (answer.ok) {
-      open(answer.data);
-      return true;
-    }
-    if (answer.status === 401) {
-      end();
-      return false;
-    }
-    if (accessToken) {
+    if (answer.ok) open(answer.data);
+    else if (answer.status === 401) end();
+    else if (accessToken) {
       failures++;
       wakeIn((answer.problem.retryAfterSeconds || backoffSeconds(failures)) * 1000);
     }
-    return false;
+    return answer;
   }
 
   function refresh() {
@@ -137,7 +131,11 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
 
   return {
     restore() {
-      restored ??= refresh().then(() => undefined);
+      restored ??= refresh().then((answer) => {
+        if (answer.ok || answer.status === 401) return;
+        restored = undefined;
+        throw new ProblemError(answer.problem);
+      });
       return restored;
     },
     async login(body) {
@@ -149,7 +147,7 @@ export function createSession(client: Client<paths>, tabs: Tabs): Session {
       tabs.announce('signed-in');
     },
     async logout() {
-      if ((await endOnServer()).status === 401 && (await refresh())) await endOnServer();
+      if ((await endOnServer()).status === 401 && (await refresh()).ok) await endOnServer();
       end();
       tabs.announce('signed-out');
     },
