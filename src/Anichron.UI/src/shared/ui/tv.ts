@@ -3,8 +3,9 @@ import { createTV } from 'tailwind-variants';
 import tokens from './tokens.css?raw';
 
 function scale(namespace: string) {
-  return [...tokens.matchAll(new RegExp(`--${namespace}-([a-z]+):`, 'g'))].flatMap((match) =>
-    match.slice(1),
+  return Array.from(
+    tokens.matchAll(new RegExp(`(?<=--${namespace}-)[a-z]+(?=:)`, 'g')),
+    ([name]) => name,
   );
 }
 
