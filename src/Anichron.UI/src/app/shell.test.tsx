@@ -167,7 +167,7 @@ describe('a screen below Home', () => {
 
     fireEvent.click(within(bar()).getByRole('link', { name: 'Today' }));
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(router.state.location.pathname).toBe('/');
   });
 

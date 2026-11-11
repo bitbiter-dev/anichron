@@ -37,7 +37,7 @@ export function createFlashbacks(client: Client<paths>, authorized: Authorized):
       );
       return {
         years: day.years.map(({ year, assets }) => ({
-          year: Number(year),
+          year,
           memories: assets.map(memoryOf),
         })),
       };
