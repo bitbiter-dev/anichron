@@ -4,6 +4,7 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  notFound,
   redirect,
   type RouterHistory,
 } from '@tanstack/react-router';
@@ -11,9 +12,11 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
 import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
-import { PlaceholderPage } from '../features/placeholder/PlaceholderPage';
+import { dayKey, isCalendarDate, storySearch } from '../features/on-this-day/day';
+import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
+import { NotFound } from './NotFound';
 import { returnPath } from './return-path';
 import { Shell } from './Shell';
 import { SignedIn } from './SignedIn';
@@ -50,10 +53,27 @@ function routeTree() {
     component: Shell,
   });
 
-  const homeRoute = createRoute({
+  const onThisDayRoute = createRoute({
     getParentRoute: () => shellRoute,
+    id: 'on-this-day',
+    component: OnThisDayPage,
+  });
+
+  const homeRoute = createRoute({
+    getParentRoute: () => onThisDayRoute,
     path: '/',
-    component: PlaceholderPage,
+  });
+
+  const storyRoute = createRoute({
+    getParentRoute: () => onThisDayRoute,
+    path: '/day/$date',
+    validateSearch: storySearch,
+    beforeLoad: ({ params }) => {
+      if (!isCalendarDate(params.date)) throw notFound({ routeId: rootRoute.id });
+    },
+    onLeave: ({ context, params }) =>
+      void context.queryClient.invalidateQueries({ queryKey: dayKey(params.date) }),
+    component: lazyRouteComponent(() => import('../features/on-this-day/StoryPage'), 'StoryPage'),
   });
 
   const settingsRoute = createRoute({
@@ -76,7 +96,9 @@ function routeTree() {
   });
 
   return rootRoute.addChildren([
-    signedInRoute.addChildren([shellRoute.addChildren([homeRoute, settingsRoute])]),
+    signedInRoute.addChildren([
+      shellRoute.addChildren([onThisDayRoute.addChildren([homeRoute, storyRoute]), settingsRoute]),
+    ]),
     loginRoute,
   ]);
 }
@@ -89,6 +111,8 @@ export function createAppRouter(
   const router = createRouter({
     routeTree: routeTree(),
     history,
+    scrollRestoration: true,
+    defaultNotFoundComponent: NotFound,
     context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
   });
   api.session.onChange(() => void router.invalidate());

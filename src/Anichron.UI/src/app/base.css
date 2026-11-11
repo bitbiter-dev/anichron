@@ -8,3 +8,12 @@
     color: var(--color-fg);
   }
 }
+
+@keyframes story-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

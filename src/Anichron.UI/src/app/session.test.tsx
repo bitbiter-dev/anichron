@@ -14,8 +14,7 @@ import {
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
-const signedIn = "You're signed in. Your photo library is on its way.";
-const greeting = 'Signed in as mira.';
+const signedIn = { level: 1, name: 'On This Day' } as const;
 const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
 const loginHeading = () => screen.queryByRole('heading', loginHeadingName);
 const unreachableHeadingName = { level: 1, name: "Can't reach Anichron" } as const;
@@ -53,11 +52,11 @@ describe('starting the app', () => {
 
     await act(() => vi.advanceTimersByTimeAsync(1200));
     expect(loginHeading()).toBeNull();
-    expect(screen.queryByText(signedIn)).toBeNull();
+    expect(screen.queryByRole('heading', signedIn)).toBeNull();
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 
     await act(() => vi.advanceTimersByTimeAsync(300));
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(loginHeading()).toBeNull();
     expect(where(router)).toBe('/?from=link');
     expect(await axeResults(container)).toHaveNoViolations();
@@ -82,13 +81,13 @@ describe('starting the app', () => {
       ).toBeVisible();
       expect(where(router)).toBe('/login?redirect=%2F%3Ffrom%3Dlink');
       expect(router.state.location.search).toEqual({ redirect: '/?from=link' });
-      expect(screen.queryByText(signedIn)).toBeNull();
+      expect(screen.queryByRole('heading', signedIn)).toBeNull();
       expect(await axeResults(container)).toHaveNoViolations();
 
       server.use(loginSucceeds());
       signIn();
 
-      expect(await screen.findByText(signedIn)).toBeVisible();
+      expect(await screen.findByRole('heading', signedIn)).toBeVisible();
       expect(where(router)).toBe('/?from=link');
     },
   );
@@ -111,7 +110,7 @@ describe('starting the app', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(unreachableHeading()).toBeNull();
     expect(where(router)).toBe('/?from=link');
     expect(refreshes).toBe(2);
@@ -198,7 +197,7 @@ describe('starting the app', () => {
 
     signIn();
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe('/');
   });
 
@@ -211,7 +210,7 @@ describe('starting the app', () => {
 
     signIn();
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe('/');
   });
 
@@ -223,8 +222,7 @@ describe('starting the app', () => {
     server.use(refreshSucceeds());
     const { router } = renderApp(path);
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
-    expect(await screen.findByText(greeting)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe(landing);
     expect(loginHeading()).toBeNull();
   });
@@ -264,7 +262,7 @@ describe('starting the app while the server limits the rate', () => {
 
     fireEvent.click(retryButton());
 
-    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe('/?from=link');
     expect(refreshes).toBe(2);
   });

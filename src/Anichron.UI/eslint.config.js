@@ -38,7 +38,10 @@ export default defineConfig([
       '@typescript-eslint/only-throw-error': [
         'error',
         {
-          allow: [{ from: 'package', package: '@tanstack/router-core', name: 'Redirect' }],
+          allow: [
+            { from: 'package', package: '@tanstack/router-core', name: 'Redirect' },
+            { from: 'package', package: '@tanstack/router-core', name: 'NotFoundError' },
+          ],
           allowRethrowing: true,
         },
       ],
@@ -55,7 +58,7 @@ export default defineConfig([
       'no-restricted-syntax': [
         'error',
         ...[
-          `JSXAttribute[name.name=${visibleAttributes}] > Literal`,
+          `JSXAttribute[name.name=${visibleAttributes}] > Literal[value!=""]`,
           `JSXAttribute[name.name=${visibleAttributes}] > JSXExpressionContainer > :matches(Literal, TemplateLiteral)`,
         ].map((selector) => ({
           selector,

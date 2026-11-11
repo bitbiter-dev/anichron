@@ -1,7 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../test/axe';
 import {
   loginRespondsWith,
@@ -12,16 +12,20 @@ import {
   refreshRespondsWith,
   refreshSucceeds,
 } from '../test/handlers/auth';
+import { everyoneHasMemories, memoriesOf } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
-const greeting = 'Signed in as mira.';
 const findLoginHeading = () =>
   screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
 
+beforeEach(() => {
+  server.use(everyoneHasMemories());
+});
+
 async function openSignedIn() {
   const rendered = renderApp('/');
-  expect(await screen.findByText(greeting)).toBeVisible();
+  expect(await screen.findByRole('link', memoriesOf('mira'))).toBeVisible();
   fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
   expect(await screen.findByRole('button', { name: 'Sign out' })).toBeVisible();
   return rendered;
@@ -45,7 +49,7 @@ describe('signing out', () => {
 
     expect(await findLoginHeading()).toBeVisible();
     expect(bearers).toEqual([`Bearer ${miraSession.accessToken}`]);
-    expect(screen.queryByText(greeting)).toBeNull();
+    expect(screen.queryByRole('link', memoriesOf('mira'))).toBeNull();
     await act(() => router.navigate({ to: '/' }));
     expect(router.state.location.pathname).toBe('/login');
   });
@@ -150,11 +154,9 @@ describe('signing out', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(await screen.findByRole('button', { name: 'Sign out' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(
-      await screen.findByText("You're signed in. Your photo library is on its way."),
-    ).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
 
-    expect(screen.queryByText(greeting)).toBeNull();
-    expect(screen.getByText('Signed in as noor.')).toBeVisible();
+    expect(screen.queryByRole('link', memoriesOf('mira'))).toBeNull();
+    expect(screen.getByRole('link', memoriesOf('noor'))).toBeVisible();
   });
 });

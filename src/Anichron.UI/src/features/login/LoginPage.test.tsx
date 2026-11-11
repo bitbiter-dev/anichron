@@ -57,9 +57,7 @@ describe('the login screen', () => {
 
     await signIn('  mira  ', 'correct horse battery staple');
 
-    expect(
-      await screen.findByText("You're signed in. Your photo library is on its way."),
-    ).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
     expect(router.state.location.pathname).toBe('/');
     expect(await axeResults(container)).toHaveNoViolations();
     expect(sent).toEqual([{ usernameOrEmail: 'mira', password: 'correct horse battery staple' }]);
@@ -100,9 +98,7 @@ describe('the login screen', () => {
 
     await fillIn('mira', 'correct horse battery staple{Enter}');
 
-    expect(
-      await screen.findByText("You're signed in. Your photo library is on its way."),
-    ).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
     expect(sent).toEqual([{ usernameOrEmail: 'mira', password: 'correct horse battery staple' }]);
   });
 
@@ -116,9 +112,7 @@ describe('the login screen', () => {
     expect(submitButton()).toHaveFocus();
     await keyboard.keyboard('{Enter}');
 
-    expect(
-      await screen.findByText("You're signed in. Your photo library is on its way."),
-    ).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
   });
 
   it.each([
@@ -172,9 +166,7 @@ describe('the login screen', () => {
     expect(submitButton()).toBeEnabled();
     server.use(loginSucceeds());
     await user().click(submitButton());
-    expect(
-      await screen.findByText("You're signed in. Your photo library is on its way."),
-    ).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
   });
 
   it('shows the unavailable message without a countdown when the server cannot be reached', async () => {
@@ -273,9 +265,7 @@ describe('the login screen', () => {
     expect(await axeResults(container)).toHaveNoViolations();
     server.use(loginSucceeds());
     await user().click(submitButton());
-    expect(
-      await screen.findByText("You're signed in. Your photo library is on its way."),
-    ).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
   });
 
   it('counts down a rate limit from Retry-After', async () => {
