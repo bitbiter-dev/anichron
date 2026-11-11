@@ -79,7 +79,7 @@ public sealed class AdminUserEndpointsTests
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         var req = new PatchAdminUserRequest(IsAdmin: true, IsDisabled: null);
-        var serviceResult = AuthResult.Ok(new User { Id = targetId, StorageConfigs = [] });
+        ServiceResult<User, IUpdateUserError> serviceResult = new User { Id = targetId, StorageConfigs = [] };
         var expected = Results.Ok();
         service.UpdateAsync(callerId, targetId, true, null, Arg.Any<CancellationToken>()).Returns(serviceResult);
         mapper.GetAdminPatchUserResult(serviceResult).Returns(expected);
@@ -115,7 +115,7 @@ public sealed class AdminUserEndpointsTests
         var mapper = Substitute.For<IAuthResponseMapper>();
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
-        var serviceResult = AuthResult.Ok();
+        IDeleteUserError? serviceResult = null;
         var expected = Results.NoContent();
         service.DeleteAsync(callerId, targetId, Arg.Any<CancellationToken>()).Returns(serviceResult);
         mapper.GetAdminDeleteUserResult(serviceResult).Returns(expected);

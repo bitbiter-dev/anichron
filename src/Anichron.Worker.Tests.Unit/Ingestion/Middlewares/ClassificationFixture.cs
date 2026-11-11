@@ -53,7 +53,7 @@ internal sealed class ClassificationFixture
 
     public ClassificationMiddleware Build()
     {
-        MovGenerator.FileName.Returns("video_720p.mp4");
+        MovGenerator.FileName.Returns("video.mp4");
         MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
         MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));

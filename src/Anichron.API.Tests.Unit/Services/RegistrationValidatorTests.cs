@@ -32,7 +32,17 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidateAsync(username, ValidEmail, ValidPassword, CancellationToken.None);
 
-        result.Should().Be(AuthError.InvalidUsername);
+        result.Should().Be(new InvalidUsername());
+    }
+
+    [Fact]
+    public async Task ValidateAsync_InvalidUsernameAndShortPassword_ReturnsInvalidUsername()
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        var result = await testee.ValidateAsync("ab", ValidEmail, "short", CancellationToken.None);
+
+        result.Should().Be(new InvalidUsername());
     }
 
     [Theory]
@@ -47,7 +57,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidateAsync(ValidUsername, email, ValidPassword, CancellationToken.None);
 
-        result.Should().Be(AuthError.InvalidEmail);
+        result.Should().Be(new InvalidEmail());
     }
 
     [Fact]
@@ -57,7 +67,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidateAsync(ValidUsername, TooLongEmail, ValidPassword, CancellationToken.None);
 
-        result.Should().Be(AuthError.InvalidEmail);
+        result.Should().Be(new InvalidEmail());
     }
 
     [Theory]
@@ -69,7 +79,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidateAsync(ValidUsername, ValidEmail, password, CancellationToken.None);
 
-        result.Should().Be(AuthError.PasswordTooShort);
+        result.Should().Be(new PasswordTooShort());
     }
 
     [Fact]
@@ -108,7 +118,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidateAsync(ValidUsername, ValidEmail, "12characters", CancellationToken.None);
 
-        result.Should().Be(AuthError.PasswordTooLong);
+        result.Should().Be(new PasswordTooLong());
     }
 
     [Fact]
@@ -120,7 +130,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidateAsync(ValidUsername, ValidEmail, ValidPassword, CancellationToken.None);
 
-        result.Should().Be(AuthError.PasswordPwned);
+        result.Should().Be(new PasswordPwned());
     }
 
     [Fact]
@@ -193,7 +203,7 @@ public sealed class RegistrationValidatorTests
 
         var result = testee.ValidateIdentity(username, "user@example.com");
 
-        result.Should().Be(AuthError.InvalidUsername);
+        result.Should().Be(new InvalidUsername());
     }
 
     [Theory]
@@ -207,7 +217,7 @@ public sealed class RegistrationValidatorTests
 
         var result = testee.ValidateIdentity("validuser", email);
 
-        result.Should().Be(AuthError.InvalidEmail);
+        result.Should().Be(new InvalidEmail());
     }
 
     [Fact]
@@ -245,7 +255,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidatePasswordAsync(password, CancellationToken.None);
 
-        result.Should().Be(AuthError.PasswordTooShort);
+        result.Should().Be(new PasswordTooShort());
     }
 
     [Fact]
@@ -257,7 +267,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidatePasswordAsync("12characters", CancellationToken.None);
 
-        result.Should().Be(AuthError.PasswordTooLong);
+        result.Should().Be(new PasswordTooLong());
     }
 
     [Fact]
@@ -269,7 +279,7 @@ public sealed class RegistrationValidatorTests
 
         var result = await testee.ValidatePasswordAsync(ValidPassword, CancellationToken.None);
 
-        result.Should().Be(AuthError.PasswordPwned);
+        result.Should().Be(new PasswordPwned());
     }
 
     [Fact]

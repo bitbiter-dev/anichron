@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using static Anichron.API.Tests.Unit.Endpoints.ProblemAssertions;
+using static Anichron.API.Tests.Unit.Services.ServiceResults;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
@@ -47,15 +48,16 @@ public sealed class AdminErrorContractTests
     }
 
     [Theory]
-    [InlineData(AuthError.InvalidUsername, 422, "invalid_username", "username", "The provided username is not valid.")]
-    [InlineData(AuthError.InvalidEmail, 422, "invalid_email", "email", "The provided email address is not valid.")]
-    [InlineData(AuthError.UsernameTaken, 409, "username_taken", "username", "Username is already taken.")]
-    [InlineData(AuthError.EmailTaken, 409, "email_taken", "email", "An account with this email already exists.")]
+    [InlineData(typeof(InvalidUsername), 422, "invalid_username", "username", "Username must be 3–32 characters and may only contain letters, digits, underscores, and hyphens.")]
+    [InlineData(typeof(InvalidEmail), 422, "invalid_email", "email", "The provided email address is not valid.")]
+    [InlineData(typeof(UsernameTaken), 409, "username_taken", "username", "Username is already taken.")]
+    [InlineData(typeof(EmailTaken), 409, "email_taken", "email", "An account with this email already exists.")]
     public async Task CreateUser_FieldRejected_IsAValidationProblemOnThatFieldAsync(
-        AuthError error, int status, string code, string field, string detail)
+        Type errorType, int status, string code, string field, string detail)
     {
+        var error = NewError<IAdminCreateUserError>(errorType);
         auth.AdminCreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail<AdminCreatedUser>(error));
+            .Returns(ServiceResult.Fail<AdminCreatedUser, IAdminCreateUserError>(error));
         await using var app = await StartAsync();
 
         using var response = await SendAsAdminAsync(
@@ -68,7 +70,7 @@ public sealed class AdminErrorContractTests
     public async Task PatchUser_Self_Is403CannotModifySelfAsync()
     {
         adminUsers.UpdateAsync(AdminId, TargetId, Arg.Any<bool?>(), Arg.Any<bool?>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail<User>(AuthError.CannotModifySelf));
+            .Returns(new CannotModifySelf());
         await using var app = await StartAsync();
 
         using var response = await SendAsAdminAsync(app, HttpMethod.Patch, $"{UsersPath}/{TargetId}", new { isAdmin = false });
@@ -80,7 +82,7 @@ public sealed class AdminErrorContractTests
     public async Task DeleteUser_Self_Is403CannotModifySelfAsync()
     {
         adminUsers.DeleteAsync(AdminId, TargetId, Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail(AuthError.CannotModifySelf));
+            .Returns(new CannotModifySelf());
         await using var app = await StartAsync();
 
         using var response = await SendAsAdminAsync(app, HttpMethod.Delete, $"{UsersPath}/{TargetId}");
@@ -89,22 +91,55 @@ public sealed class AdminErrorContractTests
     }
 
     [Theory]
-    [InlineData(AuthError.PathInvalid, 422, "path_invalid",
-        "The root path must be an absolute path to a folder inside /data/originals.")]
-    [InlineData(AuthError.PathAlreadyAssigned, 409, "path_already_assigned",
-        "This root path is already assigned to a storage config.")]
-    [InlineData(AuthError.PathOverlaps, 409, "path_overlaps",
-        "The root path contains, or is contained by, an existing storage config.")]
+    [InlineData(typeof(PathInvalid), 422, "path_invalid", "The root path must be an absolute path to a folder inside /data/originals.")]
+    [InlineData(typeof(PathAlreadyAssigned), 409, "path_already_assigned", "This root path is already assigned to a storage config.")]
+    [InlineData(typeof(PathOverlaps), 409, "path_overlaps", "The root path contains, or is contained by, an existing storage config.")]
     public async Task CreateStorageConfig_PathRejected_IsAValidationProblemOnRootPathAsync(
-        AuthError error, int status, string code, string detail)
+        Type errorType, int status, string code, string detail)
     {
+        var error = NewError<IAddStorageConfigError>(errorType);
         adminStorageConfigs.AddAsync(TargetId, Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail<UserStorageConfig>(error));
+            .Returns(ServiceResult.Fail<UserStorageConfig, IAddStorageConfigError>(error));
         await using var app = await StartAsync();
 
         using var response = await SendAsAdminAsync(
             app, HttpMethod.Post, $"{UsersPath}/{TargetId}/storage-configs", new { rootPath = "/data/originals/alice" });
 
         await AssertFieldProblemAsync(response, status, code, "rootPath", detail);
+    }
+
+    [Fact]
+    public async Task PatchUser_UnknownUser_Is404Async()
+    {
+        adminUsers.UpdateAsync(AdminId, TargetId, Arg.Any<bool?>(), Arg.Any<bool?>(), Arg.Any<CancellationToken>())
+            .Returns(new UserNotFound());
+        await using var app = await StartAsync();
+
+        using var response = await SendAsAdminAsync(app, HttpMethod.Patch, $"{UsersPath}/{TargetId}", new { isAdmin = false });
+
+        await AssertStatusProblemAsync(response, 404);
+    }
+
+    [Fact]
+    public async Task DeleteUser_UnknownUser_Is404Async()
+    {
+        adminUsers.DeleteAsync(AdminId, TargetId, Arg.Any<CancellationToken>()).Returns(new UserNotFound());
+        await using var app = await StartAsync();
+
+        using var response = await SendAsAdminAsync(app, HttpMethod.Delete, $"{UsersPath}/{TargetId}");
+
+        await AssertStatusProblemAsync(response, 404);
+    }
+
+    [Fact]
+    public async Task CreateStorageConfig_UnknownUser_Is404Async()
+    {
+        adminStorageConfigs.AddAsync(TargetId, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new UserNotFound());
+        await using var app = await StartAsync();
+
+        using var response = await SendAsAdminAsync(
+            app, HttpMethod.Post, $"{UsersPath}/{TargetId}/storage-configs", new { rootPath = "/data/originals/alice" });
+
+        await AssertStatusProblemAsync(response, 404);
     }
 }

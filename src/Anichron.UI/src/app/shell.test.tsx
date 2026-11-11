@@ -7,6 +7,7 @@ import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
 const signedIn = "You're signed in. Your photo library is on its way.";
+const greeting = 'Signed in as mira.';
 
 async function openHome() {
   server.use(refreshSucceeds());
@@ -176,7 +177,23 @@ describe('a screen below Home', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByText(greeting)).toBeVisible();
     expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it('goes back in history to the Home that replaced it', async () => {
+    server.use(refreshSucceeds());
+    const { router } = renderApp('/settings');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByText(signedIn)).toBeVisible();
+    await openSettings(router);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(await screen.findByText(signedIn)).toBeVisible();
+    expect(await screen.findByText(greeting)).toBeVisible();
     expect(router.history.canGoBack()).toBe(false);
   });
 });

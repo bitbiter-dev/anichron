@@ -43,7 +43,7 @@ public sealed class KnownFileReconcilerTests
         {
             Repository.When(r => r.AddProxyFiles(Arg.Any<IEnumerable<ProxyFile>>())).Do(call => Added.AddRange(call.Arg<IEnumerable<ProxyFile>>()));
             Repository.When(r => r.RemoveProxyFile(Arg.Any<ProxyFile>())).Do(call => Removed.Add(call.Arg<ProxyFile>()));
-            MovGenerator.FileName.Returns("video_720p.mp4");
+            MovGenerator.FileName.Returns("video.mp4");
             MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01, 0x02]));
@@ -216,7 +216,7 @@ public sealed class KnownFileReconcilerTests
         atPath.ProxyFiles =
         [
             Proxy(PathRowId, ProxyType.Thumbnail, "f0/old/thumbnail.jpg"),
-            Proxy(PathRowId, ProxyType.WebVideo, "f0/old/video_720p.mp4"),
+            Proxy(PathRowId, ProxyType.WebVideo, "f0/old/video.mp4"),
         ];
         var moved = Row(MovedRowId, "2023/photo.jpg", "abc123");
         moved.MediaType = MediaType.LivePhoto;
@@ -447,7 +447,7 @@ public sealed class KnownFileReconcilerTests
         var mov = Row(MovedRowId, "2023/live.mov", "0ldm0v");
         mov.MediaType = MediaType.LivePhoto;
         mov.BurstId = BurstId;
-        var oldProxy = Proxy(MovedRowId, ProxyType.WebVideo, "0l/old/video_720p.mp4");
+        var oldProxy = Proxy(MovedRowId, ProxyType.WebVideo, "0l/old/video.mp4");
         mov.ProxyFiles = [oldProxy];
         fx.LoadsMetadata(mov, new Metadata { AssetId = MovedRowId, Description = MediaDescription.Unknown with { Width = 1920, Height = 1080 }, Blurhash = "old" });
         fx.Context = VideoContext(FileOutcome.ContentChanged, mov);
@@ -466,11 +466,11 @@ public sealed class KnownFileReconcilerTests
             LastSeenOnNas = Now,
         });
         mov.Metadata.Should().BeEquivalentTo(new { Description = MediaDescription.Unknown, Blurhash = (string?)null });
-        oldProxy.ProxyPath.Should().Be($"ca/{fx.Context.Config.Id:N}-cafebabe/video_720p.mp4");
+        oldProxy.ProxyPath.Should().Be($"ca/{fx.Context.Config.Id:N}-cafebabe/video.mp4");
         oldProxy.SizeBytes.Should().Be(2);
         fx.Added.Should().BeEmpty();
         await fx.MovGenerator.Received(1).TranscodeAsync("/abs/2024/live.mov", Arg.Any<string>(), Arg.Any<CancellationToken>());
-        fx.FileSystem.File.Exists($"/data/proxies/ca/{fx.Context.Config.Id:N}-cafebabe/video_720p.mp4").Should().BeTrue();
+        fx.FileSystem.File.Exists($"/data/proxies/ca/{fx.Context.Config.Id:N}-cafebabe/video.mp4").Should().BeTrue();
         (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 0));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information)
             .Which.Message.Should().Be(

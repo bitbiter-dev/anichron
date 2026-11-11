@@ -1,9 +1,7 @@
 using Anichron.API.Infrastructure;
 using Anichron.API.Services;
-using Anichron.API.Settings;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace Anichron.API.Endpoints;
@@ -46,14 +44,13 @@ public static class UserEndpoints
         HttpContext http,
         IAuthService auth,
         IAuthResponseMapper mapper,
-        IOptions<PasswordPolicy> passwordPolicyOptions,
         CancellationToken ct)
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Results.Unauthorized();
 
         var result = await auth.ChangePasswordAsync(userId, req.CurrentPassword, req.NewPassword, ct);
-        return mapper.GetChangePasswordResult(result, http, AuthEndpoints.CameWithRefreshCookie(http), passwordPolicyOptions.Value);
+        return mapper.GetChangePasswordResult(result, http, AuthEndpoints.CameWithRefreshCookie(http));
     }
 }
 

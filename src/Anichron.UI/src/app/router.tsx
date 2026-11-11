@@ -18,6 +18,7 @@ import { returnPath } from './return-path';
 import { Shell } from './Shell';
 import { SignedIn } from './SignedIn';
 import { Splash } from './Splash';
+import { StartFailed } from './StartFailed';
 
 interface RouterContext {
   api: ApiClient;
@@ -26,53 +27,59 @@ interface RouterContext {
   theme: ThemeChoice;
 }
 
-const rootRoute = createRootRouteWithContext<RouterContext>()({
-  beforeLoad: ({ context }) => context.api.restore(),
-  pendingComponent: Splash,
-});
+function routeTree() {
+  const rootRoute = createRootRouteWithContext<RouterContext>()({
+    beforeLoad: ({ context }) => context.api.session.restore(),
+    pendingComponent: Splash,
+    errorComponent: StartFailed,
+  });
 
-const signedInRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  id: 'signed-in',
-  component: SignedIn,
-  beforeLoad: ({ context, location }) => {
-    if (!context.api.isSignedIn())
-      throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
-  },
-});
+  const signedInRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    id: 'signed-in',
+    component: SignedIn,
+    beforeLoad: ({ context, location }) => {
+      if (!context.api.session.isSignedIn())
+        throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
+    },
+  });
 
-const shellRoute = createRoute({
-  getParentRoute: () => signedInRoute,
-  id: 'shell',
-  component: Shell,
-});
+  const shellRoute = createRoute({
+    getParentRoute: () => signedInRoute,
+    id: 'shell',
+    component: Shell,
+  });
 
-const homeRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: '/',
-  component: PlaceholderPage,
-});
+  const homeRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: '/',
+    component: PlaceholderPage,
+  });
 
-const settingsRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: '/settings',
-  component: lazyRouteComponent(() => import('../features/settings/SettingsPage'), 'SettingsPage'),
-  staticData: { screen: { title: 'settings.title', parent: '/' } },
-});
+  const settingsRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: '/settings',
+    component: lazyRouteComponent(
+      () => import('../features/settings/SettingsPage'),
+      'SettingsPage',
+    ),
+    staticData: { screen: { title: 'settings.title', parent: '/' } },
+  });
 
-const loginRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/login',
-  beforeLoad: ({ context, search }) => {
-    if (context.api.isSignedIn()) throw redirect({ href: returnPath(search) });
-  },
-  component: LoginPage,
-});
+  const loginRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/login',
+    beforeLoad: ({ context, search }) => {
+      if (context.api.session.isSignedIn()) throw redirect({ href: returnPath(search) });
+    },
+    component: LoginPage,
+  });
 
-const routeTree = rootRoute.addChildren([
-  signedInRoute.addChildren([shellRoute.addChildren([homeRoute, settingsRoute])]),
-  loginRoute,
-]);
+  return rootRoute.addChildren([
+    signedInRoute.addChildren([shellRoute.addChildren([homeRoute, settingsRoute])]),
+    loginRoute,
+  ]);
+}
 
 export function createAppRouter(
   api: ApiClient,
@@ -80,15 +87,11 @@ export function createAppRouter(
   history: RouterHistory = createBrowserHistory(),
 ) {
   const router = createRouter({
-    routeTree,
+    routeTree: routeTree(),
     history,
     context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
   });
-  api.onSessionChange(() => {
-    if (api.isSignedIn()) return;
-    queryClient.clear();
-    void router.invalidate();
-  });
+  api.session.onChange(() => void router.invalidate());
   return router;
 }
 

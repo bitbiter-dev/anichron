@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { blend, contrastRatio, declarations, themeColours, type Theme } from '../design/contrast';
 import tokens from './tokens.css?raw';
 
-const colours = themeColours(tokens);
-const glassOpacity = Number(declarations(tokens).get('glass-opacity'));
+const colours = (theme: Theme) => themeColours(tokens)[theme];
+const glassOpacity = () => Number(declarations(tokens).get('glass-opacity'));
 const surfaces = ['surface', 'surface-raised'];
 
 const text = [
@@ -20,16 +20,16 @@ const nonText = surfaces.flatMap((surface) => [
 ]);
 
 it('makes the glass card see-through, but mostly card', () => {
-  expect(glassOpacity).toBeGreaterThan(0.5);
-  expect(glassOpacity).toBeLessThan(1);
+  expect(glassOpacity()).toBeGreaterThan(0.5);
+  expect(glassOpacity()).toBeLessThan(1);
 });
 
 describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
   const ratio = (foreground: string, background: string) =>
-    contrastRatio(colours[theme][foreground] ?? '', colours[theme][background] ?? '');
+    contrastRatio(colours(theme)[foreground] ?? '', colours(theme)[background] ?? '');
 
   it('has exactly the semantic colours', () => {
-    expect(Object.keys(colours[theme]).sort()).toEqual([
+    expect(Object.keys(colours(theme)).sort()).toEqual([
       'accent',
       'backdrop-accent',
       'backdrop-cool',
@@ -58,9 +58,13 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
     'on the glass card over %s',
     (backdrop) => {
       const glass = () =>
-        blend(colours[theme]['surface-raised'] ?? '', colours[theme][backdrop] ?? '', glassOpacity);
+        blend(
+          colours(theme)['surface-raised'] ?? '',
+          colours(theme)[backdrop] ?? '',
+          glassOpacity(),
+        );
       const onGlass = (foreground: string) =>
-        contrastRatio(colours[theme][foreground] ?? '', glass());
+        contrastRatio(colours(theme)[foreground] ?? '', glass());
 
       it.each(['fg', 'fg-muted', 'danger'])('reads %s at 4.5:1 or more', (foreground) => {
         expect(onGlass(foreground)).toBeGreaterThanOrEqual(4.5);
@@ -73,6 +77,6 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
   );
 
   it('keeps the player black', () => {
-    expect(colours[theme].player).toBe('#000000');
+    expect(colours(theme).player).toBe('#000000');
   });
 });

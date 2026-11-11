@@ -7,6 +7,8 @@ using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
+using static Anichron.API.Tests.Unit.Services.ServiceResults;
+
 namespace Anichron.API.Tests.Unit.Services;
 
 public sealed class AuthServiceTests
@@ -36,6 +38,10 @@ public sealed class AuthServiceTests
                 .Returns(callInfo => callInfo.Arg<Func<Task>>()());
             _invites.FindValidByHashAsync(Arg.Any<string>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>())
                 .Returns(new Invite { Id = Guid.NewGuid(), CreatedByUserId = Guid.NewGuid() });
+            _validator.ValidateIdentity(Arg.Any<string>(), Arg.Any<string>()).Returns((IIdentityRejection?)null);
+            _validator.ValidateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns((IRegisterError?)null);
+            _validator.ValidatePasswordAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((PasswordRejected?)null);
         }
 
         public TestFixture WithNoValidInvite()
@@ -82,11 +88,11 @@ public sealed class AuthServiceTests
             return this;
         }
 
-        public TestFixture WithValidationError(AuthError error)
+        public TestFixture WithValidationError(IRegisterError error)
         {
             _validator
                 .ValidateAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns((AuthError?)error);
+                .Returns(error);
             return this;
         }
 
@@ -103,7 +109,7 @@ public sealed class AuthServiceTests
             return this;
         }
 
-        public TestFixture WithTokenRefresh(string rawToken, AuthResult<AuthTokens> result)
+        public TestFixture WithTokenRefresh(string rawToken, ServiceResult<AuthTokens, IRefreshError> result)
         {
             TokenService.RefreshAsync(rawToken, Arg.Any<CancellationToken>()).Returns(result);
             return this;
@@ -115,11 +121,11 @@ public sealed class AuthServiceTests
             return this;
         }
 
-        public TestFixture WithPasswordValidationError(AuthError error)
+        public TestFixture WithPasswordValidationError(PasswordRejected error)
         {
             _validator
                 .ValidatePasswordAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns((AuthError?)error);
+                .Returns(error);
             return this;
         }
 
@@ -129,11 +135,11 @@ public sealed class AuthServiceTests
             return this;
         }
 
-        public TestFixture WithIdentityValidationError(AuthError error)
+        public TestFixture WithIdentityValidationError(IIdentityRejection error)
         {
             _validator
                 .ValidateIdentity(Arg.Any<string>(), Arg.Any<string>())
-                .Returns((AuthError?)error);
+                .Returns(error);
             return this;
         }
 
@@ -157,8 +163,8 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeTrue();
-            result.Value!.AccessToken.Should().Be("acc");
-            result.Value.RefreshToken.Should().Be("ref");
+            result.Value().AccessToken.Should().Be("acc");
+            result.Value().RefreshToken.Should().Be("ref");
         });
     }
 
@@ -222,13 +228,14 @@ public sealed class AuthServiceTests
     }
 
     [Theory]
-    [InlineData(AuthError.PasswordTooShort)]
-    [InlineData(AuthError.PasswordTooLong)]
-    [InlineData(AuthError.PasswordPwned)]
-    [InlineData(AuthError.InvalidUsername)]
-    [InlineData(AuthError.InvalidEmail)]
-    public async Task RegisterAsync_ValidationFails_ReturnsValidationError(AuthError validationError)
+    [InlineData(typeof(PasswordTooShort))]
+    [InlineData(typeof(PasswordTooLong))]
+    [InlineData(typeof(PasswordPwned))]
+    [InlineData(typeof(InvalidUsername))]
+    [InlineData(typeof(InvalidEmail))]
+    public async Task RegisterAsync_ValidationFails_ReturnsValidationError(Type errorType)
     {
+        var validationError = NewError<IRegisterError>(errorType);
         var fixture = new TestFixture()
             .WithValidationError(validationError);
         var testee = fixture.CreateTestee();
@@ -238,7 +245,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(validationError);
+            result.Error().Should().Be(validationError);
         });
     }
 
@@ -254,7 +261,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.UsernameTaken);
+            result.Error().Should().Be(new UsernameTaken());
         });
     }
 
@@ -270,7 +277,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.EmailTaken);
+            result.Error().Should().Be(new EmailTaken());
         });
     }
 
@@ -286,7 +293,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.EmailTaken);
+            result.Error().Should().Be(new EmailTaken());
         });
     }
 
@@ -302,7 +309,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.UsernameTaken);
+            result.Error().Should().Be(new UsernameTaken());
         });
     }
 
@@ -327,7 +334,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.RegisterAsync("  ALICE  ", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.UsernameTaken);
+        result.Error().Should().Be(new UsernameTaken());
     }
 
     [Fact]
@@ -355,7 +362,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "bad_token", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.InviteTokenInvalid);
+        result.Error().Should().Be(new InviteTokenInvalid());
     }
 
     [Fact]
@@ -391,7 +398,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", string.Empty, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.InviteTokenInvalid);
+        result.Error().Should().Be(new InviteTokenInvalid());
     }
 
     [Fact]
@@ -403,7 +410,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.InviteTokenInvalid);
+        result.Error().Should().Be(new InviteTokenInvalid());
     }
 
     // ==========================================================================
@@ -425,8 +432,8 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeTrue();
-            result.Value!.AccessToken.Should().Be("acc");
-            result.Value.RefreshToken.Should().Be("ref");
+            result.Value().AccessToken.Should().Be("acc");
+            result.Value().RefreshToken.Should().Be("ref");
         });
     }
 
@@ -491,7 +498,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.LoginAsync("   ", "password", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.InvalidCredentials);
+        result.Error().Should().Be(new InvalidCredentials());
     }
 
     [Fact]
@@ -504,7 +511,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.InvalidCredentials);
+            result.Error().Should().Be(new InvalidCredentials());
         });
     }
 
@@ -532,7 +539,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.InvalidCredentials);
+            result.Error().Should().Be(new InvalidCredentials());
         });
     }
 
@@ -550,7 +557,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.AccountDisabled);
+            result.Error().Should().Be(new AccountDisabled());
         });
     }
 
@@ -574,8 +581,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.AccountTemporarilyLocked);
-            result.RetryAfterSeconds.Should().Be(60);
+            result.Error().Should().Be(new AccountLocked(60));
         });
     }
 
@@ -714,14 +720,14 @@ public sealed class AuthServiceTests
     [Fact]
     public async Task RefreshAsync_DelegatesToTokenService_ReturnsItsResult()
     {
-        var expected = AuthResult.Ok(new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User()));
+        ServiceResult<AuthTokens, IRefreshError> expected = new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User());
         var fixture = new TestFixture()
             .WithTokenRefresh("raw_token", expected);
         var testee = fixture.CreateTestee();
 
         var result = await testee.RefreshAsync("raw_token", CancellationToken.None);
 
-        result.Should().BeEquivalentTo(expected);
+        result.Should().BeSameAs(expected);
     }
 
     [Fact]
@@ -760,7 +766,7 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task ChangePasswordAsync_UserNotFound_ReturnsInvalidCredentials()
+    public async Task ChangePasswordAsync_UserNotFound_ReturnsCurrentPasswordWrong()
     {
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var fixture = new TestFixture().WithUserById(userId, null);
@@ -771,12 +777,12 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.InvalidCredentials);
+            result.Error().Should().Be(new CurrentPasswordWrong());
         });
     }
 
     [Fact]
-    public async Task ChangePasswordAsync_WrongCurrentPassword_ReturnsInvalidCredentials()
+    public async Task ChangePasswordAsync_WrongCurrentPassword_ReturnsCurrentPasswordWrong()
     {
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var user = new User { Id = userId, PasswordHash = "stored_hash" };
@@ -788,16 +794,17 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.InvalidCredentials);
+            result.Error().Should().Be(new CurrentPasswordWrong());
         });
     }
 
     [Theory]
-    [InlineData(AuthError.PasswordTooShort)]
-    [InlineData(AuthError.PasswordTooLong)]
-    [InlineData(AuthError.PasswordPwned)]
-    public async Task ChangePasswordAsync_NewPasswordFailsValidation_ReturnsValidationError(AuthError validationError)
+    [InlineData(typeof(PasswordTooShort))]
+    [InlineData(typeof(PasswordTooLong))]
+    [InlineData(typeof(PasswordPwned))]
+    public async Task ChangePasswordAsync_NewPasswordFailsValidation_ReturnsValidationError(Type errorType)
     {
+        var validationError = NewError<PasswordRejected>(errorType);
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var user = new User { Id = userId, PasswordHash = "stored_hash" };
         var fixture = new TestFixture()
@@ -811,7 +818,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(validationError);
+            result.Error().Should().Be(validationError);
         });
     }
 
@@ -836,7 +843,7 @@ public sealed class AuthServiceTests
 
         Assert.Multiple(() =>
         {
-            result.Value.Should().BeSameAs(issued);
+            result.Value().Should().BeSameAs(issued);
             issuedWhileMustChange.Should().Equal(false);
         });
     }
@@ -901,7 +908,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.UsernameTaken);
+        result.Error().Should().Be(new UsernameTaken());
     }
 
     [Fact]
@@ -911,7 +918,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.EmailTaken);
+        result.Error().Should().Be(new EmailTaken());
     }
 
     [Fact]
@@ -924,7 +931,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeTrue();
-            result.Value!.TemporaryPassword.Should().NotBeNullOrEmpty();
+            result.Value().TemporaryPassword.Should().NotBeNullOrEmpty();
         });
     }
 
@@ -955,7 +962,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             capturedUser!.PasswordHash.Should().Be("hashed_value");
-            capturedUser.PasswordHash.Should().NotBe(result.Value!.TemporaryPassword);
+            capturedUser.PasswordHash.Should().NotBe(result.Value().TemporaryPassword);
         });
     }
 
@@ -968,8 +975,8 @@ public sealed class AuthServiceTests
 
         Assert.Multiple(() =>
         {
-            result.Value!.Username.Should().Be("alice");
-            result.Value.Email.Should().Be("alice@example.com");
+            result.Value().Username.Should().Be("alice");
+            result.Value().Email.Should().Be("alice@example.com");
         });
     }
 
@@ -982,7 +989,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.EmailTaken);
+        result.Error().Should().Be(new EmailTaken());
     }
 
     [Fact]
@@ -994,7 +1001,7 @@ public sealed class AuthServiceTests
 
         var result = await testee.AdminCreateUserAsync("alice", "alice@example.com", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.UsernameTaken);
+        result.Error().Should().Be(new UsernameTaken());
     }
 
     [Fact]
@@ -1030,10 +1037,11 @@ public sealed class AuthServiceTests
     }
 
     [Theory]
-    [InlineData(AuthError.InvalidUsername)]
-    [InlineData(AuthError.InvalidEmail)]
-    public async Task AdminCreateUserAsync_IdentityValidationFails_ReturnsValidationError(AuthError validationError)
+    [InlineData(typeof(InvalidUsername))]
+    [InlineData(typeof(InvalidEmail))]
+    public async Task AdminCreateUserAsync_IdentityValidationFails_ReturnsValidationError(Type errorType)
     {
+        var validationError = NewError<IIdentityRejection>(errorType);
         var testee = new TestFixture()
             .WithIdentityValidationError(validationError)
             .CreateTestee();
@@ -1043,7 +1051,7 @@ public sealed class AuthServiceTests
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(validationError);
+            result.Error().Should().Be(validationError);
         });
     }
 }
