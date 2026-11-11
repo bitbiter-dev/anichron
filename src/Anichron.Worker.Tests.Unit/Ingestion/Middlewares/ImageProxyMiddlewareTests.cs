@@ -74,8 +74,10 @@ public sealed class ImageProxyMiddlewareTests
         {
             return new(generators,
                        blurhashEncoder ?? new BlurhashEncoder(ImageProcessor, Options.Create(new WorkerSettings())),
-                       new UprightImageDecoder(new MagickHeifDecoder(), new ImageSharpUprightDecoder()),
-                       FrameExtractor,
+                       new UprightImageSource(
+                           new UprightImageDecoder(new MagickHeifDecoder(), new ImageSharpUprightDecoder()),
+                           FrameExtractor,
+                           FileSystem),
                        DirectoryStrategy,
                        new ProxyStagingWriter(
                            FileSystem,

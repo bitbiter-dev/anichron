@@ -131,6 +131,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<MagickHeifDecoder>();
             services.AddSingleton<ImageSharpUprightDecoder>();
             services.AddSingleton<IUprightImageDecoder, UprightImageDecoder>();
+            services.AddSingleton<IUprightImageSource, UprightImageSource>();
             services.AddSingleton<IImageProcessor, ImageSharpProcessor>();
             services.AddSingleton<IImageProxyGenerator, ThumbnailGenerator>();
             services.AddSingleton<IImageProxyGenerator, FullPreviewGenerator>();
