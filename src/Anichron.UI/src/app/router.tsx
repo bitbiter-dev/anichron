@@ -18,6 +18,7 @@ import { returnPath } from './return-path';
 import { Shell } from './Shell';
 import { SignedIn } from './SignedIn';
 import { Splash } from './Splash';
+import { StartFailed } from './StartFailed';
 
 interface RouterContext {
   api: ApiClient;
@@ -30,6 +31,7 @@ function routeTree() {
   const rootRoute = createRootRouteWithContext<RouterContext>()({
     beforeLoad: ({ context }) => context.api.session.restore(),
     pendingComponent: Splash,
+    errorComponent: StartFailed,
   });
 
   const signedInRoute = createRoute({

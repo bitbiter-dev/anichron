@@ -4,9 +4,11 @@ function secondsUntil(deadline: number) {
   return Math.ceil((deadline - Date.now()) / 1000);
 }
 
-export function useCountdown() {
-  const [deadline, setDeadline] = useState<number>();
-  const [remaining, setRemaining] = useState(0);
+export function useCountdown(initialSeconds = 0) {
+  const [deadline, setDeadline] = useState<number | undefined>(
+    () => Date.now() + initialSeconds * 1000,
+  );
+  const [remaining, setRemaining] = useState(initialSeconds);
 
   useEffect(() => {
     if (deadline === undefined) return undefined;

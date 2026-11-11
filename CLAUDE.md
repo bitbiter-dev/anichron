@@ -104,7 +104,7 @@ Mutants that flip between runs:
 - **Hooks:** a commit with a UI file runs prettier and ESLint on the staged files, and `typecheck` (incremental) and `depcruise` on the whole project. A push runs `scripts/ui-pre-push.sh`.
 - **CI:** `UI` runs all of them, plus the scoped mutation run and the bundle budget (`.size-limit.json`; a PR that raises a limit says why). `E2E` runs `pnpm e2e` against the PR's API image. Locally, build `anichron-api:e2e` and start `src/docker-compose.e2e.yml` (its header has the commands).
 
-**Session:** before any route renders, the app refreshes once and holds the session, its user included, in memory. `src/api/session.ts` keeps it alive with one single-flight refresh: on a schedule, on becoming visible, and on a `401` before retrying. Only a `401` from refresh signs out. Data calls live apart, one module per area (`docs/architecture/ui-api.md`).
+**Session:** before any route renders, the app refreshes once and holds the session, its user included, in memory. `src/api/session.ts` keeps it alive with one single-flight refresh: on a schedule, on becoming visible, and on a `401` before retrying. Only a `401` from refresh signs out; any other failed start shows `src/app/StartFailed.tsx`. Data calls live apart, one module per area (`docs/architecture/ui-api.md`).
 
 **Tabs:** login, refresh and logout run under one Web Lock, and signing in or out is announced on a `BroadcastChannel`, so every other tab starts again or signs out. Both go through the port in `src/api/tabs.ts`, composed in `main.tsx`; tests use `src/test/tabs.ts`.
 
