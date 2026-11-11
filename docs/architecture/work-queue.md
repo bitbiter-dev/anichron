@@ -34,6 +34,12 @@ Kinds: `Crawl` and `BurstDetection` (one per storage config), `TokenCleanup` and
 
 **Handler contract:** delivery is at least once. A run starts from scratch, converges, and its side effects are safe to repeat. The returned summary becomes `Result`.
 
+**Crawl result** (`CrawlResult`; a Live Photo is one item):
+
+- `found`: items the walk queued. `processed`: items handled without an error, unchanged ones included. `failed`: items whose ingestion failed. Progress is `processed + failed` of `found`.
+- `ingested`: processed items whose content was read: classified `New`, `ContentChanged` or `AutoRestoredContentChanged`.
+- `skippedLinks` and `skippedUnsupported`: links, and files with no media type, that the walk reached. Excluded entries are never counted.
+
 ## Proxy sweeps
 
 Orphaned proxy files are reported, never deleted unattended.

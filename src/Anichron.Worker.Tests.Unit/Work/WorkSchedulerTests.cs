@@ -154,6 +154,33 @@ public sealed class WorkSchedulerTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_Outages_LogEachFirstFailureAsAnErrorTheRestAtDebugAndEachRecoveryOnceAsync()
+    {
+        var calls = 0;
+        store.RecoverExpiredLeasesAsync(Arg.Any<Instant>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                timeline.Record("recover");
+                return ++calls is 2 or 3 or 4 or 7 ? throw new InvalidOperationException("db down") : Task.CompletedTask;
+            });
+        await StartAsync();
+        await timeline.ExpectAsync(new Called("recover"), new TimerArmed(Poll));
+
+        for (var poll = 0; poll < 6; poll++)
+        {
+            timeline.Clock.Advance(Poll);
+            await timeline.ExpectAsync(new TimerFired(Poll), new Called("recover"), new TimerArmed(Poll));
+        }
+
+        logger.Collector.GetSnapshot().Select(e => (e.Level, e.Message, e.Exception?.Message)).Should().Equal(
+            (LogLevel.Error, "Scheduling work or recovering leases failed; will retry at the next poll.", "db down"),
+            (LogLevel.Debug, "Scheduling work or recovering leases failed again; will retry at the next poll.", null),
+            (LogLevel.Debug, "Scheduling work or recovering leases failed again; will retry at the next poll.", null),
+            (LogLevel.Information, "Scheduling work or recovering leases works again.", null),
+            (LogLevel.Error, "Scheduling work or recovering leases failed; will retry at the next poll.", "db down"));
+    }
+
+    [Fact]
     public async Task StopAsync_EndsWithoutFaultingAsync()
     {
         await StartAsync();

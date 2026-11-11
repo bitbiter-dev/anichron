@@ -16,7 +16,7 @@ public sealed class AdminEndpointsTests
     public async Task CreateUserAsync_CallsMapperWithServiceResult()
     {
         var userId = Guid.NewGuid();
-        var serviceResult = AuthResult.Ok(new AdminCreatedUser(userId, "alice", "alice@example.com", "TempPass=="));
+        ServiceResult<AdminCreatedUser, IAdminCreateUserError> serviceResult = new AdminCreatedUser(userId, "alice", "alice@example.com", "TempPass==");
         var expectedResult = Results.Created($"/api/v1/users/{userId}", new AdminCreatedUserResponse(userId, "alice", "alice@example.com", "TempPass=="));
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
@@ -36,8 +36,8 @@ public sealed class AdminEndpointsTests
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.AdminCreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Ok(new AdminCreatedUser(Guid.NewGuid(), "alice", "alice@example.com", "TempPass==")));
-        mapper.GetAdminCreateUserResult(Arg.Any<AuthResult<AdminCreatedUser>>())
+            .Returns(new AdminCreatedUser(Guid.NewGuid(), "alice", "alice@example.com", "TempPass=="));
+        mapper.GetAdminCreateUserResult(Arg.Any<ServiceResult<AdminCreatedUser, IAdminCreateUserError>>())
             .Returns(Results.Created("/", null as AdminCreatedUserResponse));
 
         await AdminEndpoints.CreateUserAsync(ValidRequest, auth, mapper, CancellationToken.None);

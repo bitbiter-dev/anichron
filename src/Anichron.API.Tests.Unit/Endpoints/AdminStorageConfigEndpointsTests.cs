@@ -17,8 +17,8 @@ public sealed class AdminStorageConfigEndpointsTests
         var service = Substitute.For<IAdminStorageConfigService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         var userId = Guid.NewGuid();
-        var serviceResult = AuthResult.Ok(new List<UserStorageConfig>());
-        var expected = Results.Ok(serviceResult.Value);
+        var serviceResult = new List<UserStorageConfig>();
+        var expected = Results.Ok(serviceResult);
         service.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(serviceResult);
         mapper.GetAdminGetStorageConfigsResult(serviceResult).Returns(expected);
 
@@ -41,7 +41,7 @@ public sealed class AdminStorageConfigEndpointsTests
         var userId = Guid.NewGuid();
         var req = new CreateStorageConfigRequest("/nas/photos");
         var config = new UserStorageConfig { Id = Guid.NewGuid(), UserId = userId, RootPath = "/nas/photos" };
-        var serviceResult = AuthResult.Ok(config);
+        ServiceResult<UserStorageConfig, IAddStorageConfigError> serviceResult = config;
         var expected = Results.Created("/some/location", config);
         service.AddAsync(userId, "/nas/photos", Arg.Any<CancellationToken>()).Returns(serviceResult);
         mapper.GetAdminCreateStorageConfigResult(serviceResult).Returns(expected);
@@ -64,7 +64,7 @@ public sealed class AdminStorageConfigEndpointsTests
         var mapper = Substitute.For<IAuthResponseMapper>();
         var userId = Guid.NewGuid();
         var configId = Guid.NewGuid();
-        var serviceResult = AuthResult.Ok();
+        const bool serviceResult = true;
         var expected = Results.NoContent();
         service.DeleteAsync(userId, configId, Arg.Any<CancellationToken>()).Returns(serviceResult);
         mapper.GetAdminDeleteStorageConfigResult(serviceResult).Returns(expected);

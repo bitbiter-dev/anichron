@@ -184,7 +184,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.TokenInvalid);
+            result.Error().Should().Be(new RefreshTokenInvalid());
         });
     }
 
@@ -202,7 +202,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.TokenInvalid);
+            result.Error().Should().Be(new RefreshTokenInvalid());
         });
         await fixture.Tokens.Received(1)
             .RevokeAllActiveByUserIdAsync(user.Id, FixedNow, Arg.Any<CancellationToken>());
@@ -222,7 +222,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.TokenInvalid);
+            result.Error().Should().Be(new RefreshTokenInvalid());
         });
     }
 
@@ -235,7 +235,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         var result = await fixture.CreateTestee().RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.TokenInvalid);
+        result.Error().Should().Be(new RefreshTokenInvalid());
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.AccountDisabled);
+            result.Error().Should().Be(new AccountDisabled());
         });
     }
 
@@ -267,8 +267,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeFalse();
-            result.Error.Should().Be(AuthError.AccountTemporarilyLocked);
-            result.RetryAfterSeconds.Should().Be(60);
+            result.Error().Should().Be(new AccountLocked(60));
         });
     }
 
@@ -285,12 +284,12 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        var expectedHash = Convert.ToBase64String(SHA256.HashData(Convert.FromBase64String(result.Value!.RefreshToken)));
+        var expectedHash = Convert.ToBase64String(SHA256.HashData(Convert.FromBase64String(result.Value().RefreshToken)));
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeTrue();
-            result.Value.AccessToken.Should().Be("access_token");
-            result.Value.User.Should().BeSameAs(user);
+            result.Value().AccessToken.Should().Be("access_token");
+            result.Value().User.Should().BeSameAs(user);
             successor.Should().NotBeNull();
             successor.Id.Should().Be(Guid.Parse("00000000-0000-0000-0000-000000000001"));
             successor.UserId.Should().Be(user.Id);
@@ -335,7 +334,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         Assert.Multiple(() =>
         {
             result.IsSuccess.Should().BeTrue();
-            result.Value!.User.Should().BeSameAs(user);
+            result.Value().User.Should().BeSameAs(user);
         });
         await fixture.Tokens.Received(1).TryRotateAsync(
             SuccessorId,
@@ -355,7 +354,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.TokenInvalid);
+        result.Error().Should().Be(new RefreshTokenInvalid());
         await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
             user.Id, FixedNow + Duration.FromSeconds(31), Arg.Any<CancellationToken>());
         await fixture.Tokens.DidNotReceive()
@@ -372,7 +371,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.TokenInvalid);
+        result.Error().Should().Be(new RefreshTokenInvalid());
         await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
             user.Id, FixedNow + Duration.FromSeconds(2), Arg.Any<CancellationToken>());
         await fixture.Tokens.DidNotReceive()
@@ -389,7 +388,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.AccountDisabled);
+        result.Error().Should().Be(new AccountDisabled());
         await fixture.Tokens.DidNotReceive()
             .TryRotateAsync(Arg.Any<Guid>(), Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
     }
@@ -422,7 +421,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
 
         var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.TokenInvalid);
+        result.Error().Should().Be(new RefreshTokenInvalid());
         await fixture.Tokens.Received(1).RevokeAllActiveByUserIdAsync(
             user.Id, FixedNow + Duration.FromSeconds(1), Arg.Any<CancellationToken>());
     }

@@ -87,7 +87,7 @@ public sealed class ContentChangedWriterTests
         {
             var clock = Substitute.For<IClock>();
             clock.GetCurrentInstant().Returns(Now);
-            MovGenerator.FileName.Returns("video_720p.mp4");
+            MovGenerator.FileName.Returns("video.mp4");
             MovGenerator.ProxyType.Returns(ProxyType.WebVideo);
             MovGenerator.TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call => FileSystem.File.WriteAllBytesAsync(call.ArgAt<string>(1), [0x01]));
@@ -312,7 +312,7 @@ public sealed class ContentChangedWriterTests
     {
         var fx = new TestFixture();
         var context = fx.Context();
-        var webVideo = NewProxy(ProxyType.WebVideo, "n3/new/video_720p.mp4");
+        var webVideo = NewProxy(ProxyType.WebVideo, "n3/new/video.mp4");
         context.AddProxyFile(NewProxy(ProxyType.Thumbnail, "n3/new/thumbnail.jpg"));
         context.AddProxyFile(NewProxy(ProxyType.FullPreview, "n3/new/preview.jpg"));
         context.AddProxyFile(webVideo);

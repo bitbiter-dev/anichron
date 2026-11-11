@@ -2,124 +2,55 @@ using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Domain;
-using System.Diagnostics;
-using static System.Globalization.CultureInfo;
+using Microsoft.Extensions.Options;
 
 namespace Anichron.API.Endpoints;
 
 public interface IAuthResponseMapper
 {
-    IResult GetRegistrationResult(AuthResult<AuthTokens> result, HttpContext http, PasswordPolicy passwordPolicy, UsernamePolicy usernamePolicy);
-    IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
-    IResult GetRefreshResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie);
-    IResult GetChangePasswordResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie, PasswordPolicy passwordPolicy);
-    IResult GetAdminCreateUserResult(AuthResult<AdminCreatedUser> result);
+    IResult GetRegistrationResult(ServiceResult<AuthTokens, IRegisterError> result, HttpContext http);
+    IResult GetLoginResult(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie);
+    IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http, bool setCookie);
+    IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http, bool setCookie);
+    IResult GetAdminCreateUserResult(ServiceResult<AdminCreatedUser, IAdminCreateUserError> result);
     IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result);
     IResult GetAdminGetUsersResult(List<User> users);
     IResult GetAdminGetUserResult(User? user);
-    IResult GetAdminPatchUserResult(AuthResult<User> result);
-    IResult GetAdminDeleteUserResult(AuthResult result);
-    IResult GetAdminGetStorageConfigsResult(AuthResult<List<UserStorageConfig>> result);
-    IResult GetAdminCreateStorageConfigResult(AuthResult<UserStorageConfig> result);
-    IResult GetAdminDeleteStorageConfigResult(AuthResult result);
+    IResult GetAdminPatchUserResult(ServiceResult<User, IUpdateUserError> result);
+    IResult GetAdminDeleteUserResult(IDeleteUserError? error);
+    IResult GetAdminGetStorageConfigsResult(List<UserStorageConfig>? configs);
+    IResult GetAdminCreateStorageConfigResult(ServiceResult<UserStorageConfig, IAddStorageConfigError> result);
+    IResult GetAdminDeleteStorageConfigResult(bool deleted);
     void ClearSessionCookies(HttpContext http);
 }
 
-public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock clock) : IAuthResponseMapper
+public sealed class AuthResponseMapper(
+    AuthCookieSettings cookieSettings,
+    IClock clock,
+    IOptions<UsernamePolicy> usernamePolicy,
+    IOptions<PasswordPolicy> passwordPolicy) : IAuthResponseMapper
 {
-    public IResult GetRegistrationResult(AuthResult<AuthTokens> result, HttpContext http, PasswordPolicy passwordPolicy, UsernamePolicy usernamePolicy)
-    {
-        if (!result.IsSuccess)
-        {
-            return result.Error switch
-            {
-                AuthError.UsernameTaken => ApiProblems.FieldProblem(
-                    StatusCodes.Status409Conflict, ErrorCodes.UsernameTaken, Fields.Username, AuthMessages.UsernameTaken),
-                AuthError.EmailTaken => ApiProblems.FieldProblem(
-                    StatusCodes.Status409Conflict, ErrorCodes.EmailTaken, Fields.Email, AuthMessages.EmailTaken),
-                AuthError.InvalidUsername => ApiProblems.FieldProblem(
-                    StatusCodes.Status422UnprocessableEntity, ErrorCodes.InvalidUsername, Fields.Username, usernamePolicy.InvalidFormatMessage),
-                AuthError.InvalidEmail => ApiProblems.FieldProblem(
-                    StatusCodes.Status422UnprocessableEntity, ErrorCodes.InvalidEmail, Fields.Email, AuthMessages.InvalidEmail),
-                AuthError.InviteTokenInvalid => ApiProblems.Problem(
-                    StatusCodes.Status422UnprocessableEntity, ErrorCodes.InviteTokenInvalid, AuthMessages.InviteTokenInvalid),
-                _ => PasswordRejectedResult(result.Error, Fields.Password, passwordPolicy, "Register"),
-            };
-        }
+    private readonly AuthProblems problems = new(usernamePolicy.Value, passwordPolicy.Value, AuthProblems.Fields.Password);
+    private readonly AuthProblems changePasswordProblems = new(usernamePolicy.Value, passwordPolicy.Value, AuthProblems.Fields.NewPassword);
 
-        return BuildSessionResponse(result.Value!, http, setCookie: true);
-    }
+    public IResult GetRegistrationResult(ServiceResult<AuthTokens, IRegisterError> result, HttpContext http)
+        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie: true), error => error.Accept(problems));
 
-    public IResult GetLoginResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie)
-    {
-        if (!result.IsSuccess)
-        {
-            return result.Error switch
-            {
-                AuthError.AccountTemporarilyLocked => LockedResult(http, result.RetryAfterSeconds!.Value),
-                AuthError.AccountDisabled => AccountDisabledResult(),
-                AuthError.InvalidCredentials => ApiProblems.Problem(
-                    StatusCodes.Status401Unauthorized, ErrorCodes.InvalidCredentials, AuthMessages.InvalidCredentials),
-                _ => throw new UnreachableException($"Unexpected AuthError in Login: {result.Error}"),
-            };
-        }
+    public IResult GetLoginResult(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie)
+        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie), error => error.Accept(problems));
 
-        return BuildSessionResponse(result.Value!, http, setCookie);
-    }
+    public IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http, bool setCookie)
+        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie), error => error.Accept(problems));
 
-    public IResult GetRefreshResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie)
-    {
-        if (!result.IsSuccess)
-        {
-            return result.Error switch
-            {
-                AuthError.TokenInvalid => ApiProblems.Problem(
-                    StatusCodes.Status401Unauthorized, ErrorCodes.RefreshTokenInvalid, AuthMessages.RefreshTokenInvalid),
-                AuthError.AccountDisabled => AccountDisabledResult(),
-                AuthError.AccountTemporarilyLocked => LockedResult(http, result.RetryAfterSeconds!.Value),
-                _ => throw new UnreachableException($"Unexpected AuthError in Refresh: {result.Error}"),
-            };
-        }
+    public IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http, bool setCookie)
+        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie), error => error.Accept(changePasswordProblems));
 
-        return BuildSessionResponse(result.Value!, http, setCookie);
-    }
-
-    public IResult GetChangePasswordResult(AuthResult<AuthTokens> result, HttpContext http, bool setCookie, PasswordPolicy passwordPolicy)
-    {
-        if (result.IsSuccess)
-            return BuildSessionResponse(result.Value!, http, setCookie);
-
-        return result.Error switch
-        {
-            AuthError.InvalidCredentials => ApiProblems.FieldProblem(
-                StatusCodes.Status400BadRequest, ErrorCodes.InvalidCredentials, Fields.CurrentPassword, AuthMessages.InvalidCredentials),
-            _ => PasswordRejectedResult(result.Error, Fields.NewPassword, passwordPolicy, "ChangePassword"),
-        };
-    }
-
-    public IResult GetAdminCreateUserResult(AuthResult<AdminCreatedUser> result)
-    {
-        if (!result.IsSuccess)
-        {
-            return result.Error switch
-            {
-                AuthError.InvalidUsername => ApiProblems.FieldProblem(
-                    StatusCodes.Status422UnprocessableEntity, ErrorCodes.InvalidUsername, Fields.Username, AuthMessages.InvalidUsername),
-                AuthError.InvalidEmail => ApiProblems.FieldProblem(
-                    StatusCodes.Status422UnprocessableEntity, ErrorCodes.InvalidEmail, Fields.Email, AuthMessages.InvalidEmail),
-                AuthError.UsernameTaken => ApiProblems.FieldProblem(
-                    StatusCodes.Status409Conflict, ErrorCodes.UsernameTaken, Fields.Username, AuthMessages.UsernameTaken),
-                AuthError.EmailTaken => ApiProblems.FieldProblem(
-                    StatusCodes.Status409Conflict, ErrorCodes.EmailTaken, Fields.Email, AuthMessages.EmailTaken),
-                _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateUser: {result.Error}"),
-            };
-        }
-
-        var created = result.Value!;
-        var location = ApiPaths.Users.UserLocation(created.Id);
-        return Results.Created(location, new AdminCreatedUserResponse(
-            created.Id, created.Username, created.Email, created.TemporaryPassword));
-    }
+    public IResult GetAdminCreateUserResult(ServiceResult<AdminCreatedUser, IAdminCreateUserError> result)
+        => result.Match(
+            created => Results.Created(
+                ApiPaths.Users.UserLocation(created.Id),
+                new AdminCreatedUserResponse(created.Id, created.Username, created.Email, created.TemporaryPassword)),
+            error => error.Accept(problems));
 
     public IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result)
         => result is null
@@ -132,76 +63,28 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
     public IResult GetAdminGetUserResult(User? user)
         => user is null ? Results.NotFound() : Results.Ok(ToAdminUserResponse(user));
 
-    public IResult GetAdminPatchUserResult(AuthResult<User> result)
-        => result.Error switch
-        {
-            AuthError.UserNotFound => Results.NotFound(),
-            AuthError.CannotModifySelf => CannotModifySelfResult(),
-            null => Results.Ok(ToAdminUserResponse(result.Value!)),
-            _ => throw new UnreachableException($"Unexpected AuthError in AdminPatchUser: {result.Error}"),
-        };
+    public IResult GetAdminPatchUserResult(ServiceResult<User, IUpdateUserError> result)
+        => result.Match(user => Results.Ok(ToAdminUserResponse(user)), error => error.Accept(problems));
 
-    public IResult GetAdminDeleteUserResult(AuthResult result)
-        => result.Error switch
-        {
-            AuthError.UserNotFound => Results.NotFound(),
-            AuthError.CannotModifySelf => CannotModifySelfResult(),
-            null => Results.NoContent(),
-            _ => throw new UnreachableException($"Unexpected AuthError in AdminDeleteUser: {result.Error}"),
-        };
+    public IResult GetAdminDeleteUserResult(IDeleteUserError? error)
+        => error is null ? Results.NoContent() : error.Accept(problems);
 
-    public IResult GetAdminGetStorageConfigsResult(AuthResult<List<UserStorageConfig>> result)
-        => result.Error switch
-        {
-            AuthError.UserNotFound => Results.NotFound(),
-            null => Results.Ok(result.Value!.ConvertAll(ToAdminStorageConfigResponse)),
-            _ => throw new UnreachableException($"Unexpected AuthError in AdminGetStorageConfigs: {result.Error}"),
-        };
+    public IResult GetAdminGetStorageConfigsResult(List<UserStorageConfig>? configs)
+        => configs is null ? Results.NotFound() : Results.Ok(configs.ConvertAll(ToAdminStorageConfigResponse));
 
-    public IResult GetAdminCreateStorageConfigResult(AuthResult<UserStorageConfig> result)
-    {
-        if (!result.IsSuccess)
-        {
-            return result.Error switch
-            {
-                AuthError.UserNotFound => Results.NotFound(),
-                AuthError.PathInvalid => ApiProblems.FieldProblem(
-                    StatusCodes.Status422UnprocessableEntity, ErrorCodes.PathInvalid, Fields.RootPath, AuthMessages.PathInvalid),
-                AuthError.PathAlreadyAssigned => ApiProblems.FieldProblem(
-                    StatusCodes.Status409Conflict, ErrorCodes.PathAlreadyAssigned, Fields.RootPath, AuthMessages.PathAlreadyAssigned),
-                AuthError.PathOverlaps => ApiProblems.FieldProblem(
-                    StatusCodes.Status409Conflict, ErrorCodes.PathOverlaps, Fields.RootPath, AuthMessages.PathOverlaps),
-                _ => throw new UnreachableException($"Unexpected AuthError in AdminCreateStorageConfig: {result.Error}"),
-            };
-        }
+    public IResult GetAdminCreateStorageConfigResult(ServiceResult<UserStorageConfig, IAddStorageConfigError> result)
+        => result.Match(
+            config => Results.Created(
+                ApiPaths.Users.StorageConfigLocation(config.UserId, config.Id), ToAdminStorageConfigResponse(config)),
+            error => error.Accept(problems));
 
-        var config = result.Value!;
-        var location = ApiPaths.Users.StorageConfigLocation(config.UserId, config.Id);
-        return Results.Created(location, ToAdminStorageConfigResponse(config));
-    }
-
-    public IResult GetAdminDeleteStorageConfigResult(AuthResult result)
-        => result.Error switch
-        {
-            AuthError.StorageConfigNotFound => Results.NotFound(),
-            null => Results.NoContent(),
-            _ => throw new UnreachableException($"Unexpected AuthError in AdminDeleteStorageConfig: {result.Error}"),
-        };
+    public IResult GetAdminDeleteStorageConfigResult(bool deleted)
+        => deleted ? Results.NoContent() : Results.NotFound();
 
     public void ClearSessionCookies(HttpContext http)
     {
         http.Response.Cookies.Delete(AuthMessages.RefreshTokenCookieName);
         http.Response.Cookies.Delete(ProxyEndpoints.MediaCookieName, SessionCookieOptions(ProxyEndpoints.MediaCookiePath));
-    }
-
-    private static class Fields
-    {
-        internal const string Username = "username";
-        internal const string Email = "email";
-        internal const string Password = "password";
-        internal const string CurrentPassword = "currentPassword";
-        internal const string NewPassword = "newPassword";
-        internal const string RootPath = "rootPath";
     }
 
     private static AdminUserResponse ToAdminUserResponse(User user)
@@ -220,31 +103,6 @@ public sealed class AuthResponseMapper(AuthCookieSettings cookieSettings, IClock
         SetSessionCookies(http, tokens);
         return Results.Ok(new SessionResponse(tokens.AccessToken, expiresIn, user));
     }
-
-    private static IResult LockedResult(HttpContext http, int secondsRemaining)
-    {
-        http.Response.Headers.RetryAfter = secondsRemaining.ToString(InvariantCulture);
-        return ApiProblems.Problem(
-            StatusCodes.Status429TooManyRequests, ErrorCodes.AccountLocked, AuthMessages.AccountTemporarilyLocked(secondsRemaining));
-    }
-
-    private static IResult PasswordRejectedResult(AuthError? error, string field, PasswordPolicy passwordPolicy, string operation)
-        => error switch
-        {
-            AuthError.PasswordTooShort => ApiProblems.FieldProblem(
-                StatusCodes.Status422UnprocessableEntity, ErrorCodes.PasswordTooShort, field, passwordPolicy.TooShortMessage),
-            AuthError.PasswordTooLong => ApiProblems.FieldProblem(
-                StatusCodes.Status422UnprocessableEntity, ErrorCodes.PasswordTooLong, field, passwordPolicy.TooLongMessage),
-            AuthError.PasswordPwned => ApiProblems.FieldProblem(
-                StatusCodes.Status422UnprocessableEntity, ErrorCodes.PasswordPwned, field, AuthMessages.PasswordPwned),
-            _ => throw new UnreachableException($"Unexpected AuthError in {operation}: {error}"),
-        };
-
-    private static IResult CannotModifySelfResult()
-        => ApiProblems.Problem(StatusCodes.Status403Forbidden, ErrorCodes.CannotModifySelf, AuthMessages.CannotModifySelf);
-
-    private static IResult AccountDisabledResult()
-        => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.AccountDisabled, AuthMessages.AccountDisabled);
 
     private void SetSessionCookies(HttpContext http, AuthTokens tokens)
     {

@@ -1,13 +1,12 @@
 import { ErrorComponent, type ErrorComponentProps } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { SessionNotRestored } from '../api/client';
-import type { Problem } from '../api/problem';
+import { ProblemError, type Problem } from '../api/problem';
 import { Button } from '../shared/ui/Button';
 import { startFailureCopy } from './start-failure';
 import { useRetry } from './use-retry';
 
 export function StartFailed({ error }: ErrorComponentProps) {
-  return error instanceof SessionNotRestored ? (
+  return error instanceof ProblemError ? (
     <StartFailure problem={error.problem} />
   ) : (
     <ErrorComponent error={error} />
