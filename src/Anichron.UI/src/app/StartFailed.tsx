@@ -24,7 +24,7 @@ function StartFailure({ problem }: { problem: Problem }) {
         <h1 className="text-title font-semibold">{t(copy.title)}</h1>
         <p className="text-fg-muted">{t(copy.body)}</p>
         {retryIn > 0 && (
-          <p className="text-small text-fg-muted">{t('startFailed.retryIn', { count: retryIn })}</p>
+          <p className="text-small text-fg-muted">{t('retryIn', { count: retryIn })}</p>
         )}
         <Button onPress={retry} isDisabled={blocked} className="mt-2">
           {t('startFailed.retry')}

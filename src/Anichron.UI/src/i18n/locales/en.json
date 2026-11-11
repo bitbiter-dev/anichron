@@ -9,8 +9,6 @@
     "usernameOrEmail": "Username or email",
     "password": "Password",
     "submit": "Sign in",
-    "retryIn_one": "You can try again in {{count}} second.",
-    "retryIn_other": "You can try again in {{count}} seconds.",
     "errors": {
       "required": "Fill in this field.",
       "invalidCredentials": "The username, email or password is wrong.",
@@ -47,8 +45,8 @@
       "title": "Too many attempts",
       "body": "Anichron is limiting attempts from this device. Wait a moment, then try again."
     },
-    "retry": "Retry",
-    "retryIn_one": "You can try again in {{count}} second.",
-    "retryIn_other": "You can try again in {{count}} seconds."
-  }
+    "retry": "Retry"
+  },
+  "retryIn_one": "You can try again in {{count}} second.",
+  "retryIn_other": "You can try again in {{count}} seconds."
 }

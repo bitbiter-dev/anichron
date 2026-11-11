@@ -16,7 +16,7 @@ export function LoginPage() {
         <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)} noValidate>
           <Alert message={formError} />
           {retryIn > 0 && (
-            <p className="text-small text-fg-muted">{t('login.retryIn', { count: retryIn })}</p>
+            <p className="text-small text-fg-muted">{t('retryIn', { count: retryIn })}</p>
           )}
           <LoginField
             control={control}
