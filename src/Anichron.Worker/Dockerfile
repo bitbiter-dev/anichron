@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y \
 # 2. Build Stage
 # $BUILDPLATFORM = CI runner arch (amd64). dotnet publish produces arch-neutral IL,
 # so compiling natively avoids QEMU emulation overhead without affecting the output.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
