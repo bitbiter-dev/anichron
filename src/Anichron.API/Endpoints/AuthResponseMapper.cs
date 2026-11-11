@@ -10,8 +10,8 @@ public interface IAuthResponseMapper
 {
     IResult GetRegistrationResult(ServiceResult<AuthTokens, IRegisterError> result, HttpContext http);
     IResult GetLoginResult(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie);
-    IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http, bool setCookie);
-    IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http, bool setCookie);
+    IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http);
+    IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http);
     IResult GetAdminCreateUserResult(ServiceResult<AdminCreatedUser, IAdminCreateUserError> result);
     IResult GetAdminResetPasswordResult(AdminUserPasswordReset? result);
     IResult GetAdminGetUsersResult(List<User> users);
@@ -39,11 +39,12 @@ public sealed class AuthResponseMapper(
     public IResult GetLoginResult(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie)
         => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie), error => error.Accept(problems));
 
-    public IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http, bool setCookie)
-        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie), error => error.Accept(problems));
+    public IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http)
+        => result.Match(tokens => BuildSessionResponse(tokens, http, CameWithRefreshCookie(http)), error => error.Accept(problems));
 
-    public IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http, bool setCookie)
-        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie), error => error.Accept(changePasswordProblems));
+    public IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http)
+        => result.Match(
+            tokens => BuildSessionResponse(tokens, http, CameWithRefreshCookie(http)), error => error.Accept(changePasswordProblems));
 
     public IResult GetAdminCreateUserResult(ServiceResult<AdminCreatedUser, IAdminCreateUserError> result)
         => result.Match(
@@ -92,6 +93,9 @@ public sealed class AuthResponseMapper(
 
     private static AdminStorageConfigResponse ToAdminStorageConfigResponse(UserStorageConfig config)
         => new(config.Id, config.UserId, config.RootPath, config.IsActive);
+
+    private static bool CameWithRefreshCookie(HttpContext http)
+        => http.Request.Cookies.ContainsKey(AuthMessages.RefreshTokenCookieName);
 
     private IResult BuildSessionResponse(AuthTokens tokens, HttpContext http, bool setCookie)
     {

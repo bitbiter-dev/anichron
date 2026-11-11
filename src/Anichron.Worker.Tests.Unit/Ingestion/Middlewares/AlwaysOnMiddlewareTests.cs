@@ -33,7 +33,7 @@ public sealed class AlwaysOnMiddlewareTests
                 new FakeLogger<ClassificationMiddleware>()),
             "ContentHashing" => new ContentHashingMiddleware(fileSystem),
             "ImageProxy" => new ImageProxyMiddleware(
-                [], null!, null!, null!, null!, null!, fileSystem, new FakeLogger<ImageProxyMiddleware>()),
+                [], null!, null!, null!, null!, fileSystem, new FakeLogger<ImageProxyMiddleware>()),
             "Logging" => new LoggingMiddleware(new FakeLogger<LoggingMiddleware>()),
             "Persistence" => new PersistenceMiddleware([], saver, new FakeLogger<PersistenceMiddleware>()),
             _ => throw new ArgumentOutOfRangeException(nameof(name)),

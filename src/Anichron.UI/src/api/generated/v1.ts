@@ -1770,8 +1770,8 @@ export interface paths {
                 query?: {
                     status?: components["schemas"]["WorkItemStatus"];
                     kind?: components["schemas"]["WorkKind"];
-                    page?: number | string;
-                    pageSize?: number | string;
+                    page?: number;
+                    pageSize?: number;
                 };
                 header?: never;
                 path?: never;
@@ -2143,8 +2143,8 @@ export interface paths {
                     outcome?: components["schemas"]["ProxyDeletionOutcome"];
                     pending?: boolean;
                     storageConfigId?: string;
-                    page?: number | string;
-                    pageSize?: number | string;
+                    page?: number;
+                    pageSize?: number;
                 };
                 header?: never;
                 path: {
@@ -2367,31 +2367,31 @@ export interface components {
             isAdmin: boolean;
             isDisabled: boolean;
             /** Format: int32 */
-            storageConfigCount: number | string;
+            storageConfigCount: number;
         };
         AssetBurstDto: {
             /** Format: uuid */
             burstId: string;
             isCover: boolean;
             /** Format: int32 */
-            count: number | string;
+            count: number;
         };
         AssetDto: {
             /** Format: uuid */
             id: string;
             mediaType: string;
             /** Format: int32 */
-            year: number | string;
+            year: number;
             /** Format: int32 */
-            month: number | string;
+            month: number;
             /** Format: int32 */
-            day: number | string;
+            day: number;
             /** Format: int32 */
-            width: null | number | string;
+            width: null | number;
             /** Format: int32 */
-            height: null | number | string;
+            height: null | number;
             /** Format: int32 */
-            durationSeconds: null | number | string;
+            durationSeconds: null | number;
             proxies: components["schemas"]["AssetProxyUrls"];
             blurhash: null | string;
             livePhotoVideoUrl: null | string;
@@ -2403,7 +2403,7 @@ export interface components {
             liked: boolean;
             hidden: boolean;
             /** Format: double */
-            displayWeight: number | string;
+            displayWeight: number;
         };
         AssetProxyUrls: {
             thumbnail: null | string;
@@ -2425,14 +2425,14 @@ export interface components {
         ErrorCode: "account_disabled" | "account_locked" | "cannot_modify_self" | "email_taken" | "invalid_credentials" | "invalid_date" | "invalid_email" | "invalid_orphan_count" | "invalid_page" | "invalid_page_size" | "invalid_username" | "invite_token_invalid" | "orphan_ids_or_all" | "password_change_required" | "password_pwned" | "password_too_long" | "password_too_short" | "path_already_assigned" | "path_invalid" | "path_overlaps" | "pending_or_outcome" | "rate_limited" | "refresh_token_invalid" | "refresh_token_required" | "service_unavailable" | "unknown_orphans" | "username_taken";
         FlashbackYearDto: {
             /** Format: int32 */
-            year: number | string;
+            year: number;
             assets: components["schemas"]["AssetDto"][];
         };
         HttpValidationProblemDetails: {
             type?: null | string;
             title?: null | string;
             /** Format: int32 */
-            status?: null | number | string;
+            status?: null | number;
             detail?: null | string;
             instance?: null | string;
             errors?: {
@@ -2462,7 +2462,7 @@ export interface components {
             type?: null | string;
             title?: null | string;
             /** Format: int32 */
-            status?: null | number | string;
+            status?: null | number;
             detail?: null | string;
             instance?: null | string;
             code?: components["schemas"]["ErrorCode"];
@@ -2482,7 +2482,7 @@ export interface components {
             /** Format: uuid */
             storageConfigId: null | string;
             /** Format: int64 */
-            sizeBytes: number | string;
+            sizeBytes: number;
             lastWriteTime: string;
             outcome: null | string;
             processedAt: null | string;
@@ -2490,11 +2490,11 @@ export interface components {
         ProxyOrphanPageDto: {
             items: components["schemas"]["ProxyOrphanDto"][];
             /** Format: int32 */
-            page: number | string;
+            page: number;
             /** Format: int32 */
-            pageSize: number | string;
+            pageSize: number;
             /** Format: int32 */
-            total: number | string;
+            total: number;
         };
         ProxySweepRequestedDto: {
             /** Format: uuid */
@@ -2517,7 +2517,7 @@ export interface components {
              * Format: int32
              * @description The access token's remaining lifetime in whole seconds.
              */
-            expiresIn: number | string;
+            expiresIn: number;
             /** @description The signed-in user. */
             user: components["schemas"]["UserProfileResponse"];
             /** @description The refresh token, for a client that keeps it itself. */
@@ -2549,9 +2549,9 @@ export interface components {
             requestedBy: null | string;
             status: string;
             /** Format: int32 */
-            attempt: number | string;
+            attempt: number;
             /** Format: int32 */
-            stalls: number | string;
+            stalls: number;
             claimedBy: null | string;
             requestedAt: string;
             startedAt: null | string;
@@ -2566,20 +2566,20 @@ export interface components {
         WorkItemPageDto: {
             items: components["schemas"]["WorkItemDto"][];
             /** Format: int32 */
-            page: number | string;
+            page: number;
             /** Format: int32 */
-            pageSize: number | string;
+            pageSize: number;
             /** Format: int32 */
-            total: number | string;
+            total: number;
             cursor: string;
         };
         WorkItemStatus: number;
         WorkKind: number;
         WorkProgressDto: {
             /** Format: int64 */
-            done: number | string;
+            done: number;
             /** Format: int64 */
-            total: null | number | string;
+            total: null | number;
             note: null | string;
         };
     };

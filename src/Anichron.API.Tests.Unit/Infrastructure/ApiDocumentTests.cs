@@ -148,6 +148,22 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     }
 
     [Fact]
+    public void Numbers_AreNeverStrings()
+    {
+        var schemas = composed.Value.Components!.Schemas!.Values
+            .SelectMany(schema => schema.Properties?.Values ?? [])
+            .Concat(composed.Value.Paths.Values
+                .SelectMany(path => path.Operations!.Values)
+                .SelectMany(operation => operation.Parameters ?? [])
+                .Select(parameter => parameter.Schema!))
+            .Where(schema => schema.Format is "int32" or "int64" or "double")
+            .ToList();
+
+        schemas.Should().NotBeEmpty();
+        schemas.Should().AllSatisfy(schema => schema.Type!.Value.HasFlag(JsonSchemaType.String).Should().BeFalse());
+    }
+
+    [Fact]
     public void Document_IsTitledAfterTheApi()
         => composed.Value.Info.Title.Should().Be("Anichron.API | v1");
 

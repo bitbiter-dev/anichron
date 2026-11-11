@@ -68,7 +68,7 @@ For a file with content H at path P, first match wins (ADR 0011 for the path-hol
 
 - `Thumbnail`, `FullPreview` and `WebVideo` are files; the BlurHash is a string in `Metadata.Blurhash`.
 - A photo's come from the photo. A standalone video gets its `WebVideo` and a poster (thumbnail, preview, BlurHash) from its frame at 1 s. A Live Photo's video gets only its `WebVideo`.
-- A photo is decoded once through `IUprightImageDecoder` (HEIC by its bytes to Magick.NET, ADR 0016; everything else to ImageSharp), then shrunk largest-first; each generator gets its own copy.
+- `IUprightImageSource` supplies the upright image once: a photo through `IUprightImageDecoder` (HEIC by its bytes to Magick.NET, ADR 0016; everything else to ImageSharp), a video through `IVideoFrameExtractor`. It is shrunk largest-first; each generator gets its own copy.
 - Sizes are edge-based and never upscale. The video encoder is picked at runtime: QuickSync, NVENC, AMF, then software.
 - A changed `Worker:VideoShortEdge` does not resize existing proxies (`WorkerSettings.VideoShortEdge`). The file, `video.mp4`, names no size.
 - Proxy paths derive from content (CLAUDE.md, "Storage Layout").

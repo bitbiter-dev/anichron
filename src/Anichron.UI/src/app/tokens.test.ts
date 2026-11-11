@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { blend, contrastRatio, declarations, themeColours, type Theme } from '../design/contrast';
-import tokens from './tokens.css?raw';
+import tokens from '../shared/ui/tokens.css?raw';
 
 const colours = (theme: Theme) => themeColours(tokens)[theme];
 const glassOpacity = () => Number(declarations(tokens).get('glass-opacity'));

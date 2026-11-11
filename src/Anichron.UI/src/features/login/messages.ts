@@ -1,8 +1,8 @@
-import type { ErrorCode } from '../../api/problem';
+import type { ErrorCode, ValidationCode } from '../../api/problem';
 import type en from '../../i18n/locales/en.json';
 
 function keys(): ReadonlyMap<string | undefined, MessageKey> {
-  return new Map<ErrorCode, MessageKey>([
+  return new Map<ErrorCode | ValidationCode, MessageKey>([
     ['required', 'login.errors.required'],
     ['invalid_credentials', 'login.errors.invalidCredentials'],
     ['account_disabled', 'login.errors.accountDisabled'],

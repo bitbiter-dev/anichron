@@ -55,36 +55,37 @@
 
 services:
   anichron-db:
-    image: postgres:17-alpine
+    extends:
+      file: docker-compose.yml
+      service: anichron-db
+    container_name: !reset null
+    restart: !reset null
     environment:
-      POSTGRES_USER: anichron_device
-      POSTGRES_PASSWORD: anichron_device
-      POSTGRES_DB: anichron
-    volumes:
+      - POSTGRES_USER=anichron_device
+      - POSTGRES_PASSWORD=anichron_device
+    volumes: !override
       - device_postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U anichron_device -d anichron"]
       interval: 2s
-      timeout: 5s
       retries: 30
 
   anichron-api:
+    extends:
+      file: docker-compose.yml
+      service: anichron-api
     image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge
-    ports:
+    container_name: !reset null
+    restart: !reset null
+    ports: !override
       - "127.0.0.1:${DEVICE_PORT:-8090}:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
       - TZ=${TZ:-UTC}
-      - POSTGRES_CONNECTION__HOST=anichron-db
-      - POSTGRES_CONNECTION__DBNAME=anichron
-      - POSTGRES_CONNECTION__PORT=5432
       - POSTGRES_CONNECTION__USER=anichron_device
       - POSTGRES_CONNECTION__PASSWORD=anichron_device
       - Jwt__Secret=${DEVICE_JWT_SECRET:?export DEVICE_JWT_SECRET, see the header}
-      - Jwt__Issuer=anichron
-      - Jwt__Audience=anichron
       - BOOTSTRAP_ADMIN_PASSWORD=device bootstrap passphrase
-    volumes:
+    volumes: !override
       - type: bind
         source: ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}
         target: /data/originals/mira
@@ -93,25 +94,27 @@ services:
           create_host_path: false
       - device_proxies:/data/proxies:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/healthz || exit 1"]
       interval: 2s
-      timeout: 5s
       retries: 30
-    depends_on:
-      anichron-db:
-        condition: service_healthy
+      start_period: !reset null
 
   # One Worker for all users: no WORKER__USER, configs come from the admin API.
   anichron-worker:
+    extends:
+      file: docker-compose.yml
+      service: anichron-worker
     image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-worker:edge
-    environment:
+    container_name: !reset null
+    restart: !reset null
+    devices: !reset []
+    environment: !override
       - TZ=${TZ:-UTC}
       - POSTGRES_CONNECTION__HOST=anichron-db
       - POSTGRES_CONNECTION__DBNAME=anichron
       - POSTGRES_CONNECTION__PORT=5432
       - POSTGRES_CONNECTION__USER=anichron_device
       - POSTGRES_CONNECTION__PASSWORD=anichron_device
-    volumes:
+    volumes: !override
       - type: bind
         source: ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}
         target: /data/originals/mira
@@ -119,9 +122,6 @@ services:
         bind:
           create_host_path: false
       - device_proxies:/data/proxies:rw
-    depends_on:
-      anichron-db:
-        condition: service_healthy
 
 volumes:
   device_postgres:

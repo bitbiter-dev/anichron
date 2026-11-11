@@ -4,7 +4,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 ## Stack
 
-- **Tailwind CSS v4** with `tailwind-variants`. Components take `tv` from `src/shared/ui/tv.ts`; its tailwind-merge config knows the size and radius tokens, which it would otherwise misread as colours.
+- **Tailwind CSS v4** with `tailwind-variants`. Components take `tv` from `src/shared/ui/tv.ts`; its tailwind-merge config reads the size and radius tokens from `tokens.css`, which it would otherwise misread as colours.
 - **React Aria Components** for every interactive control. Its strings are cut to the app's languages (`@react-aria/optimize-locales-plugin`), so a new language is added there and to the catalog.
 - **Icons:** `lucide-react`, one import per icon. A meaningful icon gets a label from the catalog; a decorative one is `aria-hidden`.
 - **Fonts:** the system font stack.
@@ -19,7 +19,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 ## Tokens
 
-- **Primitives** (`--neutral-*`, `--accent-*`, …) are plain CSS variables in `src/app/tokens.css`. No utility class reads them.
+- **Primitives** (`--neutral-*`, `--accent-*`, …) are plain CSS variables in `src/shared/ui/tokens.css`. No utility class reads them.
 - **Semantic tokens** are the only ones registered with Tailwind (`surface`, `fg`, `accent`, `danger`, `focus`, `player`, …). Tailwind's default palette is cleared, so an off-palette class generates nothing.
 - Radius and type size follow the same split. Spacing keeps Tailwind's scale.
 - A new kind of colour starts as a semantic token with a value for each theme.
@@ -38,9 +38,9 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays outside it.
 
-- **Home** has the bottom bar: a floating glass pill above `env(safe-area-inset-bottom)` (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
+- **Every screen** has the bottom bar: a floating glass pill above `env(safe-area-inset-bottom)` (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
 - **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.
-- **Every other screen** has the top bar instead: a back control and its title, from the route's `staticData.screen` (title key and parent path) in `router.tsx`.
+- **Every screen below Home** also has the top bar: a back control and its title, from the route's `staticData.screen` (title key and parent path) in `router.tsx`.
 - **Back rule** (`back.ts`): when the previous history entry is the parent, back goes back in history; otherwise it replaces the current entry with the parent. So the back control, Android's back button and Safari's edge swipe agree.
 - On wide screens the same layout is centred at a readable width (`Shell.tsx`).
 

@@ -13,7 +13,7 @@ import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 import { becomes } from '../test/visibility';
 
-const lifetime = miraSession.expiresIn as number;
+const lifetime = miraSession.expiresIn;
 const renewal = lifetime * 800;
 const greeting = (username: string) => `Signed in as ${username}.`;
 const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
