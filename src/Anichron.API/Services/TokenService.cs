@@ -4,7 +4,6 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.Extensions.Options;
-using System.Diagnostics;
 using System.Security.Cryptography;
 
 namespace Anichron.API.Services;
@@ -36,14 +35,11 @@ public sealed class TokenService(
         return issued;
     }
 
-    public async Task<ServiceResult<AuthTokens, IRefreshError>> RefreshAsync(string rawToken, CancellationToken ct)
-    {
-        var tokenHash = HashToken(rawToken);
-        return await TryRefreshAsync(tokenHash, ct) ?? await TryRefreshAsync(tokenHash, ct)
-            ?? throw new UnreachableException("A token that lost its rotation is revoked when read again.");
-    }
+    public Task<ServiceResult<AuthTokens, IRefreshError>> RefreshAsync(string rawToken, CancellationToken ct)
+        => RefreshAsync(HashToken(rawToken), retryALostRotation: true, ct);
 
-    private async Task<ServiceResult<AuthTokens, IRefreshError>?> TryRefreshAsync(string tokenHash, CancellationToken ct)
+    private async Task<ServiceResult<AuthTokens, IRefreshError>> RefreshAsync(
+        string tokenHash, bool retryALostRotation, CancellationToken ct)
     {
         var now = clock.GetCurrentInstant();
 
@@ -66,10 +62,13 @@ public sealed class TokenService(
             return new AccountLocked(Math.Max(1, (int)Math.Ceiling((lockedUntil - now).TotalSeconds)));
 
         var (successor, issued) = NewSession(stored.User);
-        if (await tokens.TryRotateAsync(rotating.Id, successor, ct))
+        if (await tokens.TryRotateAsync(rotating.Id, successor, ct) == TokenRotation.Rotated)
             return issued;
 
-        return rotating == stored ? null : await RevokeEverySessionAsync(stored.UserId, now, ct);
+        if (retryALostRotation && rotating == stored)
+            return await RefreshAsync(tokenHash, retryALostRotation: false, ct);
+
+        return await RevokeEverySessionAsync(stored.UserId, now, ct);
     }
 
     private static RefreshToken? JustRotatedInto(RefreshToken stored, Instant revokedAt, Instant now)

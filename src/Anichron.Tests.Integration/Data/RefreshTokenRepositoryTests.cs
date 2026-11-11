@@ -93,8 +93,8 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
             new EfRefreshTokenRepository(first).TryRotateAsync(presented.Id, Successor(presented.UserId, "first"), ct),
             new EfRefreshTokenRepository(second).TryRotateAsync(presented.Id, Successor(presented.UserId, "second"), ct));
 
-        rotations.Should().ContainSingle(rotated => rotated);
-        var winner = rotations[0] ? "first" : "second";
+        rotations.Should().ContainSingle(rotation => rotation == TokenRotation.Rotated);
+        var winner = rotations[0] == TokenRotation.Rotated ? "first" : "second";
         await using var check = PostgresServer.Context(connectionString);
         var stored = await check.RefreshTokens.Include(t => t.ReplacedBy).ToListAsync(ct);
         Assert.Multiple(() =>
@@ -122,7 +122,7 @@ public sealed class RefreshTokenRepositoryTests(PostgresServer server)
             var token = await db.RefreshTokens.SingleAsync(ct);
             var rotated = await new EfRefreshTokenRepository(db).TryRotateAsync(token.Id, Successor(token.UserId, "late"), ct);
 
-            rotated.Should().BeFalse();
+            rotated.Should().Be(TokenRotation.Lost);
         }
 
         await using var check = PostgresServer.Context(connectionString);

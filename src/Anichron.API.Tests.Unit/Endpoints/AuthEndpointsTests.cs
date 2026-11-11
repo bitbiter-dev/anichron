@@ -137,11 +137,11 @@ public sealed class AuthEndpointsTests
 
         result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(401);
         await auth.DidNotReceive().RefreshAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        mapper.DidNotReceive().GetRefreshResult(Arg.Any<ServiceResult<AuthTokens, IRefreshError>>(), Arg.Any<HttpContext>(), Arg.Any<bool>());
+        mapper.DidNotReceive().GetRefreshResult(Arg.Any<ServiceResult<AuthTokens, IRefreshError>>(), Arg.Any<HttpContext>());
     }
 
     [Fact]
-    public async Task RefreshAsync_TokenInCookie_CallsServiceAndDelegatesWithSetCookieTrue()
+    public async Task RefreshAsync_TokenInCookie_CallsServiceAndDelegatesTheRequest()
     {
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
@@ -152,21 +152,23 @@ public sealed class AuthEndpointsTests
         await AuthEndpoints.RefreshAsync(http, auth, mapper, request: null, CancellationToken.None);
 
         await auth.Received(1).RefreshAsync("cookie_tok", Arg.Any<CancellationToken>());
-        mapper.Received(1).GetRefreshResult(Arg.Any<ServiceResult<AuthTokens, IRefreshError>>(), Arg.Any<HttpContext>(), setCookie: true);
+        mapper.Received(1).GetRefreshResult(Arg.Any<ServiceResult<AuthTokens, IRefreshError>>(), http);
     }
 
     [Fact]
-    public async Task RefreshAsync_TokenInBodyOnly_CallsServiceAndDelegatesWithSetCookieFalse()
+    public async Task RefreshAsync_TokenInBodyOnly_CallsServiceAndDelegatesTheRequest()
     {
         var auth = Substitute.For<IAuthService>();
         var mapper = Substitute.For<IAuthResponseMapper>();
         auth.RefreshAsync("body_tok", Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
 
-        await AuthEndpoints.RefreshAsync(NewHttp(), auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
+        var http = NewHttp();
+
+        await AuthEndpoints.RefreshAsync(http, auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
 
         await auth.Received(1).RefreshAsync("body_tok", Arg.Any<CancellationToken>());
-        mapper.Received(1).GetRefreshResult(Arg.Any<ServiceResult<AuthTokens, IRefreshError>>(), Arg.Any<HttpContext>(), setCookie: false);
+        mapper.Received(1).GetRefreshResult(Arg.Any<ServiceResult<AuthTokens, IRefreshError>>(), http);
     }
 
     [Fact]

@@ -8,9 +8,15 @@ public interface IRefreshTokenRepository
     Task<RefreshToken?> FindByHashWithUserAsync(string tokenHash, CancellationToken ct);
     Task<RefreshToken?> FindByHashAsync(string tokenHash, CancellationToken ct);
     void Add(RefreshToken token);
-    Task<bool> TryRotateAsync(Guid tokenId, RefreshToken successor, CancellationToken ct);
+    Task<TokenRotation> TryRotateAsync(Guid tokenId, RefreshToken successor, CancellationToken ct);
     Task RevokeAllActiveByUserIdAsync(Guid userId, Instant revokedAt, CancellationToken ct);
     Task<int> DeleteExpiredAsync(Instant before, CancellationToken ct);
+}
+
+public enum TokenRotation
+{
+    Rotated = 0,
+    Lost = 1,
 }
 
 public sealed class EfRefreshTokenRepository(AnichronDbContext db) : IRefreshTokenRepository
@@ -29,7 +35,7 @@ public sealed class EfRefreshTokenRepository(AnichronDbContext db) : IRefreshTok
         => db.RefreshTokens.Add(token);
 
     // Stryker disable all
-    public async Task<bool> TryRotateAsync(Guid tokenId, RefreshToken successor, CancellationToken ct)
+    public async Task<TokenRotation> TryRotateAsync(Guid tokenId, RefreshToken successor, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         db.RefreshTokens.Add(successor);
@@ -45,11 +51,11 @@ public sealed class EfRefreshTokenRepository(AnichronDbContext db) : IRefreshTok
         {
             await tx.RollbackAsync(ct);
             db.Entry(successor).State = EntityState.Detached;
-            return false;
+            return TokenRotation.Lost;
         }
 
         await tx.CommitAsync(ct);
-        return true;
+        return TokenRotation.Rotated;
     }
 
     // Stryker disable all

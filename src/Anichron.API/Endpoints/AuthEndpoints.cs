@@ -77,7 +77,7 @@ public static class AuthEndpoints
         }
 
         var result = await auth.RefreshAsync(rawToken, ct);
-        return mapper.GetRefreshResult(result, http, CameWithRefreshCookie(http));
+        return mapper.GetRefreshResult(result, http);
     }
 
     internal static async Task<IResult> LogoutAsync(
@@ -89,9 +89,6 @@ public static class AuthEndpoints
             await auth.RevokeAsync(rawToken, ct);
         return Results.NoContent();
     }
-
-    internal static bool CameWithRefreshCookie(HttpContext http)
-        => http.Request.Cookies.ContainsKey(AuthMessages.RefreshTokenCookieName);
 
     // Not yet implemented — planned for Epic 8 (email notifications with deep links).
     private static IResult PasswordResetRequest() => Results.StatusCode(StatusCodes.Status501NotImplemented);
