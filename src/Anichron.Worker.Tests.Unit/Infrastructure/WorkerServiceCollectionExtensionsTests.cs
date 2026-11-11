@@ -150,7 +150,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
 
         services.Should().ContainSingle(d =>
             d.ServiceType == typeof(IVideoProxyGenerator) &&
-            d.ImplementationType == typeof(Video720PGenerator) &&
+            d.ImplementationType == typeof(WebVideoGenerator) &&
             d.Lifetime == ServiceLifetime.Singleton);
     }
 

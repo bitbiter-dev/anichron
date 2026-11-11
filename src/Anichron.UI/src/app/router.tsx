@@ -27,7 +27,7 @@ interface RouterContext {
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
-  beforeLoad: ({ context }) => context.api.restore(),
+  beforeLoad: ({ context }) => context.api.session.restore(),
   pendingComponent: Splash,
 });
 
@@ -36,7 +36,7 @@ const signedInRoute = createRoute({
   id: 'signed-in',
   component: SignedIn,
   beforeLoad: ({ context, location }) => {
-    if (!context.api.isSignedIn())
+    if (!context.api.session.isSignedIn())
       throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
   },
 });
@@ -64,7 +64,7 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: ({ context, search }) => {
-    if (context.api.isSignedIn()) throw redirect({ href: returnPath(search) });
+    if (context.api.session.isSignedIn()) throw redirect({ href: returnPath(search) });
   },
   component: LoginPage,
 });
@@ -84,11 +84,7 @@ export function createAppRouter(
     history,
     context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
   });
-  api.onSessionChange(() => {
-    if (api.isSignedIn()) return;
-    queryClient.clear();
-    void router.invalidate();
-  });
+  api.session.onChange(() => void router.invalidate());
   return router;
 }
 

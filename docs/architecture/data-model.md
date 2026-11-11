@@ -32,4 +32,5 @@ Fluent API only (`domain-has-no-data-annotations`). Columns are PascalCase. Tabl
 - **Username and email are normalised by a value converter**, on writes and comparisons alike. The InMemory provider skips it for query parameters, so test reads through `ToQueryString()` on Npgsql.
 - **NodaTime for every date and time** (`domain-uses-nodatime`). Convert a `DateTime` from `System.IO` at that boundary.
 - **A `MediaDescription` instance belongs to one row.** EF tracks an owned value by its owner, so sharing one between rows loses values. `Unknown` returns a new value each time, and `AssetContent.Of` copies.
+- **A Live Photo's video stores no size or duration:** its description is `MediaDescription.Unknown`. The API never publishes it on its own, and the player reads the duration from the `<video>` element.
 - `Invite` carries the only concurrency token (`xmin`).

@@ -67,6 +67,10 @@ public sealed record WorkerSettings : IValidatableObject
     [Required]
     public string FfmpegPath { get; init; } = "ffmpeg";
 
+    /// <summary>
+    /// The short edge of a video proxy. A change sizes only videos ingested afterwards; an existing proxy keeps its
+    /// size until its file changes.
+    /// </summary>
     [Range(1, int.MaxValue)]
     public int VideoShortEdge { get; init; } = 720;
 

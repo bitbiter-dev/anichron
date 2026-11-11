@@ -14,7 +14,7 @@ interface AppProps {
 
 export function App({ router, i18n }: AppProps) {
   const { api, queryClient, theme } = router.options.context;
-  useEffect(() => api.watch(), [api]);
+  useEffect(() => api.session.watch(), [api]);
   useEffect(() => theme.watch(), [theme]);
   return (
     <I18nextProvider i18n={i18n}>

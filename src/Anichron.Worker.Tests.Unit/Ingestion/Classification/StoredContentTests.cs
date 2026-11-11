@@ -236,7 +236,7 @@ public sealed class StoredContentTests
     {
         var fx = new TestFixture();
         var asset = Row();
-        var oldVideo = Proxy(ProxyType.WebVideo, "0l/d/video_720p.mp4");
+        var oldVideo = Proxy(ProxyType.WebVideo, "0l/d/video.mp4");
         asset.ProxyFiles = [oldVideo];
         var thumbnail = Proxy(ProxyType.Thumbnail, "n3/w/thumbnail.jpg");
 

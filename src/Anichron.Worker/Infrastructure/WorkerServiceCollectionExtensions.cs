@@ -123,7 +123,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<IProcessLauncher, SystemProcessLauncher>();
             services.AddSingleton<IVideoProcessor, FfmpegVideoProcessor>();
             services.AddSingleton<IVideoFrameExtractor, FfmpegFrameExtractor>();
-            services.AddSingleton<IVideoProxyGenerator, Video720PGenerator>();
+            services.AddSingleton<IVideoProxyGenerator, WebVideoGenerator>();
         }
 
         private void AddImageProxyServices()
