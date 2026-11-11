@@ -13,41 +13,14 @@ namespace Anichron.API.Services;
 public sealed record AuthTokens(string AccessToken, string RefreshToken, TimeSpan AccessTokenLifetime, User User);
 public sealed record AdminCreatedUser(Guid Id, string Username, string Email, string TemporaryPassword);
 
-public sealed record AuthResult<T>
-{
-    public T? Value { get; init; }
-    public AuthError? Error { get; init; }
-    public bool IsSuccess => Error is null;
-    public int? RetryAfterSeconds { get; init; }
-}
-
-public sealed record AuthResult
-{
-    public AuthError? Error { get; init; }
-    public bool IsSuccess => Error is null;
-    public int? RetryAfterSeconds { get; init; }
-
-    public static AuthResult Ok() => new();
-    public static AuthResult<T> Ok<T>(T value) => new() { Value = value };
-
-    public static AuthResult Fail(AuthError error) => new() { Error = error };
-    public static AuthResult<T> Fail<T>(AuthError error) => new() { Error = error };
-
-    public static AuthResult<T> Locked<T>(int retryAfterSeconds) => new()
-    {
-        Error = AuthError.AccountTemporarilyLocked,
-        RetryAfterSeconds = retryAfterSeconds,
-    };
-}
-
 public interface IAuthService
 {
-    Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct);
-    Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct);
-    Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct);
+    Task<ServiceResult<AuthTokens, IRegisterError>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct);
+    Task<ServiceResult<AuthTokens, ILoginError>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct);
+    Task<ServiceResult<AuthTokens, IRefreshError>> RefreshAsync(string rawToken, CancellationToken ct);
     Task RevokeAsync(string rawToken, CancellationToken ct);
-    Task<AuthResult<AuthTokens>> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct);
-    Task<AuthResult<AdminCreatedUser>> AdminCreateUserAsync(string username, string email, CancellationToken ct);
+    Task<ServiceResult<AuthTokens, IChangePasswordError>> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct);
+    Task<ServiceResult<AdminCreatedUser, IAdminCreateUserError>> AdminCreateUserAsync(string username, string email, CancellationToken ct);
 }
 
 public sealed class AuthService(
@@ -63,7 +36,7 @@ public sealed class AuthService(
     ILoginResponseFloor responseFloor)
     : IAuthService
 {
-    public async Task<AuthResult<AuthTokens>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct)
+    public async Task<ServiceResult<AuthTokens, IRegisterError>> RegisterAsync(string username, string email, string password, string inviteToken, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(username);
         ArgumentNullException.ThrowIfNull(email);
@@ -73,20 +46,20 @@ public sealed class AuthService(
         var now = clock.GetCurrentInstant();
         var invite = await invites.FindValidByHashAsync(HashInviteToken(inviteToken), now, ct);
         if (invite is null)
-            return AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid);
+            return new InviteTokenInvalid();
 
         var normalizedUsername = IdentityNormalizer.Normalize(username);
         var normalizedEmail = IdentityNormalizer.Normalize(email);
 
         var error = await validator.ValidateAsync(normalizedUsername, normalizedEmail, password, ct);
         if (error is not null)
-            return AuthResult.Fail<AuthTokens>(error.Value);
+            return ServiceResult.Fail<AuthTokens, IRegisterError>(error);
 
         if (await users.AnyByUsernameAsync(normalizedUsername, ct))
-            return AuthResult.Fail<AuthTokens>(AuthError.UsernameTaken);
+            return new UsernameTaken();
 
         if (await users.AnyByEmailAsync(normalizedEmail, ct))
-            return AuthResult.Fail<AuthTokens>(AuthError.EmailTaken);
+            return new EmailTaken();
 
         var user = new User
         {
@@ -105,22 +78,22 @@ public sealed class AuthService(
         try
         {
             await unitOfWork.SaveChangesAsync(ct);
-            return AuthResult.Ok(tokens);
+            return tokens;
         }
         catch (DbUpdateConcurrencyException)
         {
-            return AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid);
+            return new InviteTokenInvalid();
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } postgresException)
         {
-            return AuthResult.Fail<AuthTokens>(DetectConstraintError(postgresException));
+            return ServiceResult.Fail<AuthTokens, IRegisterError>(DetectConstraintError(postgresException));
         }
     }
 
     internal static string HashInviteToken(string rawToken)
         => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 
-    public async Task<AuthResult<AuthTokens>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct)
+    public async Task<ServiceResult<AuthTokens, ILoginError>> LoginAsync(string usernameOrEmail, string password, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(usernameOrEmail);
         ArgumentNullException.ThrowIfNull(password);
@@ -133,7 +106,7 @@ public sealed class AuthService(
         return result;
     }
 
-    private async Task<AuthResult<AuthTokens>> AuthenticateAsync(string usernameOrEmail, string password, CancellationToken ct)
+    private async Task<ServiceResult<AuthTokens, ILoginError>> AuthenticateAsync(string usernameOrEmail, string password, CancellationToken ct)
     {
         var user = await users.FindByCredentialAsync(usernameOrEmail, ct);
 
@@ -150,43 +123,43 @@ public sealed class AuthService(
             await lockout.RecordFailedAttemptAsync(user, now, ct);
 
         if (user is null || !passwordValid)
-            return AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials);
+            return new InvalidCredentials();
 
         if (user.IsDisabled)
-            return AuthResult.Fail<AuthTokens>(AuthError.AccountDisabled);
+            return new AccountDisabled();
 
         if (lockout.IsLockedOut(user, now))
         {
             // IsLockedOut guarantees LockedUntil is non-null and in the future.
             var secondsRemaining = (int)Math.Ceiling((user.LockedUntil!.Value - now).TotalSeconds);
-            return AuthResult.Locked<AuthTokens>(Math.Max(1, secondsRemaining));
+            return new AccountLocked(Math.Max(1, secondsRemaining));
         }
 
         lockout.PrepareReset(user);
         var tokens = tokenService.Issue(user);
         await unitOfWork.SaveChangesAsync(ct);
 
-        return AuthResult.Ok(tokens);
+        return tokens;
     }
 
-    public Task<AuthResult<AuthTokens>> RefreshAsync(string rawToken, CancellationToken ct)
+    public Task<ServiceResult<AuthTokens, IRefreshError>> RefreshAsync(string rawToken, CancellationToken ct)
         => tokenService.RefreshAsync(rawToken, ct);
 
     public Task RevokeAsync(string rawToken, CancellationToken ct)
         => tokenService.RevokeAsync(rawToken, ct);
 
-    public async Task<AuthResult<AuthTokens>> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct)
+    public async Task<ServiceResult<AuthTokens, IChangePasswordError>> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(currentPassword);
         ArgumentNullException.ThrowIfNull(newPassword);
 
         var user = await users.FindByIdAsync(userId, ct);
         if (user is null || !passwordHasher.Verify(currentPassword, user.PasswordHash))
-            return AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials);
+            return new CurrentPasswordWrong();
 
-        var error = await validator.ValidatePasswordAsync(newPassword, ct);
-        if (error is not null)
-            return AuthResult.Fail<AuthTokens>(error.Value);
+        var rejected = await validator.ValidatePasswordAsync(newPassword, ct);
+        if (rejected is not null)
+            return rejected;
 
         user.PasswordHash = passwordHasher.Hash(newPassword);
         user.MustChangePassword = false;
@@ -198,10 +171,10 @@ public sealed class AuthService(
             await unitOfWork.SaveChangesAsync(ct);
         }, ct);
 
-        return AuthResult.Ok(tokens);
+        return tokens;
     }
 
-    public async Task<AuthResult<AdminCreatedUser>> AdminCreateUserAsync(string username, string email, CancellationToken ct)
+    public async Task<ServiceResult<AdminCreatedUser, IAdminCreateUserError>> AdminCreateUserAsync(string username, string email, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(username);
         ArgumentNullException.ThrowIfNull(email);
@@ -211,13 +184,13 @@ public sealed class AuthService(
 
         var identityError = validator.ValidateIdentity(normalizedUsername, normalizedEmail);
         if (identityError is not null)
-            return AuthResult.Fail<AdminCreatedUser>(identityError.Value);
+            return ServiceResult.Fail<AdminCreatedUser, IAdminCreateUserError>(identityError);
 
         if (await users.AnyByUsernameAsync(normalizedUsername, ct))
-            return AuthResult.Fail<AdminCreatedUser>(AuthError.UsernameTaken);
+            return new UsernameTaken();
 
         if (await users.AnyByEmailAsync(normalizedEmail, ct))
-            return AuthResult.Fail<AdminCreatedUser>(AuthError.EmailTaken);
+            return new EmailTaken();
 
         var temporaryPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(12));
 
@@ -238,17 +211,17 @@ public sealed class AuthService(
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" } postgresException)
         {
-            return AuthResult.Fail<AdminCreatedUser>(DetectConstraintError(postgresException));
+            return ServiceResult.Fail<AdminCreatedUser, IAdminCreateUserError>(DetectConstraintError(postgresException));
         }
 
-        return AuthResult.Ok(new AdminCreatedUser(user.Id, user.Username, user.Email, temporaryPassword));
+        return new AdminCreatedUser(user.Id, user.Username, user.Email, temporaryPassword);
     }
 
-    private static AuthError DetectConstraintError(PostgresException postgresException)
+    private static IIdentityRejection DetectConstraintError(PostgresException postgresException)
         => postgresException.ConstraintName switch
         {
-            UserIndexNames.EmailUnique => AuthError.EmailTaken,
-            UserIndexNames.UsernameUnique => AuthError.UsernameTaken,
+            UserIndexNames.EmailUnique => new EmailTaken(),
+            UserIndexNames.UsernameUnique => new UsernameTaken(),
             _ => throw new UnreachableException($"Unexpected unique constraint violation: {postgresException.ConstraintName}"),
         }; // ix_users_username is the only other unique constraint on User
 }

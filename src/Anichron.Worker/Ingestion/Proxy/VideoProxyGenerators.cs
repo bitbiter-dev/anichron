@@ -9,9 +9,9 @@ internal interface IVideoProxyGenerator
     Task TranscodeAsync(string sourceAbsolutePath, string outputAbsolutePath, CancellationToken ct);
 }
 
-internal sealed class Video720PGenerator(IVideoProcessor videoProcessor) : IVideoProxyGenerator
+internal sealed class WebVideoGenerator(IVideoProcessor videoProcessor) : IVideoProxyGenerator
 {
-    public string FileName => "video_720p.mp4";
+    public string FileName => "video.mp4";
     public ProxyType ProxyType => ProxyType.WebVideo;
 
     public Task TranscodeAsync(string sourceAbsolutePath, string outputAbsolutePath, CancellationToken ct)

@@ -7,9 +7,9 @@ namespace Anichron.API.Services;
 
 public interface IAdminStorageConfigService
 {
-    Task<AuthResult<List<UserStorageConfig>>> GetByUserIdAsync(Guid userId, CancellationToken ct);
-    Task<AuthResult<UserStorageConfig>> AddAsync(Guid userId, string rootPath, CancellationToken ct);
-    Task<AuthResult> DeleteAsync(Guid userId, Guid configId, CancellationToken ct);
+    Task<List<UserStorageConfig>?> GetByUserIdAsync(Guid userId, CancellationToken ct);
+    Task<ServiceResult<UserStorageConfig, IAddStorageConfigError>> AddAsync(Guid userId, string rootPath, CancellationToken ct);
+    Task<bool> DeleteAsync(Guid userId, Guid configId, CancellationToken ct);
 }
 
 public sealed class AdminStorageConfigService(
@@ -18,32 +18,31 @@ public sealed class AdminStorageConfigService(
     IGuidFactory guidFactory,
     IUnitOfWork unitOfWork) : IAdminStorageConfigService
 {
-    public async Task<AuthResult<List<UserStorageConfig>>> GetByUserIdAsync(Guid userId, CancellationToken ct)
+    public async Task<List<UserStorageConfig>?> GetByUserIdAsync(Guid userId, CancellationToken ct)
     {
         var user = await users.FindByIdAsync(userId, ct);
         if (user is null)
-            return AuthResult.Fail<List<UserStorageConfig>>(AuthError.UserNotFound);
+            return null;
 
-        var configs = await storageConfigs.GetByUserIdAsync(userId, ct);
-        return AuthResult.Ok(configs);
+        return await storageConfigs.GetByUserIdAsync(userId, ct);
     }
 
-    public async Task<AuthResult<UserStorageConfig>> AddAsync(Guid userId, string rootPath, CancellationToken ct)
+    public async Task<ServiceResult<UserStorageConfig, IAddStorageConfigError>> AddAsync(Guid userId, string rootPath, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(rootPath);
         var canonicalPath = StoragePath.Canonicalize(rootPath);
         if (canonicalPath is null || !StoragePath.IsInsideOriginals(canonicalPath))
-            return AuthResult.Fail<UserStorageConfig>(AuthError.PathInvalid);
+            return new PathInvalid();
 
         var user = await users.FindByIdAsync(userId, ct);
         if (user is null)
-            return AuthResult.Fail<UserStorageConfig>(AuthError.UserNotFound);
+            return new UserNotFound();
 
         var existingRootPaths = await storageConfigs.GetAllRootPathsAsync(ct);
         if (existingRootPaths.Contains(canonicalPath, StringComparer.Ordinal))
-            return AuthResult.Fail<UserStorageConfig>(AuthError.PathAlreadyAssigned);
+            return new PathAlreadyAssigned();
         if (StoragePath.FindOverlap(existingRootPaths, canonicalPath) is not null)
-            return AuthResult.Fail<UserStorageConfig>(AuthError.PathOverlaps);
+            return new PathOverlaps();
 
         var config = new UserStorageConfig
         {
@@ -60,20 +59,20 @@ public sealed class AdminStorageConfigService(
         }
         catch (DbUpdateException ex) when (ex.IsUniqueViolation(StorageConfigIndexNames.RootPathUnique))
         {
-            return AuthResult.Fail<UserStorageConfig>(AuthError.PathAlreadyAssigned);
+            return new PathAlreadyAssigned();
         }
 
-        return AuthResult.Ok(config);
+        return config;
     }
 
-    public async Task<AuthResult> DeleteAsync(Guid userId, Guid configId, CancellationToken ct)
+    public async Task<bool> DeleteAsync(Guid userId, Guid configId, CancellationToken ct)
     {
         var config = await storageConfigs.FindByIdAsync(configId, ct);
         if (config is null || config.UserId != userId)
-            return AuthResult.Fail(AuthError.StorageConfigNotFound);
+            return false;
 
         storageConfigs.Remove(config);
         await unitOfWork.SaveChangesAsync(ct);
-        return AuthResult.Ok();
+        return true;
     }
 }

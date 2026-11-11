@@ -8,8 +8,8 @@ public interface IAdminUserService
 {
     Task<List<User>> GetAllAsync(CancellationToken ct);
     Task<User?> GetByIdAsync(Guid id, CancellationToken ct);
-    Task<AuthResult<User>> UpdateAsync(Guid callerId, Guid targetId, bool? isAdmin, bool? isDisabled, CancellationToken ct);
-    Task<AuthResult> DeleteAsync(Guid callerId, Guid targetId, CancellationToken ct);
+    Task<ServiceResult<User, IUpdateUserError>> UpdateAsync(Guid callerId, Guid targetId, bool? isAdmin, bool? isDisabled, CancellationToken ct);
+    Task<IDeleteUserError?> DeleteAsync(Guid callerId, Guid targetId, CancellationToken ct);
 }
 
 public sealed class AdminUserService(
@@ -24,17 +24,17 @@ public sealed class AdminUserService(
     public Task<User?> GetByIdAsync(Guid id, CancellationToken ct)
         => users.FindByIdWithConfigsAsync(id, ct);
 
-    public async Task<AuthResult<User>> UpdateAsync(Guid callerId, Guid targetId, bool? isAdmin, bool? isDisabled, CancellationToken ct)
+    public async Task<ServiceResult<User, IUpdateUserError>> UpdateAsync(Guid callerId, Guid targetId, bool? isAdmin, bool? isDisabled, CancellationToken ct)
     {
         if (callerId == targetId)
-            return AuthResult.Fail<User>(AuthError.CannotModifySelf);
+            return new CannotModifySelf();
 
         var user = await users.FindByIdWithConfigsAsync(targetId, ct);
         if (user is null)
-            return AuthResult.Fail<User>(AuthError.UserNotFound);
+            return new UserNotFound();
 
         if (!isAdmin.HasValue && !isDisabled.HasValue)
-            return AuthResult.Ok(user);
+            return user;
 
         if (isAdmin.HasValue)
             user.IsAdmin = isAdmin.Value;
@@ -54,17 +54,17 @@ public sealed class AdminUserService(
             await unitOfWork.SaveChangesAsync(ct);
         }, ct);
 
-        return AuthResult.Ok(user);
+        return user;
     }
 
-    public async Task<AuthResult> DeleteAsync(Guid callerId, Guid targetId, CancellationToken ct)
+    public async Task<IDeleteUserError?> DeleteAsync(Guid callerId, Guid targetId, CancellationToken ct)
     {
         if (callerId == targetId)
-            return AuthResult.Fail(AuthError.CannotModifySelf);
+            return new CannotModifySelf();
 
         var user = await users.FindByIdAsync(targetId, ct);
         if (user is null)
-            return AuthResult.Fail(AuthError.UserNotFound);
+            return new UserNotFound();
 
         // Same revoke-then-save pairing as UpdateAsync, transacted for the same reason — here the
         // loss would be a user whose sessions are all revoked but whose row was never deleted.
@@ -75,6 +75,6 @@ public sealed class AdminUserService(
             await unitOfWork.SaveChangesAsync(ct);
         }, ct);
 
-        return AuthResult.Ok();
+        return null;
     }
 }

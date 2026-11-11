@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using static Anichron.API.Tests.Unit.Endpoints.ProblemAssertions;
+using static Anichron.API.Tests.Unit.Services.ServiceResults;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
@@ -35,11 +36,12 @@ public sealed class AuthErrorContractTests
             },
             rateLimited);
 
-    private void LoginFails(AuthResult<AuthTokens> result)
-        => auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(result);
+    private void LoginFails(ILoginError error)
+        => auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(ServiceResult.Fail<AuthTokens, ILoginError>(error));
 
-    private void RefreshFails(AuthResult<AuthTokens> result)
-        => auth.RefreshAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(result);
+    private void RefreshFails(IRefreshError error)
+        => auth.RefreshAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ServiceResult.Fail<AuthTokens, IRefreshError>(error));
 
     private static readonly object RegisterBody =
         new { username = "alice", email = "alice@example.com", password = "SecurePass1!", inviteToken = "inv" };
@@ -96,7 +98,7 @@ public sealed class AuthErrorContractTests
     [InlineData(LoginMobilePath)]
     public async Task Login_WrongCredentials_Is401InvalidCredentialsAsync(string path)
     {
-        LoginFails(AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials));
+        LoginFails(new InvalidCredentials());
         await using var app = await StartAsync();
 
         using var response = await PostAsync(app, path, new { usernameOrEmail = "alice", password = "wrong" });
@@ -109,7 +111,7 @@ public sealed class AuthErrorContractTests
     [InlineData(LoginMobilePath)]
     public async Task Login_DisabledAccount_Is401AccountDisabledAsync(string path)
     {
-        LoginFails(AuthResult.Fail<AuthTokens>(AuthError.AccountDisabled));
+        LoginFails(new AccountDisabled());
         await using var app = await StartAsync();
 
         using var response = await PostAsync(app, path, new { usernameOrEmail = "alice", password = "SecurePass1!" });
@@ -122,7 +124,7 @@ public sealed class AuthErrorContractTests
     [InlineData(LoginMobilePath)]
     public async Task Login_LockedAccount_Is429AccountLockedWithRetryAfterAsync(string path)
     {
-        LoginFails(AuthResult.Locked<AuthTokens>(60));
+        LoginFails(new AccountLocked(60));
         await using var app = await StartAsync();
 
         using var response = await PostAsync(app, path, new { usernameOrEmail = "alice", password = "wrong" });
@@ -142,11 +144,12 @@ public sealed class AuthErrorContractTests
     }
 
     [Theory]
-    [InlineData(AuthError.TokenInvalid, "refresh_token_invalid", "Refresh token is invalid or has expired.")]
-    [InlineData(AuthError.AccountDisabled, "account_disabled", "This account has been disabled. Please contact an administrator.")]
-    public async Task Refresh_Rejected_Is401WithItsCodeAsync(AuthError error, string code, string detail)
+    [InlineData(typeof(RefreshTokenInvalid), "refresh_token_invalid", "Refresh token is invalid or has expired.")]
+    [InlineData(typeof(AccountDisabled), "account_disabled", "This account has been disabled. Please contact an administrator.")]
+    public async Task Refresh_Rejected_Is401WithItsCodeAsync(Type errorType, string code, string detail)
     {
-        RefreshFails(AuthResult.Fail<AuthTokens>(error));
+        var error = NewError<IRefreshError>(errorType);
+        RefreshFails(error);
         await using var app = await StartAsync();
 
         using var response = await PostAsync(app, RefreshPath, new { refreshToken = "tok" });
@@ -157,7 +160,7 @@ public sealed class AuthErrorContractTests
     [Fact]
     public async Task Refresh_LockedAccount_Is429AccountLockedWithRetryAfterAsync()
     {
-        RefreshFails(AuthResult.Locked<AuthTokens>(1));
+        RefreshFails(new AccountLocked(1));
         await using var app = await StartAsync();
 
         using var response = await PostAsync(app, RefreshPath, new { refreshToken = "tok" });
@@ -169,7 +172,7 @@ public sealed class AuthErrorContractTests
     [Fact]
     public async Task Login_OverTheRateLimit_Is429RateLimitedWithRetryAfterAsync()
     {
-        LoginFails(AuthResult.Fail<AuthTokens>(AuthError.InvalidCredentials));
+        LoginFails(new InvalidCredentials());
         await using var app = await StartAsync(rateLimited: true);
         for (var i = 0; i < 10; i++)
             (await PostAsync(app, LoginPath, new { usernameOrEmail = "alice", password = "wrong" })).Dispose();
@@ -183,7 +186,7 @@ public sealed class AuthErrorContractTests
     [Fact]
     public async Task Refresh_OverTheRateLimit_Is429RateLimitedWithRetryAfterAsync()
     {
-        RefreshFails(AuthResult.Fail<AuthTokens>(AuthError.TokenInvalid));
+        RefreshFails(new RefreshTokenInvalid());
         await using var app = await StartAsync(rateLimited: true);
         for (var i = 0; i < 60; i++)
             (await PostAsync(app, RefreshPath, new { refreshToken = "tok" })).Dispose();
@@ -195,20 +198,19 @@ public sealed class AuthErrorContractTests
     }
 
     [Theory]
-    [InlineData(AuthError.InvalidUsername, 422, "invalid_username", "username",
-        "Username must be 3–32 characters and may only contain letters, digits, underscores, and hyphens.")]
-    [InlineData(AuthError.InvalidEmail, 422, "invalid_email", "email", "The provided email address is not valid.")]
-    [InlineData(AuthError.UsernameTaken, 409, "username_taken", "username", "Username is already taken.")]
-    [InlineData(AuthError.EmailTaken, 409, "email_taken", "email", "An account with this email already exists.")]
-    [InlineData(AuthError.PasswordTooShort, 422, "password_too_short", "password", "Password must be at least 12 characters.")]
-    [InlineData(AuthError.PasswordTooLong, 422, "password_too_long", "password", "Password must be no longer than 128 characters.")]
-    [InlineData(AuthError.PasswordPwned, 422, "password_pwned", "password",
-        "This password has appeared in a known data breach. Please choose a different one.")]
+    [InlineData(typeof(InvalidUsername), 422, "invalid_username", "username", "Username must be 3–32 characters and may only contain letters, digits, underscores, and hyphens.")]
+    [InlineData(typeof(InvalidEmail), 422, "invalid_email", "email", "The provided email address is not valid.")]
+    [InlineData(typeof(UsernameTaken), 409, "username_taken", "username", "Username is already taken.")]
+    [InlineData(typeof(EmailTaken), 409, "email_taken", "email", "An account with this email already exists.")]
+    [InlineData(typeof(PasswordTooShort), 422, "password_too_short", "password", "Password must be at least 12 characters.")]
+    [InlineData(typeof(PasswordTooLong), 422, "password_too_long", "password", "Password must be no longer than 128 characters.")]
+    [InlineData(typeof(PasswordPwned), 422, "password_pwned", "password", "This password has appeared in a known data breach. Please choose a different one.")]
     public async Task Register_FieldRejected_IsAValidationProblemOnThatFieldAsync(
-        AuthError error, int status, string code, string field, string detail)
+        Type errorType, int status, string code, string field, string detail)
     {
+        var error = NewError<IRegisterError>(errorType);
         auth.RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail<AuthTokens>(error));
+            .Returns(ServiceResult.Fail<AuthTokens, IRegisterError>(error));
         await using var app = await StartAsync();
 
         using var response = await PostAsync(app, RegisterPath, RegisterBody);
@@ -220,7 +222,7 @@ public sealed class AuthErrorContractTests
     public async Task Register_InvalidInvite_Is422InviteTokenInvalidAsync()
     {
         auth.RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail<AuthTokens>(AuthError.InviteTokenInvalid));
+            .Returns(new InviteTokenInvalid());
         await using var app = await StartAsync();
 
         using var response = await PostAsync(app, RegisterPath, RegisterBody);
@@ -231,17 +233,16 @@ public sealed class AuthErrorContractTests
     }
 
     [Theory]
-    [InlineData(AuthError.InvalidCredentials, 400, "invalid_credentials", "currentPassword",
-        "The username, email, or password is incorrect.")]
-    [InlineData(AuthError.PasswordTooShort, 422, "password_too_short", "newPassword", "Password must be at least 12 characters.")]
-    [InlineData(AuthError.PasswordTooLong, 422, "password_too_long", "newPassword", "Password must be no longer than 128 characters.")]
-    [InlineData(AuthError.PasswordPwned, 422, "password_pwned", "newPassword",
-        "This password has appeared in a known data breach. Please choose a different one.")]
+    [InlineData(typeof(CurrentPasswordWrong), 400, "invalid_credentials", "currentPassword", "The username, email, or password is incorrect.")]
+    [InlineData(typeof(PasswordTooShort), 422, "password_too_short", "newPassword", "Password must be at least 12 characters.")]
+    [InlineData(typeof(PasswordTooLong), 422, "password_too_long", "newPassword", "Password must be no longer than 128 characters.")]
+    [InlineData(typeof(PasswordPwned), 422, "password_pwned", "newPassword", "This password has appeared in a known data breach. Please choose a different one.")]
     public async Task ChangePassword_FieldRejected_IsAValidationProblemOnThatFieldAsync(
-        AuthError error, int status, string code, string field, string detail)
+        Type errorType, int status, string code, string field, string detail)
     {
+        var error = NewError<IChangePasswordError>(errorType);
         auth.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(AuthResult.Fail<AuthTokens>(error));
+            .Returns(ServiceResult.Fail<AuthTokens, IChangePasswordError>(error));
         await using var app = await StartAsync();
 
         using var response = await ChangePasswordAsync(app);

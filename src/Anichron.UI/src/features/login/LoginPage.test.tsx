@@ -3,11 +3,13 @@ import { userEvent } from '@testing-library/user-event';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { LoginRequest } from '../../api/client';
+import type { LoginRequest } from '../../api/session';
+import type { Tabs } from '../../api/tabs';
 import { axeResults } from '../../test/axe';
 import { loginFails, loginRespondsWith, loginSucceeds, problem } from '../../test/handlers/auth';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
+import { sharedTabs } from '../../test/tabs';
 
 const serverText = 'Server text that is never shown.';
 
@@ -194,6 +196,23 @@ describe('the login screen', () => {
     await signIn('mira', 'correct horse battery staple');
 
     await alertSays('Something went wrong. Try again.');
+  });
+
+  it('shows the generic error when the session lock is lost while signing in', async () => {
+    const tab = sharedTabs().tab();
+    let locks = 0;
+    const tabs: Tabs = {
+      ...tab,
+      exclusively: (task) =>
+        ++locks > 1 ? Promise.reject(new DOMException('', 'AbortError')) : tab.exclusively(task),
+    };
+    renderApp('/login', tabs);
+    await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
+
+    await signIn('mira', 'correct horse battery staple');
+
+    await alertSays('Something went wrong. Try again.');
+    expect(submitButton()).toBeEnabled();
   });
 
   it('shows a field error from the API on its field', async () => {

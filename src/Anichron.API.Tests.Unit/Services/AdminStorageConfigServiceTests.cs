@@ -25,7 +25,7 @@ public sealed class AdminStorageConfigServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task GetByUserIdAsync_UserNotFound_ReturnsUserNotFound()
+    public async Task GetByUserIdAsync_UserNotFound_ReturnsNull()
     {
         var fixture = new TestFixture();
         var userId = Guid.NewGuid();
@@ -33,8 +33,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().GetByUserIdAsync(userId, CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.UserNotFound);
+        result.Should().BeNull();
         await fixture.StorageConfigs.DidNotReceive().GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -52,8 +51,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().GetByUserIdAsync(userId, CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Should().BeSameAs(configs);
+        result.Should().BeSameAs(configs);
     }
 
     // ==========================================================================
@@ -79,7 +77,7 @@ public sealed class AdminStorageConfigServiceTests
         var result = await fixture.CreateTestee().AddAsync(Guid.NewGuid(), rootPath, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.PathInvalid);
+        result.Error().Should().Be(new PathInvalid());
         await fixture.Users.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
     }
@@ -95,7 +93,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().AddAsync(Guid.NewGuid(), rootPath, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.PathInvalid);
+        result.Error().Should().Be(new PathInvalid());
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
     }
 
@@ -111,7 +109,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().AddAsync(userId, rootPath, CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.PathOverlaps);
+        result.Error().Should().Be(new PathOverlaps());
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -139,7 +137,7 @@ public sealed class AdminStorageConfigServiceTests
         var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.UserNotFound);
+        result.Error().Should().Be(new UserNotFound());
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -156,7 +154,7 @@ public sealed class AdminStorageConfigServiceTests
         var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.PathAlreadyAssigned);
+        result.Error().Should().Be(new PathAlreadyAssigned());
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -173,10 +171,10 @@ public sealed class AdminStorageConfigServiceTests
         var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Id.Should().Be(configId);
-        result.Value.UserId.Should().Be(userId);
-        result.Value.RootPath.Should().Be("/data/originals/photos");
-        result.Value.IsActive.Should().BeTrue();
+        result.Value().Id.Should().Be(configId);
+        result.Value().UserId.Should().Be(userId);
+        result.Value().RootPath.Should().Be("/data/originals/photos");
+        result.Value().IsActive.Should().BeTrue();
         fixture.StorageConfigs.Received(1).Add(Arg.Is<UserStorageConfig>(c => c.Id == configId));
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -192,7 +190,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().AddAsync(userId, "/data//originals/photos/", CancellationToken.None);
 
-        result.Error.Should().Be(AuthError.PathAlreadyAssigned);
+        result.Error().Should().Be(new PathAlreadyAssigned());
         fixture.StorageConfigs.DidNotReceive().Add(Arg.Any<UserStorageConfig>());
     }
 
@@ -205,7 +203,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos/", CancellationToken.None);
 
-        result.Value!.RootPath.Should().Be("/data/originals/photos");
+        result.Value().RootPath.Should().Be("/data/originals/photos");
     }
 
     [Fact]
@@ -220,7 +218,7 @@ public sealed class AdminStorageConfigServiceTests
         var result = await fixture.CreateTestee().AddAsync(userId, "/data/originals/photos", CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.PathAlreadyAssigned);
+        result.Error().Should().Be(new PathAlreadyAssigned());
     }
 
     [Fact]
@@ -242,7 +240,7 @@ public sealed class AdminStorageConfigServiceTests
     // ==========================================================================
 
     [Fact]
-    public async Task DeleteAsync_ConfigNotFound_ReturnsStorageConfigNotFound()
+    public async Task DeleteAsync_ConfigNotFound_ReturnsFalse()
     {
         var fixture = new TestFixture();
         var userId = Guid.NewGuid();
@@ -251,14 +249,13 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().DeleteAsync(userId, configId, CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.StorageConfigNotFound);
+        result.Should().BeFalse();
         fixture.StorageConfigs.DidNotReceive().Remove(Arg.Any<UserStorageConfig>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task DeleteAsync_ConfigBelongsToDifferentUser_ReturnsStorageConfigNotFound()
+    public async Task DeleteAsync_ConfigBelongsToDifferentUser_ReturnsFalse()
     {
         var fixture = new TestFixture();
         var userId = Guid.NewGuid();
@@ -268,8 +265,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().DeleteAsync(userId, configId, CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Be(AuthError.StorageConfigNotFound);
+        result.Should().BeFalse();
         fixture.StorageConfigs.DidNotReceive().Remove(Arg.Any<UserStorageConfig>());
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -285,7 +281,7 @@ public sealed class AdminStorageConfigServiceTests
 
         var result = await fixture.CreateTestee().DeleteAsync(userId, configId, CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
+        result.Should().BeTrue();
         fixture.StorageConfigs.Received(1).Remove(config);
         await fixture.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }

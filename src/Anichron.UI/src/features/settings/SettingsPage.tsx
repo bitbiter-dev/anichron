@@ -21,7 +21,11 @@ export function SettingsPage() {
       </section>
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
         <h2 className="font-semibold">{t('settings.account')}</h2>
-        <Button variant="danger" onPress={() => void api.logout()} className="self-start px-0">
+        <Button
+          variant="danger"
+          onPress={() => void api.session.logout()}
+          className="self-start px-0"
+        >
           {t('settings.signOut')}
         </Button>
       </section>

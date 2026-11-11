@@ -1,4 +1,12 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
+
+const firefoxEnv =
+  process.platform === 'darwin'
+    ? { ...process.env, CFFIXED_USER_HOME: mkdtempSync(join(tmpdir(), 'firefox-home-')) }
+    : undefined;
 
 export default defineConfig({
   testDir: './e2e',
@@ -15,7 +23,11 @@ export default defineConfig({
     { name: 'chromium-pixel', use: { ...devices['Pixel 9'] } },
     {
       name: 'firefox-phone',
-      use: { browserName: 'firefox', viewport: { width: 393, height: 852 } },
+      use: {
+        browserName: 'firefox',
+        viewport: { width: 393, height: 852 },
+        launchOptions: { env: firefoxEnv },
+      },
     },
   ],
 });

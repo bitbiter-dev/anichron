@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
-import { fieldCodes, type ErrorCode } from '../../api/problem';
+import { fieldCodes, problemOf, type ErrorCode } from '../../api/problem';
 import { useCountdown } from '../../shared/use-countdown';
 import { messageKey } from './messages';
 
@@ -28,15 +28,14 @@ export function useLoginForm() {
   });
 
   const onSubmit = handleSubmit(async (values) => {
-    const outcome = await api.login(values);
-    if (outcome.ok) {
+    const problem = await api.session.login(values).then(() => undefined, problemOf);
+    if (!problem) {
       await router.invalidate();
       return;
     }
-    setError('root', { message: outcome.problem.code });
-    for (const [field, code] of fieldCodes(outcome.problem, fields))
-      setError(field, { message: code });
-    countdown.start(outcome.problem.retryAfterSeconds);
+    setError('root', { message: problem.code });
+    for (const [field, code] of fieldCodes(problem, fields)) setError(field, { message: code });
+    countdown.start(problem.retryAfterSeconds);
   });
 
   const { errors, isSubmitting } = formState;
