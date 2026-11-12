@@ -6,15 +6,18 @@ import { dayQuery, yearsAgo } from './day';
 import { dayView, thumbnailOf } from './day-view';
 import { Failed } from './Failed';
 import { ProxyImage } from './ProxyImage';
+import { RecentDays } from './RecentDays';
 import { useToday } from './use-today';
 
 export function OnThisDayPage() {
   const { t } = useTranslation();
+  const today = useToday();
   return (
     <>
       <main className="flex flex-col gap-4 p-4">
         <h1 className="text-title font-semibold">{t('onThisDay.title')}</h1>
-        <Today date={useToday()} />
+        <Today date={today} />
+        <RecentDays today={today} />
       </main>
       <Outlet />
     </>

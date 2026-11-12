@@ -14,6 +14,7 @@ import {
   memoriesOf,
   memory,
   onThisDayAnswers,
+  withoutRecentDays,
   yearGroup,
 } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
@@ -54,10 +55,12 @@ const unauthorized = () => HttpResponse.json({ status: 401 }, { status: 401 });
 function dayRespondsWith(
   respond: (bearer: string | null) => ReturnType<typeof miraDay> | Response | Promise<Response>,
 ) {
-  return onThisDayAnswers((_, bearer) => {
-    bearers.push(bearer);
-    return respond(bearer);
-  });
+  return onThisDayAnswers(
+    withoutRecentDays((_, bearer) => {
+      bearers.push(bearer);
+      return respond(bearer);
+    }),
+  );
 }
 
 function dayAccepts(

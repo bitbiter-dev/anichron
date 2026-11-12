@@ -6,7 +6,12 @@
     "nothing": "Nothing from this day in earlier years",
     "unreachable": "Can't reach Anichron. Check your connection.",
     "failed": "Couldn't load this day.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "recentDays": "Recent days",
+    "yesterday": "Yesterday",
+    "earlier": "Earlier days",
+    "nothingEarlier": "Nothing in these days",
+    "recentDay": "{{weekdayOf, datetime}} {{dayOf, datetime}} {{monthOf, datetime}}"
   },
   "story": {
     "title": "Memories of {{date, datetime}}",
