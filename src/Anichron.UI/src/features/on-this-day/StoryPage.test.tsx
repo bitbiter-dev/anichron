@@ -1099,6 +1099,23 @@ describe('starring, liking and hiding', () => {
     expect(segments()).toHaveLength(1);
   });
 
+  it('does nothing more once closed when an Undo fails afterwards', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    const respond = later();
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    fireEvent.click(button('Next'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await advance(0);
+
+    respond(refused());
+    await advance(10_000);
+
+    expect(router.state.location.href).toBe('/');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('does nothing more once closed when a hide fails afterwards', async () => {
     years = [
       yearGroup(

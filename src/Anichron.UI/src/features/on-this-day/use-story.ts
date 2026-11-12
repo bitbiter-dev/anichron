@@ -24,12 +24,11 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
   const position = useSyncExternalStore(subscribe, story.position);
   const memoryAt = ({ group, memory }: Place) =>
     (snapshot[group] as YearGroup).memories[memory] as Memory;
-  const shown = story.shown(position.group);
   return {
     position,
     group: snapshot[position.group] as YearGroup,
     memory: memoryAt(position),
-    segments: { count: shown.length, current: shown.indexOf(position.memory) },
+    segments: { count: position.shown.length, current: position.shown.indexOf(position.memory) },
     memoryAt,
     hide: (place?: Place) => story.hide(place),
     undo: (place: Place) => {

@@ -5,6 +5,7 @@ export interface StoryPosition {
   memory: number;
   visit: number;
   ready: boolean;
+  shown: readonly number[];
 }
 
 export type Place = Pick<StoryPosition, 'group' | 'memory'>;
@@ -15,7 +16,6 @@ export type Story = Record<Move | 'close', () => void> & {
   position: () => StoryPosition;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
-  shown: (group: number) => number[];
   hide: (place?: Place) => Place;
   undo: (place: Place) => void;
 };
@@ -45,6 +45,7 @@ export function createStory(
     // Stryker disable next-line UpdateOperator
     visit: ++visits,
     ready: !memories(group)[memory],
+    shown: shown(group),
   });
   const first = (group: number) => at(group, shown(group)[0] as number);
   let position: StoryPosition = at(group, 0);
@@ -105,12 +106,11 @@ export function createStory(
       const { group } = position;
       show(first(groupsShown().findLast((index) => index < group) ?? group));
     },
-    shown,
     hide(place = position) {
       hidden.add(keyOf(place));
       if (place.group === position.group && place.memory === position.memory) next();
       else {
-        position = { ...position };
+        position = { ...position, shown: shown(position.group) };
         notify?.();
       }
       return place;
