@@ -136,6 +136,29 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     }
 
     [Fact]
+    public void WorkItemStatus_IsItsNames()
+        => EnumNames("WorkItemStatus").Should().Equal("Queued", "Running", "Succeeded", "Failed", "Cancelled");
+
+    [Fact]
+    public void WorkKind_IsItsNames()
+        => EnumNames("WorkKind").Should().Equal(
+            "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion");
+
+    [Theory]
+    [InlineData("kind", "WorkKind")]
+    [InlineData("status", "WorkItemStatus")]
+    public void WorkItemDto_NamesItsEnums(string property, string schema)
+        => composed.Value.Components!.Schemas!["WorkItemDto"].Properties!.Should().ContainKey(property)
+            .WhoseValue.Should().BeOfType<OpenApiSchemaReference>().Which.Reference.Id.Should().Be(schema);
+
+    private IEnumerable<string> EnumNames(string schema)
+    {
+        var described = composed.Value.Components!.Schemas![schema];
+        described.Type.Should().Be(JsonSchemaType.String);
+        return described.Enum!.Select(value => value.GetValue<string>());
+    }
+
+    [Fact]
     public void Document_DescribesEveryRouteButHealthz()
     {
         var described = composed.Value.Paths

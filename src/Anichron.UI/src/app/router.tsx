@@ -14,6 +14,7 @@ import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
 import { dayKey, isCalendarDate, storySearch } from '../features/on-this-day/day';
 import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
+import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
 import { NotFound } from './NotFound';
@@ -42,8 +43,9 @@ function routeTree() {
     id: 'signed-in',
     component: SignedIn,
     beforeLoad: ({ context, location }) => {
-      if (!context.api.session.isSignedIn())
-        throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
+      const user = context.api.session.user();
+      if (!user) throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
+      return { user };
     },
   });
 
@@ -86,6 +88,47 @@ function routeTree() {
     staticData: { screen: { title: 'settings.title', parent: '/' } },
   });
 
+  const adminRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    id: 'admin',
+    beforeLoad: ({ context }) => {
+      if (!context.user.isAdmin) throw notFound({ routeId: rootRoute.id });
+    },
+  });
+
+  const workItemsRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: '/admin/work-items',
+    onLeave: ({ context }) => {
+      context.queryClient.removeQueries({ queryKey: workItemsKey });
+    },
+    component: lazyRouteComponent(
+      () => import('../features/work-items/WorkItemsPage'),
+      'WorkItemsPage',
+    ),
+  });
+
+  const workItemListRoute = createRoute({
+    getParentRoute: () => workItemsRoute,
+    path: '/',
+    validateSearch: listSearch,
+    component: lazyRouteComponent(
+      () => import('../features/work-items/WorkItemListPage'),
+      'WorkItemListPage',
+    ),
+    staticData: { screen: { title: 'workItems.title', parent: '/settings' } },
+  });
+
+  const workItemRoute = createRoute({
+    getParentRoute: () => workItemsRoute,
+    path: '$id',
+    component: lazyRouteComponent(
+      () => import('../features/work-items/WorkItemPage'),
+      'WorkItemPage',
+    ),
+    staticData: { screen: { title: 'workItems.item', parent: '/admin/work-items' } },
+  });
+
   const loginRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/login',
@@ -97,7 +140,11 @@ function routeTree() {
 
   return rootRoute.addChildren([
     signedInRoute.addChildren([
-      shellRoute.addChildren([onThisDayRoute.addChildren([homeRoute, storyRoute]), settingsRoute]),
+      shellRoute.addChildren([
+        onThisDayRoute.addChildren([homeRoute, storyRoute]),
+        settingsRoute,
+        adminRoute.addChildren([workItemsRoute.addChildren([workItemListRoute, workItemRoute])]),
+      ]),
     ]),
     loginRoute,
   ]);
