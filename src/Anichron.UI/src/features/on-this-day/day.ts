@@ -9,6 +9,12 @@ export const localDate = (now = new Date()) =>
 
 export const utcDay = (date: string) => new Date(`${date}T00:00:00Z`);
 
+export function daysBefore(date: string, count: number) {
+  const day = utcDay(date);
+  day.setUTCDate(day.getUTCDate() - count);
+  return day.toISOString().slice(0, 10);
+}
+
 export function isCalendarDate(text: string) {
   const date = utcDay(text);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;

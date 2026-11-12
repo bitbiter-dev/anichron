@@ -42,6 +42,13 @@ export function onThisDayAnswers(answer: (date: string, bearer: string | null) =
   });
 }
 
+const phoneToday = () => new Date().toLocaleDateString('en-CA');
+
+export function todayAnd(days: string[], answer: (date: string, bearer: string | null) => Answer) {
+  return (date: string, bearer: string | null) =>
+    date === phoneToday() || days.includes(date) ? answer(date, bearer) : [];
+}
+
 export const nothingOnThisDay = () => onThisDayAnswers(() => []);
 
 const yearOfUser = new Map([
