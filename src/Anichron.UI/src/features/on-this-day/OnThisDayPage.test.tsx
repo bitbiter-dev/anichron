@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,7 @@ import {
   refreshSucceeds,
   miraSession,
 } from '../../test/handlers/auth';
-import { memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -29,10 +29,12 @@ function today(
     yearGroup(2023, memory(ids.first2023, 2023)),
   ],
 ) {
-  return onThisDayAnswers((date) => {
-    requested.push(date);
-    return years;
-  });
+  return onThisDayAnswers(
+    todayAnd([], (date) => {
+      requested.push(date);
+      return years;
+    }),
+  );
 }
 
 async function advance(milliseconds: number) {
@@ -120,10 +122,12 @@ describe('the landing screen', () => {
     let failing = true;
     server.use(
       refreshSucceeds(),
-      onThisDayAnswers((date) => {
-        requested.push(date);
-        return failing ? failure() : [yearGroup(2023, memory(ids.first2023, 2023))];
-      }),
+      onThisDayAnswers(
+        todayAnd([], (date) => {
+          requested.push(date);
+          return failing ? failure() : [yearGroup(2023, memory(ids.first2023, 2023))];
+        }),
+      ),
     );
     const { container } = renderApp('/');
     await vi.waitFor(() => {
@@ -281,7 +285,7 @@ describe('a thumbnail that fails to load', () => {
       await advance(0);
 
       expect(refreshes).toBe(2);
-      expect(within(screen.getByRole('list')).getAllByRole('link')).toHaveLength(2);
+      expect(screen.getAllByRole('link', { name: /ago/ })).toHaveLength(2);
     });
   });
 });

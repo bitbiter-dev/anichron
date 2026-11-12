@@ -3,7 +3,7 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
-import { memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -31,6 +31,8 @@ async function advance(milliseconds: number) {
   await act(() => vi.advanceTimersByTimeAsync(milliseconds));
 }
 
+const galleryOf = (name: string) =>
+  screen.getByRole('link', { name }).closest('ul') as HTMLUListElement;
 const story = () => screen.getByRole('dialog', { name: storyName });
 const picture = () => story().querySelector('img') as HTMLImageElement;
 
@@ -62,10 +64,12 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 10, 11, 8));
   server.use(
     refreshSucceeds(),
-    onThisDayAnswers((date) => {
-      requested.push(date);
-      return years;
-    }),
+    onThisDayAnswers(
+      todayAnd(['2024-11-11', '2026-11-11'], (date) => {
+        requested.push(date);
+        return years;
+      }),
+    ),
   );
 });
 
@@ -427,7 +431,7 @@ describe('closing a story', () => {
 
   it('leaves the landing screen scrolled where it was', async () => {
     await openLanding();
-    const gallery = screen.getByRole('list');
+    const gallery = galleryOf('3 years ago · 2023');
     gallery.scrollLeft = 120;
     Object.defineProperty(window, 'scrollY', { value: 300, configurable: true });
     fireEvent.scroll(document);
@@ -440,7 +444,7 @@ describe('closing a story', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await advance(0);
 
-    expect(screen.getByRole('list')).toBe(gallery);
+    expect(galleryOf('3 years ago · 2023')).toBe(gallery);
     expect(gallery.scrollLeft).toBe(120);
     expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ top: 300 }));
   });
