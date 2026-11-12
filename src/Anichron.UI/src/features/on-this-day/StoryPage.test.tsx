@@ -46,10 +46,10 @@ async function swipe(x: number, y: number, from = middle()) {
   });
   fireEvent.pointerDown(from, at(0));
   for (const step of [0.5, 1]) {
-    fireEvent.pointerMove(window, at(step));
+    fireEvent.pointerMove(from, at(step));
     await advance(16);
   }
-  fireEvent.pointerUp(window, at(1));
+  fireEvent.pointerUp(from, at(1));
   await advance(2000);
 }
 
@@ -492,6 +492,15 @@ describe('moving through a story', () => {
     expect(within(story()).getByText('1 year ago · 2025')).toBeVisible();
   });
 
+  it('goes back within a later year group', async () => {
+    await openStory('/day/2026-11-11?year=2021');
+    await user().click(button('Next'));
+
+    await user().click(button('Previous'));
+
+    expect(showing()).toBe(preview(ids.a2021));
+  });
+
   it("starts the story's first memory over when going back from it", async () => {
     await openStory('/day/2026-11-11?year=2025');
     await shown();
@@ -602,6 +611,30 @@ describe('moving through a story', () => {
     await user().keyboard(keys);
 
     expect(showing()).toBe(shows);
+  });
+
+  it('moves when a zone is pressed with Enter or Space', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    button('Next').focus();
+
+    await user().keyboard('{Enter}');
+    expect(showing()).toBe(preview(ids.b2025));
+    button('Previous').focus();
+    await user().keyboard(' ');
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('stops listening to the keys once closed', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+    await user().click(button('Next'));
+    await user().click(button('Close'));
+    await advance(0);
+    const closed = router.history.location.state.__TSR_key;
+
+    await user().keyboard('{ArrowRight}{ArrowRight}');
+    await advance(0);
+
+    expect(router.history.location.state.__TSR_key).toBe(closed);
   });
 
   it('moves with the keys while a zone has focus, and closes with Escape', async () => {

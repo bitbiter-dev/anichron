@@ -10,6 +10,17 @@ export function keyMove(event: KeyboardEvent): Move | undefined {
   return arrows[event.key]?.[Number(event.shiftKey)];
 }
 
+export function listenToKeys(story: Story) {
+  const onKey = (event: KeyboardEvent) => {
+    const move = keyMove(event);
+    if (move) story[move]();
+  };
+  document.addEventListener('keydown', onKey);
+  return () => {
+    document.removeEventListener('keydown', onKey);
+  };
+}
+
 export const swipePixels = 60;
 
 interface Point {

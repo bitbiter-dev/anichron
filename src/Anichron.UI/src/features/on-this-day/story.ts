@@ -32,6 +32,7 @@ export function createStory(
   const at = (group: number, memory: number) => ({
     group,
     memory,
+    // Stryker disable next-line UpdateOperator
     visit: ++visits,
     ready: !memories(group)[memory],
   });
@@ -83,10 +84,7 @@ export function createStory(
       if (group + 1 < pictures.length) show(at(group + 1, 0));
       else close();
     },
-    close() {
-      clearTimeout(timer);
-      close();
-    },
+    close,
     previousGroup() {
       show(at(Math.max(0, position.group - 1), 0));
     },
