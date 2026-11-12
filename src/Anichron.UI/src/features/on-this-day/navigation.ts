@@ -1,19 +1,23 @@
+import { listen } from '../../shared/listen';
 import type { Move, Story } from './story';
 
-const arrows: Partial<Record<string, readonly [Move, Move]>> = {
+type KeyAction = Move | 'togglePause';
+
+const keys: Partial<Record<string, readonly [KeyAction, KeyAction?]>> = {
   ArrowLeft: ['previous', 'previousGroup'],
   ArrowRight: ['next', 'nextGroup'],
+  ' ': ['togglePause'],
 };
 
-function keyMove(event: KeyboardEvent): Move | undefined {
-  if (event.altKey || event.ctrlKey || event.metaKey) return undefined;
-  return arrows[event.key]?.[Number(event.shiftKey)];
+function keyAction(event: KeyboardEvent): KeyAction | undefined {
+  if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) return undefined;
+  return keys[event.key]?.[Number(event.shiftKey)];
 }
 
 export function listenToKeys(story: Story) {
   const onKey = (event: KeyboardEvent) => {
-    const move = keyMove(event);
-    if (move) story[move]();
+    const action = keyAction(event);
+    if (action) story[action]();
   };
   document.addEventListener('keydown', onKey);
   return () => {
@@ -38,7 +42,22 @@ function swipeMove({ x, y }: Point): Move | 'close' | undefined {
 
 export function createGestures(story: Story) {
   let swiping: boolean | undefined;
+  let stopListening: () => void = () => undefined;
+  const release = () => {
+    stopListening();
+    story.release();
+  };
   return {
+    hold: () => {
+      story.hold();
+      const stops = ['pointerup', 'pointercancel'].map((type) => listen(window, type, release));
+      stopListening = () => {
+        for (const stop of stops) stop();
+      };
+    },
+    stop: () => {
+      stopListening();
+    },
     pressStart: () => {
       swiping = false;
     },
@@ -54,3 +73,5 @@ export function createGestures(story: Story) {
     },
   };
 }
+
+export type Gestures = ReturnType<typeof createGestures>;

@@ -11,17 +11,19 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       startGroup(years, year),
       close,
     );
+    const gestures = createGestures(story);
     const subscribe = (listener: () => void) => {
       const stopKeys = listenToKeys(story);
       const stop = story.subscribe(listener);
       return () => {
         stop();
         stopKeys();
+        gestures.stop();
       };
     };
-    return { snapshot: years, story, gestures: createGestures(story), subscribe };
+    return { snapshot: years, story, gestures, subscribe };
   });
-  const position = useSyncExternalStore(subscribe, story.position);
+  const position = useSyncExternalStore(subscribe, story.state);
   const group = snapshot[position.group] as YearGroup;
   return {
     position,
@@ -31,5 +33,6 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       story.mediaReady(position.visit);
     },
     gestures,
+    togglePause: story.togglePause,
   };
 }

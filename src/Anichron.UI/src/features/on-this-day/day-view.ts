@@ -19,3 +19,10 @@ export function dayView({ data, error }: UseQueryResult<Day>): DayView {
 }
 
 export const thumbnailOf = (group: YearGroup) => (group.memories[0] as Memory).proxies.thumbnail;
+
+const kinds: Partial<Record<string, 'story.video' | 'story.livePhoto'>> = {
+  Video: 'story.video',
+  LivePhoto: 'story.livePhoto',
+};
+
+export const kindOf = (memory: Memory) => kinds[memory.mediaType] ?? 'story.photo';
