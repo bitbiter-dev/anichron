@@ -29,7 +29,7 @@ internal sealed class MustChangePasswordResultHandler : IAuthorizationMiddleware
 
     public Task HandleAsync(RequestDelegate next, HttpContext context, AuthorizationPolicy policy, PolicyAuthorizationResult authorizeResult)
         => authorizeResult.AuthorizationFailure?.FailedRequirements.OfType<MustChangePasswordRequirement>().Any() == true
-            ? ApiProblems.Problem(StatusCodes.Status403Forbidden, ErrorCodes.PasswordChangeRequired, AuthMessages.MustChangePassword)
+            ? ApiProblems.Problem(StatusCodes.Status403Forbidden, ErrorCodes.PasswordChangeRequired, ProblemMessages.MustChangePassword)
                 .ExecuteAsync(context)
             : defaultHandler.HandleAsync(next, context, policy, authorizeResult);
 }

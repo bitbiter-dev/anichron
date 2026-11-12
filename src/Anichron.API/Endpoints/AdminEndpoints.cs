@@ -51,40 +51,40 @@ public static class AdminEndpoints
     internal static async Task<IResult> CreateUserAsync(
         CreateAdminUserRequest request,
         IAuthService auth,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         var result = await auth.AdminCreateUserAsync(request.Username, request.Email, ct);
-        return mapper.GetAdminCreateUserResult(result);
+        return mapper.GetCreateUserResult(result);
     }
 
     internal static async Task<IResult> ResetUserPasswordAsync(
         Guid userId,
         IAdminResetService adminReset,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         var result = await adminReset.ResetUserPasswordAsync(userId, ct);
-        return mapper.GetAdminResetPasswordResult(result);
+        return mapper.GetResetPasswordResult(result);
     }
 
     internal static async Task<IResult> GetUsersAsync(
         IAdminUserService adminUsers,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         var users = await adminUsers.GetAllAsync(ct);
-        return mapper.GetAdminGetUsersResult(users);
+        return mapper.GetUsersResult(users);
     }
 
     internal static async Task<IResult> GetUserAsync(
         Guid userId,
         IAdminUserService adminUsers,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         var user = await adminUsers.GetByIdAsync(userId, ct);
-        return mapper.GetAdminGetUserResult(user);
+        return mapper.GetUserResult(user);
     }
 
     internal static async Task<IResult> PatchUserAsync(
@@ -92,60 +92,60 @@ public static class AdminEndpoints
         PatchAdminUserRequest request,
         ClaimsPrincipal caller,
         IAdminUserService adminUsers,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         if (!Guid.TryParse(caller.FindFirstValue(ClaimTypes.NameIdentifier), out var callerId))
             return Results.Unauthorized();
 
         var result = await adminUsers.UpdateAsync(callerId, userId, request.IsAdmin, request.IsDisabled, ct);
-        return mapper.GetAdminPatchUserResult(result);
+        return mapper.GetPatchUserResult(result);
     }
 
     internal static async Task<IResult> DeleteUserAsync(
         Guid userId,
         ClaimsPrincipal caller,
         IAdminUserService adminUsers,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         if (!Guid.TryParse(caller.FindFirstValue(ClaimTypes.NameIdentifier), out var callerId))
             return Results.Unauthorized();
 
         var result = await adminUsers.DeleteAsync(callerId, userId, ct);
-        return mapper.GetAdminDeleteUserResult(result);
+        return mapper.GetDeleteUserResult(result);
     }
 
     internal static async Task<IResult> GetStorageConfigsAsync(
         Guid userId,
         IAdminStorageConfigService adminStorageConfigs,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         var result = await adminStorageConfigs.GetByUserIdAsync(userId, ct);
-        return mapper.GetAdminGetStorageConfigsResult(result);
+        return mapper.GetStorageConfigsResult(result);
     }
 
     internal static async Task<IResult> CreateStorageConfigAsync(
         Guid userId,
         CreateStorageConfigRequest request,
         IAdminStorageConfigService adminStorageConfigs,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         var result = await adminStorageConfigs.AddAsync(userId, request.RootPath, ct);
-        return mapper.GetAdminCreateStorageConfigResult(result);
+        return mapper.GetCreateStorageConfigResult(result);
     }
 
     internal static async Task<IResult> DeleteStorageConfigAsync(
         Guid userId,
         Guid configId,
         IAdminStorageConfigService adminStorageConfigs,
-        IAuthResponseMapper mapper,
+        IAdminResponseMapper mapper,
         CancellationToken ct)
     {
         var result = await adminStorageConfigs.DeleteAsync(userId, configId, ct);
-        return mapper.GetAdminDeleteStorageConfigResult(result);
+        return mapper.GetDeleteStorageConfigResult(result);
     }
 }
 

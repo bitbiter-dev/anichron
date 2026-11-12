@@ -30,7 +30,7 @@ public sealed class AuthEndpointsTests
     public async Task RegisterAsync_CallsAuthServiceWithRequestValues()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         auth.RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
 
@@ -47,7 +47,7 @@ public sealed class AuthEndpointsTests
     public async Task RegisterAsync_ReturnsMappedResult()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         ServiceResult<AuthTokens, IRegisterError> serviceResult = new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User());
         var expectedResult = Results.NoContent();
         auth.RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -69,7 +69,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginWebAsync_CallsAuthServiceWithCredentials()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
 
@@ -83,7 +83,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginWebAsync_PassesSetCookieTrueToMapper()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
 
@@ -100,7 +100,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginMobileAsync_CallsAuthServiceWithCredentials()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
 
@@ -114,7 +114,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginMobileAsync_PassesSetCookieFalseToMapper()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         auth.LoginAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
 
@@ -131,7 +131,7 @@ public sealed class AuthEndpointsTests
     public async Task RefreshAsync_NoCookieAndNoBody_Returns401WithError()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
 
         var result = await AuthEndpoints.RefreshAsync(NewHttp(), auth, mapper, request: null, CancellationToken.None);
 
@@ -144,7 +144,7 @@ public sealed class AuthEndpointsTests
     public async Task RefreshAsync_TokenInCookie_CallsServiceAndDelegatesTheRequest()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         var http = NewHttpWithCookie("refresh_token", "cookie_tok");
         auth.RefreshAsync("cookie_tok", Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
@@ -159,7 +159,7 @@ public sealed class AuthEndpointsTests
     public async Task RefreshAsync_TokenInBodyOnly_CallsServiceAndDelegatesTheRequest()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         auth.RefreshAsync("body_tok", Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
 
@@ -175,7 +175,7 @@ public sealed class AuthEndpointsTests
     public async Task RefreshAsync_TokenInCookieAndBody_TheCookieWins()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         var http = NewHttpWithCookie("refresh_token", "cookie_tok");
 
         await AuthEndpoints.RefreshAsync(http, auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
@@ -192,7 +192,7 @@ public sealed class AuthEndpointsTests
     public async Task LogoutAsync_TokenInCookieAndBody_RevokesTheCookieToken()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         var http = NewHttpWithCookie("refresh_token", "cookie_tok");
 
         await AuthEndpoints.LogoutAsync(http, auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);
@@ -205,7 +205,7 @@ public sealed class AuthEndpointsTests
     public async Task LogoutAsync_NoCookieAndNoBody_ClearsCookieDoesNotRevokeAndReturns204()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
 
         var result = await AuthEndpoints.LogoutAsync(NewHttp(), auth, mapper, request: null, CancellationToken.None);
 
@@ -218,7 +218,7 @@ public sealed class AuthEndpointsTests
     public async Task LogoutAsync_TokenInCookie_RevokesTokenAndReturns204()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         var http = NewHttpWithCookie("refresh_token", "cookie_tok");
 
         var result = await AuthEndpoints.LogoutAsync(http, auth, mapper, request: null, CancellationToken.None);
@@ -232,7 +232,7 @@ public sealed class AuthEndpointsTests
     public async Task LogoutAsync_TokenInBodyOnly_RevokesTokenAndReturns204()
     {
         var auth = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
 
         var result = await AuthEndpoints.LogoutAsync(
             NewHttp(), auth, mapper, new RefreshRequest("body_tok"), CancellationToken.None);

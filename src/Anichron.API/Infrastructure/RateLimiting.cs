@@ -15,9 +15,15 @@ internal static class RateLimiting
     {
         httpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString(InvariantCulture);
         return ApiProblems.Problem(
-                StatusCodes.Status429TooManyRequests, ErrorCodes.RateLimited, AuthMessages.TooManyRequests)
+                StatusCodes.Status429TooManyRequests, ErrorCodes.RateLimited, ProblemMessages.TooManyRequests)
             .ExecuteAsync(httpContext);
     }
+}
+
+internal static class AuthRateLimitPolicies
+{
+    internal const string Sensitive = "auth-sensitive";
+    internal const string Refresh = "auth-refresh";
 }
 
 /// <summary>A per-client sliding window whose rejection asks the client to wait one whole window.</summary>

@@ -32,7 +32,7 @@ public sealed class AuthErrorContractTests
                 services.AddSingleton(auth);
                 services.AddSingleton(new AuthCookieSettings { SameSite = SameSiteMode.Strict, RefreshTokenDays = 7 });
                 services.AddSingleton(Substitute.For<IClock>());
-                services.AddSingleton<IAuthResponseMapper, AuthResponseMapper>();
+                services.AddSingleton<ISessionResponseMapper, SessionResponseMapper>();
             },
             rateLimited);
 
