@@ -15,6 +15,12 @@ How the UI (`src/Anichron.UI`) calls the API.
 - Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`).
 - An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more (`features/on-this-day/media.ts`). See "The refresh rules".
 
+## The event stream
+
+- `src/api/event-stream.ts` reads a Server-Sent Events response with `fetch`, so the request carries the bearer token through `authorized`. An area module imports it lazily, keeping the parser out of the initial bundle (`work-items.ts`).
+- It reconnects from the last event id after a clean end, a network failure or a refusal, waiting `Retry-After` or its backoff. A `403` or `404` ends it for good.
+- The caller owns the `AbortSignal`: the work queue closes its stream on unmount and while the tab is hidden (`features/work-items/use-stream.ts`).
+
 ## The signed-in user
 
 - The session holds the `user` from every session response and clears it with the session.

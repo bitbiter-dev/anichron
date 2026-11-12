@@ -20,7 +20,8 @@ Kinds: `Crawl` and `BurstDetection` (one per storage config), `TokenCleanup` and
   - A queued item ends `Cancelled` at once. A running one gets a request that the heartbeat passes to the handler, and ends `Cancelled` with partial progress.
   - A requested item is never queued again: release and lease recovery end it `Cancelled`, even at the stall limit.
   - A cancelled periodic item counts as that run, so the scheduler does not undo the cancel.
-- **Admin view:** list, detail and a Server-Sent Events stream keyed on `UpdatedAt`. The list returns the cursor to subscribe from, so nothing is missed. The API reads items only through `IWorkItemReader`.
+- **Admin view:** list, detail and a Server-Sent Events stream keyed on `UpdatedAt`. The list returns the cursor to subscribe from, so nothing is missed. The API reads items only through `IWorkItemReader`. The document names `WorkKind` and `WorkItemStatus` by their names (`WorkItemEnumDocumentTransformer`).
+- **Admin screen:** the UI merges each event, and each fetched page or detail, into its cache by id; the later `UpdatedAt` wins, and on a tie the incoming copy (`features/work-items/cache.ts`).
 - **Retention:** `WorkItemRetention` deletes finished items after `WorkItemRetentionDays`.
 
 ## Adding a kind
