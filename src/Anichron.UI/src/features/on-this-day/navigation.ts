@@ -3,10 +3,10 @@ import type { Move, Story } from './story';
 
 type KeyAction = Move | 'togglePause';
 
-const keys: Partial<Record<string, readonly [KeyAction, KeyAction?]>> = {
+const keys: Partial<Record<string, readonly [KeyAction, KeyAction | undefined]>> = {
   ArrowLeft: ['previous', 'previousGroup'],
   ArrowRight: ['next', 'nextGroup'],
-  ' ': ['togglePause'],
+  ' ': ['togglePause', undefined],
 };
 
 function keyAction(event: KeyboardEvent): KeyAction | undefined {

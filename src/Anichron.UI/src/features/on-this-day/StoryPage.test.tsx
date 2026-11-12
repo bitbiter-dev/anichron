@@ -737,10 +737,9 @@ describe('pausing a story', () => {
     await openLanding();
     fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
     await screen.findByRole('dialog', { name: storyName });
+    await advance(0);
 
-    await vi.waitFor(() => {
-      expect(button('Pause')).toHaveFocus();
-    });
+    expect(button('Pause')).toHaveFocus();
   });
 
   it('pauses with the pause button and plays on from where it stopped', async () => {
@@ -903,8 +902,9 @@ describe('pausing a story', () => {
     await pointer.pointer({ keys: '[MouseLeft>]', target: button('Next') });
     await advance(30_000);
     expect(showing()).toBe(preview(ids.a2025));
-    expect(button('Pause')).not.toBeVisible();
-    expect(button('Close')).not.toBeVisible();
+    expect(within(story()).queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(within(story()).queryByRole('button', { name: 'Close' })).toBeNull();
+    expect(within(story()).getByText('1 year ago · 2025')).not.toBeVisible();
     expect(story().querySelector('ol > li > span')).toHaveStyle({ animationPlayState: 'paused' });
 
     await pointer.pointer({ keys: '[/MouseLeft]', target: button('Next') });

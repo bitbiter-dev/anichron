@@ -6,7 +6,7 @@ import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, utcDay, yearsAgo } from './day';
-import { type DayView, dayView, kindOf } from './day-view';
+import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
 import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
@@ -60,18 +60,20 @@ function CloseButton({ close }: { close: () => void }) {
   );
 }
 
+const pauseIcons = { 'story.play': Play, 'story.pause': Pause };
+
 interface PauseButtonProps {
-  paused: boolean;
+  label: keyof typeof pauseIcons;
   toggle: () => void;
 }
 
-function PauseButton({ paused, toggle }: PauseButtonProps) {
+function PauseButton({ label, toggle }: PauseButtonProps) {
   const { t } = useTranslation();
-  const Icon = paused ? Play : Pause;
+  const Icon = pauseIcons[label];
   return (
     <Button
       ref={useFocusOnMount<HTMLButtonElement>()}
-      aria-label={t(paused ? 'story.play' : 'story.pause')}
+      aria-label={t(label)}
       onPress={toggle}
       className={roundButton}
     >
@@ -111,11 +113,8 @@ interface PlayerProps {
 
 function Player({ date, year, years, close }: PlayerProps) {
   const { t } = useTranslation();
-  const { position, group, memory, mediaReady, gestures, togglePause } = useStory(
-    years,
-    year,
-    close,
-  );
+  const { state, group, memory, name, pause, controls, mediaReady, gestures, togglePause } =
+    useStory(years, year, close);
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
@@ -132,16 +131,11 @@ function Player({ date, year, years, close }: PlayerProps) {
         >
           <div
             role="img"
-            aria-label={t('story.memory', {
-              kind: t(kindOf(memory)),
-              year: group.year,
-              place: position.memory + 1,
-              count: group.memories.length,
-            })}
+            aria-label={t('story.memory', { ...name, kind: t(name.kind) })}
             className="absolute inset-0"
           >
             <ProxyImage
-              key={position.visit}
+              key={state.visit}
               src={memory.proxies.preview}
               onDecoded={mediaReady}
               className="size-full object-contain"
@@ -153,21 +147,21 @@ function Player({ date, year, years, close }: PlayerProps) {
             <Zone label={t('story.next')} gestures={gestures} move="next" />
           </div>
           <div
-            style={{ opacity: position.held ? 0 : undefined }}
-            className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-1 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6 transition-opacity"
+            style={{ visibility: controls }}
+            className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-1 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6"
           >
             <Segments
-              key={position.visit}
+              key={state.visit}
               count={group.memories.length}
-              current={position.memory}
-              running={position.running}
+              current={state.memory}
+              running={state.running}
             />
             <div className="flex items-center">
               <p role="status" className="flex-1 text-small font-semibold">
                 {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
               </p>
               <div className="pointer-events-auto flex">
-                <PauseButton paused={position.paused} toggle={togglePause} />
+                <PauseButton label={pause} toggle={togglePause} />
                 <CloseButton close={close} />
               </div>
             </div>
@@ -178,12 +172,12 @@ function Player({ date, year, years, close }: PlayerProps) {
   );
 }
 
-interface MiddleProps {
+interface PressZoneProps {
   gestures: Gestures;
   move: Move;
 }
 
-interface ZoneProps extends MiddleProps {
+interface ZoneProps extends PressZoneProps {
   label: string;
 }
 
@@ -198,7 +192,7 @@ function Zone({ label, gestures, move }: ZoneProps) {
   );
 }
 
-function Middle({ gestures, move }: MiddleProps) {
+function Middle({ gestures, move }: PressZoneProps) {
   return <div {...useZonePress(gestures, move)} aria-hidden className="h-full flex-1" />;
 }
 
