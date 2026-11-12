@@ -1,6 +1,6 @@
 namespace Anichron.API.Infrastructure;
 
-internal static class AuthMessages
+internal static class ProblemMessages
 {
     internal const string UsernameTaken = "Username is already taken.";
     internal const string EmailTaken = "An account with this email already exists.";
@@ -14,16 +14,9 @@ internal static class AuthMessages
     internal const string RefreshTokenRequired = "Refresh token is required.";
     internal const string RefreshTokenInvalid = "Refresh token is invalid or has expired.";
     internal const string TooManyRequests = "Too many requests. Please try again later.";
-    internal const string RefreshTokenCookieName = "refresh_token";
     internal const string InviteTokenInvalid = "The invite token is invalid, expired, or has already been used.";
     internal const string CannotModifySelf = "You cannot modify your own account.";
     internal const string PathAlreadyAssigned = "This root path is already assigned to a storage config.";
     internal const string PathInvalid = $"The root path must be an absolute path to a folder inside {StoragePath.OriginalsRoot}.";
     internal const string PathOverlaps = "The root path contains, or is contained by, an existing storage config.";
-}
-
-internal static class AuthRateLimitPolicies
-{
-    internal const string Sensitive = "auth-sensitive";
-    internal const string Refresh = "auth-refresh";
 }

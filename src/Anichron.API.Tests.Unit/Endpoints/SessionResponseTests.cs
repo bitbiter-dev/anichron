@@ -1,5 +1,4 @@
 using Anichron.API.Endpoints;
-using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.API.Tests.Unit.Infrastructure;
@@ -44,7 +43,7 @@ public sealed class SessionResponseTests
                 services.AddSingleton(auth);
                 services.AddSingleton(new AuthCookieSettings { SameSite = SameSiteMode.Strict, RefreshTokenDays = 7 });
                 services.AddSingleton(Substitute.For<IClock>());
-                services.AddSingleton<IAuthResponseMapper, AuthResponseMapper>();
+                services.AddSingleton<ISessionResponseMapper, SessionResponseMapper>();
             });
 
     private static Task<string> BodyAsync(HttpResponseMessage response)
@@ -57,7 +56,7 @@ public sealed class SessionResponseTests
 
     private static HttpRequestMessage WithRefreshCookie(HttpRequestMessage request)
     {
-        request.Headers.Add("Cookie", $"{AuthMessages.RefreshTokenCookieName}=the-old-refresh");
+        request.Headers.Add("Cookie", $"{AuthEndpoints.RefreshTokenCookieName}=the-old-refresh");
         return request;
     }
 

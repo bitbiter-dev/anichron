@@ -15,7 +15,8 @@ internal static class ApiTestHost
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { WebRootPath = webRootPath });
         builder.Services.AddHealthChecks();
         builder.Services.AddSingleton(Substitute.For<IAuthService>());
-        builder.Services.AddSingleton(Substitute.For<IAuthResponseMapper>());
+        builder.Services.AddSingleton(Substitute.For<ISessionResponseMapper>());
+        builder.Services.AddSingleton(Substitute.For<IAdminResponseMapper>());
         builder.Services.AddSingleton(Substitute.For<IAdminResetService>());
         builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
         builder.Services.AddSingleton(Substitute.For<IAdminStorageConfigService>());
