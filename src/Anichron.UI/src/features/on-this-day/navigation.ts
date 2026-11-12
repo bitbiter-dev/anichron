@@ -25,6 +25,13 @@ export function listenToKeys(story: Story) {
   };
 }
 
+export function listenToRelease(story: Story) {
+  const stops = ['pointerup', 'pointercancel'].map((type) => listen(window, type, story.release));
+  return () => {
+    for (const stop of stops) stop();
+  };
+}
+
 const swipePixels = 60;
 
 interface Point {
@@ -42,22 +49,8 @@ function swipeMove({ x, y }: Point): Move | 'close' | undefined {
 
 export function createGestures(story: Story) {
   let swiping: boolean | undefined;
-  let stopListening: () => void = () => undefined;
-  const release = () => {
-    stopListening();
-    story.release();
-  };
   return {
-    hold: () => {
-      story.hold();
-      const stops = ['pointerup', 'pointercancel'].map((type) => listen(window, type, release));
-      stopListening = () => {
-        for (const stop of stops) stop();
-      };
-    },
-    stop: () => {
-      stopListening();
-    },
+    hold: story.hold,
     pressStart: () => {
       swiping = false;
     },

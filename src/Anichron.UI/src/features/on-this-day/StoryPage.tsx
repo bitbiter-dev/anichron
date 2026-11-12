@@ -8,10 +8,10 @@ import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
+import { focusOnMount } from './focus';
 import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
 import { memoryMilliseconds, type Move, segmentState } from './story';
-import { useFocusOnMount } from './use-focus-on-mount';
 import { useStory } from './use-story';
 import { useZonePress } from './use-zone-press';
 
@@ -71,12 +71,7 @@ function PauseButton({ label, toggle }: PauseButtonProps) {
   const { t } = useTranslation();
   const Icon = pauseIcons[label];
   return (
-    <Button
-      ref={useFocusOnMount<HTMLButtonElement>()}
-      aria-label={t(label)}
-      onPress={toggle}
-      className={roundButton}
-    >
+    <Button ref={focusOnMount} aria-label={t(label)} onPress={toggle} className={roundButton}>
       <Icon aria-hidden className="size-6" />
     </Button>
   );
