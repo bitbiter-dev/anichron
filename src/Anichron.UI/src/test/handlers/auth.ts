@@ -17,6 +17,17 @@ export const miraSession: Schemas['SessionResponse'] = {
   },
 };
 
+export const adminSession: Schemas['SessionResponse'] = {
+  ...miraSession,
+  user: {
+    ...miraSession.user,
+    id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+    username: 'alice',
+    email: 'alice@example.com',
+    isAdmin: true,
+  },
+};
+
 const problemHeaders = { 'Content-Type': 'application/problem+json' };
 
 export function problem<C extends string>(status: number, code: C, extra: object = {}) {
@@ -49,8 +60,8 @@ export function loginRespondsWith(respond: () => Response) {
   return http.post('/api/v1/auth/login', ({ response }) => response.untyped(respond()));
 }
 
-export function refreshSucceeds() {
-  return http.post('/api/v1/auth/refresh', ({ response }) => response(200).json(miraSession));
+export function refreshSucceeds(session = miraSession) {
+  return http.post('/api/v1/auth/refresh', ({ response }) => response(200).json(session));
 }
 
 export function refreshFails(code: Schemas['ErrorCode'] = 'refresh_token_required') {

@@ -9,7 +9,7 @@ import { createI18n } from '../i18n/i18n';
 import { track } from './query-clients';
 import { sharedTabs } from './tabs';
 
-import.meta.glob('../features/*/*Page.tsx', { eager: true });
+import.meta.glob(['../features/*/*Page.tsx', '../api/event-stream.ts'], { eager: true });
 
 export function renderApp(path: string, tabs: Tabs = sharedTabs().tab()) {
   const router = createAppRouter(
