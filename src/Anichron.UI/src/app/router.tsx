@@ -43,8 +43,9 @@ function routeTree() {
     id: 'signed-in',
     component: SignedIn,
     beforeLoad: ({ context, location }) => {
-      if (!context.api.session.isSignedIn())
-        throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
+      const user = context.api.session.user();
+      if (!user) throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
+      return { user };
     },
   });
 
@@ -91,8 +92,7 @@ function routeTree() {
     getParentRoute: () => shellRoute,
     id: 'admin',
     beforeLoad: ({ context }) => {
-      // Stryker disable next-line OptionalChaining
-      if (!context.api.session.user()?.isAdmin) throw notFound({ routeId: rootRoute.id });
+      if (!context.user.isAdmin) throw notFound({ routeId: rootRoute.id });
     },
   });
 

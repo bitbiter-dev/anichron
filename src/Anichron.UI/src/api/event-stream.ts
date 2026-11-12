@@ -14,9 +14,11 @@ const maxBackoff = 30_000;
 
 const backoff = (failures: number) => Math.min(firstBackoff * 2 ** (failures - 1), maxBackoff);
 
-const pause = (milliseconds: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, milliseconds);
+const pause = (milliseconds: number, signal: AbortSignal) =>
+  new Promise<boolean>((resolve) => {
+    setTimeout(() => {
+      resolve(!signal.aborted);
+    }, milliseconds);
   });
 
 export async function follow(
@@ -50,7 +52,7 @@ export async function follow(
     }
     if (signal.aborted) return;
     received.reconnecting(true);
-    await pause(wait);
+    if (!(await pause(wait, signal))) return;
     received.reconnecting(false);
   }
 }

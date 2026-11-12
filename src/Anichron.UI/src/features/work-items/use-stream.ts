@@ -29,6 +29,7 @@ export function useStream(cursor: string | undefined) {
     });
     return () => {
       controller.abort();
+      setReconnecting(false);
     };
   }, [api, queryClient, cursor, visible]);
   return { reconnecting, gone };

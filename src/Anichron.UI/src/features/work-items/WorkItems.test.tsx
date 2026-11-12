@@ -469,7 +469,10 @@ describe('the stream', () => {
     await opened(1);
     await advance(1000);
     const stream = await opened(2);
-    await on(stream, 'a', workItem(1));
+    act(() => {
+      stream.write(': open\n\n');
+    });
+    await advance(0);
 
     act(() => {
       stream.drop();
@@ -478,6 +481,48 @@ describe('the stream', () => {
     expect(events.connections).toHaveLength(2);
     await advance(1);
     await opened(3);
+  });
+
+  it('reconnects a second after the network fails', async () => {
+    events = workItemEvents([() => HttpResponse.error()]);
+    server.use(events.handler);
+    lists({ items: [workItem(1)] });
+    renderApp('/admin/work-items');
+    await screen.findByRole('list');
+    await opened(1);
+
+    await advance(999);
+    expect(events.connections).toHaveLength(1);
+    await advance(1);
+    await opened(2);
+  });
+
+  it('keeps saying it is reconnecting when a stream closed mid-wait is followed by another', async () => {
+    events = workItemEvents([undefined, () => problemResponse(503, 'service_unavailable')]);
+    server.use(events.handler);
+    const { stream } = await openList({ items: [workItem(1)] });
+    act(() => {
+      stream.write(': open\n\n');
+      stream.drop();
+    });
+    await advance(500);
+    expect(reconnecting()).toHaveTextContent('Reconnecting…');
+
+    act(() => {
+      becomes('hidden');
+    });
+    await advance(0);
+    expect(reconnecting()).toBeEmptyDOMElement();
+    await advance(100);
+    act(() => {
+      becomes('visible');
+    });
+    await opened(2);
+    expect(reconnecting()).toHaveTextContent('Reconnecting…');
+    await advance(450);
+
+    expect(reconnecting()).toHaveTextContent('Reconnecting…');
+    expect(events.connections).toHaveLength(2);
   });
 
   it('waits as long as an unavailable server asks', async () => {

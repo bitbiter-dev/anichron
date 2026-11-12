@@ -85,7 +85,7 @@ export interface Connection {
 
 const encoder = new TextEncoder();
 
-export function workItemEvents(refusals: (() => Response)[] = []) {
+export function workItemEvents(refusals: ((() => Response) | undefined)[] = []) {
   const connections: Connection[] = [];
   const handler = http.get('/api/v1/admin/work-items/events', ({ request, response }) => {
     const refusal = refusals.shift();

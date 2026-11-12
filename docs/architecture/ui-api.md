@@ -17,7 +17,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 ## The event stream
 
-- `src/api/event-stream.ts` reads a Server-Sent Events response with `fetch`, so the request carries the bearer token through `authorized`. An area module imports it lazily, keeping the parser out of the initial bundle (`work-items.ts`).
+- `src/api/event-stream.ts` reads a Server-Sent Events response with `fetch`, so the request carries the bearer token through `authorized`. An area module imports it lazily (`work-items.ts`).
 - It reconnects from the last event id after a clean end, a network failure or a refusal, waiting `Retry-After` or its backoff. A `403` or `404` ends it for good.
 - The caller owns the `AbortSignal`: the work queue closes its stream on unmount and while the tab is hidden (`features/work-items/use-stream.ts`).
 
@@ -25,7 +25,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 - The session holds the `user` from every session response and clears it with the session.
 - `session.user()` is synchronous and stable between changes. Views read it through `useUser()` (`src/shared/use-user.ts`).
-- Signed in means a user is held: route guards call `isSignedIn()` in `beforeLoad`.
+- Signed in means a user is held. The `signed-in` route's `beforeLoad` puts it in the route context, so a guard below it reads `context.user`; the login route calls `isSignedIn()`.
 
 ## Failures
 
