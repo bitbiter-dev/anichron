@@ -12,7 +12,9 @@ public static class ApiServices
         public IServiceCollection AddApiSurface(IConfiguration configuration)
             => services
                 .ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict)
-                .AddOpenApi(options => options.AddDocumentTransformer<ProblemCodeDocumentTransformer>())
+                .AddOpenApi(options => options
+                    .AddDocumentTransformer<ProblemCodeDocumentTransformer>()
+                    .AddDocumentTransformer<WorkItemEnumDocumentTransformer>())
                 .AddApiProblems()
                 .AddDatabase(configuration)
                 .AddForwardedHeadersSupport(configuration)

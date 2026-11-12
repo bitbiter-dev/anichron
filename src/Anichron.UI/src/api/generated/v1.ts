@@ -2542,12 +2542,12 @@ export interface components {
         WorkItemDto: {
             /** Format: uuid */
             id: string;
-            kind: string;
+            kind: components["schemas"]["WorkKind"];
             /** Format: uuid */
             storageConfigId: null | string;
             /** Format: uuid */
             requestedBy: null | string;
-            status: string;
+            status: components["schemas"]["WorkItemStatus"];
             /** Format: int32 */
             attempt: number;
             /** Format: int32 */
@@ -2573,8 +2573,10 @@ export interface components {
             total: number;
             cursor: string;
         };
-        WorkItemStatus: number;
-        WorkKind: number;
+        /** @enum {string} */
+        WorkItemStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
+        /** @enum {string} */
+        WorkKind: "TokenCleanup" | "WorkItemRetention" | "Crawl" | "BurstDetection" | "ProxySweep" | "ProxyDeletion";
         WorkProgressDto: {
             /** Format: int64 */
             done: number;
