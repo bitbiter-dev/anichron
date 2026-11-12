@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import * as matchers from 'vitest-axe/matchers';
 import { addThemeColourTags, removeThemeColourTags } from './index-head';
+import { resumeMotionFrames } from './motion';
 import { settleQueries } from './query-clients';
 import { server } from './server';
 
@@ -17,6 +18,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  resumeMotionFrames();
   addThemeColourTags();
 });
 

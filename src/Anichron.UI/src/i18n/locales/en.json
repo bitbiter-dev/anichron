@@ -10,7 +10,9 @@
   },
   "story": {
     "title": "Memories of {{date, datetime}}",
-    "close": "Close"
+    "close": "Close",
+    "previous": "Previous",
+    "next": "Next"
   },
   "login": {
     "title": "Sign in to Anichron",

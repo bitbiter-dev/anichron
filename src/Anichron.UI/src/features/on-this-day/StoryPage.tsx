@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
 import { X } from 'lucide-react';
+import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
+import { usePress } from 'react-aria/usePress';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, utcDay, yearsAgo } from './day';
@@ -62,27 +64,70 @@ interface PlayerProps {
 
 function Player({ date, year, years, close }: PlayerProps) {
   const { t } = useTranslation();
-  const { position, group, memory, mediaReady } = useStory(years, year, close);
+  const { position, group, memory, story, gestures } = useStory(years, year, close);
   return (
-    <>
-      <ProxyImage
-        key={memory.id}
-        src={memory.proxies.preview}
-        onDecoded={mediaReady}
-        className="absolute inset-0 size-full object-contain"
-      />
-      <div className="absolute inset-x-0 top-0 flex flex-col gap-2 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
-        <Segments
-          count={group.memories.length}
-          current={position.memory}
-          running={position.ready}
-        />
-        <p className="pr-12 text-small font-semibold">
-          {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
-        </p>
-      </div>
-    </>
+    <LazyMotion features={domMax} strict>
+      <MotionConfig reducedMotion="user">
+        <m.div
+          drag
+          dragConstraints={{ top: 0, right: 0, bottom: 0, left: 0 }}
+          dragElastic={{ top: 0, right: 0, bottom: 1, left: 0 }}
+          dragSnapToOrigin
+          onPointerDownCapture={gestures.pointerDown}
+          onDragStart={gestures.dragStart}
+          onDragEnd={(_, { offset }) => {
+            gestures.dragEnd(offset);
+          }}
+          className="absolute inset-0 select-none [-webkit-touch-callout:none]"
+        >
+          <ProxyImage
+            key={position.visit}
+            src={memory.proxies.preview}
+            onDecoded={() => {
+              story.mediaReady(position.visit);
+            }}
+            className="absolute inset-0 size-full object-contain"
+          />
+          <div className="absolute inset-0 flex">
+            <Zone label={t('story.previous')} onPress={gestures.tap('previous')} />
+            <Middle onPress={gestures.tap('next')} />
+            <Zone label={t('story.next')} onPress={gestures.tap('next')} />
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
+            <Segments
+              key={position.visit}
+              count={group.memories.length}
+              current={position.memory}
+              running={position.ready}
+            />
+            <p className="pr-12 text-small font-semibold">
+              {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
+            </p>
+          </div>
+        </m.div>
+      </MotionConfig>
+    </LazyMotion>
   );
+}
+
+interface ZoneProps {
+  label: string;
+  onPress: () => void;
+}
+
+function Zone({ label, onPress }: ZoneProps) {
+  return (
+    <Button
+      aria-label={label}
+      onPress={onPress}
+      className="h-full flex-1 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+    />
+  );
+}
+
+function Middle({ onPress }: Pick<ZoneProps, 'onPress'>) {
+  const { pressProps } = usePress({ onPress });
+  return <div {...pressProps} aria-hidden className="h-full flex-1" />;
 }
 
 interface SegmentsProps {
