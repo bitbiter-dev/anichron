@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <IsMutationTarget>false</IsMutationTarget>
     <IsPublishable>false</IsPublishable>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
 
   <ItemGroup>
