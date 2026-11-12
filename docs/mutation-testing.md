@@ -23,8 +23,9 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 ## The UI
 
 - StrykerJS with the Vitest runner, configured in `src/Anichron.UI/stryker.config.json`. Scope: ADR 0014. Guard: `scripts/ui-mutation-guard.sh`.
-- `scripts/ui-mutation-changed.sh` mutates only the changed files when all of them are in scope, otherwise the whole scope. CI runs it against the PR's base, and with `--all` on master.
+- `scripts/ui-mutation-changed.sh` mutates only the changed files when all of them are in scope, otherwise the whole scope. CI runs it against the PR's base, and with `--all` on a master push its PR did not test and in the weekly full run.
 - No `TMPDIR` hazard: each worktree has its own sandbox, and the mutant is passed in process.
+- Both scoped scripts run their heavy commands under the machine-wide `heavy` lock (`scripts/with-lock.sh`), so parallel worktrees queue instead of competing for CPU.
 - **Keep code out of import time.** Code run outside a test (module scope, a test file's top level, a request still in flight when a test ends) makes its mutants static: each one runs the whole suite. Build values in a function. `src/test/setup.ts` waits for `renderApp`'s queries to settle before a test ends (`src/test/query-clients.ts`).
 - **`timeoutMS` is generous on purpose.** A timeout restarts the runner, and the next mutant then runs on a cold Vitest and can time out too. Loops are caught by Stryker's hit limit, not by the timeout.
 - **After a runner upgrade, prove the gate both ways:** a known survivor must fail the run, and a test inside a `describe` must kill (stryker-js#6265).
@@ -32,10 +33,11 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 
 ## CI
 
-- `Mutation targets` lists the projects, and an empty list fails. `Mutation — <project>` runs one matrix job per target. `Mutation` merges the reports (`scripts/mutation-report.sh merge`) and fails in its **last** step, so the summary, report and badge still publish.
+- `Mutation targets` lists the projects, and an empty list fails. `Mutation — <project>` runs one matrix job per target. `Mutation` merges the reports (`scripts/mutation-report.sh merge`) and fails in its **last** step, so the summary and report still upload.
 - The merge refuses inputs it cannot trust: a missing project report, a file in two reports, a test id with two names, or differing schemas or thresholds.
 - `Mutation` is not a required check itself. It blocks merges through `CI gate`.
-- A job-level `if:` does not relax `needs:`; only `always()` or `!cancelled()` does. That is why `publish` and `deploy-pages` use `!cancelled()` with explicit result checks.
+- A master push whose tree passed `CI gate` on its PR runs none of this (`scripts/tested-on-pr.sh`); the weekly full run sweeps instead.
+- A job-level `if:` does not relax `needs:`; only `always()` or `!cancelled()` does. That is why the weekly run's `publish` and `deploy-pages` use `!cancelled()` with explicit result checks.
 
 ## Configuration
 
@@ -55,9 +57,19 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 - The measurement isn't noisy: the known noise sources were removed, and any remaining noise only lowers the score.
 - An equivalent mutant has its own route: a suppression plus an ADR 0005 row.
 
-## The weekly divergence check
+## The weekly full run
 
-- `.github/workflows/mutation-divergence.yml` runs the sweep twice on the same commit, at normal concurrency and at `--concurrency 1`, and fails when the **detected counts** differ. It runs weekly and on demand, and never gates a merge.
+`.github/workflows/mutation-divergence.yml` runs weekly on master and on demand, and never gates a merge.
+
+- **Backend:** the solution sweep at CI concurrency, which fails below the thresholds, and the divergence check below.
+- **UI:** `scripts/ui-mutation-changed.sh --all`.
+- **Publishing:** coverage, the Pages site and the badges, from that sweep.
+- **Failures:** `scripts/full-run-report.sh` opens "Full run failed: Weekly full run", assigned to the maintainer, or comments on the open one. A passing run closes it.
+- A failed master push opens or comments on "Full run failed: CI on master" the same way. The PR that fixes it closes it.
+
+### The divergence check
+
+- The run also sweeps at `--concurrency 1` on the same commit, and fails when the **detected counts** differ.
 - **Why counts:** the MTP defect (ADR 0001) keeps killed plus survived constant and moves the split between them, so a single run looks consistent. A score comparison would also fire on ordinary quality changes.
 - This is the only place a measurement-affecting flag is passed.
 
@@ -82,12 +94,12 @@ Don't reach for these:
 ## Publishing
 
 - `scripts/mutation-report.sh` (`badge`, `compare`, `merge`, `tally`) refuses a bad measurement instead of returning a number: a missing or malformed report, partial thresholds, no detectable mutants, or pending mutants.
-- `scripts/publish-badges.sh` adds the badges to the orphan `badges` branch, on master only. It keeps the last good badge when the payload is invalid, and refuses when origin is unreachable.
+- `scripts/publish-badges.sh` adds the badges to the orphan `badges` branch, from the weekly full run on master. It keeps the last good badge when the payload is invalid, and refuses when origin is unreachable.
 - `scripts/assemble-pages.sh` builds the Pages site (`coverage/`, and `mutation/` with `scripts/mutation-viewer.html`). It deletes only a directory that carries its sentinel `.assembled-by-anichron`. Its tests fake every dangerous path, `$HOME` included.
 
 ### Why the mutation report is optional
 
-Without a merged report, coverage still publishes and the landing page says the sweep failed. Failing the publish as well would only block on publishing; the gate has already reported the real problem.
+Without a sweep report, coverage still publishes and the landing page says the sweep failed. Failing the publish as well would only block on publishing; the sweep has already failed the run.
 
 ### Why it runs before the badge step
 

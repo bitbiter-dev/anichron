@@ -123,7 +123,7 @@ Show the rule failing on a deliberate violation in the PR.
 | `/to-spec` | *Implementation Decisions* holds only what the maintainer decided or an approved note says. Add the two sections, and ask about inferences first. |
 | `/to-tickets` | The same parts and labelling per ticket. A building-block ticket is blocked by, or bundled with, its first caller. |
 | `/triage` | Check the triggers before posting the brief. |
-| `/implement` | Check the label and the three parts first, and object as soon as the design stops fitting. |
+| `/implement` | Check the label and the three parts first, and object as soon as the design stops fitting. Then land without pausing (CLAUDE.md, "Landing work"). |
 | `/code-review` | Pass the issue **and its design note** as the spec, and this file as a standard. |
 | `/improve-codebase-architecture` | A tool for the architecture review. |
 

@@ -1,12 +1,7 @@
-# Proves the mutation measurement is still trustworthy, and fails loudly when it
-# is not. See docs/mutation-testing.md, "The weekly divergence check".
-#
-# A separate workflow rather than a job in ci.yml, for one reason: `schedule`
-# applies to a whole workflow, so adding it there would run the build, the
-# Docker images and CodeQL every week as well. Keeping it separate also makes
-# "does not run on pull requests and does not gate merges" structural rather
-# than something to remember.
-name: Mutation divergence
+# The weekly full run: the full backend and UI sweeps, the divergence check,
+# and the quality reports and badges. A failure opens an issue. See
+# docs/mutation-testing.md, "The weekly full run".
+name: Weekly full run
 
 on:
   schedule:
@@ -17,15 +12,15 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: mutation-divergence
+  group: weekly-full-run
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  divergence:
-    name: Concurrency divergence
+  backend:
+    name: Backend sweep and divergence
     runs-on: ubuntu-latest
     # Both sweeps in ONE job so they share a commit and a runner — the whole
     # point is that concurrency is the only difference between them. Two jobs
@@ -64,6 +59,7 @@ jobs:
       # comparison step below decides the outcome, and it fails the job on a
       # missing report rather than letting a crashed sweep pass silently.
       - name: Sweep at CI concurrency
+        id: default
         continue-on-error: true
         timeout-minutes: 25
         run: scripts/stryker-sweep.sh --output ../mutation-default
@@ -155,3 +151,185 @@ jobs:
           scripts/mutation-report.sh compare \
             mutation-default/reports/mutation-report.json \
             mutation-single/reports/mutation-report.json
+
+      - name: Publish mutation summary
+        if: always()
+        run: |
+          if [ -f mutation-default/reports/mutation-report.md ]; then
+            cat mutation-default/reports/mutation-report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report
+          path: mutation-default/reports/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # Staged through a temp file: a refused report must leave no payload.
+      - name: Build mutation badge payload
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p mutation-state
+          scripts/mutation-report.sh badge mutation-default/reports/mutation-report.json > mutation-state/mutation.json.tmp
+          mv mutation-state/mutation.json.tmp mutation-state/mutation.json
+
+      - name: Upload badge state
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-state
+          path: mutation-state/*.json
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Enforce mutation score
+        if: always()
+        env:
+          OUTCOME: ${{ steps.default.outcome }}
+        run: |
+          if [ "$OUTCOME" != success ]; then
+            echo "::error::The sweep at CI concurrency failed or scored below its thresholds ($OUTCOME). Its summary and the mutation-report artifact list the survivors."
+            exit 1
+          fi
+
+  ui:
+    name: UI sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/setup@v3
+        with:
+          working-directory: src/Anichron.UI
+          require-lockfile: true
+          cache: true
+
+      - name: Mutation test
+        run: scripts/ui-mutation-changed.sh --all
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/lfs
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test src/ -p:TestSuite=Unit --collect:"XPlat Code Coverage" --results-directory coverage --settings src/coverlet.runsettings
+
+      - name: Generate coverage report
+        uses: danielpalme/ReportGenerator-GitHub-Action@v5
+        with:
+          reports: 'coverage/**/coverage.cobertura.xml'
+          targetdir: 'coverage/report'
+          reporttypes: 'HtmlInline;MarkdownSummaryGithub;Badges'
+          verbosity: 'Warning'
+
+      - name: Publish coverage summary
+        if: always()
+        run: cat coverage/report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage/report/
+          retention-days: 30
+
+  # Not gated on the mutation result, so a failed sweep still publishes its
+  # report — see docs/mutation-testing.md.
+  publish:
+    name: Publish quality reports
+    runs-on: ubuntu-latest
+    needs: [coverage, backend]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.coverage.result == 'success' }}
+    permissions:
+      contents: write
+    outputs:
+      pages-artifact: ${{ steps.pages-upload.outcome == 'success' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-report
+          path: coverage/report
+
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: mutation-report
+          path: mutation/reports
+
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: mutation-state
+          path: ${{ runner.temp }}/mutation-state
+
+      # Before the badge step, which switches the tree to the badges branch,
+      # where scripts/ does not exist. See docs/mutation-testing.md, "Why it
+      # runs before the badge step".
+      - name: Assemble Pages site
+        run: scripts/assemble-pages.sh coverage/report mutation/reports pages-site
+
+      - name: Update quality badges
+        env:
+          MUTATION_BADGE: ${{ runner.temp }}/mutation-state/mutation.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          scripts/publish-badges.sh coverage/report/badge_linecoverage.svg
+
+      # Its id feeds outputs.pages-artifact, which gates deploy-pages.
+      - name: Upload Pages artifact
+        id: pages-upload
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: pages-site/
+
+  deploy-pages:
+    name: Deploy quality reports to Pages
+    runs-on: ubuntu-latest
+    needs: publish
+    if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.publish.outputs.pages-artifact == 'true' }}
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  report:
+    name: Report the outcome
+    runs-on: ubuntu-latest
+    needs: [backend, ui, coverage, publish, deploy-pages]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/master' }}
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Open, update or close the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          OWNER: ${{ github.repository_owner }}
+        run: scripts/full-run-report.sh 'Weekly full run' "$RUN_ID" "$OWNER"

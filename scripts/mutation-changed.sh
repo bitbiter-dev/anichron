@@ -20,6 +20,7 @@
 # status is the worst of them. Files outside every target project are named
 # and skipped.
 #
+# Unit tests and Stryker run under the heavy lock (scripts/with-lock.sh).
 # A local pre-check only; the full sweep in CI is the authority. See
 # docs/mutation-testing.md, "The scoped local run".
 set -euo pipefail
@@ -32,7 +33,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) explicit+=("${1#src/}"); shift ;;
   esac
@@ -180,7 +181,7 @@ trap 'rm -rf "$run_tmp"' EXIT
 
 cd "$src"
 echo '== unit tests'
-if ! dotnet test; then
+if ! "$here/with-lock.sh" heavy dotnet test; then
   echo '== unit tests failed: fix them before mutating; Stryker would fail every run' >&2
   exit 1
 fi
@@ -195,7 +196,7 @@ for project in "${runs[@]}"; do
   mkdir "$run_tmp/$name"
   echo "== $name"
   status=0
-  TMPDIR="$run_tmp/$name" dotnet stryker "${args[@]}" || status=$?
+  TMPDIR="$run_tmp/$name" "$here/with-lock.sh" heavy dotnet stryker "${args[@]}" || status=$?
   echo "== $name: exit $status"
   [ "$status" -le "$worst" ] || worst=$status
 done
