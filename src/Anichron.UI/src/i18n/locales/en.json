@@ -7,6 +7,7 @@
     "unreachable": "Can't reach Anichron. Check your connection.",
     "failed": "Couldn't load this day.",
     "retry": "Try again",
+    "retryDay": "Try again, {{day}}",
     "recentDays": "Recent days",
     "yesterday": "Yesterday",
     "earlier": "Earlier days",

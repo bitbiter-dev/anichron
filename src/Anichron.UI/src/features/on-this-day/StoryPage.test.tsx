@@ -3,12 +3,7 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
-import {
-  memory,
-  onThisDayAnswers,
-  withoutRecentDays,
-  yearGroup,
-} from '../../test/handlers/flashbacks';
+import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -70,7 +65,7 @@ beforeEach(() => {
   server.use(
     refreshSucceeds(),
     onThisDayAnswers(
-      withoutRecentDays((date) => {
+      todayAnd(['2024-11-11', '2026-11-11'], (date) => {
         requested.push(date);
         return years;
       }),

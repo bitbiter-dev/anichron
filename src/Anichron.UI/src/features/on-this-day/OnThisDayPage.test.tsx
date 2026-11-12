@@ -9,12 +9,7 @@ import {
   refreshSucceeds,
   miraSession,
 } from '../../test/handlers/auth';
-import {
-  memory,
-  onThisDayAnswers,
-  withoutRecentDays,
-  yearGroup,
-} from '../../test/handlers/flashbacks';
+import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -35,7 +30,7 @@ function today(
   ],
 ) {
   return onThisDayAnswers(
-    withoutRecentDays((date) => {
+    todayAnd([], (date) => {
       requested.push(date);
       return years;
     }),
@@ -128,7 +123,7 @@ describe('the landing screen', () => {
     server.use(
       refreshSucceeds(),
       onThisDayAnswers(
-        withoutRecentDays((date) => {
+        todayAnd([], (date) => {
           requested.push(date);
           return failing ? failure() : [yearGroup(2023, memory(ids.first2023, 2023))];
         }),

@@ -5,16 +5,27 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, daysBefore, utcDay } from './day';
+import { dayView, thumbnailOf } from './day-view';
 
 const daysPerPage = 6;
 const nothingMilliseconds = 2000;
 
-export interface RecentDay {
+export interface DayWithMemories {
   date: string;
   label: string;
-  years?: YearGroup[];
+  newestYear: number;
+  thumbnail: string | null;
+}
+
+export interface FailedDay {
+  date: string;
+  label: string;
   retry: () => void;
 }
+
+export type RecentDay = DayWithMemories | FailedDay;
+
+export const hasMemories = (day: RecentDay): day is DayWithMemories => 'newestYear' in day;
 
 const inUtc = (options: Intl.DateTimeFormatOptions) => ({ ...options, timeZone: 'UTC' });
 
@@ -33,39 +44,47 @@ function label(t: TFunction, date: string, ago: number) {
   });
 }
 
+const withMemories = (date: string, label: string, newest: YearGroup): DayWithMemories => ({
+  date,
+  label,
+  newestYear: newest.year,
+  thumbnail: thumbnailOf(newest),
+});
+
 export function useRecentDays(today: string) {
   const { t } = useTranslation();
   const { api } = useRouter().options.context;
-  const [pages, setPages] = useState(1);
-  const [quietPage, setQuietPage] = useState(1);
+  const [paging, setPaging] = useState({ today, pages: 1, tapped: false });
+  const { pages, tapped } = paging.today === today ? paging : { pages: 1, tapped: false };
   const dates = Array.from({ length: pages * daysPerPage }, (_, index) =>
     daysBefore(today, index + 1),
   );
-  const todays = useQuery(dayQuery(api, today));
+  const todayView = dayView(useQuery(dayQuery(api, today)));
   const days = useQueries({ queries: dates.map((date) => dayQuery(api, date)) });
-  const addedNone = days.slice(-daysPerPage).every(({ data }) => data?.years.length === 0);
+  const addedNothing =
+    tapped && days.slice(-daysPerPage).every(({ data }) => data?.years.length === 0);
   useEffect(() => {
-    if (!addedNone) return undefined;
+    if (!addedNothing) return undefined;
     const timer = setTimeout(() => {
-      setQuietPage(pages);
+      setPaging((current) => ({ ...current, tapped: false }));
     }, nothingMilliseconds);
     return () => {
       clearTimeout(timer);
     };
-  }, [addedNone, pages]);
-  const found = dates.flatMap((date, index): RecentDay[] => {
+  }, [addedNothing]);
+  const recent = dates.flatMap((date, index): RecentDay[] => {
     const { data, error, refetch } = days[index] as (typeof days)[number];
-    const day = { date, label: label(t, date, index + 1), retry: () => void refetch() };
-    if (error) return [day];
-    return data?.years.length ? [{ ...day, years: data.years }] : [];
+    const dayLabel = label(t, date, index + 1);
+    if (error) return [{ date, label: dayLabel, retry: () => void refetch() }];
+    const newest = data?.years[0];
+    return newest ? [withMemories(date, dayLabel, newest)] : [];
   });
   return {
-    days: found,
-    shown:
-      pages > 1 || found.length > 0 || Boolean(todays.error) || Boolean(todays.data?.years.length),
-    nothing: addedNone && quietPage < pages,
-    earlier: () => {
-      setPages(pages + 1);
+    days: recent,
+    visible: pages > 1 || recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
+    earlierLabel: addedNothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
+    showEarlier: () => {
+      setPaging({ today, pages: pages + 1, tapped: true });
     },
-  };
+  } as const;
 }

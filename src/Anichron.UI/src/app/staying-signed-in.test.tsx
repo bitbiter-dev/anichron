@@ -14,7 +14,7 @@ import {
   memoriesOf,
   memory,
   onThisDayAnswers,
-  withoutRecentDays,
+  todayAnd,
   yearGroup,
 } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
@@ -56,7 +56,7 @@ function dayRespondsWith(
   respond: (bearer: string | null) => ReturnType<typeof miraDay> | Response | Promise<Response>,
 ) {
   return onThisDayAnswers(
-    withoutRecentDays((_, bearer) => {
+    todayAnd([], (_, bearer) => {
       bearers.push(bearer);
       return respond(bearer);
     }),

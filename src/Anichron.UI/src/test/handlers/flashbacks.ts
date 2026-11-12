@@ -42,15 +42,11 @@ export function onThisDayAnswers(answer: (date: string, bearer: string | null) =
   });
 }
 
-const phoneDate = (daysAgo: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() - daysAgo);
-  return date.toLocaleDateString('en-CA');
-};
+const phoneToday = () => new Date().toLocaleDateString('en-CA');
 
-export function withoutRecentDays(answer: (date: string, bearer: string | null) => Answer) {
+export function todayAnd(days: string[], answer: (date: string, bearer: string | null) => Answer) {
   return (date: string, bearer: string | null) =>
-    [1, 2, 3, 4, 5, 6].some((daysAgo) => phoneDate(daysAgo) === date) ? [] : answer(date, bearer);
+    date === phoneToday() || days.includes(date) ? answer(date, bearer) : [];
 }
 
 export const nothingOnThisDay = () => onThisDayAnswers(() => []);

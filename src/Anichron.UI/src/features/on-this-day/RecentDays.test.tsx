@@ -6,6 +6,7 @@ import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
 import { memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
+import { becomes } from '../../test/visibility';
 
 type Years = ReturnType<typeof yearGroup>[] | (() => Response);
 
@@ -16,8 +17,8 @@ const thumbnail = (assetId: string) => `/api/v1/proxies/${assetId}/thumbnail?v=0
 let requested: string[];
 let days: Record<string, Years>;
 
-const onDay = (date: string, year: number) =>
-  yearGroup(year, memory(id(date), year), memory(id(date, 1), year));
+const onDay = (date: string, year: number, seed = 0) =>
+  yearGroup(year, memory(id(date, seed), year), memory(id(date, seed + 1), year));
 
 async function advance(milliseconds: number) {
   await act(() => vi.advanceTimersByTimeAsync(milliseconds));
@@ -45,7 +46,7 @@ describe('the recent days', () => {
   it('shows the last six days with memories, newest first, each with its first memory', async () => {
     days = {
       '2026-11-11': [onDay('2026-11-11', 2025)],
-      '2026-11-10': [onDay('2026-11-10', 2024), onDay('2026-11-10-b', 2020)],
+      '2026-11-10': [onDay('2026-11-10', 2024), onDay('2026-11-10', 2020, 2)],
       '2026-11-08': [onDay('2026-11-08', 2022)],
       '2026-11-05': [onDay('2026-11-05', 2019)],
     };
@@ -98,15 +99,15 @@ describe('the recent days', () => {
     expect(await axeResults(container)).toHaveNoViolations();
 
     days['2026-11-09'] = [onDay('2026-11-09', 2021)];
-    fireEvent.click(within(tray()).getByRole('button', { name: 'Try again' }));
+    fireEvent.click(within(tray()).getByRole('button', { name: 'Try again, Mon 9 Nov' }));
 
     expect(await within(tray()).findByRole('link', { name: 'Mon 9 Nov' })).toBeVisible();
-    expect(within(tray()).queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(within(tray()).queryByRole('button', { name: /Try again/ })).toBeNull();
   });
 
   it("opens a day's story at its newest year group, counted from that day's year", async () => {
     vi.setSystemTime(new Date(2027, 0, 1, 8));
-    days = { '2026-12-31': [onDay('2026-12-31', 2024), onDay('2026-12-31-b', 2020)] };
+    days = { '2026-12-31': [onDay('2026-12-31', 2024), onDay('2026-12-31', 2020, 2)] };
     const { router } = renderApp('/');
 
     fireEvent.click(
@@ -233,5 +234,38 @@ describe('earlier days', () => {
       '2026-10-23',
     ]);
     expect(earlier()).toHaveAccessibleName('Earlier days');
+  });
+
+  it('says nothing when a retried day of the first six turns out empty', async () => {
+    days['2026-11-09'] = () => problemResponse(500, 'internal_error');
+    await openLanding();
+    await advance(8000);
+
+    days['2026-11-09'] = [];
+    fireEvent.click(within(tray()).getByRole('button', { name: 'Try again, Mon 9 Nov' }));
+
+    await vi.waitFor(() => {
+      expect(within(tray()).queryByRole('button', { name: /Try again/ })).toBeNull();
+    });
+    expect(earlier()).toHaveAccessibleName('Earlier days');
+  });
+
+  it('starts again from the last six days when it becomes visible on a new day', async () => {
+    days['2026-10-31'] = [onDay('2026-10-31', 2023)];
+    await openLanding();
+    fireEvent.click(earlier());
+    await within(tray()).findByRole('link', { name: 'Sat 31 Oct' });
+
+    vi.setSystemTime(new Date(2026, 10, 12, 8));
+    act(() => {
+      becomes('visible');
+    });
+
+    expect(await within(tray()).findByRole('link', { name: 'Tue 10 Nov' })).toBeVisible();
+    expect(
+      within(tray())
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Tue 10 Nov', 'Earlier days']);
   });
 });
