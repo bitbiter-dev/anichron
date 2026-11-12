@@ -1,9 +1,7 @@
 using Anichron.API.Endpoints;
 using Anichron.API.Services;
-using Anichron.API.Settings;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Domain;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using static Anichron.API.Tests.Unit.Endpoints.ProblemAssertions;
@@ -31,9 +29,7 @@ public sealed class AdminErrorContractTests
                 services.AddSingleton(adminUsers);
                 services.AddSingleton(adminStorageConfigs);
                 services.AddSingleton(Substitute.For<IAdminResetService>());
-                services.AddSingleton(new AuthCookieSettings { SameSite = SameSiteMode.Strict, RefreshTokenDays = 7 });
-                services.AddSingleton(Substitute.For<IClock>());
-                services.AddSingleton<IAuthResponseMapper, AuthResponseMapper>();
+                services.AddSingleton<IAdminResponseMapper, AdminResponseMapper>();
             });
 
     private static async Task<HttpResponseMessage> SendAsAdminAsync(

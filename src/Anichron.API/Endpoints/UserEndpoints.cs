@@ -43,7 +43,7 @@ public static class UserEndpoints
         ClaimsPrincipal user,
         HttpContext http,
         IAuthService auth,
-        IAuthResponseMapper mapper,
+        ISessionResponseMapper mapper,
         CancellationToken ct)
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))

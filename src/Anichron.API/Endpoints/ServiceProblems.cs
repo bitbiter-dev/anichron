@@ -9,11 +9,11 @@ namespace Anichron.API.Endpoints;
 /// <param name="usernamePolicy">States the username rule.</param>
 /// <param name="passwordPolicy">States the password rules.</param>
 /// <param name="passwordField">The request field a password rejection names.</param>
-internal sealed class AuthProblems(UsernamePolicy usernamePolicy, PasswordPolicy passwordPolicy, string passwordField)
+internal sealed class ServiceProblems(UsernamePolicy usernamePolicy, PasswordPolicy passwordPolicy, string passwordField)
     : IServiceErrorVisitor<IResult>
 {
     public IResult Visit(InviteTokenInvalid error)
-        => ApiProblems.Problem(StatusCodes.Status422UnprocessableEntity, ErrorCodes.InviteTokenInvalid, AuthMessages.InviteTokenInvalid);
+        => ApiProblems.Problem(StatusCodes.Status422UnprocessableEntity, ErrorCodes.InviteTokenInvalid, ProblemMessages.InviteTokenInvalid);
 
     public IResult Visit(InvalidUsername error)
         => ApiProblems.FieldProblem(
@@ -21,50 +21,50 @@ internal sealed class AuthProblems(UsernamePolicy usernamePolicy, PasswordPolicy
 
     public IResult Visit(InvalidEmail error)
         => ApiProblems.FieldProblem(
-            StatusCodes.Status422UnprocessableEntity, ErrorCodes.InvalidEmail, Fields.Email, AuthMessages.InvalidEmail);
+            StatusCodes.Status422UnprocessableEntity, ErrorCodes.InvalidEmail, Fields.Email, ProblemMessages.InvalidEmail);
 
     public IResult Visit(UsernameTaken error)
-        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.UsernameTaken, Fields.Username, AuthMessages.UsernameTaken);
+        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.UsernameTaken, Fields.Username, ProblemMessages.UsernameTaken);
 
     public IResult Visit(EmailTaken error)
-        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.EmailTaken, Fields.Email, AuthMessages.EmailTaken);
+        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.EmailTaken, Fields.Email, ProblemMessages.EmailTaken);
 
     public IResult Visit(PasswordRejected error)
         => error.Match(
             () => PasswordProblem(ErrorCodes.PasswordTooShort, passwordPolicy.TooShortMessage),
             () => PasswordProblem(ErrorCodes.PasswordTooLong, passwordPolicy.TooLongMessage),
-            () => PasswordProblem(ErrorCodes.PasswordPwned, AuthMessages.PasswordPwned));
+            () => PasswordProblem(ErrorCodes.PasswordPwned, ProblemMessages.PasswordPwned));
 
     public IResult Visit(InvalidCredentials error)
-        => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.InvalidCredentials, AuthMessages.InvalidCredentials);
+        => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.InvalidCredentials, ProblemMessages.InvalidCredentials);
 
     public IResult Visit(CurrentPasswordWrong error)
         => ApiProblems.FieldProblem(
-            StatusCodes.Status400BadRequest, ErrorCodes.InvalidCredentials, Fields.CurrentPassword, AuthMessages.InvalidCredentials);
+            StatusCodes.Status400BadRequest, ErrorCodes.InvalidCredentials, Fields.CurrentPassword, ProblemMessages.InvalidCredentials);
 
     public IResult Visit(AccountDisabled error)
-        => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.AccountDisabled, AuthMessages.AccountDisabled);
+        => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.AccountDisabled, ProblemMessages.AccountDisabled);
 
     public IResult Visit(AccountLocked error)
         => new RetryAfter(error.RetryAfterSeconds, ApiProblems.Problem(
-            StatusCodes.Status429TooManyRequests, ErrorCodes.AccountLocked, AuthMessages.AccountTemporarilyLocked(error.RetryAfterSeconds)));
+            StatusCodes.Status429TooManyRequests, ErrorCodes.AccountLocked, ProblemMessages.AccountTemporarilyLocked(error.RetryAfterSeconds)));
 
     public IResult Visit(RefreshTokenInvalid error)
-        => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.RefreshTokenInvalid, AuthMessages.RefreshTokenInvalid);
+        => ApiProblems.Problem(StatusCodes.Status401Unauthorized, ErrorCodes.RefreshTokenInvalid, ProblemMessages.RefreshTokenInvalid);
 
     public IResult Visit(CannotModifySelf error)
-        => ApiProblems.Problem(StatusCodes.Status403Forbidden, ErrorCodes.CannotModifySelf, AuthMessages.CannotModifySelf);
+        => ApiProblems.Problem(StatusCodes.Status403Forbidden, ErrorCodes.CannotModifySelf, ProblemMessages.CannotModifySelf);
 
     public IResult Visit(UserNotFound error) => Results.NotFound();
 
     public IResult Visit(PathInvalid error)
-        => ApiProblems.FieldProblem(StatusCodes.Status422UnprocessableEntity, ErrorCodes.PathInvalid, Fields.RootPath, AuthMessages.PathInvalid);
+        => ApiProblems.FieldProblem(StatusCodes.Status422UnprocessableEntity, ErrorCodes.PathInvalid, Fields.RootPath, ProblemMessages.PathInvalid);
 
     public IResult Visit(PathAlreadyAssigned error)
-        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.PathAlreadyAssigned, Fields.RootPath, AuthMessages.PathAlreadyAssigned);
+        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.PathAlreadyAssigned, Fields.RootPath, ProblemMessages.PathAlreadyAssigned);
 
     public IResult Visit(PathOverlaps error)
-        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.PathOverlaps, Fields.RootPath, AuthMessages.PathOverlaps);
+        => ApiProblems.FieldProblem(StatusCodes.Status409Conflict, ErrorCodes.PathOverlaps, Fields.RootPath, ProblemMessages.PathOverlaps);
 
     private IResult PasswordProblem(string code, string detail)
         => ApiProblems.FieldProblem(StatusCodes.Status422UnprocessableEntity, code, passwordField, detail);
