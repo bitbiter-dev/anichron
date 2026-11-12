@@ -17,7 +17,7 @@ export function OnThisDayPage() {
       <main className="flex flex-col gap-4 p-4">
         <h1 className="text-title font-semibold">{t('onThisDay.title')}</h1>
         <Today date={today} />
-        <RecentDays today={today} />
+        <RecentDays key={today} today={today} />
       </main>
       <Outlet />
     </>

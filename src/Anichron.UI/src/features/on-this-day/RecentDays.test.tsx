@@ -8,7 +8,7 @@ import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
 
-type Years = ReturnType<typeof yearGroup>[] | (() => Response);
+type Years = ReturnType<typeof yearGroup>[] | (() => Response | Promise<Response>);
 
 const id = (date: string, n = 0) =>
   `0199a1b2-c3d4-7e5f-8a9b-${String(n)}000${date.replaceAll('-', '')}`;
@@ -296,5 +296,26 @@ describe('earlier days', () => {
     await advance(500);
 
     expect(earlier()).toHaveAccessibleName('Earlier days');
+  });
+
+  it('says Nothing in these days when six days that answer slowly turn out empty', async () => {
+    days['2026-10-24'] = () =>
+      new Promise((resolve) =>
+        setTimeout(() => {
+          resolve(Response.json({ date: '2026-10-24', years: [] }));
+        }, 3000),
+      );
+    await openLanding();
+    fireEvent.click(earlier());
+    await within(tray()).findByRole('button', { name: 'Nothing in these days' });
+
+    fireEvent.click(earlier());
+    await advance(2500);
+    expect(earlier()).toHaveAccessibleName('Earlier days');
+    await advance(500);
+
+    expect(await within(tray()).findByRole('button', { name: 'Nothing in these days' })).toBe(
+      earlier(),
+    );
   });
 });

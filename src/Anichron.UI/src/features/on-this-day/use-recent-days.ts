@@ -54,8 +54,7 @@ const withMemories = (date: string, label: string, newest: YearGroup): DayWithMe
 export function useRecentDays(today: string) {
   const { t } = useTranslation();
   const { api } = useRouter().options.context;
-  const [paging, setPaging] = useState({ today, pages: 1, tapped: false });
-  const { pages, tapped } = paging.today === today ? paging : { pages: 1, tapped: false };
+  const [{ pages, tapped }, setPaging] = useState({ pages: 1, tapped: false });
   const dates = Array.from({ length: pages * daysPerPage }, (_, index) =>
     daysBefore(today, index + 1),
   );
@@ -84,7 +83,7 @@ export function useRecentDays(today: string) {
     visible: recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
     earlierLabel: addedNothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
     showEarlier: () => {
-      setPaging({ today, pages: pages + 1, tapped: true });
+      setPaging({ pages: pages + 1, tapped: true });
     },
   } as const;
 }
