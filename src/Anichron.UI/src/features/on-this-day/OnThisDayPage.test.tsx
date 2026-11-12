@@ -169,46 +169,118 @@ describe('the landing screen', () => {
 });
 
 describe('a thumbnail that fails to load', () => {
+  const renewal = miraSession.expiresIn * 800;
   let refreshes: number;
+  let answeredAt: number;
+  let holding: Promise<undefined> | undefined;
 
   beforeEach(() => {
     refreshes = 0;
+    holding = undefined;
     server.use(
-      refreshRespondsWith(() => {
+      refreshRespondsWith(async () => {
         refreshes++;
+        await holding;
+        answeredAt = Date.now();
         return HttpResponse.json(miraSession);
       }),
       today(),
     );
   });
 
-  it('renews the session once and loads again once', async () => {
+  async function openLanding() {
     renderApp('/');
-    const link = await screen.findByRole('link', { name: '1 year ago · 2025' });
-    const first = pictureIn(link) as HTMLImageElement;
+    return screen.findByRole('link', { name: '1 year ago · 2025' });
+  }
 
-    fireEvent.error(first);
-    await advance(0);
-    const second = pictureIn(link) as HTMLImageElement;
-    expect(refreshes).toBe(2);
-    expect(second).not.toBe(first);
-    expect(second.getAttribute('src')).toBe(thumbnail(ids.first2025));
+  function sleepUntil(milliseconds: number) {
+    vi.setSystemTime(answeredAt + milliseconds);
+  }
 
-    fireEvent.error(second);
+  async function fails(image: HTMLImageElement) {
+    fireEvent.error(image);
     await advance(0);
-    expect(refreshes).toBe(2);
-    expect(pictureIn(link)).toBe(second);
+  }
+
+  describe('before the session is due to renew', () => {
+    it('loads again once, without refreshing', async () => {
+      const link = await openLanding();
+      sleepUntil(renewal);
+      const first = pictureIn(link) as HTMLImageElement;
+
+      await fails(first);
+      const second = pictureIn(link) as HTMLImageElement;
+      expect(refreshes).toBe(1);
+      expect(second).not.toBe(first);
+      expect(second.getAttribute('src')).toBe(thumbnail(ids.first2025));
+
+      await fails(second);
+      expect(refreshes).toBe(1);
+      expect(pictureIn(link)).toBe(second);
+    });
+
+    it('sends no refresh for several failing one after another', async () => {
+      await openLanding();
+      const links = screen.getAllByRole('link', { name: /ago/ });
+      const firsts = links.map((link) => pictureIn(link) as HTMLImageElement);
+
+      for (const image of firsts) await fails(image);
+
+      expect(refreshes).toBe(1);
+      links.forEach((link, i) => {
+        expect(pictureIn(link)).not.toBe(firsts[i]);
+      });
+    });
+
+    it('waits for a refresh already on its way, and loads again once it answers', async () => {
+      const link = await openLanding();
+      let answer: () => void = () => undefined;
+      holding = new Promise((resolve) => {
+        answer = () => {
+          resolve(undefined);
+        };
+      });
+      await advance(answeredAt + renewal - Date.now());
+      expect(refreshes).toBe(2);
+      const first = pictureIn(link) as HTMLImageElement;
+
+      await fails(first);
+      expect(pictureIn(link)).toBe(first);
+
+      answer();
+      await advance(0);
+      expect(refreshes).toBe(2);
+      expect(pictureIn(link)).not.toBe(first);
+    });
   });
 
-  it('shares one renewal with the others failing at the same time', async () => {
-    renderApp('/');
-    await screen.findByRole('link', { name: '1 year ago · 2025' });
+  describe('once the session is due to renew', () => {
+    it('renews the session once and loads again once', async () => {
+      const link = await openLanding();
+      sleepUntil(renewal + 1);
+      const first = pictureIn(link) as HTMLImageElement;
 
-    for (const link of screen.getAllByRole('link', { name: /ago/ }))
-      fireEvent.error(pictureIn(link) as HTMLImageElement);
-    await advance(0);
+      await fails(first);
+      const second = pictureIn(link) as HTMLImageElement;
+      expect(refreshes).toBe(2);
+      expect(second).not.toBe(first);
+      expect(second.getAttribute('src')).toBe(thumbnail(ids.first2025));
 
-    expect(refreshes).toBe(2);
-    expect(within(screen.getByRole('list')).getAllByRole('link')).toHaveLength(2);
+      await fails(second);
+      expect(refreshes).toBe(2);
+      expect(pictureIn(link)).toBe(second);
+    });
+
+    it('shares one renewal with the others failing at the same time', async () => {
+      await openLanding();
+      sleepUntil(renewal + 1);
+
+      for (const link of screen.getAllByRole('link', { name: /ago/ }))
+        fireEvent.error(pictureIn(link) as HTMLImageElement);
+      await advance(0);
+
+      expect(refreshes).toBe(2);
+      expect(within(screen.getByRole('list')).getAllByRole('link')).toHaveLength(2);
+    });
   });
 });

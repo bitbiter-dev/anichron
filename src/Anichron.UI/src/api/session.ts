@@ -29,7 +29,7 @@ export class SessionNotRenewed extends ProblemError {}
 
 export interface Session {
   restore(): Promise<void>;
-  renew(): Promise<void>;
+  renewMedia(): Promise<void>;
   login(request: LoginRequest): Promise<void>;
   logout(): Promise<void>;
   user: () => User | undefined;
@@ -144,8 +144,10 @@ export function createSession(
     );
   }
 
+  const dueToRenew = () => Date.now() > renewAt;
+
   function onVisibilityChange() {
-    if (document.visibilityState === 'visible' && Date.now() > renewAt) void refresh();
+    if (document.visibilityState === 'visible' && dueToRenew()) void refresh();
   }
 
   const onTabMessage: Record<TabMessage, () => void> = {
@@ -165,8 +167,8 @@ export function createSession(
       });
       return restored;
     },
-    async renew() {
-      await refresh();
+    async renewMedia() {
+      if (refreshing || dueToRenew()) await refresh();
     },
     async login(body) {
       const answer = await tabs.exclusively(() =>

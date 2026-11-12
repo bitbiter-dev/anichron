@@ -8,7 +8,7 @@ export function useRecovering() {
     reloads,
     onError: () => {
       if (reloads === 0)
-        void session.renew().then(() => {
+        void session.renewMedia().then(() => {
           setReloads(1);
         });
     },
