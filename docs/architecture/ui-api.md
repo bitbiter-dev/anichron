@@ -30,5 +30,5 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 The single-flight refresh, its schedule and backoff, the `401` handling and the tab messages are in `session.ts` and written once. CLAUDE.md, "Session" and "Tabs", states them.
 
-- A media error refreshes only when the media cookie may have lapsed: `renewMedia()` joins a refresh in flight, sends one once past `renewAt`, and otherwise resolves without a request. A lapsed cookie is the only `401` a proxy gives a signed-in user (ADR 0013), and refresh is rate-limited.
+- A media error refreshes only when the media cookie may have lapsed (`renewMedia()`). A lapsed cookie is the only `401` a proxy gives a signed-in user (ADR 0013), and refresh is rate-limited.
 - A device clock fast enough to lose the cookie before `renewAt` keeps its media broken until the scheduled refresh.
