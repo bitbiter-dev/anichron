@@ -15,7 +15,7 @@ on:
         default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.draft == true && 'draft' || 'ready' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
