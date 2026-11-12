@@ -3,14 +3,17 @@ export const memoryMilliseconds = 5000;
 export interface StoryPosition {
   group: number;
   memory: number;
+  visit: number;
   ready: boolean;
 }
 
-export interface Story {
+export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
+
+export type Story = Record<Move | 'close', () => void> & {
   position: () => StoryPosition;
   subscribe: (listener: () => void) => () => void;
-  mediaReady: () => void;
-}
+  mediaReady: (visit: number) => void;
+};
 
 export type SegmentState = 'seen' | 'playing' | 'next';
 
@@ -25,9 +28,12 @@ export function createStory(
   close: () => void,
 ): Story {
   const memories = (group: number) => pictures[group] as readonly boolean[];
+  let visits = 0;
   const at = (group: number, memory: number) => ({
     group,
     memory,
+    // Stryker disable next-line UpdateOperator
+    visit: ++visits,
     ready: !memories(group)[memory],
   });
   let position: StoryPosition = at(group, 0);
@@ -39,6 +45,7 @@ export function createStory(
   }
 
   function show(next: StoryPosition) {
+    clearTimeout(timer);
     position = next;
     notify();
     wait();
@@ -51,6 +58,13 @@ export function createStory(
     else close();
   }
 
+  function previous() {
+    const { group, memory } = position;
+    if (memory > 0) show(at(group, memory - 1));
+    else if (group > 0) show(at(group - 1, memories(group - 1).length - 1));
+    else show(at(group, 0));
+  }
+
   return {
     position: () => position,
     subscribe(listener) {
@@ -60,8 +74,19 @@ export function createStory(
         clearTimeout(timer);
       };
     },
-    mediaReady() {
-      show({ ...position, ready: true });
+    mediaReady(visit) {
+      if (visit === position.visit) show({ ...position, ready: true });
+    },
+    next,
+    previous,
+    nextGroup() {
+      const { group } = position;
+      if (group + 1 < pictures.length) show(at(group + 1, 0));
+      else close();
+    },
+    close,
+    previousGroup() {
+      show(at(Math.max(0, position.group - 1), 0));
     },
   };
 }

@@ -5,7 +5,8 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 ## Stack
 
 - **Tailwind CSS v4** with `tailwind-variants`. Components take `tv` from `src/shared/ui/tv.ts`; its tailwind-merge config reads the size and radius tokens from `tokens.css`, which it would otherwise misread as colours.
-- **React Aria Components** for every interactive control. Its strings are cut to the app's languages (`@react-aria/optimize-locales-plugin`), so a new language is added there and to the catalog.
+- **React Aria Components** for every interactive control; `react-aria`'s hooks (`usePress`) where a control is not a component. Its strings are cut to the app's languages (`@react-aria/optimize-locales-plugin`), so a new language is added there and to the catalog.
+- **Motion** (`LazyMotion` with `domMax`) for the story's swipes and drag-to-close; it loads only with the story's route.
 - **Icons:** `lucide-react`, one import per icon. A meaningful icon gets a label from the catalog; a decorative one is `aria-hidden`.
 - **Fonts:** the system font stack.
 - **Class order:** `prettier-plugin-tailwindcss`.
@@ -46,8 +47,8 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 
 ## Motion and focus
 
-- Durations are tokens that become `0ms` under `prefers-reduced-motion`; no component checks the preference itself.
-- Focus is a 2 px accent ring, offset 2 px, on keyboard focus only. A control with the ring does not transition its colours.
+- Durations are tokens that become `0ms` under `prefers-reduced-motion`; no component checks the preference itself. Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`.
+- Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
 
 ## Base components
 

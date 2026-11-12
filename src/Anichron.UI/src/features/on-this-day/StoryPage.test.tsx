@@ -1,4 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
@@ -31,9 +32,30 @@ async function advance(milliseconds: number) {
   await act(() => vi.advanceTimersByTimeAsync(milliseconds));
 }
 
+const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
 const galleryOf = (name: string) =>
   screen.getByRole('link', { name }).closest('ul') as HTMLUListElement;
 const story = () => screen.getByRole('dialog', { name: storyName });
+const button = (name: string) => within(story()).getByRole('button', { name });
+const showing = () => picture().getAttribute('src');
+async function swipe(x: number, y: number, from = middle()) {
+  const at = (step: number) => ({
+    clientX: 200 + x * step,
+    clientY: 300 + y * step,
+    pointerId: 1,
+    isPrimary: true,
+    button: 0,
+  });
+  fireEvent.pointerDown(from, at(0));
+  for (const step of [0.5, 1]) {
+    fireEvent.pointerMove(from, at(step));
+    await advance(16);
+  }
+  fireEvent.pointerUp(from, at(1));
+  await advance(2000);
+}
+
+const middle = () => button('Previous').nextElementSibling as HTMLElement;
 const picture = () => story().querySelector('img') as HTMLImageElement;
 
 async function shown() {
@@ -447,5 +469,265 @@ describe('closing a story', () => {
     expect(galleryOf('3 years ago · 2023')).toBe(gallery);
     expect(gallery.scrollLeft).toBe(120);
     expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ top: 300 }));
+  });
+});
+
+describe('moving through a story', () => {
+  it('goes to the next memory and back with the Next and Previous buttons', async () => {
+    const { container } = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    await user().click(button('Next'));
+    expect(showing()).toBe(preview(ids.b2025));
+    await user().click(button('Previous'));
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it("goes back from a year group's first memory to the previous year group's last", async () => {
+    await openStory('/day/2026-11-11?year=2021');
+    await shown();
+
+    await user().click(button('Previous'));
+
+    expect(showing()).toBe(preview(ids.a2023));
+    await user().click(button('Previous'));
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(within(story()).getByText('1 year ago · 2025')).toBeVisible();
+  });
+
+  it('goes back within a later year group', async () => {
+    await openStory('/day/2026-11-11?year=2021');
+    await user().click(button('Next'));
+
+    await user().click(button('Previous'));
+
+    expect(showing()).toBe(preview(ids.a2021));
+  });
+
+  it("starts the story's first memory over when going back from it", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(3000);
+
+    await user().click(button('Previous'));
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(30_000);
+    expect(showing()).toBe(preview(ids.a2025));
+
+    await shown();
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('closes when going forward from the last memory', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+    await shown();
+    await user().click(button('Next'));
+    await shown();
+
+    await user().click(button('Next'));
+    await advance(0);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(router.state.location.href).toBe('/');
+  });
+
+  it('gives a memory its full 5 s again when returning to it', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(3000);
+    await user().click(button('Next'));
+    await shown();
+    await advance(3000);
+
+    await user().click(button('Previous'));
+    await shown();
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('starts the next memory on its own clock, not the one it left', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(3000);
+
+    await user().click(button('Next'));
+    await advance(2000);
+    expect(showing()).toBe(preview(ids.b2025));
+    await shown();
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('starts no clock from a picture it moved away from before it decoded', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    fireEvent.load(picture());
+    fireEvent.click(button('Next'));
+    await advance(30_000);
+
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('starts the progress of a memory over when returning to it', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    const first = story().querySelector('ol > li > span');
+
+    await user().click(button('Previous'));
+
+    expect(story().querySelector('ol > li > span')).not.toBe(first);
+    expect(story().querySelector('ol > li > span')?.getAttribute('data-state')).toBe('playing');
+  });
+
+  it('goes to the next memory from a tap in the middle third, which is no extra button', async () => {
+    const { container } = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    expect(
+      within(story())
+        .getAllByRole('button')
+        .map((zone) => zone.getAttribute('aria-label')),
+    ).toEqual(['Previous', 'Next', 'Close']);
+    await user().click(middle());
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it.each([
+    ['{ArrowRight}', preview(ids.b2025)],
+    ['{Shift>}{ArrowRight}{/Shift}', preview(ids.a2023)],
+    ['{ArrowRight}{ArrowRight}{ArrowLeft}', preview(ids.b2025)],
+    ['{Shift>}{ArrowRight}{ArrowRight}{ArrowLeft}{/Shift}', preview(ids.a2023)],
+    ['{Alt>}{ArrowRight}{/Alt}', preview(ids.a2025)],
+    ['{Control>}{ArrowRight}{/Control}', preview(ids.a2025)],
+    ['{Meta>}{ArrowRight}{/Meta}', preview(ids.a2025)],
+    ['{ArrowDown}x', preview(ids.a2025)],
+  ])('moves with the keys %s', async (keys, shows) => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    await user().keyboard(keys);
+
+    expect(showing()).toBe(shows);
+  });
+
+  it('moves when a zone is pressed with Enter or Space', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    button('Next').focus();
+
+    await user().keyboard('{Enter}');
+    expect(showing()).toBe(preview(ids.b2025));
+    button('Previous').focus();
+    await user().keyboard(' ');
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('stops listening to the keys once closed', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+    await user().click(button('Next'));
+    await user().click(button('Close'));
+    await advance(0);
+    const closed = router.history.location.state.__TSR_key;
+
+    await user().keyboard('{ArrowRight}{ArrowRight}');
+    await advance(0);
+
+    expect(router.history.location.state.__TSR_key).toBe(closed);
+  });
+
+  it('moves with the keys while a zone has focus, and closes with Escape', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2025');
+    button('Next').focus();
+
+    await user().keyboard('{ArrowRight}');
+    expect(showing()).toBe(preview(ids.b2025));
+    await user().keyboard('{Escape}');
+    await advance(0);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(router.state.location.href).toBe('/');
+  });
+});
+
+describe('swiping through a story', () => {
+  it.each([
+    ['left to the next year group', -60, 0, preview(ids.a2021)],
+    ['right to the previous year group', 60, 59, preview(ids.a2025)],
+    ['left, not along a short drag', -59, 0, preview(ids.a2023)],
+    ['right, not along a short drag', 59, 0, preview(ids.a2023)],
+    ['up, not at all', 0, -200, preview(ids.a2023)],
+    ['down along a short drag, not at all', 0, 59, preview(ids.a2023)],
+    ['diagonally down, not sideways', -60, 60, null],
+  ])('goes %s', async (_, x, y, shows) => {
+    await openStory('/day/2026-11-11?year=2023');
+
+    await swipe(x, y);
+    await advance(0);
+
+    expect(screen.queryByRole('dialog') && showing()).toBe(shows);
+  });
+
+  it('closes with a swipe or drag down', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2023');
+
+    await swipe(0, 60, button('Next'));
+    await advance(0);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(router.state.location.href).toBe('/');
+  });
+
+  it('closes when swiping past the last year group', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+
+    await swipe(-60, 0);
+    await advance(0);
+
+    expect(router.state.location.href).toBe('/');
+  });
+
+  it('starts the first year group over when swiping back from it', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Next'));
+
+    await swipe(60, 0);
+
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('moves only by the swipe when it starts and ends on one zone', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    vi.spyOn(button('Next'), 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 0, y: 0, width: 1000, height: 1000 }),
+    );
+
+    await swipe(-60, 0, button('Next'));
+    expect(showing()).toBe(preview(ids.a2023));
+    await user().click(button('Next'));
+    expect(showing()).toBe(preview(ids.a2021));
+  });
+
+  it('takes a press with Enter right after a swipe', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    await swipe(-60, 0);
+    button('Next').focus();
+    await user().keyboard('{Enter}');
+
+    expect(showing()).toBe(preview(ids.a2021));
+  });
+
+  it('keeps the browser from scrolling, selecting or showing a menu while swiping', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    const player = middle().parentElement?.parentElement as HTMLElement;
+    expect(player.style.touchAction).toBe('none');
+    expect(player).toHaveClass('select-none', '[-webkit-touch-callout:none]');
   });
 });
