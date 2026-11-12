@@ -1,22 +1,22 @@
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
-import type { Change } from '../../api/assets';
+import type { Change, Flag } from '../../api/assets';
 import type { Memory } from '../../api/flashbacks';
 import { createToasts } from '../../shared/toasts';
 import { interactionMutation } from './day';
 import type { Place } from './story';
 
-export type Toggle = 'starred' | 'liked';
+export type Toggle = Exclude<Flag, 'hidden'>;
 
-interface Hiding {
+interface StoryControls {
   memory: Memory;
   memoryAt: (place: Place) => Memory;
   hide: (place?: Place) => Place;
   undo: (place: Place) => void;
 }
 
-export function useInteractions(date: string, story: Hiding) {
+export function useInteractions(date: string, story: StoryControls) {
   const { api, queryClient } = useRouter().options.context;
   const [toasts] = useState(createToasts);
   const { mutateAsync } = useMutation(interactionMutation(api, queryClient, date));

@@ -740,10 +740,39 @@ describe('starring, liking and hiding', () => {
   const segments = () => story().querySelectorAll('ol > li');
   const toast = () => screen.getByRole('alertdialog');
 
+  let saved: Map<string, object>;
+
+  const withSaved = (days: ReturnType<typeof threeYears>) =>
+    days
+      .map((group) => ({
+        ...group,
+        assets: group.assets
+          .map((asset) => ({
+            ...asset,
+            interaction: { ...asset.interaction, ...saved.get(asset.id) },
+          }))
+          .filter((asset) => !asset.interaction.hidden),
+      }))
+      .filter((group) => group.assets.length > 0);
+
   beforeEach(() => {
     sent = [];
+    saved = new Map();
     answer = () => undefined;
-    server.use(interactionAnswers(sent, (interacted) => answer(interacted)));
+    server.use(
+      onThisDayAnswers(
+        todayAnd(['2024-11-11', '2026-11-11'], (date) => {
+          requested.push(date);
+          return withSaved(years);
+        }),
+      ),
+      interactionAnswers(sent, async (interacted) => {
+        const failed = await answer(interacted);
+        if (!failed)
+          saved.set(interacted.id, { ...saved.get(interacted.id), ...(interacted.body as object) });
+        return failed;
+      }),
+    );
   });
 
   function later() {
@@ -861,7 +890,7 @@ describe('starring, liking and hiding', () => {
               reloads.set(date, resolve);
             })
           : date === '2026-11-11'
-            ? years
+            ? withSaved(years)
             : [],
       ),
     );
@@ -883,6 +912,48 @@ describe('starring, liking and hiding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await advance(0);
     expect(await screen.findByRole('link', { name: 'Yesterday' })).toBeVisible();
+  });
+
+  it('reloads the day once its last change is saved, not before', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+    const held = answer;
+    answer = (interacted) =>
+      'liked' in (interacted.body as object) ? held(interacted) : undefined;
+    fireEvent.click(button('Star'));
+    fireEvent.click(button('Like'));
+    await advance(0);
+    expect(sent).toHaveLength(2);
+    expect(requested).toHaveLength(1);
+
+    respond();
+    await advance(0);
+
+    expect(requested).toHaveLength(2);
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('reloads the landing screen again once a hide made just before closing is saved', async () => {
+    await openLanding();
+    const first = () =>
+      screen
+        .getByRole('link', { name: '5 years ago · 2021' })
+        .querySelector('img')
+        ?.getAttribute('src');
+    fireEvent.click(screen.getByRole('link', { name: '5 years ago · 2021' }));
+    await screen.findByRole('dialog', { name: storyName });
+    const respond = later();
+    fireEvent.click(button('Hide'));
+    fireEvent.click(button('Close'));
+    await advance(0);
+    expect(first()).toContain(ids.a2021);
+
+    respond();
+    await advance(0);
+
+    await vi.waitFor(() => {
+      expect(first()).toContain(ids.b2021);
+    });
   });
 
   it('keeps showing a memory the server has since left out, as it was', async () => {

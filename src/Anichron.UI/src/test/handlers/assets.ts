@@ -10,7 +10,7 @@ export interface Interacted {
   body: unknown;
 }
 
-type Answer = Response | Promise<Response> | undefined;
+type Answer = Response | Promise<Response | undefined> | undefined;
 
 export function interactionAnswers(
   sent: Interacted[],

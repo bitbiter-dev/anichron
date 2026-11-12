@@ -5,7 +5,7 @@ import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { usePress } from 'react-aria/usePress';
 import { useTranslation } from 'react-i18next';
-import type { Day, YearGroup } from '../../api/flashbacks';
+import type { Day } from '../../api/flashbacks';
 import { Toasts } from '../../shared/ui/Toast';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { dayView } from './day-view';
@@ -38,15 +38,7 @@ export function StoryPage() {
           })}
           className="relative size-full text-on-player outline-none"
         >
-          {state.years && (
-            <Player
-              date={date}
-              year={year}
-              years={state.years}
-              day={day.data as Day}
-              close={close}
-            />
-          )}
+          {state.years && <Player date={date} year={year} day={day.data as Day} close={close} />}
           {state.empty && <Navigate to="/" replace />}
           {state.failure && (
             <div className="p-4 pt-16">
@@ -69,14 +61,13 @@ export function StoryPage() {
 interface PlayerProps {
   date: string;
   year: number;
-  years: YearGroup[];
   day: Day;
   close: () => void;
 }
 
-function Player({ date, year, years, day, close }: PlayerProps) {
+function Player({ date, year, day, close }: PlayerProps) {
   const { t } = useTranslation();
-  const story = useStory(years, year, close);
+  const story = useStory(day.years, year, close);
   const { position, group, memory, segments, mediaReady, gestures } = story;
   const interactions = useInteractions(date, story);
   return (

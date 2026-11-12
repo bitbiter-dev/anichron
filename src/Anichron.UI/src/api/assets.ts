@@ -4,7 +4,7 @@ import type { Authorized } from './session';
 
 type Schemas = components['schemas'];
 
-export type Flag = 'starred' | 'liked' | 'hidden';
+export type Flag = keyof Schemas['PatchInteractionRequest'];
 
 export type Change = Partial<Record<Flag, boolean>>;
 
