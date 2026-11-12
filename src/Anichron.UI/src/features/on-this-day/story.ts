@@ -33,11 +33,11 @@ export function createStory(
   close: () => void,
 ): Story {
   const memories = (group: number) => pictures[group] as readonly boolean[];
-  const hidden = pictures.map((group) => group.map(() => false));
+  const hidden = new Set<string>();
+  const keyOf = ({ group, memory }: Place) => `${String(group)}/${String(memory)}`;
   const shown = (group: number) =>
-    memories(group).flatMap((_, memory) => ((hidden[group] as boolean[])[memory] ? [] : [memory]));
-  const groupsShown = () =>
-    pictures.flatMap((_, group) => (shown(group).length > 0 ? [group] : []));
+    [...memories(group).keys()].filter((memory) => !hidden.has(keyOf({ group, memory })));
+  const groupsShown = () => [...pictures.keys()].filter((group) => shown(group).length > 0);
   let visits = 0;
   const at = (group: number, memory: number) => ({
     group,
@@ -49,17 +49,16 @@ export function createStory(
   const first = (group: number) => at(group, shown(group)[0] as number);
   let position: StoryPosition = at(group, 0);
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let notify: () => void = () => undefined;
-  let listening = false;
+  let notify: (() => void) | undefined;
 
   function wait() {
-    if (listening && position.ready) timer = setTimeout(next, memoryMilliseconds);
+    if (notify && position.ready) timer = setTimeout(next, memoryMilliseconds);
   }
 
   function show(next: StoryPosition) {
     clearTimeout(timer);
     position = next;
-    notify();
+    notify?.();
     wait();
   }
 
@@ -85,18 +84,13 @@ export function createStory(
     else show(at(before, shown(before).at(-1) as number));
   }
 
-  function setHidden({ group, memory }: Place, value: boolean) {
-    (hidden[group] as boolean[])[memory] = value;
-  }
-
   return {
     position: () => position,
     subscribe(listener) {
       notify = listener;
-      listening = true;
       wait();
       return () => {
-        listening = false;
+        notify = undefined;
         clearTimeout(timer);
       };
     },
@@ -113,16 +107,16 @@ export function createStory(
     },
     shown,
     hide(place = position) {
-      setHidden(place, true);
+      hidden.add(keyOf(place));
       if (place.group === position.group && place.memory === position.memory) next();
       else {
         position = { ...position };
-        notify();
+        notify?.();
       }
       return place;
     },
     undo(place) {
-      setHidden(place, false);
+      hidden.delete(keyOf(place));
       show(at(place.group, place.memory));
     },
   };

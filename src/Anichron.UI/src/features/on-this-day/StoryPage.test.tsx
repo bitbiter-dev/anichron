@@ -851,16 +851,18 @@ describe('starring, liking and hiding', () => {
     expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('keeps a change through a reload of the day that was already on its way', async () => {
+  it('keeps a change through a reload of its day that was already on its way, and only that reload', async () => {
     await openStory('/day/2026-11-11?year=2025');
-    let reload: (response: Response) => void = () => undefined;
+    const reloads = new Map<string, (response: Response) => void>();
     server.use(
       onThisDayAnswers((date) =>
-        date === '2026-11-11'
+        ['2026-11-11', '2026-11-10'].includes(date) && !reloads.has(date)
           ? new Promise<Response>((resolve) => {
-              reload = resolve;
+              reloads.set(date, resolve);
             })
-          : [],
+          : date === '2026-11-11'
+            ? years
+            : [],
       ),
     );
     act(() => {
@@ -870,10 +872,17 @@ describe('starring, liking and hiding', () => {
 
     fireEvent.click(button('Star'));
     await advance(0);
-    reload(Response.json({ date: '2026-11-11', years: threeYears() }));
+    const answer = (date: string, days: ReturnType<typeof threeYears>) => {
+      reloads.get(date)?.(Response.json({ date, years: days }));
+    };
+    answer('2026-11-11', threeYears());
+    answer('2026-11-10', [yearGroup(2024, memory(ids.a2025, 2024))]);
     await advance(0);
 
     expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await advance(0);
+    expect(await screen.findByRole('link', { name: 'Yesterday' })).toBeVisible();
   });
 
   it('keeps showing a memory the server has since left out, as it was', async () => {
@@ -1070,6 +1079,24 @@ describe('starring, liking and hiding', () => {
     expect(showing()).toBe(preview(ids.b2025));
     await advance(1);
     expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it("drops a memory whose Undo couldn't be saved while another year group plays", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    const respond = later();
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    fireEvent.keyDown(document, { key: 'ArrowRight', shiftKey: true });
+    expect(showing()).toBe(preview(ids.a2023));
+
+    respond(refused());
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.a2023));
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
   });
 
   it('does nothing more once closed when a hide fails afterwards', async () => {
