@@ -5,12 +5,15 @@ import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { usePress } from 'react-aria/usePress';
 import { useTranslation } from 'react-i18next';
-import type { YearGroup } from '../../api/flashbacks';
-import { dayQuery, utcDay, yearsAgo } from './day';
+import type { Day, YearGroup } from '../../api/flashbacks';
+import { Toasts } from '../../shared/ui/Toast';
+import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { dayView } from './day-view';
 import { Failed } from './Failed';
+import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
 import { memoryMilliseconds, segmentState } from './story';
+import { useInteractions } from './use-interactions';
 import { useStory } from './use-story';
 
 const story = getRouteApi('/signed-in/shell/on-this-day/day/$date');
@@ -35,7 +38,15 @@ export function StoryPage() {
           })}
           className="relative size-full text-on-player outline-none"
         >
-          {state.years && <Player date={date} year={year} years={state.years} close={close} />}
+          {state.years && (
+            <Player
+              date={date}
+              year={year}
+              years={state.years}
+              day={day.data as Day}
+              close={close}
+            />
+          )}
           {state.empty && <Navigate to="/" replace />}
           {state.failure && (
             <div className="p-4 pt-16">
@@ -59,12 +70,15 @@ interface PlayerProps {
   date: string;
   year: number;
   years: YearGroup[];
+  day: Day;
   close: () => void;
 }
 
-function Player({ date, year, years, close }: PlayerProps) {
+function Player({ date, year, years, day, close }: PlayerProps) {
   const { t } = useTranslation();
-  const { position, group, memory, mediaReady, gestures } = useStory(years, year, close);
+  const story = useStory(years, year, close);
+  const { position, group, memory, segments, mediaReady, gestures } = story;
+  const interactions = useInteractions(date, story);
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
@@ -101,15 +115,21 @@ function Player({ date, year, years, close }: PlayerProps) {
           <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
             <Segments
               key={position.visit}
-              count={group.memories.length}
-              current={position.memory}
+              count={segments.count}
+              current={segments.current}
               running={position.ready}
             />
             <p className="pr-12 text-small font-semibold">
               {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
             </p>
           </div>
+          <MemoryActions
+            interaction={interactionOf(day, memory)}
+            onToggle={interactions.toggle}
+            onHide={interactions.hide}
+          />
         </m.div>
+        <Toasts toasts={interactions.toasts} />
       </MotionConfig>
     </LazyMotion>
   );

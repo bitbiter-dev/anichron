@@ -1,6 +1,7 @@
-import { queryOptions } from '@tanstack/react-query';
+import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
+import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
-import type { YearGroup } from '../../api/flashbacks';
+import type { Day, Memory, YearGroup } from '../../api/flashbacks';
 
 const twoDigits = (value: number) => String(value).padStart(2, '0');
 
@@ -29,6 +30,44 @@ export const dayKey = (date: string) => ['on-this-day', date] as const;
 
 export const dayQuery = (api: ApiClient, date: string) =>
   queryOptions({ queryKey: dayKey(date), queryFn: () => api.flashbacks.onThisDay(date) });
+
+export interface Interaction {
+  id: string;
+  change: Change;
+}
+
+const reverse = (change: Change): Change =>
+  Object.fromEntries(Object.entries(change).map(([flag, on]) => [flag, !on]));
+
+function apply(queryClient: QueryClient, date: string, { id, change }: Interaction) {
+  const day = queryClient.getQueryData<Day>(dayKey(date)) as Day;
+  queryClient.setQueryData<Day>(dayKey(date), {
+    years: day.years.map((group) => ({
+      ...group,
+      memories: group.memories.map((memory) =>
+        memory.id === id
+          ? { ...memory, interaction: { ...memory.interaction, ...change } }
+          : memory,
+      ),
+    })),
+  });
+}
+
+export const interactionMutation = (api: ApiClient, queryClient: QueryClient, date: string) =>
+  mutationOptions({
+    mutationFn: ({ id, change }: Interaction) => api.assets.interact(id, change),
+    onMutate: async (interaction) => {
+      await queryClient.cancelQueries({ queryKey: dayKey(date) });
+      apply(queryClient, date, interaction);
+    },
+    onError: (_, { id, change }) => {
+      apply(queryClient, date, { id, change: reverse(change) });
+    },
+  });
+
+export const interactionOf = (day: Day, memory: Memory) =>
+  day.years.flatMap((group) => group.memories).find(({ id }) => id === memory.id)?.interaction ??
+  memory.interaction;
 
 export const startGroup = (years: readonly YearGroup[], year: number | undefined) =>
   Math.max(

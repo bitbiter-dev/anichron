@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
 import { createGestures, listenToKeys } from './navigation';
-import { createStory } from './story';
+import { createStory, type Place } from './story';
 
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
   const [{ snapshot, story, gestures, subscribe }] = useState(() => {
@@ -22,11 +22,19 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     return { snapshot: years, story, gestures: createGestures(story), subscribe };
   });
   const position = useSyncExternalStore(subscribe, story.position);
-  const group = snapshot[position.group] as YearGroup;
+  const memoryAt = ({ group, memory }: Place) =>
+    (snapshot[group] as YearGroup).memories[memory] as Memory;
+  const shown = story.shown(position.group);
   return {
     position,
-    group,
-    memory: group.memories[position.memory] as Memory,
+    group: snapshot[position.group] as YearGroup,
+    memory: memoryAt(position),
+    segments: { count: shown.length, current: shown.indexOf(position.memory) },
+    memoryAt,
+    hide: (place?: Place) => story.hide(place),
+    undo: (place: Place) => {
+      story.undo(place);
+    },
     mediaReady: () => {
       story.mediaReady(position.visit);
     },

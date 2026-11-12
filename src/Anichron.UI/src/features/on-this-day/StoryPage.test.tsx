@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
+import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
 import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
@@ -593,7 +594,7 @@ describe('moving through a story', () => {
       within(story())
         .getAllByRole('button')
         .map((zone) => zone.getAttribute('aria-label')),
-    ).toEqual(['Previous', 'Next', 'Close']);
+    ).toEqual(['Previous', 'Next', 'Star', 'Like', 'Hide', 'Close']);
     await user().click(middle());
     expect(showing()).toBe(preview(ids.b2025));
     expect(await axeResults(container)).toHaveNoViolations();
@@ -729,5 +730,380 @@ describe('swiping through a story', () => {
     const player = middle().parentElement?.parentElement as HTMLElement;
     expect(player.style.touchAction).toBe('none');
     expect(player).toHaveClass('select-none', '[-webkit-touch-callout:none]');
+  });
+});
+
+describe('starring, liking and hiding', () => {
+  let sent: Interacted[];
+  let answer: (interacted: Interacted) => Response | Promise<Response> | undefined;
+  const refused = () => problemResponse(500, 'unknown');
+  const segments = () => story().querySelectorAll('ol > li');
+  const toast = () => screen.getByRole('alertdialog');
+
+  beforeEach(() => {
+    sent = [];
+    answer = () => undefined;
+    server.use(interactionAnswers(sent, (interacted) => answer(interacted)));
+  });
+
+  function later() {
+    let settle: (response?: Response) => void = () => undefined;
+    const settled = new Promise<Response | undefined>((resolve) => {
+      settle = resolve;
+    });
+    answer = () => settled as Promise<Response>;
+    return (response?: Response) => {
+      settle(response);
+    };
+  }
+
+  it.each([
+    ['Star', 'starred'],
+    ['Like', 'liked'],
+  ])('%s toggles at once and sends only that field', async (name, flag) => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+
+    fireEvent.click(button(name));
+    await advance(0);
+
+    expect(button(name)).toHaveAttribute('aria-pressed', 'true');
+    respond();
+    await advance(0);
+    fireEvent.click(button(name));
+    await advance(0);
+    expect(button(name)).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(button(name));
+    await advance(0);
+    fireEvent.click(button('Next'));
+    expect(button(name)).toHaveAttribute('aria-pressed', 'false');
+    expect(sent).toEqual([
+      { id: ids.a2025, body: { [flag]: true } },
+      { id: ids.a2025, body: { [flag]: false } },
+      { id: ids.a2025, body: { [flag]: true } },
+    ]);
+  });
+
+  it('shows what each memory has saved', async () => {
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025, {
+          interaction: { starred: true, liked: false, hidden: false, displayWeight: 1 },
+        }),
+        memory(ids.b2025, 2025, {
+          interaction: { starred: false, liked: true, hidden: false, displayWeight: 1 },
+        }),
+      ),
+    ];
+    await openStory('/day/2026-11-11?year=2025');
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(button('Next'));
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'false');
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('neither moves nor restarts the story when a control is pressed', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(4000);
+
+    await user().click(button('Star'));
+    await user().click(button('Like'));
+    await advance(999);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it("rolls back a change that couldn't be saved and says so, politely, for 5 s", async () => {
+    answer = refused;
+    await openStory('/day/2026-11-11?year=2025');
+
+    fireEvent.click(button('Like'));
+    await advance(0);
+
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('status')).toHaveTextContent("Couldn't save");
+    expect(toast()).toBeVisible();
+    await advance(4999);
+    expect(screen.queryByRole('alertdialog')).not.toBeNull();
+    await advance(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('rolls back only the change that failed', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+    fireEvent.click(button('Star'));
+    await advance(0);
+    answer = () => undefined;
+    fireEvent.click(button('Like'));
+    await advance(0);
+
+    respond(refused());
+    await advance(0);
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'false');
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps a change through a reload of the day that was already on its way', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    let reload: (response: Response) => void = () => undefined;
+    server.use(
+      onThisDayAnswers((date) =>
+        date === '2026-11-11'
+          ? new Promise<Response>((resolve) => {
+              reload = resolve;
+            })
+          : [],
+      ),
+    );
+    act(() => {
+      becomes('visible');
+    });
+    await advance(0);
+
+    fireEvent.click(button('Star'));
+    await advance(0);
+    reload(Response.json({ date: '2026-11-11', years: threeYears() }));
+    await advance(0);
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps showing a memory the server has since left out, as it was', async () => {
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025, {
+          interaction: { starred: true, liked: false, hidden: false, displayWeight: 1 },
+        }),
+      ),
+    ];
+    await openStory('/day/2026-11-11?year=2025');
+    years = [];
+    act(() => {
+      becomes('visible');
+    });
+    await advance(0);
+
+    expect(requested).toHaveLength(2);
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('does not reorder the open story when a later memory is starred', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Next'));
+    fireEvent.click(button('Star'));
+    await advance(0);
+
+    fireEvent.click(button('Previous'));
+
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('hides a memory at once, moves to the next and offers Undo for 5 s', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    fireEvent.click(button('Hide'));
+
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
+    await advance(0);
+    expect(sent).toEqual([{ id: ids.a2025, body: { hidden: true } }]);
+    expect(screen.getByRole('status')).toHaveTextContent('Memory hidden');
+    expect(within(toast()).getByRole('button', { name: 'Undo' })).toBeVisible();
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(4999);
+    expect(screen.queryByRole('alertdialog')).not.toBeNull();
+    await advance(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('gives the memory after a hidden one its own clock', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(4000);
+
+    fireEvent.click(button('Hide'));
+    await advance(4000);
+    expect(showing()).toBe(preview(ids.b2025));
+    await shown();
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('puts a hidden memory back where it was with Undo and shows it again', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(await axeResults(document.body)).toHaveNoViolations();
+
+    await user().click(within(toast()).getByRole('button', { name: 'Undo' }));
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segments()).toHaveLength(2);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(sent).toEqual([
+      { id: ids.a2025, body: { hidden: true } },
+      { id: ids.a2025, body: { hidden: false } },
+    ]);
+    fireEvent.click(button('Next'));
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('puts each memory back at its own place, whatever was hidden since', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.a2023));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Undo' }).at(-1) as HTMLElement);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segments()).toHaveLength(1);
+    fireEvent.click(button('Next'));
+    expect(showing()).toBe(preview(ids.a2023));
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('leaves out a year group whose memories are all hidden, until Undo', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.a2021));
+    expect(within(story()).getByText('5 years ago · 2021')).toBeVisible();
+
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.b2025));
+    await swipe(-60, 0);
+    expect(showing()).toBe(preview(ids.a2021));
+    await swipe(60, 0);
+    expect(showing()).toBe(preview(ids.a2025));
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('goes back from a year group past the hidden memories at the end of the one before', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Next'));
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.a2023));
+
+    fireEvent.click(button('Previous'));
+
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('closes when the last memory is hidden', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+    fireEvent.click(button('Next'));
+
+    fireEvent.click(button('Hide'));
+    await advance(0);
+
+    expect(router.state.location.href).toBe('/');
+    expect(sent).toEqual([{ id: ids.b2021, body: { hidden: true } }]);
+  });
+
+  it("brings a memory back when its hide couldn't be saved, and says so", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.b2025));
+
+    respond(refused());
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segments()).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent("Couldn't save");
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    expect(await axeResults(document.body)).toHaveNoViolations();
+  });
+
+  it("hides a memory again when its Undo couldn't be saved", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    answer = refused;
+
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
+    expect(screen.getByRole('status')).toHaveTextContent("Couldn't save");
+  });
+
+  it("drops a memory whose Undo couldn't be saved without moving on from where the story is", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    const respond = later();
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    fireEvent.click(button('Next'));
+    await shown();
+    await advance(3000);
+
+    respond(refused());
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
+    expect(story().querySelector('ol span')?.getAttribute('data-state')).toBe('playing');
+    await advance(1999);
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('does nothing more once closed when a hide fails afterwards', async () => {
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025, { proxies: { thumbnail: null, preview: null, video: null } }),
+      ),
+    ];
+    const { router } = await openLanding();
+    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    await screen.findByRole('dialog', { name: storyName });
+    const respond = later();
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    act(() => {
+      void router.navigate({ to: '/settings' });
+    });
+    await advance(0);
+
+    respond(refused());
+    await advance(10_000);
+
+    expect(router.state.location.href).toBe('/settings');
+  });
+
+  it('reaches Undo from the keyboard', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+
+    await user().keyboard('{F6}{Tab}{Tab}');
+
+    expect(within(toast()).getByRole('button', { name: 'Undo' })).toHaveFocus();
   });
 });

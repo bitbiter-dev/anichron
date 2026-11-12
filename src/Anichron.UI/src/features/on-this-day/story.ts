@@ -7,12 +7,17 @@ export interface StoryPosition {
   ready: boolean;
 }
 
+export type Place = Pick<StoryPosition, 'group' | 'memory'>;
+
 export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
 
 export type Story = Record<Move | 'close', () => void> & {
   position: () => StoryPosition;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
+  shown: (group: number) => number[];
+  hide: (place?: Place) => Place;
+  undo: (place: Place) => void;
 };
 
 export type SegmentState = 'seen' | 'playing' | 'next';
@@ -28,6 +33,11 @@ export function createStory(
   close: () => void,
 ): Story {
   const memories = (group: number) => pictures[group] as readonly boolean[];
+  const hidden = pictures.map((group) => group.map(() => false));
+  const shown = (group: number) =>
+    memories(group).flatMap((_, memory) => ((hidden[group] as boolean[])[memory] ? [] : [memory]));
+  const groupsShown = () =>
+    pictures.flatMap((_, group) => (shown(group).length > 0 ? [group] : []));
   let visits = 0;
   const at = (group: number, memory: number) => ({
     group,
@@ -36,12 +46,14 @@ export function createStory(
     visit: ++visits,
     ready: !memories(group)[memory],
   });
+  const first = (group: number) => at(group, shown(group)[0] as number);
   let position: StoryPosition = at(group, 0);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let notify: () => void = () => undefined;
+  let listening = false;
 
   function wait() {
-    if (position.ready) timer = setTimeout(next, memoryMilliseconds);
+    if (listening && position.ready) timer = setTimeout(next, memoryMilliseconds);
   }
 
   function show(next: StoryPosition) {
@@ -51,26 +63,40 @@ export function createStory(
     wait();
   }
 
+  function nextGroup() {
+    const later = groupsShown().find((group) => group > position.group);
+    if (later === undefined) close();
+    else show(first(later));
+  }
+
   function next() {
     const { group, memory } = position;
-    if (memory + 1 < memories(group).length) show(at(group, memory + 1));
-    else if (group + 1 < pictures.length) show(at(group + 1, 0));
-    else close();
+    const later = shown(group).find((index) => index > memory);
+    if (later === undefined) nextGroup();
+    else show(at(group, later));
   }
 
   function previous() {
     const { group, memory } = position;
-    if (memory > 0) show(at(group, memory - 1));
-    else if (group > 0) show(at(group - 1, memories(group - 1).length - 1));
-    else show(at(group, 0));
+    const earlier = shown(group).findLast((index) => index < memory);
+    const before = groupsShown().findLast((index) => index < group);
+    if (earlier !== undefined) show(at(group, earlier));
+    else if (before === undefined) show(at(group, memory));
+    else show(at(before, shown(before).at(-1) as number));
+  }
+
+  function setHidden({ group, memory }: Place, value: boolean) {
+    (hidden[group] as boolean[])[memory] = value;
   }
 
   return {
     position: () => position,
     subscribe(listener) {
       notify = listener;
+      listening = true;
       wait();
       return () => {
+        listening = false;
         clearTimeout(timer);
       };
     },
@@ -79,14 +105,25 @@ export function createStory(
     },
     next,
     previous,
-    nextGroup() {
-      const { group } = position;
-      if (group + 1 < pictures.length) show(at(group + 1, 0));
-      else close();
-    },
+    nextGroup,
     close,
     previousGroup() {
-      show(at(Math.max(0, position.group - 1), 0));
+      const { group } = position;
+      show(first(groupsShown().findLast((index) => index < group) ?? group));
+    },
+    shown,
+    hide(place = position) {
+      setHidden(place, true);
+      if (place.group === position.group && place.memory === position.memory) next();
+      else {
+        position = { ...position };
+        notify();
+      }
+      return place;
+    },
+    undo(place) {
+      setHidden(place, false);
+      show(at(place.group, place.memory));
     },
   };
 }

@@ -18,7 +18,13 @@
     "title": "Memories of {{date, datetime}}",
     "close": "Close",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "star": "Star",
+    "like": "Like",
+    "hide": "Hide",
+    "hidden": "Memory hidden",
+    "undo": "Undo",
+    "notSaved": "Couldn't save"
   },
   "login": {
     "title": "Sign in to Anichron",
