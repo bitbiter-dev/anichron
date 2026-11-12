@@ -64,7 +64,7 @@ interface PlayerProps {
 
 function Player({ date, year, years, close }: PlayerProps) {
   const { t } = useTranslation();
-  const { position, group, memory, story, gestures } = useStory(years, year, close);
+  const { position, group, memory, mediaReady, gestures } = useStory(years, year, close);
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
@@ -73,7 +73,6 @@ function Player({ date, year, years, close }: PlayerProps) {
           dragConstraints={{ top: 0, right: 0, bottom: 0, left: 0 }}
           dragElastic={{ top: 0, right: 0, bottom: 1, left: 0 }}
           dragSnapToOrigin
-          onPointerDownCapture={gestures.pointerDown}
           onDragStart={gestures.dragStart}
           onDragEnd={(_, { offset }) => {
             gestures.dragEnd(offset);
@@ -83,15 +82,21 @@ function Player({ date, year, years, close }: PlayerProps) {
           <ProxyImage
             key={position.visit}
             src={memory.proxies.preview}
-            onDecoded={() => {
-              story.mediaReady(position.visit);
-            }}
+            onDecoded={mediaReady}
             className="absolute inset-0 size-full object-contain"
           />
           <div className="absolute inset-0 flex">
-            <Zone label={t('story.previous')} onPress={gestures.tap('previous')} />
-            <Middle onPress={gestures.tap('next')} />
-            <Zone label={t('story.next')} onPress={gestures.tap('next')} />
+            <Zone
+              label={t('story.previous')}
+              onPressStart={gestures.pressStart}
+              onPress={gestures.tap('previous')}
+            />
+            <Middle onPressStart={gestures.pressStart} onPress={gestures.tap('next')} />
+            <Zone
+              label={t('story.next')}
+              onPressStart={gestures.pressStart}
+              onPress={gestures.tap('next')}
+            />
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
             <Segments
@@ -112,21 +117,23 @@ function Player({ date, year, years, close }: PlayerProps) {
 
 interface ZoneProps {
   label: string;
+  onPressStart: () => void;
   onPress: () => void;
 }
 
-function Zone({ label, onPress }: ZoneProps) {
+function Zone({ label, onPressStart, onPress }: ZoneProps) {
   return (
     <Button
       aria-label={label}
+      onPressStart={onPressStart}
       onPress={onPress}
       className="h-full flex-1 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
     />
   );
 }
 
-function Middle({ onPress }: Pick<ZoneProps, 'onPress'>) {
-  const { pressProps } = usePress({ onPress });
+function Middle({ onPressStart, onPress }: Omit<ZoneProps, 'label'>) {
+  const { pressProps } = usePress({ onPressStart, onPress });
   return <div {...pressProps} aria-hidden className="h-full flex-1" />;
 }
 

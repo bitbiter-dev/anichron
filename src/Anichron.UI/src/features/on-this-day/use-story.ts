@@ -27,7 +27,9 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     position,
     group,
     memory: group.memories[position.memory] as Memory,
-    story,
+    mediaReady: () => {
+      story.mediaReady(position.visit);
+    },
     gestures,
   };
 }

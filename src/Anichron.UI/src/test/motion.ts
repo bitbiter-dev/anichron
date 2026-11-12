@@ -1,5 +1,3 @@
-// Motion keeps the requestAnimationFrame it finds on loading, and waits for a frame it asked for
-// before asking again; this one asks each test's fake clock, and carries a waiting frame over.
 let waiting: FrameRequestCallback | undefined;
 
 function onCurrentClock(callback: FrameRequestCallback) {

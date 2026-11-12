@@ -5,7 +5,7 @@ const arrows: Partial<Record<string, readonly [Move, Move]>> = {
   ArrowRight: ['next', 'nextGroup'],
 };
 
-export function keyMove(event: KeyboardEvent): Move | undefined {
+function keyMove(event: KeyboardEvent): Move | undefined {
   if (event.altKey || event.ctrlKey || event.metaKey) return undefined;
   return arrows[event.key]?.[Number(event.shiftKey)];
 }
@@ -21,14 +21,14 @@ export function listenToKeys(story: Story) {
   };
 }
 
-export const swipePixels = 60;
+const swipePixels = 60;
 
 interface Point {
   x: number;
   y: number;
 }
 
-export function swipeMove({ x, y }: Point): Move | 'close' | undefined {
+function swipeMove({ x, y }: Point): Move | 'close' | undefined {
   if (Math.abs(x) > Math.abs(y)) {
     if (x <= -swipePixels) return 'nextGroup';
     return x >= swipePixels ? 'previousGroup' : undefined;
@@ -37,9 +37,9 @@ export function swipeMove({ x, y }: Point): Move | 'close' | undefined {
 }
 
 export function createGestures(story: Story) {
-  let swiping = false;
+  let swiping: boolean | undefined;
   return {
-    pointerDown: () => {
+    pressStart: () => {
       swiping = false;
     },
     dragStart: () => {

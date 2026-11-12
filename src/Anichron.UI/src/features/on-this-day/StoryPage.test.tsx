@@ -709,6 +709,16 @@ describe('swiping through a story', () => {
     expect(showing()).toBe(preview(ids.a2021));
   });
 
+  it('takes a press with Enter right after a swipe', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    await swipe(-60, 0);
+    button('Next').focus();
+    await user().keyboard('{Enter}');
+
+    expect(showing()).toBe(preview(ids.a2021));
+  });
+
   it('keeps the browser from scrolling, selecting or showing a menu while swiping', async () => {
     await openStory('/day/2026-11-11?year=2025');
 
