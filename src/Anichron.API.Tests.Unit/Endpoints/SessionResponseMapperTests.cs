@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Anichron.API.Tests.Unit.Endpoints;
 
-public sealed class AuthResponseMapperTests
+public sealed class SessionResponseMapperTests
 {
     private static readonly Instant FixedNow = Instant.FromUtc(2026, 1, 1, 12, 0, 0);
 
@@ -26,7 +26,7 @@ public sealed class AuthResponseMapperTests
             _cookieSettings = new() { SameSite = sameSite, AccessTokenMinutes = 15, RefreshTokenDays = 7 };
         }
 
-        public AuthResponseMapper CreateTestee()
+        public SessionResponseMapper CreateTestee()
             => new(_cookieSettings, _clock, Options.Create(new UsernamePolicy()), Options.Create(_passwordPolicy));
     }
 
@@ -178,7 +178,7 @@ public sealed class AuthResponseMapperTests
         { "change-password", SameSiteMode.Strict, "strict" },
     };
 
-    private static IResult SignIn(AuthResponseMapper testee, string kind, bool setCookie, out HttpContext http)
+    private static IResult SignIn(SessionResponseMapper testee, string kind, bool setCookie, out HttpContext http)
     {
         var tokens = new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User());
         http = NewHttp(withRefreshCookie: setCookie);
@@ -284,253 +284,5 @@ public sealed class AuthResponseMapperTests
             http.Response.StatusCode.Should().Be(422);
             body.Should().Contain(policy.TooLongMessage);
         });
-    }
-
-    // ==========================================================================
-    // GetAdminCreateUserResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminCreateUserResult_Success_Returns201WithLocationAndBody()
-    {
-        var userId = Guid.NewGuid();
-        var created = new AdminCreatedUser(userId, "alice", "alice@example.com", "TempPass==");
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminCreateUserResult(created);
-
-        var ok = result.Should()
-            .BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<AdminCreatedUserResponse>>().Subject;
-        ok.StatusCode.Should().Be(201);
-        ok.Location.Should().Contain(userId.ToString());
-        ok.Value.Should().Be(new AdminCreatedUserResponse(userId, "alice", "alice@example.com", "TempPass=="));
-    }
-
-    // ==========================================================================
-    // GetAdminResetPasswordResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminResetPasswordResult_NullResult_Returns404()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminResetPasswordResult(null);
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>()
-            .Which.StatusCode.Should().Be(404);
-    }
-
-    [Fact]
-    public void GetAdminResetPasswordResult_Success_Returns200WithTemporaryPassword()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminResetPasswordResult(new AdminUserPasswordReset("TempPass=="));
-
-        var ok = result.Should()
-            .BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<AdminPasswordResetResponse>>().Subject;
-        ok.StatusCode.Should().Be(200);
-        ok.Value.Should().Be(new AdminPasswordResetResponse("TempPass=="));
-    }
-
-    // ==========================================================================
-    // GetAdminGetUsersResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminGetUsersResult_EmptyList_Returns200WithEmptyCollection()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminGetUsersResult([]);
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(200);
-    }
-
-    [Fact]
-    public void GetAdminGetUsersResult_WithUsers_Returns200WithMappedResponses()
-    {
-        var testee = new TestFixture().CreateTestee();
-        var userId = new Guid("11111111-0000-0000-0000-000000000001");
-        var user = new User
-        {
-            Id = userId,
-            Username = "alice",
-            Email = "alice@example.com",
-            IsAdmin = true,
-            IsDisabled = false,
-            StorageConfigs = [new() { Id = Guid.NewGuid() }, new() { Id = Guid.NewGuid() }],
-        };
-
-        var ok = testee.GetAdminGetUsersResult([user])
-            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<List<AdminUserResponse>>>().Subject;
-
-        ok.StatusCode.Should().Be(200);
-        ok.Value.Should().ContainSingle(r =>
-            r.Id == userId &&
-            r.Username == "alice" &&
-            r.Email == "alice@example.com" &&
-            r.IsAdmin &&
-            !r.IsDisabled &&
-            r.StorageConfigCount == 2);
-    }
-
-    // ==========================================================================
-    // GetAdminGetUserResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminGetUserResult_NullUser_Returns404()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminGetUserResult(null);
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
-    }
-
-    [Fact]
-    public void GetAdminGetUserResult_UserFound_Returns200WithMappedResponse()
-    {
-        var testee = new TestFixture().CreateTestee();
-        var userId = new Guid("22222222-0000-0000-0000-000000000002");
-        var user = new User
-        {
-            Id = userId,
-            Username = "bob",
-            Email = "bob@example.com",
-            IsAdmin = false,
-            IsDisabled = true,
-            StorageConfigs = [new() { Id = Guid.NewGuid() }],
-        };
-
-        var ok = testee.GetAdminGetUserResult(user)
-            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<AdminUserResponse>>().Subject;
-
-        ok.StatusCode.Should().Be(200);
-        ok.Value.Should().Be(new AdminUserResponse(userId, "bob", "bob@example.com", false, true, 1));
-    }
-
-    // ==========================================================================
-    // GetAdminPatchUserResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminPatchUserResult_Success_Returns200WithMappedUser()
-    {
-        var testee = new TestFixture().CreateTestee();
-        var userId = new Guid("33333333-0000-0000-0000-000000000003");
-        var user = new User
-        {
-            Id = userId,
-            Username = "carol",
-            Email = "carol@example.com",
-            IsAdmin = true,
-            IsDisabled = false,
-            StorageConfigs = [],
-        };
-
-        var ok = testee.GetAdminPatchUserResult(user)
-            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<AdminUserResponse>>().Subject;
-
-        ok.StatusCode.Should().Be(200);
-        ok.Value.Should().Be(new AdminUserResponse(userId, "carol", "carol@example.com", true, false, 0));
-    }
-
-    // ==========================================================================
-    // GetAdminDeleteUserResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminDeleteUserResult_Success_Returns204()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminDeleteUserResult(null);
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
-    }
-
-    // ==========================================================================
-    // GetAdminGetStorageConfigsResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminGetStorageConfigsResult_Success_ReturnsMappedList()
-    {
-        var testee = new TestFixture().CreateTestee();
-        var userId = new Guid("aaaaaaaa-0000-0000-0000-000000000001");
-        var configId = new Guid("bbbbbbbb-0000-0000-0000-000000000001");
-        var configs = new List<UserStorageConfig>
-        {
-            new() { Id = configId, UserId = userId, RootPath = "/nas/photos", IsActive = true },
-        };
-
-        var ok = testee.GetAdminGetStorageConfigsResult(configs)
-            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<List<AdminStorageConfigResponse>>>().Subject;
-
-        ok.StatusCode.Should().Be(200);
-        ok.Value.Should().ContainSingle(c => c == new AdminStorageConfigResponse(configId, userId, "/nas/photos", true));
-    }
-
-    [Fact]
-    public void GetAdminGetStorageConfigsResult_NoUser_Returns404()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminGetStorageConfigsResult(null);
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
-    }
-
-    // ==========================================================================
-    // GetAdminCreateStorageConfigResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminCreateStorageConfigResult_Success_Returns201WithLocationAndMappedBody()
-    {
-        var testee = new TestFixture().CreateTestee();
-        var userId = new Guid("aaaaaaaa-0000-0000-0000-000000000002");
-        var configId = new Guid("bbbbbbbb-0000-0000-0000-000000000002");
-        var config = new UserStorageConfig
-        {
-            Id = configId,
-            UserId = userId,
-            RootPath = "/nas/photos",
-            IsActive = true,
-        };
-
-        var created = testee.GetAdminCreateStorageConfigResult(config)
-            .Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.Created<AdminStorageConfigResponse>>().Subject;
-
-        created.StatusCode.Should().Be(201);
-        created.Location.Should().Be($"/api/v1/users/{userId}/storage-configs/{configId}");
-        created.Value.Should().Be(new AdminStorageConfigResponse(configId, userId, "/nas/photos", true));
-    }
-
-    // ==========================================================================
-    // GetAdminDeleteStorageConfigResult
-    // ==========================================================================
-
-    [Fact]
-    public void GetAdminDeleteStorageConfigResult_Success_Returns204()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminDeleteStorageConfigResult(deleted: true);
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(204);
-    }
-
-    [Fact]
-    public void GetAdminDeleteStorageConfigResult_NotDeleted_Returns404()
-    {
-        var testee = new TestFixture().CreateTestee();
-
-        var result = testee.GetAdminDeleteStorageConfigResult(deleted: false);
-
-        result.Should().BeAssignableTo<IStatusCodeHttpResult>().Which.StatusCode.Should().Be(404);
     }
 }

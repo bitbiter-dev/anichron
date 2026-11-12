@@ -100,7 +100,7 @@ public sealed class UserEndpointsTests
     public async Task ChangePasswordAsync_MissingNameIdentifierClaim_ReturnsUnauthorized()
     {
         var authService = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
 
         var result = await UserEndpoints.ChangePasswordAsync(
             ValidRequest, PrincipalWithoutNameIdentifier(), new DefaultHttpContext(), authService, mapper,
@@ -115,7 +115,7 @@ public sealed class UserEndpointsTests
     public async Task ChangePasswordAsync_NonGuidNameIdentifierClaim_ReturnsUnauthorized()
     {
         var authService = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
 
         var result = await UserEndpoints.ChangePasswordAsync(
             ValidRequest, PrincipalWithClaim("not-a-guid"), new DefaultHttpContext(), authService, mapper,
@@ -135,7 +135,7 @@ public sealed class UserEndpointsTests
     {
         var userId = Guid.NewGuid();
         var authService = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         authService.ChangePasswordAsync(userId, ValidRequest.CurrentPassword, ValidRequest.NewPassword, Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
         mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>())
@@ -154,7 +154,7 @@ public sealed class UserEndpointsTests
     {
         var userId = Guid.NewGuid();
         var authService = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         var expectedResult = Results.NoContent();
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
@@ -177,7 +177,7 @@ public sealed class UserEndpointsTests
     {
         var userId = Guid.NewGuid();
         var authService = Substitute.For<IAuthService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<ISessionResponseMapper>();
         ServiceResult<AuthTokens, IChangePasswordError> failureResult = new CurrentPasswordWrong();
         var expectedResult = Results.Problem(statusCode: 400);
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

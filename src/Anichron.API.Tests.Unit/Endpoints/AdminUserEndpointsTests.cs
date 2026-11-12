@@ -22,11 +22,11 @@ public sealed class AdminUserEndpointsTests
     public async Task GetUsersAsync_CallsServiceAndReturnsMapperResult()
     {
         var service = Substitute.For<IAdminUserService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<IAdminResponseMapper>();
         var users = new List<User>();
         var expected = Results.Ok(users);
         service.GetAllAsync(Arg.Any<CancellationToken>()).Returns(users);
-        mapper.GetAdminGetUsersResult(users).Returns(expected);
+        mapper.GetUsersResult(users).Returns(expected);
 
         var result = await AdminEndpoints.GetUsersAsync(service, mapper, CancellationToken.None);
 
@@ -41,12 +41,12 @@ public sealed class AdminUserEndpointsTests
     public async Task GetUserAsync_PassesUserIdToServiceAndReturnsMapperResult()
     {
         var service = Substitute.For<IAdminUserService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<IAdminResponseMapper>();
         var userId = Guid.NewGuid();
         var user = new User { Id = userId };
         var expected = Results.Ok(user);
         service.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
-        mapper.GetAdminGetUserResult(user).Returns(expected);
+        mapper.GetUserResult(user).Returns(expected);
 
         var result = await AdminEndpoints.GetUserAsync(userId, service, mapper, CancellationToken.None);
 
@@ -61,7 +61,7 @@ public sealed class AdminUserEndpointsTests
     public async Task PatchUserAsync_NoNameIdentifierClaim_ReturnsUnauthorized()
     {
         var service = Substitute.For<IAdminUserService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<IAdminResponseMapper>();
 
         var result = await AdminEndpoints.PatchUserAsync(
             Guid.NewGuid(), new PatchAdminUserRequest(null, null),
@@ -75,14 +75,14 @@ public sealed class AdminUserEndpointsTests
     public async Task PatchUserAsync_PassesCallerAndTargetIdsAndReturnsMappedResult()
     {
         var service = Substitute.For<IAdminUserService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<IAdminResponseMapper>();
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         var req = new PatchAdminUserRequest(IsAdmin: true, IsDisabled: null);
         ServiceResult<User, IUpdateUserError> serviceResult = new User { Id = targetId, StorageConfigs = [] };
         var expected = Results.Ok();
         service.UpdateAsync(callerId, targetId, true, null, Arg.Any<CancellationToken>()).Returns(serviceResult);
-        mapper.GetAdminPatchUserResult(serviceResult).Returns(expected);
+        mapper.GetPatchUserResult(serviceResult).Returns(expected);
 
         var result = await AdminEndpoints.PatchUserAsync(
             targetId, req, PrincipalWithGuid(callerId), service, mapper, CancellationToken.None);
@@ -99,7 +99,7 @@ public sealed class AdminUserEndpointsTests
     public async Task DeleteUserAsync_NoNameIdentifierClaim_ReturnsUnauthorized()
     {
         var service = Substitute.For<IAdminUserService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<IAdminResponseMapper>();
 
         var result = await AdminEndpoints.DeleteUserAsync(
             Guid.NewGuid(), PrincipalWithoutNameIdentifier(), service, mapper, CancellationToken.None);
@@ -112,13 +112,13 @@ public sealed class AdminUserEndpointsTests
     public async Task DeleteUserAsync_PassesCallerAndTargetIdsAndReturnsMappedResult()
     {
         var service = Substitute.For<IAdminUserService>();
-        var mapper = Substitute.For<IAuthResponseMapper>();
+        var mapper = Substitute.For<IAdminResponseMapper>();
         var callerId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         IDeleteUserError? serviceResult = null;
         var expected = Results.NoContent();
         service.DeleteAsync(callerId, targetId, Arg.Any<CancellationToken>()).Returns(serviceResult);
-        mapper.GetAdminDeleteUserResult(serviceResult).Returns(expected);
+        mapper.GetDeleteUserResult(serviceResult).Returns(expected);
 
         var result = await AdminEndpoints.DeleteUserAsync(
             targetId, PrincipalWithGuid(callerId), service, mapper, CancellationToken.None);
