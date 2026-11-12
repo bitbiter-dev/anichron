@@ -266,6 +266,7 @@ describe('a thumbnail that fails to load', () => {
       expect(second).not.toBe(first);
       expect(second.getAttribute('src')).toBe(thumbnail(ids.first2025));
 
+      sleepUntil(renewal + 1);
       await fails(second);
       expect(refreshes).toBe(2);
       expect(pictureIn(link)).toBe(second);
