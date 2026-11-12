@@ -268,4 +268,33 @@ describe('earlier days', () => {
         .map((item) => item.textContent),
     ).toEqual(['Tue 10 Nov', 'Earlier days']);
   });
+
+  it('says Nothing in these days when only the newest six it added are empty', async () => {
+    days['2026-11-02'] = [onDay('2026-11-02', 2023)];
+    await openLanding();
+    fireEvent.click(earlier());
+    await within(tray()).findByRole('link', { name: 'Mon 2 Nov' });
+    expect(earlier()).toHaveAccessibleName('Earlier days');
+
+    fireEvent.click(earlier());
+
+    expect(await within(tray()).findByRole('button', { name: 'Nothing in these days' })).toBe(
+      earlier(),
+    );
+  });
+
+  it('shows Nothing in these days for the full time again when the next tap adds none either', async () => {
+    await openLanding();
+    fireEvent.click(earlier());
+    await within(tray()).findByRole('button', { name: 'Nothing in these days' });
+    await advance(1000);
+
+    fireEvent.click(earlier());
+    await within(tray()).findByRole('button', { name: 'Nothing in these days' });
+    await advance(1500);
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
+    await advance(500);
+
+    expect(earlier()).toHaveAccessibleName('Earlier days');
+  });
 });
