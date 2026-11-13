@@ -31,7 +31,9 @@
     "photo": "Photo",
     "video": "Video",
     "livePhoto": "Live Photo",
-    "failed": "Couldn't load this memory"
+    "failed": "Couldn't load this memory",
+    "soundOn": "Turn sound on",
+    "soundOff": "Turn sound off"
   },
   "login": {
     "title": "Sign in to Anichron",

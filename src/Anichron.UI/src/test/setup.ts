@@ -49,3 +49,11 @@ Object.defineProperty(HTMLImageElement.prototype, 'decode', {
 
 // jsdom has no scrolling; the router restores the scroll position on every navigation.
 Object.defineProperty(window, 'scrollTo', { value: () => undefined });
+
+// jsdom plays no media; a test fires `playing`, `ended` or `error` on the <video> itself.
+for (const method of ['play', 'pause', 'load'] as const)
+  Object.defineProperty(HTMLMediaElement.prototype, method, {
+    value: method === 'play' ? () => Promise.resolve() : () => undefined,
+    configurable: true,
+    writable: true,
+  });

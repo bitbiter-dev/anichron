@@ -1,26 +1,37 @@
+import { useRouter } from '@tanstack/react-router';
 import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
 import { createStory, type Place } from './story';
-import { storyView } from './story-view';
+import { kindOf, storyView } from './story-view';
+import { createVideoPlayer } from './video';
 
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
-  const [{ snapshot, story, gestures, subscribe }] = useState(() => {
+  const { session } = useRouter().options.context.api;
+  const [{ snapshot, story, gestures, player, subscribe }] = useState(() => {
     const story = createStory(
-      years.map((group) => group.memories.map((memory) => memory.proxies.preview !== null)),
+      years.map((group) => group.memories.map(kindOf)),
       startGroup(years, year),
       close,
     );
+    const player = createVideoPlayer(
+      story,
+      ({ group, memory }) => (years[group] as YearGroup).memories[memory] as Memory,
+      () => session.renewMedia(),
+    );
     const subscribe = (listener: () => void) => {
       const stopInput = listenToInput(story);
-      const stop = story.subscribe(listener);
+      const stop = story.subscribe(() => {
+        player.sync();
+        listener();
+      });
       return () => {
         stop();
         stopInput();
       };
     };
-    return { snapshot: years, story, gestures: createGestures(story), subscribe };
+    return { snapshot: years, story, gestures: createGestures(story), player, subscribe };
   });
   const state = useSyncExternalStore(subscribe, story.state);
   const group = snapshot[state.group] as YearGroup;
@@ -41,6 +52,8 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       story.mediaFailed(state.visit);
     },
     gestures,
+    videoEvents: player.events,
     togglePause: story.togglePause,
+    toggleSound: story.toggleSound,
   };
 }

@@ -6,7 +6,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 - **Tailwind CSS v4** with `tailwind-variants`. Components take `tv` from `src/shared/ui/tv.ts`; its tailwind-merge config reads the size and radius tokens from `tokens.css`, which it would otherwise misread as colours.
 - **React Aria Components** for every interactive control; `react-aria`'s hooks (`usePress`) where a control is not a component. Its strings are cut to the app's languages (`@react-aria/optimize-locales-plugin`), so a new language is added there and to the catalog.
-- **Motion** (`LazyMotion` with `domMax`) for the story's swipes and drag-to-close; it loads only with the story's route.
+- **Motion** (`LazyMotion` with `domMax`) for the story's swipes, drag-to-close and the sound hint shrinking into its button; it loads only with the story's route.
 - **Icons:** `lucide-react`, one import per icon. A meaningful icon gets a label from the catalog; a decorative one is `aria-hidden`.
 - **Fonts:** the system font stack.
 - **Class order:** `prettier-plugin-tailwindcss`.

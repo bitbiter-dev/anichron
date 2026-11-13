@@ -2,9 +2,9 @@ import { mergeProps } from 'react-aria/mergeProps';
 import { useLongPress } from 'react-aria/useLongPress';
 import { usePress } from 'react-aria/usePress';
 import type { Gestures } from './navigation';
-import type { Move } from './story';
+import type { Tap } from './story';
 
-export function useZonePress(gestures: Gestures, move: Move) {
+export function useZonePress(gestures: Gestures, move: Tap) {
   const { pressProps } = usePress({
     onPressStart: gestures.pressStart,
     onPress: gestures.tap(move),
