@@ -116,9 +116,7 @@ function Player({ date, year, years, close }: PlayerProps) {
     name,
     pause,
     controls,
-    picture,
     blurhash,
-    blurhashSize,
     failed,
     mediaReady,
     mediaFailed,
@@ -145,8 +143,8 @@ function Player({ date, year, years, close }: PlayerProps) {
             aria-label={t('story.memory', { ...name, kind: t(name.kind) })}
             className="absolute inset-0"
           >
-            {blurhash && <Blurhash hash={blurhash} {...blurhashSize} />}
-            {picture && (
+            {blurhash && <Blurhash {...blurhash} />}
+            {!failed && (
               <ProxyImage
                 src={memory.proxies.preview}
                 onDecoded={mediaReady}

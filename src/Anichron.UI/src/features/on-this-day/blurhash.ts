@@ -1,11 +1,16 @@
 import { decode } from 'blurhash';
+import type { Memory } from '../../api/flashbacks';
 
 const longSide = 32;
 
-export function blurhashSize(width: number | null, height: number | null) {
+function blurhashSize(width: number | null, height: number | null) {
   const [across, down] = [width ?? 1, height ?? 1];
   const scale = longSide / Math.max(across, down);
   return { width: Math.ceil(across * scale), height: Math.ceil(down * scale) };
+}
+
+export function blurhashOf({ blurhash, width, height }: Memory) {
+  return blurhash ? { hash: blurhash, ...blurhashSize(width, height) } : null;
 }
 
 export function paintBlurhash(canvas: HTMLCanvasElement | null, hash: string) {

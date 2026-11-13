@@ -56,6 +56,8 @@ async function swipe(x: number, y: number, from = middle()) {
   await advance(2000);
 }
 
+const failure = "Couldn't load this memory";
+const segment = (index: number) => story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 const middle = () => button('Previous').nextElementSibling as HTMLElement;
 const picture = () => story().querySelector('img') as HTMLImageElement;
 
@@ -303,8 +305,6 @@ describe('a story playing', () => {
 
   it('holds the progress of a memory still until its picture is decoded', async () => {
     await openStory('/day/2026-11-11?year=2025');
-    const segment = (index: number) =>
-      story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 
     const states = () =>
       [...story().querySelectorAll('ol > li > span')].map((span) =>
@@ -368,8 +368,6 @@ describe('a story playing', () => {
 });
 
 describe('a memory loading', () => {
-  const failure = "Couldn't load this memory";
-
   async function loadingSecond() {
     const rendered = await openStory('/day/2026-11-11?year=2025');
     await shown();
@@ -473,13 +471,12 @@ describe('a memory loading', () => {
 
   it('fills the progress segment while a failed memory shows', async () => {
     await loadingSecond();
-    const segment = () => story().querySelectorAll('ol > li > span')[1] as HTMLElement;
-    expect(segment().style.animationPlayState).toBe('paused');
+    expect(segment(1).style.animationPlayState).toBe('paused');
 
     await advance(10_000);
 
-    expect(segment().getAttribute('data-state')).toBe('playing');
-    expect(segment().style.animationPlayState).toBe('running');
+    expect(segment(1).getAttribute('data-state')).toBe('playing');
+    expect(segment(1).style.animationPlayState).toBe('running');
   });
 
   it('stops waiting for a picture once closed', async () => {
@@ -525,6 +522,7 @@ describe('a blurhash', () => {
     ];
   };
 
+  const lastPainted = () => painted.at(-1) as (typeof painted)[number];
   const pixels = (image: (typeof painted)[number]) =>
     Array.from({ length: image.width * image.height }, (_, pixel) => [
       ...image.data.slice(pixel * 4, pixel * 4 + 4),
@@ -536,7 +534,7 @@ describe('a blurhash', () => {
 
     expect(canvas()?.nextElementSibling).toBe(picture());
     expect([canvas()?.width, canvas()?.height]).toEqual([32, 24]);
-    const image = painted.at(-1) as (typeof painted)[number];
+    const image = lastPainted();
     expect([image.width, image.height]).toEqual([32, 24]);
     expect(new Set(pixels(image).map(String))).toEqual(new Set([String(plum)]));
     expect(await axeResults(container)).toHaveNoViolations();
@@ -562,11 +560,9 @@ describe('a blurhash', () => {
 
     await advance(10_000);
 
-    expect(within(story()).getByText("Couldn't load this memory")).toBeVisible();
+    expect(within(story()).getByText(failure)).toBeVisible();
     expect(canvas()).not.toBeNull();
-    expect(new Set(pixels(painted.at(-1) as (typeof painted)[number]).map(String))).toEqual(
-      new Set([String(plum)]),
-    );
+    expect(new Set(pixels(lastPainted()).map(String))).toEqual(new Set([String(plum)]));
   });
 
   it('does not show for a memory without a preview', async () => {
@@ -583,7 +579,7 @@ describe('a blurhash', () => {
 
     await advance(10_000);
 
-    expect(within(story()).getByText("Couldn't load this memory")).toBeVisible();
+    expect(within(story()).getByText(failure)).toBeVisible();
     expect(canvas()).toBeNull();
   });
 });
