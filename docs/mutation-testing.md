@@ -66,15 +66,15 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 
 `.github/workflows/mutation-divergence.yml` runs weekly on master and on demand, and never gates a merge.
 
-- **Backend:** the solution sweep at CI concurrency, which fails below the thresholds, and the divergence check below.
+- **Backend:** one job per mutation target, as on master (ADR 0010). Each sweeps at CI concurrency, which fails below the thresholds, and runs the divergence check below. A last job merges their reports.
 - **UI:** `scripts/ui-mutation-changed.sh --all`.
-- **Publishing:** coverage, the Pages site and the badges, from that sweep.
+- **Publishing:** coverage, the Pages site and the badges, from the merged report.
 - **Failures:** `scripts/full-run-report.sh` opens "Full run failed: Weekly full run", assigned to the maintainer, or comments on the open one. A passing run closes it.
 - A failed master push opens or comments on "Full run failed: CI on master" the same way. The PR that fixes it closes it.
 
 ### The divergence check
 
-- The run also sweeps at `--concurrency 1` on the same commit, and fails when the **detected counts** differ.
+- Each project's job also sweeps it at `--concurrency 1` on the same runner, and fails when the **detected counts** differ. Counted are the mutants valid in both runs; one that errors in only one run is named and left out (`scripts/mutation-report.sh compare`).
 - **Why counts:** the MTP defect (ADR 0001) keeps killed plus survived constant and moves the split between them, so a single run looks consistent. A score comparison would also fire on ordinary quality changes.
 - This is the only place a measurement-affecting flag is passed.
 
