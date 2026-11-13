@@ -8,13 +8,15 @@ export function storyView(state: StoryState, group: YearGroup) {
     LivePhoto: 'story.livePhoto',
   };
   const memory = group.memories[state.memory] as Memory;
+  const segments = { count: state.shown.length, current: state.shown.indexOf(state.memory) };
   return {
     memory,
+    segments,
     name: {
       kind: kinds[memory.mediaType] ?? 'story.photo',
       year: group.year,
-      place: state.memory + 1,
-      count: group.memories.length,
+      place: segments.current + 1,
+      count: segments.count,
     },
     pause: state.paused ? 'story.play' : 'story.pause',
     controls: state.held ? 'hidden' : 'visible',

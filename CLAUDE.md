@@ -246,7 +246,7 @@ Drafts run no CI, and `scripts/land.sh` puts one PR at a time on this machine in
 1. Run the tests you touched, and commit.
 2. Start `scripts/mutation-changed.sh` and `scripts/ui-mutation-changed.sh` in the background; each skips when its area is unchanged. They run the unit suite; no separate full-suite run.
 3. Push and open a **draft** PR, so the work is visible. Then run `/mattpocock-skills:code-review` (both subagents) while mutation runs.
-4. Fix the findings. Run mutation again only if the fixes changed code.
+4. Fix the findings. Run mutation again only if the fixes, or a conflict resolved while merging master, changed code in the mutation scope. A clean merge needs no new run.
 5. Run `scripts/land.sh` in the background; its header says what it does and what each exit code means. Relay its `land:` and `with-lock:` lines to the chat with the Monitor tool, re-armed until it exits. On a failure, fix the cause and run it again.
 6. Once merged, remove the issue from its epic milestone's order (the milestone description), so the next agent reads the next issue first.
 

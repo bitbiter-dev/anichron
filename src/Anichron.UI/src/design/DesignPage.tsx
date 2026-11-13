@@ -4,6 +4,7 @@ import { Button, buttonStyles } from '../shared/ui/Button';
 import { themes as themeNames, type Theme as ThemeName } from '../shared/theme';
 import { SegmentedControl, segmentStyles } from '../shared/ui/SegmentedControl';
 import { inputStyles, TextField } from '../shared/ui/TextField';
+import { toastActionStyles, toastStyles } from '../shared/ui/Toast';
 import { contrastRatio, themeColours, type Theme, type ThemeColours } from './contrast';
 
 const themes: Theme[] = ['light', 'dark'];
@@ -183,6 +184,24 @@ function Components({ theme }: { theme: Theme }) {
       <States title="Alert">
         <State name="shown">
           <Alert message="login.errors.invalidCredentials" />
+        </State>
+      </States>
+      <States title="Toast">
+        <State name="message">
+          <span className={toastStyles()}>
+            <span className="py-2">Couldn&apos;t save</span>
+          </span>
+        </State>
+        <State name="with action">
+          <span className={toastStyles()}>
+            <span className="py-2">Memory hidden</span>
+            <span className={`${toastActionStyles} inline-flex items-center`}>Undo</span>
+          </span>
+        </State>
+        <State name="focused">
+          <span className={toastStyles({ isFocusVisible: true })}>
+            <span className="py-2">Couldn&apos;t save</span>
+          </span>
         </State>
       </States>
     </div>
