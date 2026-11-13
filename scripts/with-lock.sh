@@ -23,7 +23,7 @@ main() {
   local name="$1"
   shift
   case "$name" in
-    '' | *[!A-Za-z0-9_-]*) echo "invalid lock name: '$name'" >&2; exit 2 ;;
+    '' | *[!A-Za-z0-9_-]*) echo "with-lock: invalid lock name: '$name'" >&2; exit 2 ;;
   esac
 
   local dir lock poll="${WITH_LOCK_POLL_SECONDS:-10}" me holder announced=''
@@ -35,7 +35,7 @@ main() {
   until ln -s "$me" "$lock" 2>/dev/null; do
     if ! holder=$(readlink "$lock" 2>/dev/null); then
       if [ -e "$lock" ]; then
-        echo "$lock is not a lock this script made; remove it" >&2
+        echo "with-lock: $lock is not a lock this script made; remove it" >&2
         exit 2
       fi
       continue
@@ -44,19 +44,19 @@ main() {
       if mkdir "$lock.takeover" 2>/dev/null; then
         if [ "$(readlink "$lock" 2>/dev/null)" = "$holder" ]; then
           rm -f "$lock"
-          echo "took over the $name lock from process ${holder%%@*}, which has exited" >&2
+          echo "with-lock: took over the $name lock from process ${holder%%@*}, which has exited" >&2
         fi
         rmdir "$lock.takeover"
       elif [ -n "$(find "$lock.takeover" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
         rmdir "$lock.takeover" 2>/dev/null || true
-        echo "removed a takeover of the $name lock left by a waiter that has exited" >&2
+        echo "with-lock: removed a takeover of the $name lock left by a waiter that has exited" >&2
       else
         sleep "$poll"
       fi
       continue
     fi
     if [ "$announced" != "$holder" ]; then
-      echo "waiting for the $name lock, held by process ${holder%%@*}: $(cat "$lock.command" 2>/dev/null)" >&2
+      echo "with-lock: waiting for the $name lock, held by process ${holder%%@*}: $(cat "$lock.command" 2>/dev/null)" >&2
       announced="$holder"
     fi
     sleep "$poll"

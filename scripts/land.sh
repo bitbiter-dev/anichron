@@ -9,10 +9,11 @@
 #   3. waits for both runs and every required check, and squash-merges;
 #   4. removes the worktree and the local branch. GitHub deletes the remote
 #      branch on merge.
-# A `gh` call that keeps failing, a timeout, a signal, or master moving during
-# CI stops it with the reason. LAND_POLL_SECONDS is the wait between checks
-# (default 30), LAND_TIMEOUT_MINUTES the longest wait for the runs and checks
-# together (default 120).
+# Every message starts with `land: `: one line per phase and per finished CI or
+# CodeQL job. A `gh` call that keeps failing, a timeout, a signal, or master
+# moving during CI stops it with the reason. LAND_POLL_SECONDS is the wait
+# between checks (default 30), LAND_TIMEOUT_MINUTES the longest wait for the
+# runs and checks together (default 120).
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
 # a draft again if it had been marked ready; 2 usage; 3 merged, but cleaning up
@@ -23,7 +24,7 @@ poll="${LAND_POLL_SECONDS:-30}"
 timeout_minutes="${LAND_TIMEOUT_MINUTES:-120}"
 attempts=5
 
-say() { printf '%s\n' "$*" >&2; }
+say() { printf 'land: %s\n' "$*" >&2; }
 die() { say "$1"; exit "${2:-1}"; }
 
 # Runs gh, retrying a failed call up to $attempts times.
@@ -56,13 +57,17 @@ ready_run() {
 # cancelled. Sets `outcome` to its conclusion and url, `gh-failing`, or
 # `timed-out`. Runs in the main shell, so a signal stops it within one poll.
 await_run() {
-  local workflow="$1" sha="$2" since="$3" root_job="$4" deadline="$5" id='' skip='' run newer
+  local workflow="$1" sha="$2" since="$3" root_job="$4" deadline="$5" id='' skip='' run newer reported='' job
   while :; do
     if [ -z "$id" ]; then
       id=$(ready_run "$workflow" "$sha" "$since" "$root_job" "$skip") || { outcome=gh-failing; return; }
     fi
     if [ -n "$id" ]; then
       run=$(gh_retry run view "$id" --json status,conclusion,url,jobs) || { outcome="gh-failing $id"; return; }
+      while IFS= read -r job; do
+        [ -n "$job" ] || continue
+        grep -qxF -- "$job" <<<"$reported" || { say "${workflow%.yml}: $job"; reported="$reported"$'\n'"$job"; }
+      done < <(jq -r '.jobs[] | select(.status == "completed" and .conclusion != "skipped") | "\(.name): \(.conclusion)"' <<<"$run")
       if [ "$(jq -r .status <<<"$run")" = completed ]; then
         if [ "$(jq -r .conclusion <<<"$run")" = cancelled ]; then
           newer=$(ready_run "$workflow" "$sha" "$since" "$root_job" "$skip $id") || { outcome="gh-failing $id"; return; }
@@ -73,7 +78,6 @@ await_run() {
           fi
         fi
         outcome=$(jq -r '"\(.conclusion) \(.url)"' <<<"$run")
-        jq -r '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | "  \(.name): \(.conclusion)"' <<<"$run" >&2
         return
       fi
     fi
@@ -135,6 +139,7 @@ main() {
     git merge --abort 2>/dev/null || true
     die 'merging origin/master failed (see above): resolve it yourself, commit, and run land.sh again'
   fi
+  say "merged origin/master into $branch"
 
   local pr number url
   pr=$(gh_retry pr list --head "$branch" --state open --json number,isDraft) || die 'cannot list the open PRs'
@@ -143,6 +148,7 @@ main() {
     gh_retry pr ready "$number" --undo >/dev/null || die "cannot make PR #$number a draft"
   fi
   git push --quiet --set-upstream origin "$branch" || die "cannot push $branch"
+  say "pushed $branch"
   if [ -z "$number" ]; then
     url=$(gh pr create --draft --fill --base master --head "$branch") || die 'cannot open a draft PR'
     number="${url##*/}"
@@ -178,6 +184,7 @@ main() {
   failing=''
   await_required "$number" "$deadline"
   [ -z "$failing" ] || back_to_draft "Required checks: $failing"
+  say 'every required check passed'
 
   state=$(gh_retry pr view "$number" --json mergeStateStatus | jq -r .mergeStateStatus) || back_to_draft 'Its merge state could not be read.'
   [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'

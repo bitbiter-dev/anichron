@@ -41,7 +41,7 @@ esac
 EOF
 chmod +x "$work/bin/gh"
 
-run_json() { printf '{"status":"completed","conclusion":"%s","url":"https://ci/%s","jobs":[{"name":"%s","conclusion":"%s"}]}\n' "$2" "$1" "$3" "$4"; }
+run_json() { printf '{"status":"completed","conclusion":"%s","url":"https://ci/%s","jobs":[{"name":"%s","status":"completed","conclusion":"%s"}]}\n' "$2" "$1" "$3" "$4"; }
 
 git_as_mira() { git -c user.name=mira -c user.email=mira@example.org "$@"; }
 
@@ -101,6 +101,7 @@ check 'the ready run is the one waited for, not the draft run or an older one' "
 check 'the worktree is removed, ignored build output included' "[ ! -d '$work/wt' ]"
 check 'the local branch is deleted' "! git -C '$work/main' rev-parse --verify --quiet refs/heads/feature >/dev/null"
 check 'the remote branch is left to GitHub' "[ -n \"\$(git -C '$work/origin.git' branch --list feature)\" ] && [[ \"\$(calls)\" != *delete* ]]" "$(calls)"
+check 'each phase and finished job is announced' "[[ \"\$out\" == *'land: merged origin/master'*'land: pushed feature'*'land: PR #7 is ready'*'land: ci: Changes: success'*'land: codeql: Analyze (C#): success'*'land: every required check passed'*'land: merged PR #7'* ]]" "$out"
 check 'the land lock is released' "[ ! -e '$work/main/.git/anichron-locks/land' ]"
 
 setup none success
