@@ -10,7 +10,14 @@ import {
   problemResponse,
   refreshRespondsWith,
 } from '../test/handlers/auth';
-import { everyoneHasMemories, memoriesOf } from '../test/handlers/flashbacks';
+import { axeResults } from '../test/axe';
+import {
+  assetIdOf,
+  eachSeesTheirOwn,
+  everyoneHasMemories,
+  hold,
+  memoriesOf,
+} from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 import { sharedTabs } from '../test/tabs';
@@ -78,7 +85,11 @@ function openTabs(firstPath: string, secondPath: string) {
   const tabs = sharedTabs();
   const open = (path: string) => {
     const rendered = renderApp(path, tabs.tab());
-    return { ...within(rendered.container), unmount: rendered.unmount };
+    return {
+      ...within(rendered.container),
+      container: rendered.container,
+      unmount: rendered.unmount,
+    };
   };
   return [open(firstPath), open(secondPath)] as const;
 }
@@ -130,12 +141,15 @@ describe('two tabs of one browser', () => {
   });
 
   it('start again as the user who signed in in the other', async () => {
+    const answered: string[] = [];
+    const holds = new Map<string, Promise<void>>();
     server.use(
       refreshTakes(1000, new Set([1])),
       loginRespondsWith(() => {
         signedIn = 'noor';
         return sessionOf('noor');
       }),
+      eachSeesTheirOwn(answered, holds),
     );
     const [first, second] = openTabs('/login', '/');
     await advance(2000);
@@ -147,14 +161,27 @@ describe('two tabs of one browser', () => {
     fireEvent.change(first.getByLabelText('Password'), { target: { value: 'hunter2' } });
     fireEvent.click(first.getByRole('button', { name: 'Sign in' }));
     expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
+    const noorsDay = hold();
+    holds.set('noor', noorsDay.until);
+    answered.length = 0;
 
     await advance(500);
     expect(events).toEqual(['refresh 3 sent']);
     expect(second.queryByRole('link', memoriesOf('mira'))).toBeNull();
     expect(second.queryByRole('link', memoriesOf('noor'))).toBeNull();
 
-    await advance(500);
+    await advance(1000);
+    expect(second.queryByRole('link', memoriesOf('mira'))).toBeNull();
+    expect(second.container.innerHTML).not.toContain(assetIdOf('mira'));
+
+    noorsDay.release();
     expect(await second.findByRole('link', memoriesOf('noor'))).toBeVisible();
+    expect(second.container.innerHTML).toContain(assetIdOf('noor'));
+    expect(second.container.innerHTML).not.toContain(assetIdOf('mira'));
+    expect(answered).not.toContain('mira');
+    expect(answered).toContain('noor');
+    first.unmount();
+    expect(await axeResults(second.container)).toHaveNoViolations();
   });
 
   it('take a tab on the login screen into the app when the other signs in', async () => {

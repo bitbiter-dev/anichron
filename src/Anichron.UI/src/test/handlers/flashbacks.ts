@@ -30,7 +30,8 @@ export function memory(id: string, year: number, overrides: Partial<Schemas['Ass
 
 export const yearGroup = (year: number, ...assets: Schemas['AssetDto'][]) => ({ year, assets });
 
-type Answer = Schemas['FlashbackYearDto'][] | Response | Promise<Response>;
+type Years = Schemas['FlashbackYearDto'][];
+type Answer = Years | Response | Promise<Years | Response>;
 
 export function onThisDayAnswers(answer: (date: string, bearer: string | null) => Answer) {
   return http.get('/api/v1/flashbacks/on-this-day', async ({ request, response }) => {
@@ -60,12 +61,34 @@ const yearOfUser = new Map([
 const userYear = (bearer: string | null) =>
   yearOfUser.get(bearer?.replace(/^Bearer (token-)?/, '') ?? '') ?? 2023;
 
+const memoryIdOf = (year: number) => `0199a1b2-c3d4-7e5f-8a9b-00000000${String(year)}`;
+
+const memoriesIn = (year: number) => [yearGroup(year, memory(memoryIdOf(year), year))];
+
 export const everyoneHasMemories = () =>
-  onThisDayAnswers((_, bearer) => {
-    const year = userYear(bearer);
-    return [yearGroup(year, memory(`0199a1b2-c3d4-7e5f-8a9b-00000000${String(year)}`, year))];
+  onThisDayAnswers((_, bearer) => memoriesIn(userYear(bearer)));
+
+export function hold() {
+  let release: () => void = () => undefined;
+  const until = new Promise<void>((resolve) => {
+    release = resolve;
   });
+  return { until, release };
+}
+
+export function eachSeesTheirOwn(answered: string[], holds = new Map<string, Promise<void>>()) {
+  return onThisDayAnswers(async (_, bearer) => {
+    const username = bearer?.replace(/^Bearer token-/, '') ?? '';
+    const year = yearOfUser.get(username);
+    if (year === undefined) return Response.json({ status: 401 }, { status: 401 });
+    await holds.get(username);
+    answered.push(username);
+    return memoriesIn(year);
+  });
+}
 
 export const memoriesOf = (username: string) => ({
   name: new RegExp(` · ${String(yearOfUser.get(username))}$`),
 });
+
+export const assetIdOf = (username: string) => memoryIdOf(yearOfUser.get(username) ?? 0);

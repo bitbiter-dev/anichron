@@ -162,7 +162,10 @@ export function createAppRouter(
     defaultNotFoundComponent: NotFound,
     context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
   });
-  api.session.onChange(() => void router.invalidate());
+  api.session.onChange(() => {
+    if (!api.session.isSignedIn()) queryClient.clear();
+    void router.invalidate();
+  });
   return router;
 }
 
