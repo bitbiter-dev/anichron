@@ -23,7 +23,9 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 ## The UI
 
 - StrykerJS with the Vitest runner, configured in `src/Anichron.UI/stryker.config.json`. Scope: ADR 0014. Guard: `scripts/ui-mutation-guard.sh`.
-- `scripts/ui-mutation-changed.sh` mutates only the changed files when all of them are in scope, otherwise the whole scope. CI runs it against the PR's base, and with `--all` on a master push its PR did not test and in the weekly full run.
+- `scripts/ui-mutation-changed.sh` runs the whole scope in incremental mode (ADR 0014): a mutant whose code and covering tests are unchanged keeps its result from the baseline, `reports/stryker-incremental.json`.
+- **The baseline** is the artifact `ui-mutation-incremental`, published by every `--all` run on master: the weekly full run, and a master push its PR did not test. A run without a local baseline seeds from the newest one.
+- **What incremental cannot see:** a change to a view, a catalog or test support that turns a recorded kill into a survivor. The weekly full run catches it. A change to the measurement setup (the script's header lists it) runs every mutant.
 - No `TMPDIR` hazard: each worktree has its own sandbox, and the mutant is passed in process.
 - Both scoped scripts run their heavy commands under the machine-wide `heavy` lock (`scripts/with-lock.sh`), so parallel worktrees queue instead of competing for CPU.
 - **Keep code out of import time.** Code run outside a test (module scope, a test file's top level, a request still in flight when a test ends) makes its mutants static: each one runs the whole suite. Build values in a function. `src/test/setup.ts` waits for `renderApp`'s queries to settle before a test ends (`src/test/query-clients.ts`).

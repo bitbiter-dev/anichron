@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # Usage: scripts/ui-mutation-changed.sh [--base <ref>] [--all] [--print]
 #
-# Runs StrykerJS over the UI (src/Anichron.UI) for the files changed since the
-# merge-base with <ref> (default origin/master): committed, staged, unstaged,
-# untracked and deleted.
-#   - No UI file changed: nothing to mutate, exit 0.
-#   - Every changed UI file is in the mutation scope (stryker.config.json's
-#     mutate list): only those files are mutated, and none of them having a
-#     mutant (types only) is nothing to mutate, exit 0.
-#   - Anything else changed (a test, a view, a catalog, test support, config,
-#     dependencies, a deleted file): the whole scope is mutated.
-# --all mutates the whole scope regardless. --print prints the Stryker
-# arguments instead of running it (none means the whole scope). Stryker runs
+# Runs StrykerJS over the UI's whole mutation scope (src/Anichron.UI) in
+# incremental mode: a mutant whose code and covering tests are unchanged since
+# the baseline (reports/stryker-incremental.json) keeps its recorded result.
+#   - No UI file changed since the merge-base with <ref> (default
+#     origin/master; committed, staged, unstaged, untracked, deleted): nothing
+#     to mutate, exit 0.
+#   - A changed measurement setup (stryker.config.json, vite.config.ts,
+#     package.json, pnpm-lock.yaml): every mutant runs again (--force).
+#   - Anything else: an incremental run. Without a local baseline, it is seeded
+#     from the newest master artifact `ui-mutation-incremental` (needs `gh`);
+#     without one, every mutant runs.
+# --all runs every mutant regardless (--force) and writes a fresh baseline.
+# --print prints the Stryker arguments instead of running it. Stryker runs
 # under the heavy lock (scripts/with-lock.sh).
 #
 # See docs/mutation-testing.md, "The UI".
@@ -26,7 +28,7 @@ while [ "$#" -gt 0 ]; do
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --all) all=true; shift ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -34,10 +36,14 @@ done
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root=$(git rev-parse --show-toplevel)
 ui="$root/src/Anichron.UI"
+baseline="$ui/reports/stryker-incremental.json"
+artifact='ui-mutation-incremental'
 cd "$root"
 
 args=()
-if ! $all; then
+if $all; then
+  args=(--force)
+else
   if ! merge_base=$(git merge-base "$base" HEAD 2>/dev/null); then
     echo "cannot find a merge-base with '$base'; fetch it or pass --base <ref>" >&2
     exit 2
@@ -55,20 +61,10 @@ if ! $all; then
     exit 0
   fi
 
-  # The mutate list's files, as Stryker resolves them.
-  scope=$(cd "$ui" && node -e '
-    const fs = require("node:fs");
-    const { mutate } = JSON.parse(fs.readFileSync("stryker.config.json", "utf8"));
-    const include = mutate.filter((p) => !p.startsWith("!"));
-    const exclude = mutate.filter((p) => p.startsWith("!")).map((p) => p.slice(1));
-    for (const file of fs.globSync(include, { exclude })) console.log(file);
-  ' | sort -u)
-
-  outside=$(comm -23 <(echo "$changed") <(echo "$scope"))
-  if [ -z "$outside" ]; then
-    args=(--mutate "$(paste -sd, - <<<"$changed")")
-  else
-    echo "mutating the whole UI scope; changed outside it: $(tr '\n' ' ' <<<"$outside" | sed 's/ $//')"
+  setup=$(grep -xE 'stryker\.config\.json|vite\.config\.ts|package\.json|pnpm-lock\.yaml' <<<"$changed" || true)
+  if [ -n "$setup" ]; then
+    echo "running every mutant; the measurement setup changed: $(tr '\n' ' ' <<<"$setup" | sed 's/ $//')"
+    args=(--force)
   fi
 fi
 
@@ -77,15 +73,21 @@ if $print; then
   exit 0
 fi
 
-cd "$ui"
-log=$(mktemp "${TMPDIR:-/tmp}/ui-mutation-changed.XXXXXXXX")
-trap 'rm -f "$log"' EXIT
-status=0
-"$here/with-lock.sh" heavy pnpm exec stryker run "${args[@]+"${args[@]}"}" 2>&1 | tee "$log" || status=$?
-
-if [ "$status" -ne 0 ] && [ "${#args[@]}" -gt 0 ] \
-  && grep -q 'Instrumented [0-9]* source file(s) with 0 mutant(s)' "$log"; then
-  echo 'no mutants in the changed files; nothing to mutate'
-  exit 0
+if [ "${#args[@]}" -eq 0 ] && [ ! -f "$baseline" ]; then
+  seed=$(mktemp -d "${TMPDIR:-/tmp}/ui-mutation-seed.XXXXXXXX")
+  id=$(gh api "repos/{owner}/{repo}/actions/artifacts?name=$artifact&per_page=30" \
+    --jq '[.artifacts[] | select(.workflow_run.head_branch == "master" and (.expired | not))][0].id // empty' \
+    2>/dev/null || true)
+  if [ -n "$id" ] && gh api "repos/{owner}/{repo}/actions/artifacts/$id/zip" >"$seed/baseline.zip" 2>/dev/null \
+    && unzip -qo "$seed/baseline.zip" -d "$seed" && [ -f "$seed/stryker-incremental.json" ]; then
+    mkdir -p "$(dirname "$baseline")"
+    mv "$seed/stryker-incremental.json" "$baseline"
+    echo "seeded the incremental baseline from master's artifact $id"
+  else
+    echo "no incremental baseline from master; every mutant runs"
+  fi
+  rm -rf "$seed"
 fi
-exit "$status"
+
+cd "$ui"
+"$here/with-lock.sh" heavy pnpm exec stryker run "${args[@]+"${args[@]}"}"

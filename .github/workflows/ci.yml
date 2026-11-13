@@ -207,6 +207,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     defaults:
       run:
         working-directory: src/Anichron.UI
@@ -250,18 +251,29 @@ jobs:
         working-directory: .
         run: scripts/ui-mutation-guard.sh
 
-      # A pull request mutates what it changed; master mutates the whole scope.
+      # A pull request runs incrementally on master's baseline; master runs
+      # every mutant and publishes the next baseline.
       - name: Mutation test
         working-directory: .
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$EVENT" = pull_request ]; then
             scripts/ui-mutation-changed.sh --base "origin/$BASE"
           else
             scripts/ui-mutation-changed.sh --all
           fi
+
+      - name: Publish the incremental baseline
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-mutation-incremental
+          path: src/Anichron.UI/reports/stryker-incremental.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Build
         run: pnpm build

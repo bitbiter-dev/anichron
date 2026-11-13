@@ -1,12 +1,11 @@
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import type { StoryState } from './story';
 
-const kinds: Partial<Record<string, 'story.video' | 'story.livePhoto'>> = {
-  Video: 'story.video',
-  LivePhoto: 'story.livePhoto',
-};
-
 export function storyView(state: StoryState, group: YearGroup) {
+  const kinds: Partial<Record<string, 'story.video' | 'story.livePhoto'>> = {
+    Video: 'story.video',
+    LivePhoto: 'story.livePhoto',
+  };
   const memory = group.memories[state.memory] as Memory;
   return {
     memory,

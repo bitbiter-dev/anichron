@@ -26,7 +26,7 @@ JSON
   printf '// Stryker disable next-line all\nexport const tick = 1;\n' >"$ui/src/app/clock.ts"
   printf 'jobs:\n  ui:\n    steps:\n      - run: scripts/ui-mutation-changed.sh --base origin/master\n' \
     >"$work/repo/.github/workflows/ci.yml"
-  printf '#!/usr/bin/env bash\nargs=(--mutate "$files")\npnpm exec stryker run --mutate "$files"\n' \
+  printf '#!/usr/bin/env bash\npnpm exec stryker run --force\n' \
     >"$work/repo/scripts/ui-mutation-changed.sh"
 }
 
@@ -45,7 +45,7 @@ check() {
 echo 'ui-mutation-guard.sh'
 
 tree
-check 'a conforming setup passes, including the sanctioned --mutate' 0 'matches its rules'
+check 'a conforming setup passes, including the sanctioned --force' 0 'matches its rules'
 
 tree
 sed -i.bak 's/"vitest"/"command"/' "$work/repo/src/Anichron.UI/stryker.config.json"
@@ -57,7 +57,7 @@ check 'a threshold below 100 fails' 1 'thresholds.break is 90'
 
 tree
 sed -i.bak 's/"testRunner"/"incremental": true, "testRunner"/' "$work/repo/src/Anichron.UI/stryker.config.json"
-check 'incremental mode fails' 1 'incremental is set'
+check 'incremental mode in the config passes' 0 'matches its rules'
 
 tree
 sed -i.bak 's/"testRunner"/"ignoreStatic": true, "testRunner"/' "$work/repo/src/Anichron.UI/stryker.config.json"
@@ -85,7 +85,11 @@ check 'a measurement flag in a package script fails' 1 'src/Anichron.UI/package.
 
 tree
 printf '#!/usr/bin/env bash\nstryker run -m src/a.ts\n' >"$work/repo/scripts/other.sh"
-check '--mutate outside ui-mutation-changed.sh fails' 1 'scripts/other.sh: passes --mutate'
+check '--mutate in a script fails' 1 'scripts/other.sh: passes a StrykerJS flag'
+
+tree
+printf '#!/usr/bin/env bash\npnpm exec stryker run --force\n' >"$work/repo/scripts/other.sh"
+check '--force outside ui-mutation-changed.sh fails' 1 'scripts/other.sh: passes --force'
 
 tree
 printf '      - run: cd src/Anichron.UI && pnpm mutate\n' >>"$work/repo/.github/workflows/ci.yml"
@@ -101,7 +105,7 @@ check 'a directive in a file the ADR does not name fails' 1 'src/Anichron.UI/src
 
 tree
 printf '{ "scripts": { "m": "stryker run -m src/a.ts" } }\n' >"$work/repo/src/Anichron.UI/package.json"
-check '--mutate at the end of a package script fails' 1 'package.json: passes --mutate'
+check '--mutate at the end of a package script fails' 1 'package.json: passes a StrykerJS flag'
 
 tree
 rm "$work/repo/docs/adr/0014-ui.md"

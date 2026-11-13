@@ -3,13 +3,13 @@
 #
 # The UI's counterpart of mutation-guard.sh. Fails when the StrykerJS setup in
 # src/Anichron.UI drifts from the rules in CLAUDE.md ("The UI") and ADR 0014:
-#   - stryker.config.json keeps testRunner "vitest", thresholds of 100, no
-#     incremental mode and no ignoreStatic;
+#   - stryker.config.json keeps testRunner "vitest", thresholds of 100 and no
+#     ignoreStatic;
 #   - its mutate list starts from "src/**/*.ts", and every other entry (an
 #     exclusion, or a view file brought back into scope) is named in ADR 0014;
 #   - no workflow, hook, script or package.json script passes a flag that
-#     changes what is measured (--incremental, --force, --ignoreStatic, ...);
-#   - --mutate/-m appears only in ui-mutation-changed.sh;
+#     changes what is measured (--mutate, --incremental, --ignoreStatic, ...);
+#   - --force appears only in ui-mutation-changed.sh;
 #   - workflows run StrykerJS only through scripts/ui-mutation-changed.sh;
 #   - every UI file with a `// Stryker disable` directive is named in ADR 0014.
 #
@@ -39,10 +39,8 @@ for key in break low high; do
   [ "$value" = 100 ] || violations+=("stryker.config.json: thresholds.$key is $value, must be 100")
 done
 
-for key in incremental ignoreStatic; do
-  [ "$(jq -r --arg key "$key" '.[$key] // false' "$config")" = false ] \
-    || violations+=("stryker.config.json: $key is set; it hides mutants from the gate")
-done
+[ "$(jq -r '.ignoreStatic // false' "$config")" = false ] \
+  || violations+=("stryker.config.json: ignoreStatic is set; it hides mutants from the gate")
 
 [ "$(jq -r '.mutate[0] // "unset"' "$config")" = 'src/**/*.ts' ] \
   || violations+=('stryker.config.json: mutate must start with "src/**/*.ts", the logic files')
@@ -73,15 +71,15 @@ flag_in() {
   return 0
 }
 
-measuring='incremental|incrementalFile|force|ignoreStatic|ignorePatterns|testFiles|testRunner|coverageAnalysis|allowEmpty|inPlace|files'
+measuring='mutate|incremental|incrementalFile|ignoreStatic|ignorePatterns|testFiles|testRunner|coverageAnalysis|allowEmpty|inPlace|files'
 while IFS= read -r file; do
   [ -n "$file" ] && violations+=("$file: passes a StrykerJS flag that changes what is measured; settings live in stryker.config.json")
-done < <(flag_in "stryker.*(^|[[:space:]])--($measuring)([[:space:]=\"']|\$)")
+done < <(flag_in "stryker.*(^|[[:space:]])(--($measuring)|-m)([[:space:]=\"']|\$)")
 
 while IFS= read -r file; do
   [ -n "$file" ] && [ "$file" != scripts/ui-mutation-changed.sh ] \
-    && violations+=("$file: passes --mutate to StrykerJS, sanctioned only in ui-mutation-changed.sh")
-done < <(flag_in "stryker[[:space:]]+run.*(^|[[:space:]])(--mutate|-m)([[:space:]=\"']|\$)")
+    && violations+=("$file: passes --force to StrykerJS, sanctioned only in ui-mutation-changed.sh")
+done < <(flag_in "stryker.*(^|[[:space:]])--force([[:space:]=\"']|\$)")
 
 while IFS= read -r file; do
   [ -n "$file" ] && violations+=("$file: runs StrykerJS directly; workflows go through scripts/ui-mutation-changed.sh")

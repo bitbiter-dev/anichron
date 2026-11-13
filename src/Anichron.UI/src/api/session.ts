@@ -42,8 +42,9 @@ const renewAtShare = 0.8;
 const firstBackoffSeconds = 5;
 const maxBackoffSeconds = 300;
 
-const backoffSeconds = (failures: number) =>
-  Math.min(firstBackoffSeconds * 2 ** (failures - 1), maxBackoffSeconds);
+function backoffSeconds(failures: number) {
+  return Math.min(firstBackoffSeconds * 2 ** (failures - 1), maxBackoffSeconds);
+}
 
 async function send<T>(call: () => Promise<Call<T>>): Promise<Answer<T>> {
   try {
@@ -54,7 +55,7 @@ async function send<T>(call: () => Promise<Call<T>>): Promise<Answer<T>> {
   } catch (thrown) {
     return {
       ok: false,
-      problem: thrown instanceof SyntaxError ? unknownProblem : unreachableProblem,
+      problem: thrown instanceof SyntaxError ? unknownProblem() : unreachableProblem(),
     };
   }
 }
