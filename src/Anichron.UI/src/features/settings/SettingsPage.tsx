@@ -1,8 +1,9 @@
-import { useRouter } from '@tanstack/react-router';
+import { Link, useRouter } from '@tanstack/react-router';
 import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themes } from '../../shared/theme';
 import { Button } from '../../shared/ui/Button';
+import { useUser } from '../../shared/use-user';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 
 export function SettingsPage() {
@@ -19,6 +20,7 @@ export function SettingsPage() {
           onChange={theme.choose}
         />
       </section>
+      {useUser()?.isAdmin && <Administration />}
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
         <h2 className="font-semibold">{t('settings.account')}</h2>
         <Button
@@ -30,5 +32,20 @@ export function SettingsPage() {
         </Button>
       </section>
     </main>
+  );
+}
+
+function Administration() {
+  const { t } = useTranslation();
+  return (
+    <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
+      <h2 className="font-semibold">{t('settings.administration')}</h2>
+      <Link
+        to="/admin/work-items"
+        className="self-start font-semibold text-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      >
+        {t('settings.workItems')}
+      </Link>
+    </section>
   );
 }

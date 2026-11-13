@@ -3160,7 +3160,7 @@
             "format": "uuid"
           },
           "kind": {
-            "type": "string"
+            "$ref": "#/components/schemas/WorkKind"
           },
           "storageConfigId": {
             "type": [
@@ -3177,7 +3177,7 @@
             "format": "uuid"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/WorkItemStatus"
           },
           "attempt": {
             "type": "integer",
@@ -3275,10 +3275,25 @@
         }
       },
       "WorkItemStatus": {
-        "type": "integer"
+        "enum": [
+          "Queued",
+          "Running",
+          "Succeeded",
+          "Failed",
+          "Cancelled"
+        ],
+        "type": "string"
       },
       "WorkKind": {
-        "type": "integer"
+        "enum": [
+          "TokenCleanup",
+          "WorkItemRetention",
+          "Crawl",
+          "BurstDetection",
+          "ProxySweep",
+          "ProxyDeletion"
+        ],
+        "type": "string"
       },
       "WorkProgressDto": {
         "required": [
