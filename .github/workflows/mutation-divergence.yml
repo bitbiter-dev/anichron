@@ -19,24 +19,39 @@ permissions:
   contents: read
 
 jobs:
-  backend:
-    name: Backend sweep and divergence
+  targets:
+    name: Mutation targets
     runs-on: ubuntu-latest
-    # Both sweeps in ONE job so they share a commit and a runner — the whole
-    # point is that concurrency is the only difference between them. Two jobs
-    # could land on different hardware and the comparison would mean nothing.
-    #
-    # The single-threaded sweep is roughly twice as slow as the default one, so
-    # the pair costs about three times a normal sweep.
-    #
-    # Bounded at BOTH levels on purpose. The per-step limits match ci.yml's
-    # convention and are what makes a hang attributable to one sweep rather
-    # than the pair — and, more usefully, a step timeout fails that step while
-    # letting the `always()` summary and artifact upload still run. A job-level
-    # timeout CANCELS the job, and a cancelled job does not run its remaining
-    # steps, so the job limit alone would have thrown away the diagnosis.
-    # It stays as a backstop for a hang outside the two sweeps.
-    timeout-minutes: 90
+    outputs:
+      projects: ${{ steps.plan.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Plan every target
+        id: plan
+        run: |
+          set -o pipefail
+          projects=$(scripts/mutation-changed.sh --matrix --all | jq -c '.projects')
+          if [ "$(jq length <<<"$projects")" -eq 0 ]; then
+            echo "::error::scripts/mutation-targets.sh listed no projects; nothing would be mutated"
+            exit 1
+          fi
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
+
+  mutation-project:
+    name: Backend — ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: targets
+    # Both sweeps on one runner; step limits below the job's keep the summary.
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.targets.outputs.projects) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -55,25 +70,33 @@ jobs:
       # test, so it is the one flag that must be passed here and nowhere else.
       #
       # continue-on-error on both sweeps: a sweep that scores below the break
-      # threshold exits 2, and that is not what this job is asking about. The
-      # comparison step below decides the outcome, and it fails the job on a
+      # threshold exits 2, and that is not what the comparison is asking about.
+      # The comparison step decides the divergence, and it fails the job on a
       # missing report rather than letting a crashed sweep pass silently.
       - name: Sweep at CI concurrency
         id: default
         continue-on-error: true
-        timeout-minutes: 25
-        run: scripts/stryker-sweep.sh --output ../mutation-default
+        timeout-minutes: 30
+        env:
+          ARGS: ${{ toJSON(matrix.args) }}
+        run: |
+          mapfile -t args < <(jq -r '.[]' <<<"$ARGS")
+          scripts/stryker-sweep.sh "${args[@]}" --output ../mutation-default
 
       - name: Sweep single-threaded
         continue-on-error: true
-        timeout-minutes: 45
-        run: scripts/stryker-sweep.sh --concurrency 1 --output ../mutation-single
+        timeout-minutes: 60
+        env:
+          ARGS: ${{ toJSON(matrix.args) }}
+        run: |
+          mapfile -t args < <(jq -r '.[]' <<<"$ARGS")
+          scripts/stryker-sweep.sh "${args[@]}" --concurrency 1 --output ../mutation-single
 
       - name: Upload both reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mutation-divergence-reports
+          name: mutation-divergence-${{ matrix.name }}
           path: |
             mutation-default/reports/
             mutation-single/reports/
@@ -85,6 +108,8 @@ jobs:
       # how a red scheduled job gets ignored.
       - name: Summarise both sweeps
         if: always()
+        env:
+          NAME: ${{ matrix.name }}
         run: |
           d=mutation-default/reports/mutation-report.json
           s=mutation-single/reports/mutation-report.json
@@ -118,7 +143,7 @@ jobs:
           }
 
           {
-            echo '## Mutation divergence check'
+            echo "## Mutation divergence check: $NAME"
             echo
             echo '| sweep | detected | detectable | score |'
             echo '|---|---:|---:|---:|'
@@ -159,22 +184,68 @@ jobs:
             cat mutation-default/reports/mutation-report.md >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload mutation report
+      - name: Upload project report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mutation-report
-          path: mutation-default/reports/
+          name: mutation-part-${{ matrix.name }}
+          path: mutation-default/reports/mutation-report.json
           if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Enforce mutation score
+        if: always()
+        env:
+          OUTCOME: ${{ steps.default.outcome }}
+        run: |
+          if [ "$OUTCOME" != success ]; then
+            echo "::error::The sweep at CI concurrency failed or scored below its thresholds ($OUTCOME). Its summary and the mutation-divergence-${{ matrix.name }} artifact list the survivors."
+            exit 1
+          fi
+
+  mutation:
+    name: Backend report
+    runs-on: ubuntu-latest
+    needs: [targets, mutation-project]
+    if: ${{ !cancelled() }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          pattern: mutation-part-*
+          path: parts
+
+      - name: Merge project reports
+        id: merge
+        continue-on-error: true
+        env:
+          PROJECTS: ${{ needs.targets.outputs.projects }}
+        run: scripts/mutation-merge-parts.sh "$PROJECTS" parts mutation/reports
+
+      - name: Publish merged score
+        if: steps.merge.outcome == 'success'
+        run: |
+          scripts/mutation-report.sh tally mutation/reports/mutation-report.json \
+            | jq -r '"### Mutation score, all projects: \(.score)% (\(.detected) of \(.total) detected)"' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload mutation report
+        if: steps.merge.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report
+          path: mutation/reports/
           retention-days: 30
 
       # Staged through a temp file: a refused report must leave no payload.
       - name: Build mutation badge payload
-        if: always()
+        if: steps.merge.outcome == 'success'
         continue-on-error: true
         run: |
           mkdir -p mutation-state
-          scripts/mutation-report.sh badge mutation-default/reports/mutation-report.json > mutation-state/mutation.json.tmp
+          scripts/mutation-report.sh badge mutation/reports/mutation-report.json > mutation-state/mutation.json.tmp
           mv mutation-state/mutation.json.tmp mutation-state/mutation.json
 
       - name: Upload badge state
@@ -186,13 +257,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-      - name: Enforce mutation score
+      - name: Enforce every project
         if: always()
         env:
-          OUTCOME: ${{ steps.default.outcome }}
+          TARGETS: ${{ needs.targets.result }}
+          PROJECTS: ${{ needs.mutation-project.result }}
+          MERGE: ${{ steps.merge.outcome }}
         run: |
-          if [ "$OUTCOME" != success ]; then
-            echo "::error::The sweep at CI concurrency failed or scored below its thresholds ($OUTCOME). Its summary and the mutation-report artifact list the survivors."
+          if [ "$TARGETS" != success ] || [ "$PROJECTS" != success ] || [ "$MERGE" != success ]; then
+            echo "::error::The backend full run failed (targets: $TARGETS, projects: $PROJECTS, merge: $MERGE). Each project job's summary has its score and divergence check."
             exit 1
           fi
 
@@ -261,7 +334,7 @@ jobs:
   publish:
     name: Publish quality reports
     runs-on: ubuntu-latest
-    needs: [coverage, backend]
+    needs: [coverage, mutation]
     if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.coverage.result == 'success' }}
     permissions:
       contents: write
@@ -327,7 +400,7 @@ jobs:
   report:
     name: Report the outcome
     runs-on: ubuntu-latest
-    needs: [backend, ui, coverage, publish, deploy-pages]
+    needs: [mutation, ui, coverage, publish, deploy-pages]
     if: ${{ !cancelled() && github.ref == 'refs/heads/master' }}
     permissions:
       contents: read

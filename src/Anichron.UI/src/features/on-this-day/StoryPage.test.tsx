@@ -2140,6 +2140,13 @@ describe('starring, liking and hiding', () => {
     expect(showing()).toBe(preview(ids.a2025));
     fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
     expect(showing()).toBe(preview(ids.a2023));
+    await vi.waitFor(() => {
+      expect(requested).toHaveLength(3);
+    });
+    expect(sent).toEqual([
+      { id: ids.a2023, body: { hidden: true } },
+      { id: ids.a2023, body: { hidden: false } },
+    ]);
   });
 
   it('goes back from a year group past the hidden memories at the end of the one before', async () => {
