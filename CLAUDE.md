@@ -120,6 +120,7 @@ Mutants that flip between runs:
 - Seam 2 is the default: `renderApp(path)` renders the real route tree, and MSW (`src/test/server.ts`) fails on any unhandled request.
 - Assert what the user sees, plus `expect(await axeResults(container)).toHaveNoViolations()`.
 - Timers are always fake.
+- Test files share a worker and run in shuffled order (`vite.config.ts`), so a test leaves no state behind. A failure prints its seed; rerun with `--sequence.seed`.
 - Test a `.ts` module directly (seam 3) only for a mutant seam 2 cannot reasonably kill.
 
 **Mutation:** StrykerJS mutates `src/**/*.ts` and `src/app/router.tsx` at 100 (ADR 0014). Before finishing, run `scripts/ui-mutation-changed.sh`, with the same survivor rules as the backend; a suppression needs an ADR 0014 row. No private `TMPDIR` needed. `scripts/ui-mutation-guard.sh` (CI) guards the setup.

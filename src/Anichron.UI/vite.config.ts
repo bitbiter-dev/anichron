@@ -59,6 +59,7 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     restoreMocks: true,
     isolate: false,
+    sequence: { shuffle: true },
     css: { include: [/\/tokens\.css/] },
     reporters: process.env.GITHUB_ACTIONS
       ? ['default', ['github-actions', { jobSummary: { enabled: false } }]]

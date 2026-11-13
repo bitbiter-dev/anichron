@@ -21,6 +21,12 @@ const onlyApi = (name) => ({
   name,
   message: `Only src/api/ talks to the network; call it instead of ${name}.`,
 });
+const sharedWorkers = {
+  object: 'vi',
+  property: 'resetModules',
+  message:
+    'Test files share a worker (isolate: false), so a reset registry reaches every later file. Import a fresh copy with a query instead.',
+};
 const catalogText = [
   `JSXAttribute[name.name=${attributePattern(textAttributes)}] > Literal`,
   `JSXAttribute[name.name="alt"] > Literal[value!=""]`,
@@ -105,6 +111,7 @@ export default defineConfig([
       'no-restricted-globals': ['error', ...networkGlobals.map(onlyApi)],
       'no-restricted-properties': [
         'error',
+        sharedWorkers,
         ...['window', 'globalThis', 'self'].flatMap((object) =>
           networkGlobals.map((name) => ({
             object,
@@ -113,6 +120,12 @@ export default defineConfig([
           })),
         ),
       ],
+    },
+  },
+  {
+    files: ['src/api/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-properties': ['error', sharedWorkers],
     },
   },
   {
