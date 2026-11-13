@@ -2,15 +2,11 @@ import type { Memory } from '../../api/flashbacks';
 import { recover } from './media';
 import type { Story } from './story';
 
-type Events = Pick<Story, 'state' | 'mediaReady' | 'mediaEnded' | 'mediaFailed'>;
-
-function nothing() {
-  return undefined;
-}
+type StoryMedia = Pick<Story, 'state' | 'mediaReady' | 'mediaEnded' | 'mediaFailed'>;
 
 export function createVideoPlayer(
-  story: Events,
-  memoryOf: (place: ReturnType<Story['state']>) => Memory,
+  story: StoryMedia,
+  memoryOf: (state: ReturnType<Story['state']>) => Memory,
   renew: () => Promise<void>,
 ) {
   let element: HTMLVideoElement | null = null;
@@ -30,7 +26,10 @@ export function createVideoPlayer(
     const wanted = !paused && !held;
     if (wanted === playing) return;
     playing = wanted;
-    if (wanted) video.play().catch(nothing);
+    if (wanted)
+      video.play().catch(() => {
+        playing = false;
+      });
     else video.pause();
   }
 

@@ -1,8 +1,6 @@
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { blurhashOf } from './blurhash';
-import { type Kind, memoryMilliseconds, type StoryState } from './story';
-
-const longestVideoSeconds = 60;
+import { type Kind, memoryMilliseconds, type StoryState, videoMilliseconds } from './story';
 
 export function kindOf({ mediaType, proxies }: Memory): Kind {
   if (mediaType === 'Video' && proxies.video) return 'video';
@@ -11,7 +9,7 @@ export function kindOf({ mediaType, proxies }: Memory): Kind {
 
 function durationOf({ kind, load }: StoryState, { durationSeconds }: Memory) {
   if (kind !== 'video' || load === 'failed') return memoryMilliseconds;
-  return Math.min(durationSeconds ?? longestVideoSeconds, longestVideoSeconds) * 1000;
+  return Math.min((durationSeconds ?? Infinity) * 1000, videoMilliseconds);
 }
 
 function imageOf({ kind, load }: StoryState) {

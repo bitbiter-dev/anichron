@@ -1,6 +1,6 @@
 export const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
-const videoMilliseconds = 60_000;
+export const videoMilliseconds = 60_000;
 const hintMilliseconds = 2000;
 
 export type Load = 'loading' | 'shown' | 'failed';
@@ -124,7 +124,7 @@ export function createStory(
     start();
   }
 
-  function remind() {
+  function endHintLater() {
     clearTimeout(hintTimer);
     if (hint && notify)
       hintTimer = setTimeout(() => {
@@ -141,7 +141,7 @@ export function createStory(
       hint = to.kind === 'video' && !hinted;
       hinted ||= hint;
     });
-    remind();
+    endHintLater();
   }
 
   function settle(visit: number, load: Load) {
@@ -187,7 +187,7 @@ export function createStory(
     subscribe(listener) {
       notify = listener;
       start();
-      remind();
+      endHintLater();
       return () => {
         notify = undefined;
         stop();

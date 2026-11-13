@@ -10,6 +10,7 @@ function keyAction(event: KeyboardEvent): KeyAction | undefined {
     ArrowRight: ['next', 'nextGroup'],
     ' ': ['togglePause', undefined],
     m: ['toggleSound', undefined],
+    M: ['toggleSound', 'toggleSound'],
   };
   return keys[event.key]?.[Number(event.shiftKey)];
 }

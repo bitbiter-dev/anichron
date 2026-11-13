@@ -612,6 +612,20 @@ describe('a video', () => {
     expect(play).toHaveBeenCalled();
   });
 
+  it('tries to play again on Play when the browser refused to play it', async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValue(new DOMException('Low Power Mode', 'NotAllowedError'));
+    await openVideo();
+    await advance(0);
+    play.mockClear();
+
+    await user().click(button('Pause'));
+    await user().click(button('Play'));
+
+    expect(play).toHaveBeenCalled();
+  });
+
   it('pauses while held', async () => {
     await openVideo();
     await fire('playing');
@@ -642,13 +656,16 @@ describe('a video', () => {
   it.each([
     [90, '60000ms'],
     [null, '60000ms'],
-  ])('fills the progress segment of a %s s video over 60 s', async (durationSeconds, filling) => {
-    years = [yearGroup(2025, film(ids.a2025, 2025, { durationSeconds }))];
-    await openVideo();
-    await fire('playing');
+  ])(
+    'fills the progress segment of a video of %s s over 60 s',
+    async (durationSeconds, filling) => {
+      years = [yearGroup(2025, film(ids.a2025, 2025, { durationSeconds }))];
+      await openVideo();
+      await fire('playing');
 
-    expect(segment(0).style.animationDuration).toBe(filling);
-  });
+      expect(segment(0).style.animationDuration).toBe(filling);
+    },
+  );
 
   it('fills the progress segment of a photo over 5 s', async () => {
     await openVideo();
@@ -815,6 +832,15 @@ describe('a video', () => {
       await user().keyboard('m');
       expect(video().muted).toBe(false);
       await user().keyboard('m');
+      expect(video().muted).toBe(true);
+    });
+
+    it('turns on and off with M under Caps Lock or Shift', async () => {
+      await openVideo();
+
+      await user().keyboard('M');
+      expect(video().muted).toBe(false);
+      await user().keyboard('{Shift>}M{/Shift}');
       expect(video().muted).toBe(true);
     });
 
