@@ -864,6 +864,18 @@ describe('starring, liking and hiding', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
+  it("rolls back a change that couldn't be saved while the day can't be reloaded either", async () => {
+    answer = refused;
+    await openStory('/day/2026-11-11?year=2025');
+    server.use(onThisDayAnswers(() => problemResponse(503, 'service_unavailable')));
+
+    fireEvent.click(button('Star'));
+    await advance(0);
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('status')).toHaveTextContent("Couldn't save");
+  });
+
   it('rolls back only the change that failed', async () => {
     await openStory('/day/2026-11-11?year=2025');
     const respond = later();
@@ -922,9 +934,13 @@ describe('starring, liking and hiding', () => {
       'liked' in (interacted.body as object) ? held(interacted) : undefined;
     fireEvent.click(button('Star'));
     fireEvent.click(button('Like'));
-    await advance(0);
+    await vi.waitFor(() => {
+      expect(saved.has(ids.a2025)).toBe(true);
+    });
+    await advance(1000);
     expect(sent).toHaveLength(2);
     expect(requested).toHaveLength(1);
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
 
     respond();
     await advance(0);

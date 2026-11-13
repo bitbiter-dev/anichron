@@ -53,11 +53,8 @@ function apply(queryClient: QueryClient, date: string, { id, change }: Interacti
   });
 }
 
-const interactionKey = (date: string) => ['interaction', date] as const;
-
 export const interactionMutation = (api: ApiClient, queryClient: QueryClient, date: string) =>
   mutationOptions({
-    mutationKey: interactionKey(date),
     mutationFn: ({ id, change }: Interaction) => api.assets.interact(id, change),
     onMutate: async (interaction) => {
       await queryClient.cancelQueries({ queryKey: dayKey(date) });
@@ -67,7 +64,7 @@ export const interactionMutation = (api: ApiClient, queryClient: QueryClient, da
       apply(queryClient, date, { id, change: reverse(change) });
     },
     onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: interactionKey(date) }) === 1)
+      if (queryClient.isMutating() === 1)
         void queryClient.invalidateQueries({ queryKey: dayKey(date) });
     },
   });
