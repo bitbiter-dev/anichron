@@ -1,6 +1,7 @@
-import { queryOptions } from '@tanstack/react-query';
+import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
+import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
-import type { YearGroup } from '../../api/flashbacks';
+import type { Day, Memory, YearGroup } from '../../api/flashbacks';
 
 function twoDigits(value: number) {
   return String(value).padStart(2, '0');
@@ -38,6 +39,53 @@ export function dayKey(date: string) {
 
 export function dayQuery(api: ApiClient, date: string) {
   return queryOptions({ queryKey: dayKey(date), queryFn: () => api.flashbacks.onThisDay(date) });
+}
+
+export interface Interaction {
+  id: string;
+  change: Change;
+}
+
+function reverse(change: Change): Change {
+  return Object.fromEntries(Object.entries(change).map(([flag, on]) => [flag, !on]));
+}
+
+function apply(queryClient: QueryClient, date: string, { id, change }: Interaction) {
+  const day = queryClient.getQueryData<Day>(dayKey(date)) as Day;
+  queryClient.setQueryData<Day>(dayKey(date), {
+    years: day.years.map((group) => ({
+      ...group,
+      memories: group.memories.map((memory) =>
+        memory.id === id
+          ? { ...memory, interaction: { ...memory.interaction, ...change } }
+          : memory,
+      ),
+    })),
+  });
+}
+
+export function interactionMutation(api: ApiClient, queryClient: QueryClient, date: string) {
+  return mutationOptions({
+    mutationFn: ({ id, change }: Interaction) => api.assets.interact(id, change),
+    onMutate: async (interaction) => {
+      await queryClient.cancelQueries({ queryKey: dayKey(date) });
+      apply(queryClient, date, interaction);
+    },
+    onError: (_, { id, change }) => {
+      apply(queryClient, date, { id, change: reverse(change) });
+    },
+    onSettled: () => {
+      if (queryClient.isMutating() === 1)
+        void queryClient.invalidateQueries({ queryKey: dayKey(date) });
+    },
+  });
+}
+
+export function interactionOf(day: Day, memory: Memory) {
+  return (
+    day.years.flatMap((group) => group.memories).find(({ id }) => id === memory.id)?.interaction ??
+    memory.interaction
+  );
 }
 
 export function startGroup(years: readonly YearGroup[], year: number | undefined) {

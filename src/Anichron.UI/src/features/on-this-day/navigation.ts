@@ -13,19 +13,15 @@ function keyAction(event: KeyboardEvent): KeyAction | undefined {
   return keys[event.key]?.[Number(event.shiftKey)];
 }
 
-export function listenToKeys(story: Story) {
-  const onKey = (event: KeyboardEvent) => {
-    const action = keyAction(event);
+export function listenToInput(story: Story) {
+  const onKey = (event: Event) => {
+    const action = keyAction(event as KeyboardEvent);
     if (action) story[action]();
   };
-  document.addEventListener('keydown', onKey);
-  return () => {
-    document.removeEventListener('keydown', onKey);
-  };
-}
-
-export function listenToRelease(story: Story) {
-  const stops = ['pointerup', 'pointercancel'].map((type) => listen(window, type, story.release));
+  const stops = [
+    listen(document, 'keydown', onKey),
+    ...['pointerup', 'pointercancel'].map((type) => listen(window, type, story.release)),
+  ];
   return () => {
     for (const stop of stops) stop();
   };

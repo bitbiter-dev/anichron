@@ -1,4 +1,5 @@
 import createClient from 'openapi-fetch';
+import { createAssets, type Assets } from './assets';
 import { createFlashbacks, type Flashbacks } from './flashbacks';
 import type { paths } from './generated/v1';
 import { createSession, type Session } from './session';
@@ -8,6 +9,7 @@ import { createWorkItems, type WorkItems } from './work-items';
 export interface ApiClient {
   session: Session;
   flashbacks: Flashbacks;
+  assets: Assets;
   workItems: WorkItems;
 }
 
@@ -17,6 +19,7 @@ export function createApiClient(tabs: Tabs): ApiClient {
   return {
     session,
     flashbacks: createFlashbacks(client, authorized),
+    assets: createAssets(client, authorized),
     workItems: createWorkItems(client, authorized),
   };
 }
