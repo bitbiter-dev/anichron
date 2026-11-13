@@ -4,10 +4,18 @@ interface ProxyImageProps {
   src: string | null;
   className?: string;
   onDecoded?: () => void;
+  onFailed?: () => void;
 }
 
-export function ProxyImage({ src, className, onDecoded = () => undefined }: ProxyImageProps) {
-  const { reloads, onError } = useRecovering();
+const nothing = () => undefined;
+
+export function ProxyImage({
+  src,
+  className,
+  onDecoded = nothing,
+  onFailed = nothing,
+}: ProxyImageProps) {
+  const { reloads, onError } = useRecovering(onFailed);
   if (!src) return null;
   return (
     <img

@@ -1,10 +1,13 @@
 export const memoryMilliseconds = 5000;
+const loadMilliseconds = 10_000;
+
+export type Load = 'loading' | 'shown' | 'failed';
 
 export interface StoryPosition {
   group: number;
   memory: number;
   visit: number;
-  ready: boolean;
+  load: Load;
 }
 
 export interface StoryState extends StoryPosition {
@@ -19,6 +22,7 @@ export type Story = Record<Move | 'close' | 'togglePause' | 'hold' | 'release', 
   state: () => StoryState;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
+  mediaFailed: (visit: number) => void;
 };
 
 export type SegmentState = 'seen' | 'playing' | 'next';
@@ -35,12 +39,12 @@ export function createStory(
 ): Story {
   const memories = (group: number) => pictures[group] as readonly boolean[];
   let visits = 0;
-  const at = (group: number, memory: number) => ({
+  const at = (group: number, memory: number): StoryPosition => ({
     group,
     memory,
     // Stryker disable next-line UpdateOperator
     visit: ++visits,
-    ready: !memories(group)[memory],
+    load: memories(group)[memory] ? 'loading' : 'shown',
   });
   let position: StoryPosition = at(group, 0);
   let paused = false;
@@ -49,10 +53,11 @@ export function createStory(
   let remaining = memoryMilliseconds;
   let startedAt = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
   let notify: () => void = () => undefined;
 
   function stateOf(): StoryState {
-    return { ...position, paused, held, running: position.ready && !paused && !held };
+    return { ...position, paused, held, running: position.load !== 'loading' && !paused && !held };
   }
 
   function stop() {
@@ -76,11 +81,26 @@ export function createStory(
     start();
   }
 
+  function watch() {
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => {
+      settle(position.visit, 'failed');
+    }, loadMilliseconds);
+  }
+
   function show(to: StoryPosition) {
     update(() => {
       position = to;
       remaining = memoryMilliseconds;
     });
+    watch();
+  }
+
+  function settle(visit: number, load: Load) {
+    if (visit === position.visit && position.load === 'loading')
+      update(() => {
+        position = { ...position, load };
+      });
   }
 
   function next() {
@@ -102,13 +122,17 @@ export function createStory(
     subscribe(listener) {
       notify = listener;
       start();
-      return stop;
+      watch();
+      return () => {
+        stop();
+        clearTimeout(watchdog);
+      };
     },
     mediaReady(visit) {
-      if (visit === position.visit)
-        update(() => {
-          position = { ...position, ready: true };
-        });
+      settle(visit, 'shown');
+    },
+    mediaFailed(visit) {
+      settle(visit, 'failed');
     },
     togglePause() {
       update(() => {
