@@ -1,13 +1,14 @@
 import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 
-export function useRecovering() {
+export function useRecovering(failed: () => void) {
   const { session } = useRouter().options.context.api;
   const [reloads, setReloads] = useState(0);
   return {
     reloads,
     onError: () => {
-      if (reloads === 0)
+      if (reloads > 0) failed();
+      else
         void session.renewMedia().then(() => {
           setReloads(1);
         });
