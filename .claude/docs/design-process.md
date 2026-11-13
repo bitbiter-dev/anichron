@@ -123,8 +123,9 @@ Show the rule failing on a deliberate violation in the PR.
 | `/to-spec` | *Implementation Decisions* holds only what the maintainer decided or an approved note says. Add the two sections, and ask about inferences first. |
 | `/to-tickets` | The same parts and labelling per ticket. A building-block ticket is blocked by, or bundled with, its first caller. |
 | `/triage` | Check the triggers before posting the brief. |
-| `/implement` | Check the label and the three parts first, and object as soon as the design stops fitting. |
-| `/code-review` | Pass the issue **and its design note** as the spec, and this file as a standard. |
+| `/implement` | Check the label and the three parts first, and object as soon as the design stops fitting. Then land without pausing (CLAUDE.md, "Landing work"). |
+| `/tdd` | The seams come from the issue, its design note and CLAUDE.md's test seams; ask the maintainer only when they leave one open. |
+| `/code-review` | Means `/mattpocock-skills:code-review`. Pass the issue **and its design note** as the spec, `origin/master` as the fixed point, and this file as a standard. |
 | `/improve-codebase-architecture` | A tool for the architecture review. |
 
 The skills are never edited here. This file and CLAUDE.md adapt them. After a plugin update, check each row above still matches its skill.

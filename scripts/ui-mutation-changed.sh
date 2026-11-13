@@ -11,7 +11,8 @@
 #   - Anything else changed (a test, a view, a catalog, test support, config,
 #     dependencies, a deleted file): the whole scope is mutated.
 # --all mutates the whole scope regardless. --print prints the Stryker
-# arguments instead of running it (none means the whole scope).
+# arguments instead of running it (none means the whole scope). Stryker runs
+# under the heavy lock (scripts/with-lock.sh).
 #
 # See docs/mutation-testing.md, "The UI".
 set -euo pipefail
@@ -25,11 +26,12 @@ while [ "$#" -gt 0 ]; do
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --all) all=true; shift ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root=$(git rev-parse --show-toplevel)
 ui="$root/src/Anichron.UI"
 cd "$root"
@@ -79,7 +81,7 @@ cd "$ui"
 log=$(mktemp "${TMPDIR:-/tmp}/ui-mutation-changed.XXXXXXXX")
 trap 'rm -f "$log"' EXIT
 status=0
-pnpm exec stryker run "${args[@]+"${args[@]}"}" 2>&1 | tee "$log" || status=$?
+"$here/with-lock.sh" heavy pnpm exec stryker run "${args[@]+"${args[@]}"}" 2>&1 | tee "$log" || status=$?
 
 if [ "$status" -ne 0 ] && [ "${#args[@]}" -gt 0 ] \
   && grep -q 'Instrumented [0-9]* source file(s) with 0 mutant(s)' "$log"; then

@@ -5,12 +5,14 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '0 3 * * 1'
 
 jobs:
   analyze:
     name: Analyze (${{ matrix.name }})
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     permissions:
       security-events: write

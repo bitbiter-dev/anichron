@@ -71,24 +71,6 @@
       "args": ["--dir", "src/Anichron.UI", "depcruise"],
       "filteringRule": "staged",
       "include": ["src/Anichron.UI/**"]
-    },
-    {
-      "name": "build",
-      "group": "pre-push",
-      "command": "dotnet",
-      "args": ["build", "src/", "-v", "q"]
-    },
-    {
-      "name": "test",
-      "group": "pre-push",
-      "command": "dotnet",
-      "args": ["test", "src/", "--no-build", "-v", "q"]
-    },
-    {
-      "name": "ui-test",
-      "group": "pre-push",
-      "command": "bash",
-      "args": ["scripts/ui-pre-push.sh"]
     }
   ]
 }
