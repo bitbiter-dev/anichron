@@ -550,7 +550,7 @@ jobs:
             sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}
 
   gate:
-    name: CI gate
+    name: ${{ github.event.pull_request.draft == true && 'Draft, no CI' || 'CI gate' }}
     runs-on: ubuntu-latest
     needs: [changes, checks, lfs, docs, integration, mutation, ui, e2e, docker-api, docker-worker]
     if: always()
