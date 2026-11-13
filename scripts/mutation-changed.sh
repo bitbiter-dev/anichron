@@ -67,13 +67,19 @@ say() {
   if $matrix; then echo "$@" >&2; else echo "$@"; fi
 }
 
+# One planned run: the csproj path in $1, its Stryker args on stdin, one per line.
+plan_entry() {
+  jq -R -s -c --arg csproj "$(basename "$1")" \
+    '{name: ($csproj | rtrimstr(".csproj")), project: $csproj, args: split("\n")[:-1]}'
+}
+
 full_plan() {
-  local projects
+  local projects project
   [ -z "${1:-}" ] || echo "running every mutation target project: $1" >&2
   projects=$("$here/mutation-targets.sh" "$src") || exit 2
-  jq -R -s -c '{scope: "full", projects: [split("\n")[] | select(. != "")
-    | (split("/") | last) as $csproj
-    | {name: ($csproj | rtrimstr(".csproj")), project: $csproj, args: ["--project", $csproj]}]}' <<<"$projects"
+  while IFS= read -r project; do
+    [ -n "$project" ] && printf '%s\n' --project "$(basename "$project")" | plan_entry "$project"
+  done <<<"$projects" | jq -s -c '{scope: "full", projects: .}'
   exit 0
 }
 
@@ -233,8 +239,7 @@ fi
 
 if $matrix; then
   for project in "${runs[@]}"; do
-    args_for "$project" | jq -R -s -c --arg csproj "$(basename "$project")" \
-      '{name: ($csproj | rtrimstr(".csproj")), project: $csproj, args: split("\n")[:-1]}'
+    args_for "$project" | plan_entry "$project"
   done | jq -s -c '{scope: "changed", projects: .}'
   exit 0
 fi

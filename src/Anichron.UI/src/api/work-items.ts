@@ -20,6 +20,7 @@ export interface WorkItems {
 
 export function createWorkItems(client: Client<paths>, authorized: Authorized): WorkItems {
   async function unlessGone<T>(call: Parameters<Authorized>[0]): Promise<T | null> {
+    const gone = [403, 404];
     let status = 0;
     try {
       return (await authorized(async (init) => {
@@ -28,7 +29,7 @@ export function createWorkItems(client: Client<paths>, authorized: Authorized): 
         return answer;
       })) as T;
     } catch (error) {
-      if ([403, 404].includes(status)) return null;
+      if (gone.includes(status)) return null;
       throw error;
     }
   }

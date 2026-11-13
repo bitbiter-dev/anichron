@@ -17,7 +17,7 @@ tree() {
   local ui="$work/repo/src/Anichron.UI"
   mkdir -p "$ui/src/app" "$work/repo/docs/adr" "$work/repo/.github/workflows" "$work/repo/scripts"
   cat >"$ui/stryker.config.json" <<'JSON'
-{ "testRunner": "vitest", "mutate": ["src/**/*.ts", "src/app/router.tsx", "!src/**/*.test.ts"],
+{ "testRunner": "vitest", "incremental": true, "mutate": ["src/**/*.ts", "src/app/router.tsx", "!src/**/*.test.ts"],
   "thresholds": { "high": 100, "low": 100, "break": 100 } }
 JSON
   printf '{ "scripts": { "mutate": "stryker run" } }\n' >"$ui/package.json"
@@ -56,8 +56,8 @@ sed -i.bak 's/"break": 100/"break": 90/' "$work/repo/src/Anichron.UI/stryker.con
 check 'a threshold below 100 fails' 1 'thresholds.break is 90'
 
 tree
-sed -i.bak 's/"testRunner"/"incremental": true, "testRunner"/' "$work/repo/src/Anichron.UI/stryker.config.json"
-check 'incremental mode in the config passes' 0 'matches its rules'
+sed -i.bak 's/"incremental": true/"incremental": false/' "$work/repo/src/Anichron.UI/stryker.config.json"
+check 'incremental mode off fails' 1 'incremental is off'
 
 tree
 sed -i.bak 's/"testRunner"/"ignoreStatic": true, "testRunner"/' "$work/repo/src/Anichron.UI/stryker.config.json"
@@ -106,6 +106,14 @@ check 'a directive in a file the ADR does not name fails' 1 'src/Anichron.UI/src
 tree
 printf '{ "scripts": { "m": "stryker run -m src/a.ts" } }\n' >"$work/repo/src/Anichron.UI/package.json"
 check '--mutate at the end of a package script fails' 1 'package.json: passes a StrykerJS flag'
+
+tree
+printf 'jobs:\n  ui:\n    steps:\n      - run: scripts/ui-mutation-changed.sh\n' >"$work/repo/.github/workflows/mutation-divergence.yml"
+check 'a weekly run without --all fails' 1 'must call ui-mutation-changed.sh --all'
+
+tree
+printf 'jobs:\n  ui:\n    steps:\n      - run: scripts/ui-mutation-changed.sh --all\n' >"$work/repo/.github/workflows/mutation-divergence.yml"
+check 'a weekly run with --all passes' 0 'matches its rules'
 
 tree
 rm "$work/repo/docs/adr/0014-ui.md"

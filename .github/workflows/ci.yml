@@ -492,18 +492,17 @@ jobs:
           mv mutation/reports/mutation-report.json.tmp mutation/reports/mutation-report.json
           cp scripts/mutation-viewer.html mutation/reports/mutation-report.html
 
-      # A full sweep that detects nothing is broken; changed files may just
-      # hold no mutants.
       - name: Publish merged score
         if: steps.merge.outcome == 'success' && needs.mutation-targets.outputs.projects != '[]'
         env:
           SCOPE: ${{ needs.mutation-targets.outputs.scope }}
         run: |
-          if tally=$(scripts/mutation-report.sh tally mutation/reports/mutation-report.json); then
+          if tally=$(scripts/mutation-report.sh tally mutation/reports/mutation-report.json 2>"$RUNNER_TEMP/tally.err"); then
             jq -r '"### Mutation score, all projects: \(.score)% (\(.detected) of \(.total) detected)"' <<<"$tally" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$SCOPE" = changed ]; then
+          elif [ "$SCOPE" = changed ] && grep -q '^no detectable mutants' "$RUNNER_TEMP/tally.err"; then
             echo '### Mutation: the changed files hold no mutants' >> "$GITHUB_STEP_SUMMARY"
           else
+            cat "$RUNNER_TEMP/tally.err" >&2
             exit 1
           fi
 

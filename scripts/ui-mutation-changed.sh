@@ -7,8 +7,8 @@
 #   - No UI file changed since the merge-base with <ref> (default
 #     origin/master; committed, staged, unstaged, untracked, deleted): nothing
 #     to mutate, exit 0.
-#   - A changed measurement setup (stryker.config.json, vite.config.ts,
-#     package.json, pnpm-lock.yaml): every mutant runs again (--force).
+#   - A changed measurement setup (the `setup` pattern below): every mutant
+#     runs again (--force).
 #   - Anything else: an incremental run. Without a local baseline, it is seeded
 #     from the newest master artifact `ui-mutation-incremental` (needs `gh`);
 #     without one, every mutant runs.

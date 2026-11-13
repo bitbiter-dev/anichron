@@ -5,6 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import stryker from './stryker.config.json' with { type: 'json' };
 
 const textAttributes = [
   'title',
@@ -35,6 +36,10 @@ const catalogText = [
   selector,
   message: 'A user-visible attribute takes its text from the catalog through t(...).',
 }));
+const mutated = stryker.mutate.filter((glob) => !glob.startsWith('!'));
+const notMutated = stryker.mutate
+  .filter((glob) => glob.startsWith('!'))
+  .map((glob) => glob.slice(1));
 const moduleScope =
   ':matches(Program, ExportNamedDeclaration) > VariableDeclaration > VariableDeclarator';
 const importTime = [
@@ -92,14 +97,8 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/*.ts', 'src/app/router.tsx'],
-    ignores: [
-      'src/**/*.test.ts',
-      'src/**/*.d.ts',
-      'src/test/**',
-      'src/api/generated/**',
-      'src/shared/ui/tv.ts',
-    ],
+    files: mutated,
+    ignores: [...notMutated, 'src/shared/ui/tv.ts'],
     rules: {
       'no-restricted-syntax': ['error', ...catalogText, ...importTime],
     },
