@@ -1,5 +1,6 @@
 import { createOpenApiHttp } from 'openapi-msw';
 import type { components, paths } from '../../api/generated/v1';
+import { problemResponse } from './auth';
 
 type Schemas = components['schemas'];
 
@@ -58,8 +59,9 @@ const yearOfUser = new Map([
   ['alice', 2019],
 ]);
 
-const userYear = (bearer: string | null) =>
-  yearOfUser.get(bearer?.replace(/^Bearer (token-)?/, '') ?? '') ?? 2023;
+const usernameOf = (bearer: string | null) => bearer?.replace(/^Bearer (token-)?/, '') ?? '';
+
+const userYear = (bearer: string | null) => yearOfUser.get(usernameOf(bearer)) ?? 2023;
 
 const memoryIdOf = (year: number) => `0199a1b2-c3d4-7e5f-8a9b-00000000${String(year)}`;
 
@@ -78,9 +80,9 @@ export function hold() {
 
 export function eachSeesTheirOwn(answered: string[], holds = new Map<string, Promise<void>>()) {
   return onThisDayAnswers(async (_, bearer) => {
-    const username = bearer?.replace(/^Bearer token-/, '') ?? '';
+    const username = usernameOf(bearer);
     const year = yearOfUser.get(username);
-    if (year === undefined) return Response.json({ status: 401 }, { status: 401 });
+    if (year === undefined) return problemResponse(401, 'unauthorized');
     await holds.get(username);
     answered.push(username);
     return memoriesIn(year);

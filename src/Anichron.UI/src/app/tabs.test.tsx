@@ -184,6 +184,31 @@ describe('two tabs of one browser', () => {
     expect(await axeResults(second.container)).toHaveNoViolations();
   });
 
+  it('forget the previous user in a tab that missed the sign-in and renews as the next', async () => {
+    const answered: string[] = [];
+    const noorsDay = hold();
+    server.use(refreshTakes(0), eachSeesTheirOwn(answered, new Map([['noor', noorsDay.until]])));
+    const { container } = renderApp('/');
+    expect(await within(container).findByRole('link', memoriesOf('mira'))).toBeVisible();
+    signedIn = 'noor';
+    answered.length = 0;
+
+    await advance(miraSession.expiresIn * 800);
+    expect(events).toEqual([
+      'refresh 1 sent',
+      'refresh 1 answered',
+      'refresh 2 sent',
+      'refresh 2 answered',
+    ]);
+    expect(within(container).queryByRole('link', memoriesOf('mira'))).toBeNull();
+    expect(container.innerHTML).not.toContain(assetIdOf('mira'));
+
+    noorsDay.release();
+    expect(await within(container).findByRole('link', memoriesOf('noor'))).toBeVisible();
+    expect(answered).not.toContain('mira');
+    expect(answered).toContain('noor');
+  });
+
   it('take a tab on the login screen into the app when the other signs in', async () => {
     server.use(refreshTakes(0, new Set([1, 2])), noorSignsIn());
     const [first, second] = openTabs('/login', '/login');

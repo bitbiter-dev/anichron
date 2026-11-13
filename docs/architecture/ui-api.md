@@ -24,7 +24,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 ## The signed-in user
 
 - The session holds the `user` from every session response and clears it with the session.
-- Every change to signed out, this tab's or another's, clears the query cache (`createAppRouter`), so the next user never sees the previous one's data.
+- A change of user, signing out included, in this tab or from another, clears the query cache (`createAppRouter`), so the next user never sees the previous one's data.
 - `session.user()` is synchronous and stable between changes. Views read it through `useUser()` (`src/shared/use-user.ts`).
 - Signed in means a user is held. The `signed-in` route's `beforeLoad` puts it in the route context, so a guard below it reads `context.user`; the login route calls `isSignedIn()`.
 

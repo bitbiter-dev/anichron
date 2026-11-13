@@ -162,8 +162,11 @@ export function createAppRouter(
     defaultNotFoundComponent: NotFound,
     context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
   });
+  let userId: string | undefined;
   api.session.onChange(() => {
-    if (!api.session.isSignedIn()) queryClient.clear();
+    const changedTo = api.session.user()?.id;
+    if (userId !== undefined && changedTo !== userId) queryClient.clear();
+    userId = changedTo;
     void router.invalidate();
   });
   return router;
