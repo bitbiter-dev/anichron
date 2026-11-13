@@ -42,19 +42,11 @@ jobs:
           fi
           echo "projects=$projects" >> "$GITHUB_OUTPUT"
 
-  backend:
+  mutation-project:
     name: Backend — ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: targets
-    # Both sweeps of a project in ONE job so they share a commit and a runner — the
-    # whole point is that concurrency is the only difference between them. Two jobs
-    # could land on different hardware and the comparison would mean nothing.
-    #
-    # Bounded at BOTH levels on purpose. A step timeout fails that step while
-    # letting the `always()` summary and artifact upload still run. A job-level
-    # timeout CANCELS the job, and a cancelled job does not run its remaining
-    # steps, so the job limit alone would have thrown away the diagnosis.
-    # It stays as a backstop for a hang outside the two sweeps.
+    # Both sweeps on one runner; step limits below the job's keep the summary.
     timeout-minutes: 100
     strategy:
       fail-fast: false
@@ -207,15 +199,16 @@ jobs:
           OUTCOME: ${{ steps.default.outcome }}
         run: |
           if [ "$OUTCOME" != success ]; then
-            echo "::error::The sweep at CI concurrency failed or scored below its thresholds ($OUTCOME). Its summary and the mutation-divergence artifact list the survivors."
+            echo "::error::The sweep at CI concurrency failed or scored below its thresholds ($OUTCOME). Its summary and the mutation-divergence-${{ matrix.name }} artifact list the survivors."
             exit 1
           fi
 
   mutation:
     name: Backend report
     runs-on: ubuntu-latest
-    needs: [targets, backend]
+    needs: [targets, mutation-project]
     if: ${{ !cancelled() }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -225,29 +218,12 @@ jobs:
           pattern: mutation-part-*
           path: parts
 
-      # Refuses unless every target project left a report, and on any
-      # inconsistency between them (scripts/mutation-report.sh, "merge").
       - name: Merge project reports
         id: merge
         continue-on-error: true
         env:
           PROJECTS: ${{ needs.targets.outputs.projects }}
-        run: |
-          if [ -z "$PROJECTS" ]; then
-            echo "::error::No mutation target list to merge against"
-            exit 1
-          fi
-          missing=$(jq -r '.[].name' <<<"$PROJECTS" | while IFS= read -r name; do
-            [ -f "parts/mutation-part-$name/mutation-report.json" ] || echo "$name"
-          done)
-          if [ -n "$missing" ]; then
-            echo "::error::No mutation report from: $(echo $missing)"
-            exit 1
-          fi
-          mkdir -p mutation/reports
-          scripts/mutation-report.sh merge parts/*/mutation-report.json > mutation/reports/mutation-report.json.tmp
-          mv mutation/reports/mutation-report.json.tmp mutation/reports/mutation-report.json
-          cp scripts/mutation-viewer.html mutation/reports/mutation-report.html
+        run: scripts/mutation-merge-parts.sh "$PROJECTS" parts mutation/reports
 
       - name: Publish merged score
         if: steps.merge.outcome == 'success'
@@ -285,7 +261,7 @@ jobs:
         if: always()
         env:
           TARGETS: ${{ needs.targets.result }}
-          PROJECTS: ${{ needs.backend.result }}
+          PROJECTS: ${{ needs.mutation-project.result }}
           MERGE: ${{ steps.merge.outcome }}
         run: |
           if [ "$TARGETS" != success ] || [ "$PROJECTS" != success ] || [ "$MERGE" != success ]; then
