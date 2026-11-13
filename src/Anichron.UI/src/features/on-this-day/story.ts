@@ -7,10 +7,16 @@ export interface StoryPosition {
   ready: boolean;
 }
 
+export interface StoryState extends StoryPosition {
+  paused: boolean;
+  held: boolean;
+  running: boolean;
+}
+
 export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
 
-export type Story = Record<Move | 'close', () => void> & {
-  position: () => StoryPosition;
+export type Story = Record<Move | 'close' | 'togglePause' | 'hold' | 'release', () => void> & {
+  state: () => StoryState;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
 };
@@ -37,18 +43,44 @@ export function createStory(
     ready: !memories(group)[memory],
   });
   let position: StoryPosition = at(group, 0);
+  let paused = false;
+  let held = false;
+  let state = stateOf();
+  let remaining = memoryMilliseconds;
+  let startedAt = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let notify: () => void = () => undefined;
 
-  function wait() {
-    if (position.ready) timer = setTimeout(next, memoryMilliseconds);
+  function stateOf(): StoryState {
+    return { ...position, paused, held, running: position.ready && !paused && !held };
   }
 
-  function show(next: StoryPosition) {
+  function stop() {
+    if (timer === undefined) return;
     clearTimeout(timer);
-    position = next;
+    timer = undefined;
+    remaining -= Date.now() - startedAt;
+  }
+
+  function start() {
+    if (!state.running) return;
+    startedAt = Date.now();
+    timer = setTimeout(next, remaining);
+  }
+
+  function update(change: () => void) {
+    stop();
+    change();
+    state = stateOf();
     notify();
-    wait();
+    start();
+  }
+
+  function show(to: StoryPosition) {
+    update(() => {
+      position = to;
+      remaining = memoryMilliseconds;
+    });
   }
 
   function next() {
@@ -66,16 +98,32 @@ export function createStory(
   }
 
   return {
-    position: () => position,
+    state: () => state,
     subscribe(listener) {
       notify = listener;
-      wait();
-      return () => {
-        clearTimeout(timer);
-      };
+      start();
+      return stop;
     },
     mediaReady(visit) {
-      if (visit === position.visit) show({ ...position, ready: true });
+      if (visit === position.visit)
+        update(() => {
+          position = { ...position, ready: true };
+        });
+    },
+    togglePause() {
+      update(() => {
+        paused = !paused;
+      });
+    },
+    hold() {
+      update(() => {
+        held = true;
+      });
+    },
+    release() {
+      update(() => {
+        held = false;
+      });
     },
     next,
     previous,

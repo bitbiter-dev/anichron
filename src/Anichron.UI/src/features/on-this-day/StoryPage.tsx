@@ -1,17 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
-import { X } from 'lucide-react';
+import { Pause, Play, X } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
-import { usePress } from 'react-aria/usePress';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, utcDay, yearsAgo } from './day';
-import { dayView } from './day-view';
+import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
+import { focusOnMount } from './focus';
 import { ProxyImage } from './ProxyImage';
-import { memoryMilliseconds, segmentState } from './story';
+import type { Gestures } from './navigation';
+import { memoryMilliseconds, type Move, segmentState } from './story';
 import { useStory } from './use-story';
+import { useZonePress } from './use-zone-press';
 
 const story = getRouteApi('/signed-in/shell/on-this-day/day/$date');
 
@@ -35,23 +37,65 @@ export function StoryPage() {
           })}
           className="relative size-full text-on-player outline-none"
         >
-          {state.years && <Player date={date} year={year} years={state.years} close={close} />}
-          {state.empty && <Navigate to="/" replace />}
-          {state.failure && (
-            <div className="p-4 pt-16">
-              <Failed message={state.failure} onRetry={() => void day.refetch()} />
-            </div>
+          {state.years ? (
+            <Player date={date} year={year} years={state.years} close={close} />
+          ) : (
+            <Fallback state={state} close={close} retry={() => void day.refetch()} />
           )}
-          <Button
-            aria-label={t('story.close')}
-            onPress={close}
-            className="absolute top-[calc(env(safe-area-inset-top)+0.75rem)] right-2 flex size-11 items-center justify-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            <X aria-hidden className="size-6" />
-          </Button>
         </Dialog>
       </Modal>
     </ModalOverlay>
+  );
+}
+
+const roundButton =
+  'flex size-11 items-center justify-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+
+function CloseButton({ close }: { close: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Button aria-label={t('story.close')} onPress={close} className={roundButton}>
+      <X aria-hidden className="size-6" />
+    </Button>
+  );
+}
+
+const pauseIcons = { 'story.play': Play, 'story.pause': Pause };
+
+interface PauseButtonProps {
+  label: keyof typeof pauseIcons;
+  toggle: () => void;
+}
+
+function PauseButton({ label, toggle }: PauseButtonProps) {
+  const { t } = useTranslation();
+  const Icon = pauseIcons[label];
+  return (
+    <Button ref={focusOnMount} aria-label={t(label)} onPress={toggle} className={roundButton}>
+      <Icon aria-hidden className="size-6" />
+    </Button>
+  );
+}
+
+interface FallbackProps {
+  state: DayView;
+  close: () => void;
+  retry: () => void;
+}
+
+function Fallback({ state, close, retry }: FallbackProps) {
+  return (
+    <>
+      {state.empty && <Navigate to="/" replace />}
+      {state.failure && (
+        <div className="p-4 pt-16">
+          <Failed message={state.failure} onRetry={retry} />
+        </div>
+      )}
+      <div className="absolute top-[calc(env(safe-area-inset-top)+0.75rem)] right-2">
+        <CloseButton close={close} />
+      </div>
+    </>
   );
 }
 
@@ -64,7 +108,8 @@ interface PlayerProps {
 
 function Player({ date, year, years, close }: PlayerProps) {
   const { t } = useTranslation();
-  const { position, group, memory, mediaReady, gestures } = useStory(years, year, close);
+  const { state, group, memory, name, pause, controls, mediaReady, gestures, togglePause } =
+    useStory(years, year, close);
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
@@ -79,35 +124,42 @@ function Player({ date, year, years, close }: PlayerProps) {
           }}
           className="absolute inset-0 select-none [-webkit-touch-callout:none]"
         >
-          <ProxyImage
-            key={position.visit}
-            src={memory.proxies.preview}
-            onDecoded={mediaReady}
-            className="absolute inset-0 size-full object-contain"
-          />
-          <div className="absolute inset-0 flex">
-            <Zone
-              label={t('story.previous')}
-              onPressStart={gestures.pressStart}
-              onPress={gestures.tap('previous')}
-            />
-            <Middle onPressStart={gestures.pressStart} onPress={gestures.tap('next')} />
-            <Zone
-              label={t('story.next')}
-              onPressStart={gestures.pressStart}
-              onPress={gestures.tap('next')}
+          <div
+            role="img"
+            aria-label={t('story.memory', { ...name, kind: t(name.kind) })}
+            className="absolute inset-0"
+          >
+            <ProxyImage
+              key={state.visit}
+              src={memory.proxies.preview}
+              onDecoded={mediaReady}
+              className="size-full object-contain"
             />
           </div>
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
+          <div className="absolute inset-0 flex">
+            <Zone label={t('story.previous')} gestures={gestures} move="previous" />
+            <Middle gestures={gestures} move="next" />
+            <Zone label={t('story.next')} gestures={gestures} move="next" />
+          </div>
+          <div
+            style={{ visibility: controls }}
+            className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-1 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6"
+          >
             <Segments
-              key={position.visit}
+              key={state.visit}
               count={group.memories.length}
-              current={position.memory}
-              running={position.ready}
+              current={state.memory}
+              running={state.running}
             />
-            <p className="pr-12 text-small font-semibold">
-              {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
-            </p>
+            <div className="flex items-center">
+              <p role="status" className="flex-1 text-small font-semibold">
+                {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
+              </p>
+              <div className="pointer-events-auto flex">
+                <PauseButton label={pause} toggle={togglePause} />
+                <CloseButton close={close} />
+              </div>
+            </div>
           </div>
         </m.div>
       </MotionConfig>
@@ -115,26 +167,28 @@ function Player({ date, year, years, close }: PlayerProps) {
   );
 }
 
-interface ZoneProps {
-  label: string;
-  onPressStart: () => void;
-  onPress: () => void;
+interface PressZoneProps {
+  gestures: Gestures;
+  move: Move;
 }
 
-function Zone({ label, onPressStart, onPress }: ZoneProps) {
+interface ZoneProps extends PressZoneProps {
+  label: string;
+}
+
+function Zone({ label, gestures, move }: ZoneProps) {
   return (
-    <Button
+    <button
+      type="button"
       aria-label={label}
-      onPressStart={onPressStart}
-      onPress={onPress}
+      {...useZonePress(gestures, move)}
       className="h-full flex-1 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
     />
   );
 }
 
-function Middle({ onPressStart, onPress }: Omit<ZoneProps, 'label'>) {
-  const { pressProps } = usePress({ onPressStart, onPress });
-  return <div {...pressProps} aria-hidden className="h-full flex-1" />;
+function Middle({ gestures, move }: PressZoneProps) {
+  return <div {...useZonePress(gestures, move)} aria-hidden className="h-full flex-1" />;
 }
 
 interface SegmentsProps {

@@ -1,8 +1,9 @@
 import { useState, useSyncExternalStore } from 'react';
-import type { Memory, YearGroup } from '../../api/flashbacks';
+import type { YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
-import { createGestures, listenToKeys } from './navigation';
+import { createGestures, listenToKeys, listenToRelease } from './navigation';
 import { createStory } from './story';
+import { storyView } from './story-view';
 
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
   const [{ snapshot, story, gestures, subscribe }] = useState(() => {
@@ -13,23 +14,26 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     );
     const subscribe = (listener: () => void) => {
       const stopKeys = listenToKeys(story);
+      const stopRelease = listenToRelease(story);
       const stop = story.subscribe(listener);
       return () => {
         stop();
         stopKeys();
+        stopRelease();
       };
     };
     return { snapshot: years, story, gestures: createGestures(story), subscribe };
   });
-  const position = useSyncExternalStore(subscribe, story.position);
-  const group = snapshot[position.group] as YearGroup;
+  const state = useSyncExternalStore(subscribe, story.state);
+  const group = snapshot[state.group] as YearGroup;
   return {
-    position,
+    state,
     group,
-    memory: group.memories[position.memory] as Memory,
+    ...storyView(state, group),
     mediaReady: () => {
-      story.mediaReady(position.visit);
+      story.mediaReady(state.visit);
     },
     gestures,
+    togglePause: story.togglePause,
   };
 }

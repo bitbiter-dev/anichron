@@ -53,6 +53,7 @@
   :root {
     --duration-fast: 0ms;
     --duration-base: 0ms;
+    --animate-story-fill: story-fill steps(5) forwards;
   }
 }
 
