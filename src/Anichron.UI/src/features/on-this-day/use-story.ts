@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
-import { createGestures, listenToKeys, listenToRelease } from './navigation';
+import { createGestures, listenToInput } from './navigation';
 import { createStory, type Place } from './story';
 import { storyView } from './story-view';
 
@@ -13,13 +13,11 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       close,
     );
     const subscribe = (listener: () => void) => {
-      const stopKeys = listenToKeys(story);
-      const stopRelease = listenToRelease(story);
+      const stopInput = listenToInput(story);
       const stop = story.subscribe(listener);
       return () => {
         stop();
-        stopKeys();
-        stopRelease();
+        stopInput();
       };
     };
     return { snapshot: years, story, gestures: createGestures(story), subscribe };
