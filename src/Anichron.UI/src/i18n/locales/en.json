@@ -17,8 +17,14 @@
   "story": {
     "title": "Memories of {{date, datetime}}",
     "close": "Close",
+    "pause": "Pause",
+    "play": "Play",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "memory": "{{kind}}, {{year}}, {{place}} of {{count}}",
+    "photo": "Photo",
+    "video": "Video",
+    "livePhoto": "Live Photo"
   },
   "login": {
     "title": "Sign in to Anichron",
