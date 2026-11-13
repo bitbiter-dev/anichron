@@ -140,7 +140,7 @@ main() {
   pr=$(gh_retry pr list --head "$branch" --state open --json number,isDraft) || die 'cannot list the open PRs'
   number=$(jq -r '.[0].number // empty' <<<"$pr")
   if [ -n "$number" ] && [ "$(jq -r '.[0].isDraft' <<<"$pr")" != true ]; then
-    gh pr ready "$number" --undo >/dev/null || die "cannot make PR #$number a draft"
+    gh_retry pr ready "$number" --undo >/dev/null || die "cannot make PR #$number a draft"
   fi
   git push --quiet --set-upstream origin "$branch" || die "cannot push $branch"
   if [ -z "$number" ]; then
@@ -157,11 +157,11 @@ main() {
 
   back_to_draft() {
     trap - TERM HUP INT
-    gh pr ready "$number" --undo >/dev/null || say "PR #$number could not be made a draft again"
+    gh_retry pr ready "$number" --undo >/dev/null || say "PR #$number could not be made a draft again"
     die "not merged, PR #$number is a draft again. $1"
   }
   trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
-  gh pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
+  gh_retry pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
   since=''
   ready_since "$number" "$seen" "$deadline" || back_to_draft 'Its ready event could not be read.'
   say "PR #$number is ready at $sha; waiting for CI and CodeQL"
