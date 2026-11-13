@@ -21,10 +21,17 @@
     "play": "Play",
     "previous": "Previous",
     "next": "Next",
+    "star": "Star",
+    "like": "Like",
+    "hide": "Hide",
+    "hidden": "Memory hidden",
+    "undo": "Undo",
+    "notSaved": "Couldn't save",
     "memory": "{{kind}}, {{year}}, {{place}} of {{count}}",
     "photo": "Photo",
     "video": "Video",
-    "livePhoto": "Live Photo"
+    "livePhoto": "Live Photo",
+    "failed": "Couldn't load this memory"
   },
   "login": {
     "title": "Sign in to Anichron",

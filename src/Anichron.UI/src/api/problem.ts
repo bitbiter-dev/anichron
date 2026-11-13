@@ -30,13 +30,13 @@ function problemBody() {
   );
 }
 
-export const unknownProblem: Problem = { code: undefined, fields: {}, retryAfterSeconds: 0 };
+export function unknownProblem(): Problem {
+  return { code: undefined, fields: {}, retryAfterSeconds: 0 };
+}
 
-export const unreachableProblem: Problem = {
-  code: 'service_unavailable' satisfies ErrorCode,
-  fields: {},
-  retryAfterSeconds: 0,
-};
+export function unreachableProblem(): Problem {
+  return { code: 'service_unavailable' satisfies ErrorCode, fields: {}, retryAfterSeconds: 0 };
+}
 
 export class ProblemError extends Error {
   readonly problem: Problem;
@@ -47,8 +47,9 @@ export class ProblemError extends Error {
   }
 }
 
-export const problemOf = (error: unknown) =>
-  error instanceof ProblemError ? error.problem : unknownProblem;
+export function problemOf(error: unknown) {
+  return error instanceof ProblemError ? error.problem : unknownProblem();
+}
 
 export function toProblem(error: unknown, response: Response): Problem {
   const body = problemBody().parse(error);

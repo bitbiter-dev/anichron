@@ -4,8 +4,12 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { listen } from '../../shared/listen';
 import { merge } from './cache';
 
-const onVisibilityChange = (changed: () => void) => listen(document, 'visibilitychange', changed);
-const isVisible = () => document.visibilityState === 'visible';
+function onVisibilityChange(changed: () => void) {
+  return listen(document, 'visibilitychange', changed);
+}
+function isVisible() {
+  return document.visibilityState === 'visible';
+}
 
 export function useStream(cursor: string | undefined) {
   const { api } = useRouter().options.context;

@@ -4,12 +4,17 @@ export const themes = ['system', 'light', 'dark'] as const;
 export type Theme = (typeof themes)[number];
 export type ThemeChoice = ReturnType<typeof createThemeChoice>;
 
-const key = 'anichron.theme';
-export const themeColour = 'meta[name="theme-color"]';
+function storageKey() {
+  return 'anichron.theme';
+}
+
+export function themeColour() {
+  return 'meta[name="theme-color"]';
+}
 
 export function storedTheme(): Theme {
   try {
-    const stored = localStorage.getItem(key);
+    const stored = localStorage.getItem(storageKey());
     return themes.find((theme) => theme === stored) ?? 'system';
   } catch {
     return 'system';
@@ -18,21 +23,21 @@ export function storedTheme(): Theme {
 
 function store(theme: Theme) {
   try {
-    localStorage.setItem(key, theme);
+    localStorage.setItem(storageKey(), theme);
   } catch {
     // Storage unavailable.
   }
 }
 
 export function applyTheme(theme: Theme) {
-  document.querySelector(`${themeColour}:not([media])`)?.remove();
+  document.querySelector(`${themeColour()}:not([media])`)?.remove();
   if (theme === 'system') {
     document.documentElement.removeAttribute('data-theme');
     return;
   }
   document.documentElement.setAttribute('data-theme', theme);
   for (const scheme of document.querySelectorAll(
-    `${themeColour}[media="(prefers-color-scheme: ${theme})"]`,
+    `${themeColour()}[media="(prefers-color-scheme: ${theme})"]`,
   )) {
     const chosen = scheme.cloneNode() as Element;
     chosen.removeAttribute('media');

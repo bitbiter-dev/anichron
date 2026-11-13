@@ -4,14 +4,18 @@ import { Pause, Play, X } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
-import type { YearGroup } from '../../api/flashbacks';
-import { dayQuery, utcDay, yearsAgo } from './day';
+import type { Day } from '../../api/flashbacks';
+import { Toasts } from '../../shared/ui/Toast';
+import { paintBlurhash } from './blurhash';
+import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
 import { focusOnMount } from './focus';
+import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
 import { memoryMilliseconds, type Move, segmentState } from './story';
+import { useInteractions } from './use-interactions';
 import { useStory } from './use-story';
 import { useZonePress } from './use-zone-press';
 
@@ -38,7 +42,7 @@ export function StoryPage() {
           className="relative size-full text-on-player outline-none"
         >
           {state.years ? (
-            <Player date={date} year={year} years={state.years} close={close} />
+            <Player date={date} year={year} day={day.data as Day} close={close} />
           ) : (
             <Fallback state={state} close={close} retry={() => void day.refetch()} />
           )}
@@ -102,14 +106,29 @@ function Fallback({ state, close, retry }: FallbackProps) {
 interface PlayerProps {
   date: string;
   year: number;
-  years: YearGroup[];
+  day: Day;
   close: () => void;
 }
 
-function Player({ date, year, years, close }: PlayerProps) {
+function Player({ date, year, day, close }: PlayerProps) {
   const { t } = useTranslation();
-  const { state, group, memory, name, pause, controls, mediaReady, gestures, togglePause } =
-    useStory(years, year, close);
+  const story = useStory(day.years, year, close);
+  const {
+    state,
+    group,
+    memory,
+    segments,
+    name,
+    pause,
+    controls,
+    blurhash,
+    failed,
+    mediaReady,
+    mediaFailed,
+    gestures,
+    togglePause,
+  } = story;
+  const interactions = useInteractions(date, story);
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
@@ -125,17 +144,26 @@ function Player({ date, year, years, close }: PlayerProps) {
           className="absolute inset-0 select-none [-webkit-touch-callout:none]"
         >
           <div
+            key={state.visit}
             role="img"
             aria-label={t('story.memory', { ...name, kind: t(name.kind) })}
             className="absolute inset-0"
           >
-            <ProxyImage
-              key={state.visit}
-              src={memory.proxies.preview}
-              onDecoded={mediaReady}
-              className="size-full object-contain"
-            />
+            {blurhash && <Blurhash {...blurhash} />}
+            {!failed && (
+              <ProxyImage
+                src={memory.proxies.preview}
+                onDecoded={mediaReady}
+                onFailed={mediaFailed}
+                className="relative size-full object-contain"
+              />
+            )}
           </div>
+          {failed && (
+            <p className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center font-semibold">
+              {t('story.failed')}
+            </p>
+          )}
           <div className="absolute inset-0 flex">
             <Zone label={t('story.previous')} gestures={gestures} move="previous" />
             <Middle gestures={gestures} move="next" />
@@ -147,8 +175,8 @@ function Player({ date, year, years, close }: PlayerProps) {
           >
             <Segments
               key={state.visit}
-              count={group.memories.length}
-              current={state.memory}
+              count={segments.count}
+              current={segments.current}
               running={state.running}
             />
             <div className="flex items-center">
@@ -161,9 +189,36 @@ function Player({ date, year, years, close }: PlayerProps) {
               </div>
             </div>
           </div>
+          <div style={{ visibility: controls }}>
+            <MemoryActions
+              interaction={interactionOf(day, memory)}
+              onToggle={interactions.toggle}
+              onHide={interactions.hide}
+            />
+          </div>
         </m.div>
+        <Toasts toasts={interactions.toasts} />
       </MotionConfig>
     </LazyMotion>
+  );
+}
+
+interface BlurhashProps {
+  hash: string;
+  width: number;
+  height: number;
+}
+
+function Blurhash({ hash, width, height }: BlurhashProps) {
+  return (
+    <canvas
+      ref={(canvas) => {
+        paintBlurhash(canvas, hash);
+      }}
+      width={width}
+      height={height}
+      className="absolute inset-0 size-full object-contain"
+    />
   );
 }
 

@@ -1,8 +1,10 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { encode } from 'blurhash';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
+import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
 import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
@@ -55,6 +57,8 @@ async function swipe(x: number, y: number, from = middle()) {
   await advance(2000);
 }
 
+const failure = "Couldn't load this memory";
+const segment = (index: number) => story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 const middle = () => button('Previous').nextElementSibling as HTMLElement;
 const picture = () => story().querySelector('img') as HTMLImageElement;
 
@@ -180,7 +184,7 @@ describe('opening a story', () => {
 describe('a story playing', () => {
   it('shows each memory for 5 s from the moment its picture is decoded', async () => {
     await openStory('/day/2026-11-11?year=2025');
-    await advance(30_000);
+    await advance(9000);
     expect(picture().getAttribute('src')).toBe(preview(ids.a2025));
 
     await shown();
@@ -302,8 +306,6 @@ describe('a story playing', () => {
 
   it('holds the progress of a memory still until its picture is decoded', async () => {
     await openStory('/day/2026-11-11?year=2025');
-    const segment = (index: number) =>
-      story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 
     const states = () =>
       [...story().querySelectorAll('ol > li > span')].map((span) =>
@@ -363,6 +365,223 @@ describe('a story playing', () => {
     expect(screen.getByRole('dialog', { name: storyName })).toBeVisible();
     expect(story().querySelector('p')?.textContent).toBe('1 year ago · 2025');
     expect(router.state.location.href).toBe('/day/2026-11-11?year=2025');
+  });
+});
+
+describe('a memory loading', () => {
+  async function loadingSecond() {
+    const rendered = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(button('Next'));
+    return rendered;
+  }
+
+  it('fails a picture that has not arrived after 10 s, and moves on 5 s later', async () => {
+    const { container } = await loadingSecond();
+
+    await advance(9999);
+    expect(within(story()).queryByText(failure)).toBeNull();
+    await advance(1);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(picture()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('shows a failed memory for 5 s before moving on', async () => {
+    await loadingSecond();
+    await advance(10_000);
+
+    await advance(4999);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(1);
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('fails a picture that breaks again after its reload, and moves on 5 s later', async () => {
+    await loadingSecond();
+
+    const broken = picture();
+    fireEvent.error(broken);
+    await advance(0);
+    expect(picture()).not.toBe(broken);
+    expect(within(story()).queryByText(failure)).toBeNull();
+    fireEvent.error(picture());
+    await advance(0);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(picture()).toBeNull();
+    await advance(4999);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('plays a picture that loads after its reload', async () => {
+    await loadingSecond();
+
+    fireEvent.error(picture());
+    await advance(0);
+    await shown();
+    await advance(4999);
+
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('stays failed when its picture decodes too late', async () => {
+    await loadingSecond();
+    let decode = () => undefined as unknown;
+    vi.spyOn(HTMLImageElement.prototype, 'decode').mockReturnValue(
+      new Promise((resolve) => {
+        decode = resolve;
+      }),
+    );
+    fireEvent.load(picture());
+
+    await advance(10_000);
+    decode();
+    await advance(4999);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('gives each memory its own 10 s to arrive', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    await user().click(button('Next'));
+    await advance(9999);
+
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('fails a picture that has not arrived after 10 s even while paused, and holds it', async () => {
+    await loadingSecond();
+
+    await user().click(button('Pause'));
+    await advance(10_000);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(30_000);
+    expect(within(story()).getByText(failure)).toBeVisible();
+  });
+
+  it('fills the progress segment while a failed memory shows', async () => {
+    await loadingSecond();
+    expect(segment(1).style.animationPlayState).toBe('paused');
+
+    await advance(10_000);
+
+    expect(segment(1).getAttribute('data-state')).toBe('playing');
+    expect(segment(1).style.animationPlayState).toBe('running');
+  });
+
+  it('stops waiting for a picture once closed', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+    await shown();
+    await user().click(button('Next'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await advance(0);
+    const closed = router.history.location.state.__TSR_key;
+    await advance(15_000);
+
+    expect(router.history.location.state.__TSR_key).toBe(closed);
+  });
+});
+
+describe('a blurhash', () => {
+  const plum = [200, 40, 90, 255];
+  const solid = (colour: number[]) =>
+    encode(new Uint8ClampedArray(Array.from({ length: 16 }, () => colour).flat()), 4, 4, 1, 1);
+  let painted: { width: number; height: number; data: Uint8ClampedArray }[];
+  const canvas = () => story().querySelector('canvas');
+
+  beforeEach(() => {
+    painted = [];
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createImageData: (width: number, height: number) => ({
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4),
+      }),
+      putImageData: (image: (typeof painted)[number], x: number, y: number) => {
+        expect([x, y]).toEqual([0, 0]);
+        painted.push(image);
+      },
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  const withBlurhash = (overrides: Parameters<typeof memory>[2] = {}) => {
+    years = [
+      yearGroup(2025, memory(ids.a2025, 2025, { blurhash: solid(plum), ...overrides })),
+      yearGroup(2023, memory(ids.a2023, 2023, { blurhash: solid(plum) })),
+    ];
+  };
+
+  const lastPainted = () => painted.at(-1) as (typeof painted)[number];
+  const pixels = (image: (typeof painted)[number]) =>
+    Array.from({ length: image.width * image.height }, (_, pixel) => [
+      ...image.data.slice(pixel * 4, pixel * 4 + 4),
+    ]);
+
+  it('shows behind a picture until it is decoded', async () => {
+    withBlurhash();
+    const { container } = await openStory('/day/2026-11-11?year=2025');
+
+    expect(canvas()?.nextElementSibling).toBe(picture());
+    expect([canvas()?.width, canvas()?.height]).toEqual([32, 24]);
+    const image = lastPainted();
+    expect([image.width, image.height]).toEqual([32, 24]);
+    expect(new Set(pixels(image).map(String))).toEqual(new Set([String(plum)]));
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    await shown();
+    expect(canvas()).toBeNull();
+  });
+
+  it.each([
+    [3024, 4032, [24, 32]],
+    [4000, 10, [32, 1]],
+    [null, null, [32, 32]],
+  ])('keeps the shape of a %s × %s picture', async (width, height, size) => {
+    withBlurhash({ width, height });
+    await openStory('/day/2026-11-11?year=2025');
+
+    expect([canvas()?.width, canvas()?.height]).toEqual(size);
+  });
+
+  it("shows with a failed memory's message", async () => {
+    withBlurhash();
+    await openStory('/day/2026-11-11?year=2025');
+
+    await advance(10_000);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(canvas()).not.toBeNull();
+    expect(new Set(pixels(lastPainted()).map(String))).toEqual(new Set([String(plum)]));
+  });
+
+  it('does not show for a memory without a preview', async () => {
+    withBlurhash({ proxies: { thumbnail: null, preview: null, video: null } });
+    renderApp('/day/2026-11-11?year=2025');
+
+    const memory = await screen.findByRole('img', { name: 'Photo, 2025, 1 of 1' });
+    expect(memory).toBeEmptyDOMElement();
+  });
+
+  it('leaves the player surface for a memory without one', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    expect(canvas()).toBeNull();
+
+    await advance(10_000);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(canvas()).toBeNull();
   });
 });
 
@@ -512,7 +731,7 @@ describe('moving through a story', () => {
 
     await user().click(button('Previous'));
     expect(showing()).toBe(preview(ids.a2025));
-    await advance(30_000);
+    await advance(9999);
     expect(showing()).toBe(preview(ids.a2025));
 
     await shown();
@@ -569,7 +788,7 @@ describe('moving through a story', () => {
 
     fireEvent.load(picture());
     fireEvent.click(button('Next'));
-    await advance(30_000);
+    await advance(9999);
 
     expect(showing()).toBe(preview(ids.b2025));
   });
@@ -593,7 +812,7 @@ describe('moving through a story', () => {
       within(story())
         .getAllByRole('button')
         .map((zone) => zone.getAttribute('aria-label')),
-    ).toEqual(['Previous', 'Next', 'Pause', 'Close']);
+    ).toEqual(['Previous', 'Next', 'Pause', 'Close', 'Star', 'Like', 'Hide']);
     await user().click(middle());
     expect(showing()).toBe(preview(ids.b2025));
     expect(await axeResults(container)).toHaveNoViolations();
@@ -1063,5 +1282,518 @@ describe('a story for a screen reader', () => {
     expect(announcer).toHaveTextContent('1 year ago · 2025');
     await user().click(button('Next'));
     expect(announcer).toHaveTextContent('3 years ago · 2023');
+  });
+});
+
+describe('starring, liking and hiding', () => {
+  let sent: Interacted[];
+  let answer: (interacted: Interacted) => Response | Promise<Response> | undefined;
+  const refused = () => problemResponse(500, 'unknown');
+  const segments = () => story().querySelectorAll('ol > li');
+  const toast = () => screen.getByRole('alertdialog');
+
+  let saved: Map<string, object>;
+
+  const withSaved = (days: ReturnType<typeof threeYears>) =>
+    days
+      .map((group) => ({
+        ...group,
+        assets: group.assets
+          .map((asset) => ({
+            ...asset,
+            interaction: { ...asset.interaction, ...saved.get(asset.id) },
+          }))
+          .filter((asset) => !asset.interaction.hidden),
+      }))
+      .filter((group) => group.assets.length > 0);
+
+  beforeEach(() => {
+    sent = [];
+    saved = new Map();
+    answer = () => undefined;
+    server.use(
+      onThisDayAnswers(
+        todayAnd(['2024-11-11', '2026-11-11'], (date) => {
+          requested.push(date);
+          return withSaved(years);
+        }),
+      ),
+      interactionAnswers(sent, async (interacted) => {
+        const failed = await answer(interacted);
+        if (!failed)
+          saved.set(interacted.id, { ...saved.get(interacted.id), ...(interacted.body as object) });
+        return failed;
+      }),
+    );
+  });
+
+  function later() {
+    let settle: (response?: Response) => void = () => undefined;
+    const settled = new Promise<Response | undefined>((resolve) => {
+      settle = resolve;
+    });
+    answer = () => settled as Promise<Response>;
+    return (response?: Response) => {
+      settle(response);
+    };
+  }
+
+  it.each([
+    ['Star', 'starred'],
+    ['Like', 'liked'],
+  ])('%s toggles at once and sends only that field', async (name, flag) => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+
+    fireEvent.click(button(name));
+    await advance(0);
+
+    expect(button(name)).toHaveAttribute('aria-pressed', 'true');
+    respond();
+    await advance(0);
+    fireEvent.click(button(name));
+    await advance(0);
+    expect(button(name)).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(button(name));
+    await advance(0);
+    fireEvent.click(button('Next'));
+    expect(button(name)).toHaveAttribute('aria-pressed', 'false');
+    expect(sent).toEqual([
+      { id: ids.a2025, body: { [flag]: true } },
+      { id: ids.a2025, body: { [flag]: false } },
+      { id: ids.a2025, body: { [flag]: true } },
+    ]);
+  });
+
+  it('shows what each memory has saved', async () => {
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025, {
+          interaction: { starred: true, liked: false, hidden: false, displayWeight: 1 },
+        }),
+        memory(ids.b2025, 2025, {
+          interaction: { starred: false, liked: true, hidden: false, displayWeight: 1 },
+        }),
+      ),
+    ];
+    await openStory('/day/2026-11-11?year=2025');
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(button('Next'));
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'false');
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('neither moves nor restarts the story when a control is pressed', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(4000);
+
+    await user().click(button('Star'));
+    await user().click(button('Like'));
+    await advance(999);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it("rolls back a change that couldn't be saved and says so, politely, for 5 s", async () => {
+    answer = refused;
+    await openStory('/day/2026-11-11?year=2025');
+
+    fireEvent.click(button('Like'));
+    await advance(0);
+
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'false');
+    expect(within(toast()).getByRole('status')).toHaveTextContent("Couldn't save");
+    expect(toast()).toBeVisible();
+    await advance(4999);
+    expect(screen.queryByRole('alertdialog')).not.toBeNull();
+    await advance(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it("rolls back a change that couldn't be saved while the day can't be reloaded either", async () => {
+    answer = refused;
+    await openStory('/day/2026-11-11?year=2025');
+    server.use(onThisDayAnswers(() => problemResponse(503, 'service_unavailable')));
+
+    fireEvent.click(button('Star'));
+    await advance(0);
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'false');
+    expect(within(toast()).getByRole('status')).toHaveTextContent("Couldn't save");
+  });
+
+  it('rolls back only the change that failed', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+    fireEvent.click(button('Star'));
+    await advance(0);
+    answer = () => undefined;
+    fireEvent.click(button('Like'));
+    await advance(0);
+
+    respond(refused());
+    await advance(0);
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'false');
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps a change through a reload of its day that was already on its way, and only that reload', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const reloads = new Map<string, (response: Response) => void>();
+    server.use(
+      onThisDayAnswers((date) =>
+        ['2026-11-11', '2026-11-10'].includes(date) && !reloads.has(date)
+          ? new Promise<Response>((resolve) => {
+              reloads.set(date, resolve);
+            })
+          : date === '2026-11-11'
+            ? withSaved(years)
+            : [],
+      ),
+    );
+    act(() => {
+      becomes('visible');
+    });
+    await advance(0);
+
+    fireEvent.click(button('Star'));
+    await advance(0);
+    const answer = (date: string, days: ReturnType<typeof threeYears>) => {
+      reloads.get(date)?.(Response.json({ date, years: days }));
+    };
+    answer('2026-11-11', threeYears());
+    answer('2026-11-10', [yearGroup(2024, memory(ids.a2025, 2024))]);
+    await advance(0);
+
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await advance(0);
+    expect(await screen.findByRole('link', { name: 'Yesterday' })).toBeVisible();
+  });
+
+  it('reloads the day once its last change is saved, not before', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+    const held = answer;
+    answer = (interacted) =>
+      'liked' in (interacted.body as object) ? held(interacted) : undefined;
+    fireEvent.click(button('Star'));
+    fireEvent.click(button('Like'));
+    await vi.waitFor(() => {
+      expect(saved.has(ids.a2025)).toBe(true);
+    });
+    await advance(1000);
+    expect(sent).toHaveLength(2);
+    expect(requested).toHaveLength(1);
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
+
+    respond();
+    await advance(0);
+
+    expect(requested).toHaveLength(2);
+    expect(button('Like')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('reloads the landing screen again once a hide made just before closing is saved', async () => {
+    await openLanding();
+    const first = () =>
+      screen
+        .getByRole('link', { name: '5 years ago · 2021' })
+        .querySelector('img')
+        ?.getAttribute('src');
+    fireEvent.click(screen.getByRole('link', { name: '5 years ago · 2021' }));
+    await screen.findByRole('dialog', { name: storyName });
+    const respond = later();
+    fireEvent.click(button('Hide'));
+    fireEvent.click(button('Close'));
+    await advance(0);
+    expect(first()).toContain(ids.a2021);
+
+    respond();
+    await advance(0);
+
+    await vi.waitFor(() => {
+      expect(first()).toContain(ids.b2021);
+    });
+  });
+
+  it('keeps showing a memory the server has since left out, as it was', async () => {
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025, {
+          interaction: { starred: true, liked: false, hidden: false, displayWeight: 1 },
+        }),
+      ),
+    ];
+    await openStory('/day/2026-11-11?year=2025');
+    years = [];
+    act(() => {
+      becomes('visible');
+    });
+    await advance(0);
+
+    expect(requested).toHaveLength(2);
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('does not reorder the open story when a later memory is starred', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Next'));
+    fireEvent.click(button('Star'));
+    await advance(0);
+
+    fireEvent.click(button('Previous'));
+
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('hides a memory at once, moves to the next and offers Undo for 5 s', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    fireEvent.click(button('Hide'));
+
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
+    await advance(0);
+    expect(sent).toEqual([{ id: ids.a2025, body: { hidden: true } }]);
+    expect(within(toast()).getByRole('status')).toHaveTextContent('Memory hidden');
+    expect(within(toast()).getByRole('button', { name: 'Undo' })).toBeVisible();
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(4999);
+    expect(screen.queryByRole('alertdialog')).not.toBeNull();
+    await advance(1);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('gives the memory after a hidden one its own clock', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(4000);
+
+    fireEvent.click(button('Hide'));
+    await advance(4000);
+    expect(showing()).toBe(preview(ids.b2025));
+    await shown();
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('puts a hidden memory back where it was with Undo and shows it again', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(await axeResults(document.body)).toHaveNoViolations();
+
+    await user().click(within(toast()).getByRole('button', { name: 'Undo' }));
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segments()).toHaveLength(2);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(sent).toEqual([
+      { id: ids.a2025, body: { hidden: true } },
+      { id: ids.a2025, body: { hidden: false } },
+    ]);
+    fireEvent.click(button('Next'));
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('puts each memory back at its own place, whatever was hidden since', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.a2023));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Undo' }).at(-1) as HTMLElement);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segments()).toHaveLength(1);
+    fireEvent.click(button('Next'));
+    expect(showing()).toBe(preview(ids.a2023));
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('leaves out a year group whose memories are all hidden, until Undo', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.a2021));
+    expect(within(story()).getByText('5 years ago · 2021')).toBeVisible();
+
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.b2025));
+    await swipe(-60, 0);
+    expect(showing()).toBe(preview(ids.a2021));
+    await swipe(60, 0);
+    expect(showing()).toBe(preview(ids.a2025));
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    expect(showing()).toBe(preview(ids.a2023));
+    await vi.waitFor(() => {
+      expect(requested).toHaveLength(3);
+    });
+    expect(sent).toEqual([
+      { id: ids.a2023, body: { hidden: true } },
+      { id: ids.a2023, body: { hidden: false } },
+    ]);
+  });
+
+  it('goes back from a year group past the hidden memories at the end of the one before', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Next'));
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.a2023));
+
+    fireEvent.click(button('Previous'));
+
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('closes when the last memory is hidden', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+    fireEvent.click(button('Next'));
+
+    fireEvent.click(button('Hide'));
+    await advance(0);
+
+    expect(router.state.location.href).toBe('/');
+    expect(sent).toEqual([{ id: ids.b2021, body: { hidden: true } }]);
+  });
+
+  it("brings a memory back when its hide couldn't be saved, and says so", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const respond = later();
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.b2025));
+
+    respond(refused());
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segments()).toHaveLength(2);
+    expect(within(toast()).getByRole('status')).toHaveTextContent("Couldn't save");
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    expect(await axeResults(document.body)).toHaveNoViolations();
+  });
+
+  it("hides a memory again when its Undo couldn't be saved", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    answer = refused;
+
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
+    expect(within(toast()).getByRole('status')).toHaveTextContent("Couldn't save");
+  });
+
+  it("drops a memory whose Undo couldn't be saved without moving on from where the story is", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    const respond = later();
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    fireEvent.click(button('Next'));
+    await shown();
+    await advance(3000);
+
+    respond(refused());
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
+    expect(story().querySelector('ol span')?.getAttribute('data-state')).toBe('playing');
+    await advance(1999);
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it("drops a memory whose Undo couldn't be saved while another year group plays", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    const respond = later();
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    fireEvent.keyDown(document, { key: 'ArrowRight', shiftKey: true });
+    expect(showing()).toBe(preview(ids.a2023));
+
+    respond(refused());
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.a2023));
+    fireEvent.click(button('Previous'));
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(segments()).toHaveLength(1);
+  });
+
+  it('does nothing more once closed when an Undo fails afterwards', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    const respond = later();
+    fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
+    fireEvent.click(button('Next'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await advance(0);
+
+    respond(refused());
+    await advance(10_000);
+
+    expect(router.state.location.href).toBe('/');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('does nothing more once closed when a hide fails afterwards', async () => {
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025, { proxies: { thumbnail: null, preview: null, video: null } }),
+      ),
+    ];
+    const { router } = await openLanding();
+    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    await screen.findByRole('dialog', { name: storyName });
+    const respond = later();
+    fireEvent.click(button('Hide'));
+    await advance(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    act(() => {
+      void router.navigate({ to: '/settings' });
+    });
+    await advance(0);
+
+    respond(refused());
+    await advance(10_000);
+
+    expect(router.state.location.href).toBe('/settings');
+  });
+
+  it('reaches Undo from the keyboard', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Hide'));
+    await advance(0);
+
+    await user().keyboard('{F6}{Tab}{Tab}');
+
+    expect(within(toast()).getByRole('button', { name: 'Undo' })).toHaveFocus();
   });
 });

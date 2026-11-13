@@ -18,10 +18,9 @@ export interface WorkItems {
   follow(lastEventId: string, signal: AbortSignal, following: Following): Promise<void>;
 }
 
-const gone = [403, 404];
-
 export function createWorkItems(client: Client<paths>, authorized: Authorized): WorkItems {
   async function unlessGone<T>(call: Parameters<Authorized>[0]): Promise<T | null> {
+    const gone = [403, 404];
     let status = 0;
     try {
       return (await authorized(async (init) => {
@@ -81,5 +80,8 @@ export function createWorkItems(client: Client<paths>, authorized: Authorized): 
   };
 }
 
-const settled = (call: Call<WorkItem>): Call<WorkItem> =>
-  call.response.status === 409 ? { data: call.error as WorkItem, response: call.response } : call;
+function settled(call: Call<WorkItem>): Call<WorkItem> {
+  return call.response.status === 409
+    ? { data: call.error as WorkItem, response: call.response }
+    : call;
+}

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { themeColourTags } from '../test/index-head';
 
 const perScheme = [
@@ -7,14 +7,10 @@ const perScheme = [
 ];
 
 async function start() {
-  await import('./theme-init');
+  await import(`./theme-init?run=${crypto.randomUUID()}`);
 }
 
 describe('the theme start-up script', () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
   it.each([
     ['light', '#f7f5f2'],
     ['dark', '#171513'],

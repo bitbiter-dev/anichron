@@ -7,7 +7,7 @@ usage() {
   cat >&2 <<'EOF'
 usage:
   mutation-report.sh badge <report.json>            shields.io endpoint payload
-  mutation-report.sh compare <a.json> <b.json>      non-zero if detected counts differ
+  mutation-report.sh compare <a.json> <b.json>      non-zero if detected counts over shared valid mutants differ
   mutation-report.sh merge <report.json>...         one report from per-project reports
   mutation-report.sh tally <report.json>            {detected, total, score} as JSON
 EOF
@@ -86,11 +86,35 @@ cmd_badge() {
 # Guards the upstream defect that under-reports kills at concurrency above 1.
 # It keeps killed-plus-survived constant while moving the split, so any single
 # run looks self-consistent — comparing detected counts is what discriminates.
+# Detected counts over the mutants valid in both runs. A mutant that is a
+# RuntimeError or CompileError in only one run (a looping mutant can crash the
+# host under load and time out alone) is left out and named, not counted.
+readonly COMPARE='
+  def valid: . == "Killed" or . == "Timeout" or . == "Survived" or . == "NoCoverage";
+  def detected: . == "Killed" or . == "Timeout";
+  def statuses: [.files | to_entries[] | .key as $file | .value.mutants[] | {key: "\($file)#\(.id)", value: .status}] | from_entries;
+  ($a[0] | statuses) as $x | ($b[0] | statuses) as $y
+  | if ($x | keys) != ($y | keys) then
+      "the reports mutate different code; compare needs two runs of one commit\n" | halt_error(1)
+    else
+      ($x | keys | map(select(($x[.] | valid) and ($y[.] | valid)))) as $shared
+      | {
+          a: ($shared | map(select($x[.] | detected)) | length),
+          b: ($shared | map(select($y[.] | detected)) | length),
+          left_out: ($x | keys | map(select(($x[.] | valid) != ($y[.] | valid))) | map("\(.) (\($x[.]) vs \($y[.]))"))
+        }
+    end
+'
+
 cmd_compare() {
   [ $# -eq 2 ] || usage
-  local a b
-  a=$(tally_of "$1" | jq -e '.detected')
-  b=$(tally_of "$2" | jq -e '.detected')
+  tally_of "$1" >/dev/null
+  tally_of "$2" >/dev/null
+  local result a b
+  result=$(jq -n --slurpfile a "$1" --slurpfile b "$2" "$COMPARE")
+  jq -r '.left_out[] | "left out, valid in only one run: \(.)"' <<<"$result"
+  a=$(jq '.a' <<<"$result")
+  b=$(jq '.b' <<<"$result")
   if [ "$a" -eq "$b" ]; then
     printf 'detected counts agree: %s\n' "$a"
     return 0

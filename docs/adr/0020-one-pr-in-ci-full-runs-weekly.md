@@ -8,7 +8,7 @@ Status: accepted (decided on #536 and #537)
 - **Drafts:** a draft PR runs no CI or CodeQL job. Its gate job fails under the name `Draft, no CI`, so a commit has no `CI gate` until its ready run reports one.
 - **Master:** a push whose tree passed `CI gate` on its PR only publishes images.
 - **Full runs:** the full backend and UI sweeps, the quality reports and the badges run weekly. A failed weekly run or master push opens an issue assigned to the maintainer.
-- **Local:** mutation runs locally before landing, under a machine-wide lock. The pre-push hook runs only `git lfs pre-push`.
+- **Local:** mutation runs locally before landing, under a machine-wide lock. A clean merge of master needs no new run; a resolved conflict in the mutation scope does. The pre-push hook runs only `git lfs pre-push`.
 
 ## Why
 

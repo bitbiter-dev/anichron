@@ -1,5 +1,7 @@
 export const workItemsKey = ['work-items'] as const;
 
-export const listSearch = (search: Record<string, unknown>): { page?: number } => ({
-  page: Number(search.page) || undefined,
-});
+export function listSearch(search: Record<string, unknown>): { page?: number } {
+  return {
+    page: Number(search.page) || undefined,
+  };
+}

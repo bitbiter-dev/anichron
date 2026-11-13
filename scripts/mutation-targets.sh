@@ -29,10 +29,13 @@ if [ ! -r "$solution" ]; then
   exit 2
 fi
 
+errors=$(mktemp "${TMPDIR:-/tmp}/mutation-targets.XXXXXXXX")
+trap 'rm -f "$errors"' EXIT
+
 grep -oE '<Project Path="[^"]+"' "$solution" | sed -E 's/^<Project Path="(.*)"$/\1/' | sort |
   while IFS= read -r project; do
-    if ! props=$(cd "$src" && dotnet msbuild "$project" -getProperty:IsMutationTarget -getProperty:IsTestCodeProject 2>&1); then
-      echo "cannot evaluate $project: $props" >&2
+    if ! props=$(cd "$src" && dotnet msbuild "$project" -getProperty:IsMutationTarget -getProperty:IsTestCodeProject 2>"$errors"); then
+      echo "cannot evaluate $project: $props$(cat "$errors")" >&2
       exit 2
     fi
     target=$(jq -r '.Properties.IsMutationTarget | ascii_downcase' <<<"$props")

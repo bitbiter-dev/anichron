@@ -617,10 +617,11 @@ describe('the stream', () => {
   });
 
   it('forgets only the work queue when the admin leaves', async () => {
-    let days = 0;
+    const asked = new Set<string>();
     server.use(
       onThisDayAnswers(async (date) => {
-        if (++days > 1) await delay(5000);
+        if (asked.has(date)) await delay(5000);
+        asked.add(date);
         return HttpResponse.json({
           date,
           years: [yearGroup(2023, memory('0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b', 2023))],

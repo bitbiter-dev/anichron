@@ -56,6 +56,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 - They are form-agnostic: a feature connects react-hook-form through `Controller` and passes `field.ref` as `inputRef`.
 - States are `tv` variants named after React Aria's render props. A state that only interaction reaches gets an exported style function, so the design page can show it.
 - A caller's `className` goes on the outer element.
+- Toasts: the screen that shows them owns a queue (`src/shared/toasts.ts`) and renders its region (`Toast.tsx`). A toast is announced politely and lasts a few seconds.
 - Each component ships with its first caller.
 
 ## Checks
