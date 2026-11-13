@@ -74,7 +74,7 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 
 ### The divergence check
 
-- Each project's job also sweeps it at `--concurrency 1` on the same runner, and fails when the **detected counts** differ.
+- Each project's job also sweeps it at `--concurrency 1` on the same runner, and fails when the **detected counts** differ. Counted are the mutants valid in both runs; one that errors in only one run is named and left out (`scripts/mutation-report.sh compare`).
 - **Why counts:** the MTP defect (ADR 0001) keeps killed plus survived constant and moves the split between them, so a single run looks consistent. A score comparison would also fire on ordinary quality changes.
 - This is the only place a measurement-affecting flag is passed.
 
