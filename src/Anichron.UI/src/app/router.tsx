@@ -165,7 +165,7 @@ export function createAppRouter(
   let userId: string | undefined;
   api.session.onChange(() => {
     const changedTo = api.session.user()?.id;
-    if (userId !== undefined && changedTo !== userId) queryClient.clear();
+    if (changedTo !== userId) queryClient.clear();
     userId = changedTo;
     void router.invalidate();
   });
