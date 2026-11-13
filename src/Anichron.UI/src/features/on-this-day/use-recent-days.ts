@@ -25,9 +25,13 @@ export interface FailedDay {
 
 export type RecentDay = DayWithMemories | FailedDay;
 
-export const hasMemories = (day: RecentDay): day is DayWithMemories => 'newestYear' in day;
+export function hasMemories(day: RecentDay): day is DayWithMemories {
+  return 'newestYear' in day;
+}
 
-const inUtc = (options: Intl.DateTimeFormatOptions) => ({ ...options, timeZone: 'UTC' });
+function inUtc(options: Intl.DateTimeFormatOptions) {
+  return { ...options, timeZone: 'UTC' };
+}
 
 function label(t: TFunction, date: string, ago: number) {
   if (ago === 1) return t('onThisDay.yesterday');
@@ -44,12 +48,14 @@ function label(t: TFunction, date: string, ago: number) {
   });
 }
 
-const withMemories = (date: string, label: string, newest: YearGroup): DayWithMemories => ({
-  date,
-  label,
-  newestYear: newest.year,
-  thumbnail: thumbnailOf(newest),
-});
+function withMemories(date: string, label: string, newest: YearGroup): DayWithMemories {
+  return {
+    date,
+    label,
+    newestYear: newest.year,
+    thumbnail: thumbnailOf(newest),
+  };
+}
 
 export function useRecentDays(today: string) {
   const { t } = useTranslation();

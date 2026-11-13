@@ -3,14 +3,13 @@ import type { Move, Story } from './story';
 
 type KeyAction = Move | 'togglePause';
 
-const keys: Partial<Record<string, readonly [KeyAction, KeyAction | undefined]>> = {
-  ArrowLeft: ['previous', 'previousGroup'],
-  ArrowRight: ['next', 'nextGroup'],
-  ' ': ['togglePause', undefined],
-};
-
 function keyAction(event: KeyboardEvent): KeyAction | undefined {
   if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) return undefined;
+  const keys: Partial<Record<string, readonly [KeyAction, KeyAction | undefined]>> = {
+    ArrowLeft: ['previous', 'previousGroup'],
+    ArrowRight: ['next', 'nextGroup'],
+    ' ': ['togglePause', undefined],
+  };
   return keys[event.key]?.[Number(event.shiftKey)];
 }
 

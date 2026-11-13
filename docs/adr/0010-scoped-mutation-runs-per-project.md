@@ -18,6 +18,6 @@ In solution mode, Stryker.NET captures per-test coverage once for every mutated 
 ## Consequences
 
 - A change touching three projects runs Stryker three times, which is still cheaper than one solution run.
-- CI runs one matrix job per target and merges the reports.
+- CI runs one matrix job per planned project and merges the reports. A pull request plans only its changed files, unless it changes something a scoped run cannot see; master and the weekly run plan every target.
 - The local full sweep stays in solution mode and ignores the property, so an opted-out project keeps its `!**/<Name>/**` entry (ADR 0005). `mutation-guard.sh` checks the two agree.
 - Re-measure if a Stryker release captures coverage once per run.

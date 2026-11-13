@@ -20,14 +20,18 @@ export interface Flashbacks {
   onThisDay(date: string): Promise<Day>;
 }
 
-const fromApi = (url: string | null) => url && `/api/v1/${url}`;
+function fromApi(url: string | null) {
+  return url && `/api/v1/${url}`;
+}
 
-const memoryOf = (asset: Schemas['AssetDto']): Memory => ({
-  ...asset,
-  proxies: Object.fromEntries(
-    Object.entries(asset.proxies).map(([type, url]) => [type, fromApi(url)]),
-  ) as Proxies,
-});
+function memoryOf(asset: Schemas['AssetDto']): Memory {
+  return {
+    ...asset,
+    proxies: Object.fromEntries(
+      Object.entries(asset.proxies).map(([type, url]) => [type, fromApi(url)]),
+    ) as Proxies,
+  };
+}
 
 export function createFlashbacks(client: Client<paths>, authorized: Authorized): Flashbacks {
   return {

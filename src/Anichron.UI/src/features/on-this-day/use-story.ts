@@ -37,6 +37,9 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     mediaReady: () => {
       story.mediaReady(state.visit);
     },
+    mediaFailed: () => {
+      story.mediaFailed(state.visit);
+    },
     gestures,
     togglePause: story.togglePause,
   };

@@ -10,12 +10,17 @@ export interface DayView {
 
 type FailureKey = 'onThisDay.unreachable' | 'onThisDay.failed';
 
-const failureKey = (error: unknown): FailureKey =>
-  problemOf(error).code === 'service_unavailable' ? 'onThisDay.unreachable' : 'onThisDay.failed';
+function failureKey(error: unknown): FailureKey {
+  return problemOf(error).code === 'service_unavailable'
+    ? 'onThisDay.unreachable'
+    : 'onThisDay.failed';
+}
 
 export function dayView({ data, error }: UseQueryResult<Day>): DayView {
   if (data) return data.years.length > 0 ? { years: data.years } : { empty: true };
   return error ? { failure: failureKey(error) } : {};
 }
 
-export const thumbnailOf = (group: YearGroup) => (group.memories[0] as Memory).proxies.thumbnail;
+export function thumbnailOf(group: YearGroup) {
+  return (group.memories[0] as Memory).proxies.thumbnail;
+}

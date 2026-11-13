@@ -13,7 +13,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 - An area module sends each call through `authorized`, which `createSession` hands to `client.ts`: the bearer token, and on a `401` one refresh and one retry. A token renewed meanwhile is retried without refreshing; a second `401` signs out.
 - A refresh that fails without signing out throws `SessionNotRenewed`, and the query retry predicate (`src/app/query-client.ts`) stops on it.
 - Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`).
-- An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more (`features/on-this-day/media.ts`). See "The refresh rules".
+- An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more; a second error is a failure (`features/on-this-day/media.ts`). See "The refresh rules".
 
 ## The event stream
 
