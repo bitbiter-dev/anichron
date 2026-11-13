@@ -18,15 +18,23 @@ cat >"$work/bin/gh" <<'EOF'
 echo "$*" >>"$GH_STATE/calls"
 case "$1 $2" in
   'pr list') [ -f "$GH_STATE/pr" ] && jq -c '[select(.state == "OPEN")]' "$GH_STATE/pr" || echo '[]' ;;
-  'pr create') echo '{"number":7,"state":"OPEN","isDraft":true}' >"$GH_STATE/pr" ;;
+  'pr create')
+    echo '{"number":7,"state":"OPEN","isDraft":true}' >"$GH_STATE/pr"
+    echo 'https://github.com/bitbiter-dev/anichron/pull/7' ;;
   'pr ready')
     draft=false
     [ "${4:-}" = --undo ] && draft=true
+    $draft || [ -f "$GH_STATE/no-ready-event" ] || touch "$GH_STATE/readied"
     jq -c --argjson d "$draft" '.isDraft = $d' "$GH_STATE/pr" >"$GH_STATE/pr.new" && mv "$GH_STATE/pr.new" "$GH_STATE/pr" ;;
-  'api --paginate') printf '[{"event":"ready_for_review","created_at":"2026-11-12T09:00:00Z"}]\n[{"event":"labeled","created_at":"2026-11-13T09:59:00Z"},{"event":"ready_for_review","created_at":"2026-11-13T10:00:00Z"}]\n' ;;
+  'api --paginate')
+    printf '[{"event":"ready_for_review","created_at":"2026-11-12T09:00:00Z"},{"event":"labeled","created_at":"2026-11-13T09:59:00Z"}]\n'
+    [ ! -f "$GH_STATE/readied" ] || printf '[{"event":"ready_for_review","created_at":"2026-11-13T10:00:00Z"}]\n' ;;
   'run list')
+    [ ! -f "$GH_STATE/run-list-fails" ] || { echo 'error connecting to api.github.com' >&2; exit 1; }
     if [ -f "$GH_STATE/runs-$4.later" ] && [ -f "$GH_STATE/listed-$4" ]; then cat "$GH_STATE/runs-$4.later"; else touch "$GH_STATE/listed-$4"; cat "$GH_STATE/runs-$4"; fi ;;
   'run view') cat "$GH_STATE/run-$3" ;;
+  'pr checks') cat "$GH_STATE/checks" ;;
+  'pr view') printf '{"mergeStateStatus":"%s"}\n' "$(cat "$GH_STATE/merge-state")" ;;
   'pr merge') [ ! -f "$GH_STATE/merge-refused" ] ;;
   *) echo "unexpected gh call: $*" >&2; exit 9 ;;
 esac
@@ -68,10 +76,14 @@ setup() {
   run_json 2 failure Changes skipped >"$work/state/run-2"
   run_json 3 "$2" Changes success >"$work/state/run-3"
   run_json 4 success 'Analyze (C#)' success >"$work/state/run-4"
+  echo '[{"name":"CI gate","bucket":"pass"},{"name":"CodeQL","bucket":"pass"}]' >"$work/state/checks"
+  echo CLEAN >"$work/state/merge-state"
 }
 
 land() {
-  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" WITH_LOCK_POLL_SECONDS=0 "$script" 2>&1)
+  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" WITH_LOCK_POLL_SECONDS=0 \
+    GIT_AUTHOR_NAME=mira GIT_AUTHOR_EMAIL=mira@example.org GIT_COMMITTER_NAME=mira GIT_COMMITTER_EMAIL=mira@example.org \
+    "$script" 2>&1)
 }
 
 calls() { cat "$work/state/calls" 2>/dev/null; }
@@ -128,6 +140,27 @@ check 'a run cancelled by a newer ready run gives way to it' "[ $status -eq 0 ] 
 setup '{"number":7,"state":"OPEN","isDraft":true}' cancelled
 out=$(land); status=$?
 check 'a cancelled run with no newer one is not merged' "[ $status -eq 1 ] && [[ \"\$(calls)\" != *'pr merge'* ]]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/no-ready-event"
+out=$(land); status=$?
+check "a ready event from an earlier attempt is not taken for this one" "[ $status -eq 1 ] && [[ \"\$out\" == *'ready_for_review event never appeared'* ]] && [[ \"\$(calls)\" != *'run list'* ]]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/run-list-fails"
+out=$(land "$work/wt" 1); status=$?
+check 'a gh call that keeps failing stops with that reason, not a timeout' "[ $status -eq 1 ] && [[ \"\$out\" == *'gh run list failed 5 times in a row'* ]] && [[ \"\$out\" == *'CI: gh-failing'* ]]" "exit $status: $out"
+check 'its PR is a draft again too' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+echo '[{"name":"CI gate","bucket":"pass"},{"name":"CodeQL","bucket":"fail"}]' >"$work/state/checks"
+out=$(land); status=$?
+check 'a failing required check is not merged, and named' "[ $status -eq 1 ] && [[ \"\$out\" == *'Required checks: CodeQL: fail'* ]] && [[ \"\$(calls)\" != *'pr merge'* ]]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+echo BEHIND >"$work/state/merge-state"
+out=$(land); status=$?
+check 'master moving during CI is named, and not merged' "[ $status -eq 1 ] && [[ \"\$out\" == *'master moved while CI ran'* ]] && [[ \"\$(calls)\" != *'pr merge'* ]]" "exit $status: $out"
 
 setup none success
 echo dirty >>"$work/wt/feature.txt"

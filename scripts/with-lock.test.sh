@@ -66,6 +66,20 @@ else
   fail 'a lock whose PID now belongs to another process is taken over' "takeover of $$" "exit $status, $out"
 fi
 
+(cd "$work/repo" && WITH_LOCK_POLL_SECONDS=0 exec "$script" heavy sh -c "trap 'echo stopped >\"$work/stopped\"; exit 5' TERM; touch \"$work/started\"; while :; do sleep 0.1; done") &
+holder=$!
+within_seconds 10 '[ -e "$work/started" ]' || fail 'the signalled command starts' 'started' 'never'
+kill -TERM "$holder"
+wait "$holder"; status=$?
+if [ "$status" -eq 5 ] && [ "$(cat "$work/stopped" 2>/dev/null)" = stopped ]; then pass 'a TERM reaches the command, and its status is returned'; else fail 'a TERM reaches the command, and its status is returned' 'exit 5, stopped' "exit $status, $(cat "$work/stopped" 2>/dev/null)"; fi
+if [ ! -e "$locks/heavy" ]; then pass 'the lock is released once the signalled command has exited'; else fail 'the lock is released once the signalled command has exited' 'no lock' "$(readlink "$locks/heavy")"; fi
+
+mkdir -p "$locks/heavy.takeover"
+touch -t 202601010000 "$locks/heavy.takeover"
+ln -s "$dead@gone" "$locks/heavy"
+out=$(locked "$work/repo" heavy echo ran 2>&1); status=$?
+if [ "$status" -eq 0 ] && [[ "$out" == *'removed a takeover'* ]] && [[ "$out" == *ran ]]; then pass 'a takeover left by a waiter that died is cleared'; else fail 'a takeover left by a waiter that died is cleared' 'cleared, then ran' "exit $status, $out"; fi
+
 out=$(locked "$work/repo" other echo ran 2>&1)
 if [ "$out" = ran ]; then pass 'locks with other names are independent'; else fail 'locks with other names are independent' ran "$out"; fi
 

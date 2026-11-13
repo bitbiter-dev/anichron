@@ -242,11 +242,12 @@ Grep stays the tool for text, config and anything that is not a symbol.
 
 Drafts run no CI, and `scripts/land.sh` puts one PR at a time on this machine into CI. After implementing, don't pause for the maintainer:
 
-1. Run the tests you touched. Commit, push and open a **draft** PR, so the work is visible.
-2. Start the scoped mutation run in the background, and meanwhile run both `/code-review` subagents. The mutation scripts run the unit suite; no separate full-suite run.
-3. Fix the findings. Run mutation again only if the fixes changed code.
-4. Run `scripts/land.sh` in the background; its header says what it does and what each exit code means. On a failure, fix the cause and run it again.
-5. Add the PR to its epic milestone's order.
+1. Run the tests you touched, and commit.
+2. Start `scripts/mutation-changed.sh` and `scripts/ui-mutation-changed.sh` in the background; each skips when its area is unchanged. They run the unit suite; no separate full-suite run.
+3. Push and open a **draft** PR, so the work is visible. Then run `/mattpocock-skills:code-review` (both subagents) while mutation runs.
+4. Fix the findings. Run mutation again only if the fixes changed code.
+5. Run `scripts/land.sh` in the background; its header says what it does and what each exit code means. On a failure, fix the cause and run it again.
+6. Once merged, remove the issue from its epic milestone's order (the milestone description), so the next agent reads the next issue first.
 
 - Don't poll CI, cancel another PR's run, or delete the remote branch (GitHub does on merge).
 - On a CI failure, read the failed job's summary and `gh run view <id> --log-failed`, not the whole log.
