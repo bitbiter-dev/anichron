@@ -17,6 +17,7 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 - **Test → source mapping** for a changed `<Name>Tests.cs`: `<Name>.cs`, else the file declaring type `<Name>`, else the file named after the longest leading CamelCase part. A test it cannot map exits `1`; pass the sources it covers.
 - **Mutation targets** are the projects where `IsMutationTarget` is `true` (`scripts/mutation-targets.sh`). The full sweep ignores the property, so an opted-out project also needs `!**/<Name>/**` in `stryker-config.json`.
 - **What it cannot see:** a change that weakens the tests of an untouched file, or a change to `stryker-config.json`, a shared base class or a test double. Run the full sweep for those.
+- **On a pull request** CI runs the same scope (`--matrix`). A change it cannot see, or any other non-C# or deleted file under `src/`, runs every target project instead. A weakened test of an untouched file surfaces only in the weekly full run.
 - **Why a private `TMPDIR`:** the MTP runner passes the active mutant through `$TMPDIR/stryker-mutant-<n>.txt`. Two runs on one machine overwrite each other's mutant and report false survivors.
 - **Why not `--since`:** inside a worktree it diffs the main checkout, tests 0 mutants and exits `0`. `--with-baseline` has the same flaw.
 
@@ -37,7 +38,7 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 
 ## CI
 
-- `Mutation targets` lists the projects, and an empty list fails. `Mutation — <project>` runs one matrix job per target. `Mutation` merges the reports (`scripts/mutation-report.sh merge`) and fails in its **last** step, so the summary and report still upload.
+- `Mutation targets` plans the runs (`scripts/mutation-changed.sh --matrix`): a pull request's changed files, otherwise every target, where an empty list fails. A pull request with nothing to mutate plans none and passes. `Mutation — <project>` runs one matrix job per planned project. `Mutation` merges the reports (`scripts/mutation-report.sh merge`) and fails in its **last** step, so the summary and report still upload.
 - The merge refuses inputs it cannot trust: a missing project report, a file in two reports, a test id with two names, or differing schemas or thresholds.
 - `Mutation` is not a required check itself. It blocks merges through `CI gate`.
 - A master push whose tree passed `CI gate` on its PR runs none of this (`scripts/tested-on-pr.sh`); the weekly full run sweeps instead.

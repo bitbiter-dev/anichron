@@ -198,6 +198,66 @@ out=$(run "$repo"); status=$?
 assert_contains 'only files outside the targets mean nothing to mutate' 'nothing to mutate' "$out"
 assert_eq_status 'only files outside the targets exit 0' 0 "$status"
 
+echo "matrix"
+
+plan() {
+  local repo="$1"; shift
+  (cd "$repo/src" && "$script" --base base --matrix "$@" 2>/dev/null)
+}
+
+assert_plan() {
+  local label="$1" want="$2" got="$3"
+  if [ "$got" = "$want" ]; then pass "$label"; else fail "$label" "$want" "$got"; fi
+}
+
+full='{"scope":"full","projects":[{"name":"App","project":"App.csproj","args":["--project","App.csproj"]},{"name":"Other","project":"Other.csproj","args":["--project","Other.csproj"]}]}'
+
+repo=$(fixture matrix-none)
+mkdir -p "$repo/src/Anichron.UI" && echo 'x' > "$repo/src/Anichron.UI/a.ts"
+echo 'more' >> "$repo/docs/notes.md"
+assert_plan 'no backend change plans nothing' '{"scope":"changed","projects":[]}' "$(plan "$repo")"
+
+repo=$(fixture matrix-scoped)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo 'class Gadget { int g; }' > "$repo/src/Other/Gadget.cs"
+assert_plan 'changed sources plan one scoped run per project' \
+  '{"scope":"changed","projects":[{"name":"App","project":"App.csproj","args":["--project","App.csproj","-m","**/App/Foo.cs","-m","!**/Migrations/**","-m","!**/App/Program.cs"]},{"name":"Other","project":"Other.csproj","args":["--project","Other.csproj","-m","**/Other/Gadget.cs","-m","!**/Migrations/**","-m","!**/App/Program.cs"]}]}' \
+  "$(plan "$repo")"
+
+repo=$(fixture matrix-mapped-test)
+echo 'class FooTests { int t; }' > "$repo/src/App.Tests.Unit/FooTests.cs"
+assert_contains 'a mapped test plans its source' '"-m","**/App/Foo.cs"' "$(plan "$repo")"
+
+repo=$(fixture matrix-config)
+echo '{}' > "$repo/src/stryker-config.json"
+assert_plan 'a changed Stryker config plans the full matrix' "$full" "$(plan "$repo")"
+
+repo=$(fixture matrix-csproj)
+echo 'class Foo { int x; }' > "$repo/src/App/Foo.cs"
+echo '<Project />' > "$repo/src/App/App.props"
+assert_plan 'a changed non-C# file plans the full matrix' "$full" "$(plan "$repo")"
+
+repo=$(fixture matrix-deleted)
+git -C "$repo" rm -q src/App/Sub/Bar.cs
+assert_plan 'a deleted file plans the full matrix' "$full" "$(plan "$repo")"
+
+repo=$(fixture matrix-double)
+echo 'class Helper { int h; }' > "$repo/src/App.Tests.Unit/Helper.cs"
+assert_plan 'a changed test double plans the full matrix' "$full" "$(plan "$repo")"
+
+repo=$(fixture matrix-outside)
+echo 'class Kit { int k; }' > "$repo/src/Lib/Kit.cs"
+assert_plan 'a change outside every target plans the full matrix' "$full" "$(plan "$repo")"
+out=$( (cd "$repo/src" && "$script" --base base --matrix 2>&1 >/dev/null) )
+assert_contains 'the reason goes to stderr' 'changed outside every mutation target project: Lib/Kit.cs' "$out"
+
+repo=$(fixture matrix-all)
+assert_plan '--all plans the full matrix' "$full" "$(plan "$repo" --all)"
+
+repo=$(fixture matrix-all-alone)
+out=$( (cd "$repo/src" && "$script" --base base --all 2>&1) ); status=$?
+assert_eq_status '--all without --matrix exits 2' 2 "$status"
+
 echo "runs"
 
 real_dotnet=$(command -v dotnet)

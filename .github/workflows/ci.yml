@@ -350,10 +350,11 @@ jobs:
             src/Anichron.UI/test-results/
           retention-days: 7
 
-  # One Stryker run per mutation target project, in parallel (ADR 0010): in
-  # solution mode Stryker captures the same coverage once per project. The list
-  # comes from the IsMutationTarget convention, so a new project is mutated
-  # without editing this file and none drops out silently (#306).
+  # One Stryker run per project, in parallel (ADR 0010): in solution mode
+  # Stryker captures the same coverage once per project. A pull request mutates
+  # the files it changed, unless a change is one a scoped run cannot see; then,
+  # and on master, every target project from the IsMutationTarget convention
+  # runs, so a new project is mutated without editing this file (#306).
   mutation-targets:
     name: Mutation targets
     needs: changes
@@ -363,29 +364,42 @@ jobs:
       contents: read
     outputs:
       projects: ${{ steps.list.outputs.projects }}
+      scope: ${{ steps.list.outputs.scope }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: List mutation target projects
+      - name: Plan the mutation runs
         id: list
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
         run: |
           set -o pipefail
-          projects=$(scripts/mutation-targets.sh | jq -R -s -c 'split("\n") | map(select(. != "")) | map({name: (split("/")[0]), project: (split("/")[1])})')
-          if [ "$(jq length <<<"$projects")" -eq 0 ]; then
+          if [ "$EVENT" = pull_request ]; then
+            plan=$(scripts/mutation-changed.sh --base "origin/$BASE" --matrix)
+          else
+            plan=$(scripts/mutation-changed.sh --matrix --all)
+          fi
+          projects=$(jq -c '.projects' <<<"$plan")
+          if [ "$(jq -r '.scope' <<<"$plan")" = full ] && [ "$(jq length <<<"$projects")" -eq 0 ]; then
             echo "::error::scripts/mutation-targets.sh listed no projects; nothing would be mutated"
             exit 1
           fi
           echo "projects=$projects" >> "$GITHUB_OUTPUT"
-          jq -r '.[].name' <<<"$projects"
+          echo "scope=$(jq -r '.scope' <<<"$plan")" >> "$GITHUB_OUTPUT"
+          jq -r '"### Mutation scope: \(.scope)", (.projects[] | "- \(.name)")' <<<"$plan" | tee -a "$GITHUB_STEP_SUMMARY"
 
   mutation-project:
     name: Mutation — ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: mutation-targets
+    if: needs.mutation-targets.outputs.projects != '[]'
     permissions:
       contents: read
     strategy:
@@ -409,8 +423,10 @@ jobs:
       - name: Mutation test
         timeout-minutes: 20
         env:
-          PROJECT: ${{ matrix.project }}
-        run: scripts/stryker-sweep.sh --project "$PROJECT" --output ../mutation
+          ARGS: ${{ toJSON(matrix.args) }}
+        run: |
+          mapfile -t args < <(jq -r '.[]' <<<"$ARGS")
+          scripts/stryker-sweep.sh "${args[@]}" --output ../mutation
 
       - name: Publish mutation summary
         if: always()
@@ -448,7 +464,7 @@ jobs:
           pattern: mutation-part-*
           path: parts
 
-      # Refuses unless every target project left a report, and on any
+      # Refuses unless every planned project left a report, and on any
       # inconsistency between them (scripts/mutation-report.sh, "merge").
       - name: Merge project reports
         id: merge
@@ -459,6 +475,10 @@ jobs:
           if [ -z "$PROJECTS" ]; then
             echo "::error::No mutation target list to merge against"
             exit 1
+          fi
+          if [ "$PROJECTS" = '[]' ]; then
+            echo '### Mutation: no changed backend file to mutate' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           missing=$(jq -r '.[].name' <<<"$PROJECTS" | while IFS= read -r name; do
             [ -f "parts/mutation-part-$name/mutation-report.json" ] || echo "$name"
@@ -472,14 +492,23 @@ jobs:
           mv mutation/reports/mutation-report.json.tmp mutation/reports/mutation-report.json
           cp scripts/mutation-viewer.html mutation/reports/mutation-report.html
 
+      # A full sweep that detects nothing is broken; changed files may just
+      # hold no mutants.
       - name: Publish merged score
-        if: steps.merge.outcome == 'success'
+        if: steps.merge.outcome == 'success' && needs.mutation-targets.outputs.projects != '[]'
+        env:
+          SCOPE: ${{ needs.mutation-targets.outputs.scope }}
         run: |
-          scripts/mutation-report.sh tally mutation/reports/mutation-report.json \
-            | jq -r '"### Mutation score, all projects: \(.score)% (\(.detected) of \(.total) detected)"' >> $GITHUB_STEP_SUMMARY
+          if tally=$(scripts/mutation-report.sh tally mutation/reports/mutation-report.json); then
+            jq -r '"### Mutation score, all projects: \(.score)% (\(.detected) of \(.total) detected)"' <<<"$tally" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$SCOPE" = changed ]; then
+            echo '### Mutation: the changed files hold no mutants' >> "$GITHUB_STEP_SUMMARY"
+          else
+            exit 1
+          fi
 
       - name: Upload mutation report
-        if: steps.merge.outcome == 'success'
+        if: steps.merge.outcome == 'success' && needs.mutation-targets.outputs.projects != '[]'
         uses: actions/upload-artifact@v7
         with:
           name: mutation-report
@@ -490,9 +519,13 @@ jobs:
         if: always()
         env:
           TARGETS: ${{ needs.mutation-targets.result }}
+          PLANNED: ${{ needs.mutation-targets.outputs.projects }}
           PROJECTS: ${{ needs.mutation-project.result }}
           MERGE: ${{ steps.merge.outcome }}
         run: |
+          if [ "$PROJECTS" = skipped ] && [ "$PLANNED" = '[]' ]; then
+            PROJECTS=success
+          fi
           if [ "$TARGETS" != success ] || [ "$PROJECTS" != success ] || [ "$MERGE" != success ]; then
             echo "::error::Mutation testing failed (targets: $TARGETS, projects: $PROJECTS, merge: $MERGE). See each project job's summary for its score, and the mutation-report artifact for surviving mutants."
             exit 1
