@@ -4,7 +4,7 @@ Status: accepted (decided on #536 and #537)
 
 ## Decision
 
-- **Landing:** agents land their own PRs through `scripts/land.sh`, under a lock shared by every worktree on the machine. It merges master, marks the PR ready, waits for `CI gate` and `CodeQL`, and squash-merges without the maintainer's confirmation.
+- **Landing:** agents land their own PRs through `scripts/land.sh`, under a lock shared by every worktree on the machine. It merges master, marks the PR ready before pushing, so no draft run follows the ready one, waits for `CI gate` and `CodeQL`, and squash-merges without the maintainer's confirmation.
 - **Drafts:** a draft PR runs no CI or CodeQL job. Its gate job fails under the name `Draft, no CI`, so a commit has no `CI gate` until its ready run reports one.
 - **Master:** a push whose tree passed `CI gate` on its PR only publishes images.
 - **Full runs:** the full backend and UI sweeps, the quality reports and the badges run weekly. A failed weekly run or master push opens an issue assigned to the maintainer.

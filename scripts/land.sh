@@ -4,8 +4,10 @@
 # Lands the current worktree's branch on master, one PR at a time on this
 # machine (the `land` lock, scripts/with-lock.sh):
 #   1. merges origin/master, aborting on a conflict;
-#   2. pushes while the branch's open PR is a draft (opening one as a draft
-#      when there is none), then marks it ready, which starts CI and CodeQL;
+#   2. marks the branch's open PR ready, then pushes, so CI and CodeQL run
+#      only on the pushed commit and a draft run never follows the ready one
+#      (with no PR, it pushes and opens one ready; with nothing to push, it
+#      marks the PR ready again, which starts the runs);
 #   3. waits for both runs and every required check, and squash-merges;
 #   4. removes the worktree and the local branch. GitHub deletes the remote
 #      branch on merge.
@@ -56,7 +58,7 @@ ready_run() {
 }
 
 # Waits for the ready run of <workflow> until <deadline>, past runs a newer one
-# cancelled. Sets `outcome` to its conclusion and url, `gh-failing`, or
+# cancelled (only a run created after the cancelled one replaces it). Sets `outcome` to its conclusion and url, `gh-failing`, or
 # `timed-out`. Runs in the main shell, so a signal stops it within one poll.
 await_run() {
   local workflow="$1" sha="$2" since="$3" root_job="$4" deadline="$5" id='' skip='' run newer reported='' job
@@ -65,14 +67,14 @@ await_run() {
       id=$(ready_run "$workflow" "$sha" "$since" "$root_job" "$skip") || { outcome=gh-failing; return; }
     fi
     if [ -n "$id" ]; then
-      run=$(gh_retry run view "$id" --json status,conclusion,url,jobs) || { outcome="gh-failing $id"; return; }
+      run=$(gh_retry run view "$id" --json status,conclusion,url,jobs,createdAt) || { outcome="gh-failing $id"; return; }
       while IFS= read -r job; do
         [ -n "$job" ] || continue
         grep -qxF -- "$job" <<<"$reported" || { say "${workflow%.yml}: $job"; reported="$reported"$'\n'"$job"; }
       done < <(jq -r '.jobs[] | select(.status == "completed" and .conclusion != "skipped") | "\(.name): \(.conclusion)"' <<<"$run")
       if [ "$(jq -r .status <<<"$run")" = completed ]; then
         if [ "$(jq -r .conclusion <<<"$run")" = cancelled ]; then
-          newer=$(ready_run "$workflow" "$sha" "$since" "$root_job" "$skip $id") || { outcome="gh-failing $id"; return; }
+          newer=$(ready_run "$workflow" "$sha" "$(jq -r .createdAt <<<"$run")" "$root_job" "$skip $id") || { outcome="gh-failing $id"; return; }
           if [ -n "$newer" ]; then
             skip="$skip $id"
             id="$newer"
@@ -144,24 +146,11 @@ main() {
   say "merged origin/master into $branch"
 
   deadline=$(($(date +%s) + timeout_minutes * 60))
-  local pr number url
+  local pr number url sha remote events seen
+  sha=$(git rev-parse HEAD)
+  remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1) || die "cannot read origin's $branch"
   pr=$(gh_retry pr list --head "$branch" --state open --json number,isDraft) || die 'cannot list the open PRs'
   number=$(jq -r '.[0].number // empty' <<<"$pr")
-  if [ -n "$number" ] && [ "$(jq -r '.[0].isDraft' <<<"$pr")" != true ]; then
-    gh_retry pr ready "$number" --undo >/dev/null || die "cannot make PR #$number a draft"
-  fi
-  git push --quiet --set-upstream origin "$branch" || die "cannot push $branch"
-  say "pushed $branch"
-  if [ -z "$number" ]; then
-    url=$(gh pr create --draft --fill --base master --head "$branch") || die 'cannot open a draft PR'
-    number="${url##*/}"
-    [[ "$number" =~ ^[0-9]+$ ]] || die "cannot read the PR number from '$url'"
-  fi
-
-  local sha events seen
-  sha=$(git rev-parse HEAD)
-  events=$(ready_events "$number") || die "cannot read the events of PR #$number"
-  seen=$(grep -c . <<<"$events" || true)
 
   back_to_draft() {
     trap - TERM HUP INT
@@ -169,10 +158,32 @@ main() {
     gh_retry pr ready "$number" --undo >/dev/null || say "PR #$number could not be made a draft again"
     die "not merged, PR #$number is a draft again. $1"
   }
-  trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
-  gh_retry pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
+
   since=''
-  ready_since "$number" "$seen" "$deadline" || back_to_draft 'Its ready event could not be read.'
+  if [ -z "$number" ]; then
+    git push --quiet --set-upstream origin "$branch" || die "cannot push $branch"
+    say "pushed $branch"
+    url=$(gh pr create --fill --base master --head "$branch") || die 'cannot open a PR'
+    number="${url##*/}"
+    [[ "$number" =~ ^[0-9]+$ ]] || die "cannot read the PR number from '$url'"
+    trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
+  elif [ "$remote" != "$sha" ]; then
+    trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
+    if [ "$(jq -r '.[0].isDraft' <<<"$pr")" = true ]; then
+      gh_retry pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
+    fi
+    git push --quiet --set-upstream origin "$branch" || back_to_draft "Pushing $branch failed."
+    say "pushed $branch"
+  else
+    events=$(ready_events "$number") || die "cannot read the events of PR #$number"
+    seen=$(grep -c . <<<"$events" || true)
+    trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
+    if [ "$(jq -r '.[0].isDraft' <<<"$pr")" != true ]; then
+      gh_retry pr ready "$number" --undo >/dev/null || back_to_draft "Making it a draft failed."
+    fi
+    gh_retry pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
+    ready_since "$number" "$seen" "$deadline" || back_to_draft 'Its ready event could not be read.'
+  fi
   say "PR #$number is ready at $sha; waiting for CI and CodeQL"
 
   local ci codeql state

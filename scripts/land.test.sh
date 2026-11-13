@@ -19,11 +19,12 @@ echo "$*" >>"$GH_STATE/calls"
 case "$1 $2" in
   'pr list') [ -f "$GH_STATE/pr" ] && jq -c '[select(.state == "OPEN")]' "$GH_STATE/pr" || echo '[]' ;;
   'pr create')
-    echo '{"number":7,"state":"OPEN","isDraft":true}' >"$GH_STATE/pr"
+    echo '{"number":7,"state":"OPEN","isDraft":false}' >"$GH_STATE/pr"
     echo 'https://github.com/bitbiter-dev/anichron/pull/7' ;;
   'pr ready')
     draft=false
     [ "${4:-}" = --undo ] && draft=true
+    $draft || echo "branch at ready: $(git ls-remote origin refs/heads/feature | cut -f1)" >>"$GH_STATE/pushed-at-ready"
     $draft || [ -f "$GH_STATE/no-ready-event" ] || touch "$GH_STATE/readied"
     jq -c --argjson d "$draft" '.isDraft = $d' "$GH_STATE/pr" >"$GH_STATE/pr.new" && mv "$GH_STATE/pr.new" "$GH_STATE/pr" ;;
   'api --paginate')
@@ -48,7 +49,7 @@ esac
 EOF
 chmod +x "$work/bin/gh"
 
-run_json() { printf '{"status":"completed","conclusion":"%s","url":"https://ci/%s","jobs":[{"name":"%s","status":"completed","conclusion":"%s"}]}\n' "$2" "$1" "$3" "$4"; }
+run_json() { printf '{"status":"completed","conclusion":"%s","url":"https://ci/%s","createdAt":"%s","jobs":[{"name":"%s","status":"completed","conclusion":"%s"}]}\n' "$2" "$1" "$5" "$3" "$4"; }
 
 git_as_mira() { git -c user.name=mira -c user.email=mira@example.org "$@"; }
 
@@ -79,12 +80,18 @@ setup() {
   [ "$1" = none ] || echo "$1" >"$work/state/pr"
   printf '[{"databaseId":1,"createdAt":"2026-11-13T09:59:00Z"},{"databaseId":2,"createdAt":"2026-11-13T10:00:05Z"},{"databaseId":3,"createdAt":"2026-11-13T10:00:03Z"}]\n' >"$work/state/runs-ci.yml"
   printf '[{"databaseId":4,"createdAt":"2026-11-13T10:00:04Z"}]\n' >"$work/state/runs-codeql.yml"
-  run_json 1 success Changes success >"$work/state/run-1"
-  run_json 2 failure Changes skipped >"$work/state/run-2"
-  run_json 3 "$2" Changes success >"$work/state/run-3"
-  run_json 4 success 'Analyze (C#)' success >"$work/state/run-4"
+  run_json 1 success Changes success 2026-11-13T09:59:00Z >"$work/state/run-1"
+  run_json 2 failure Changes skipped 2026-11-13T10:00:05Z >"$work/state/run-2"
+  run_json 3 "$2" Changes success 2026-11-13T10:00:03Z >"$work/state/run-3"
+  run_json 4 success 'Analyze (C#)' success 2026-11-13T10:00:04Z >"$work/state/run-4"
   echo '[{"name":"CI gate","bucket":"pass"},{"name":"CodeQL","bucket":"pass"}]' >"$work/state/checks"
   echo CLEAN >"$work/state/merge-state"
+}
+
+# The branch already on origin with master merged in, so land.sh has nothing to push.
+pushed_already() {
+  git_as_mira -C "$work/wt" pull -q --no-rebase --no-edit origin master 2>/dev/null
+  git_as_mira -C "$work/wt" push -q origin HEAD:feature 2>/dev/null
 }
 
 land() {
@@ -103,8 +110,8 @@ check 'a green PR is merged' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr merg
 merged=$(git -C "$work/origin.git" rev-parse feature)
 check 'master is merged in before the push' "git -C '$work/origin.git' merge-base --is-ancestor master feature"
 check 'the merge names the pushed commit' "[[ \"\$(calls)\" == *\"--match-head-commit $merged\"* ]]" "$(calls)"
-check 'a ready PR goes back to draft before the push' "[[ \"\$(calls)\" == *'pr ready 7 --undo'*'pr ready 7'* ]]" "$(calls)"
-check 'the ready run is the one waited for, not the draft run or an older one' "[[ \"\$(calls)\" == *'run view 3 --json status'* ]] && [[ \"\$(calls)\" != *'run view 1 --json status'* ]]" "$(calls)"
+check 'a ready PR stays ready and is pushed' "[[ \"\$(calls)\" != *'pr ready'* ]]" "$(calls)"
+check 'the newest run of the pushed commit is waited for, not a draft run or an older one' "[[ \"\$(calls)\" == *'run view 3 --json status'* ]] && [[ \"\$(calls)\" != *'run view 1 --json status'* ]]" "$(calls)"
 check 'the worktree is removed, ignored build output included' "[ ! -d '$work/wt' ]"
 check 'the local branch is deleted' "! git -C '$work/main' rev-parse --verify --quiet refs/heads/feature >/dev/null"
 check 'the remote branch is left to GitHub' "[ -n \"\$(git -C '$work/origin.git' branch --list feature)\" ] && [[ \"\$(calls)\" != *delete* ]]" "$(calls)"
@@ -113,10 +120,11 @@ check 'the land lock is released' "[ ! -e '$work/main/.git/anichron-locks/land' 
 
 setup none success
 out=$(land); status=$?
-check 'with no PR, one is opened as a draft, then marked ready' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr create --draft --fill --base master --head feature'*'pr ready 7'* ]]" "exit $status: $out"
+check 'with no PR, the branch is pushed and one opened ready' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr create --fill --base master --head feature'* ]] && [[ \"\$(calls)\" != *'pr ready'* ]]" "exit $status: $out"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' failure
 out=$(land); status=$?
+check 'a draft PR is marked ready before the push' "[ \"\$(cat '$work/state/pushed-at-ready')\" = 'branch at ready: ' ]" "$(cat "$work/state/pushed-at-ready" 2>/dev/null)"
 check 'a red CI run is not merged' "[ $status -eq 1 ] && [[ \"\$(calls)\" != *'pr merge'* ]]" "exit $status: $out"
 check 'its PR is a draft again' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
 check 'the failure names the run' "[[ \"\$out\" == *'CI: failure https://ci/3'* ]]" "$out"
@@ -137,11 +145,11 @@ check 'the conflicted merge is aborted' "[ \"\$(git -C '$work/wt' rev-parse HEAD
 
 setup '{"number":5,"state":"MERGED","isDraft":false}' success
 out=$(land); status=$?
-check "a merged PR of a reused branch name is ignored, and a new draft opened" "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr create --draft'* ]]" "exit $status: $out"
+check "a merged PR of a reused branch name is ignored, and a new one opened" "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr create --fill'* ]]" "exit $status: $out"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' cancelled
 printf '[{"databaseId":3,"createdAt":"2026-11-13T10:00:03Z"},{"databaseId":5,"createdAt":"2026-11-13T10:00:06Z"}]\n' >"$work/state/runs-ci.yml.later"
-run_json 5 success Changes success >"$work/state/run-5"
+run_json 5 success Changes success 2026-11-13T10:00:06Z >"$work/state/run-5"
 out=$(land "$work/wt" 1); status=$?
 check 'a run cancelled by a newer ready run gives way to it' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'run view 5 --json status'* ]]" "exit $status: $out"
 
@@ -149,7 +157,13 @@ setup '{"number":7,"state":"OPEN","isDraft":true}' cancelled
 out=$(land); status=$?
 check 'a cancelled run with no newer one is not merged' "[ $status -eq 1 ] && [[ \"\$(calls)\" != *'pr merge'* ]]" "exit $status: $out"
 
+setup '{"number":7,"state":"OPEN","isDraft":false}' success
+pushed_already
+out=$(land); status=$?
+check 'with nothing to push, the PR is made a draft and ready again, and that ready run waited for' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr ready 7 --undo'*'pr ready 7'*'run view 3 --json status'* ]]" "exit $status: $out"
+
 setup '{"number":7,"state":"OPEN","isDraft":true}' success
+pushed_already
 touch "$work/state/no-ready-event"
 out=$(land); status=$?
 check "a ready event from an earlier attempt is not taken for this one" "[ $status -eq 1 ] && [[ \"\$out\" == *'ready_for_review event never appeared'* ]] && [[ \"\$(calls)\" != *'run list'* ]]" "exit $status: $out"
