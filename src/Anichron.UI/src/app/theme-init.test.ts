@@ -6,11 +6,8 @@ const perScheme = [
   '(prefers-color-scheme: dark): #171513',
 ];
 
-let runs = 0;
-
 async function start() {
-  runs++;
-  await import(`./theme-init?run=${String(runs)}`);
+  await import(`./theme-init?run=${crypto.randomUUID()}`);
 }
 
 describe('the theme start-up script', () => {

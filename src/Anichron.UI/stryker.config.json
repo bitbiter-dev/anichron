@@ -3,6 +3,7 @@
   "packageManager": "pnpm",
   "testRunner": "vitest",
   "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "related": false },
   "mutate": [
     "src/**/*.ts",
     "src/app/router.tsx",
