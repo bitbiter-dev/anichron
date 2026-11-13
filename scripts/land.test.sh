@@ -39,6 +39,7 @@ case "$1 $2" in
         exit 1
       fi
     fi
+    if [ -f "$GH_STATE/no-runs-on-$6" ]; then echo '[]'; exit 0; fi
     if [ -f "$GH_STATE/runs-$4.later" ] && [ -f "$GH_STATE/listed-$4" ]; then cat "$GH_STATE/runs-$4.later"; else touch "$GH_STATE/listed-$4"; cat "$GH_STATE/runs-$4"; fi ;;
   'run view') cat "$GH_STATE/run-$3" ;;
   'pr checks') cat "$GH_STATE/checks" ;;
@@ -70,6 +71,8 @@ setup() {
   git_as_mira -C "$work/wt" add -A
   git_as_mira -C "$work/wt" commit -q -m feature
   mkdir -p "$work/wt/bin" && echo built >"$work/wt/bin/out"
+  [ "${3:-}" = conflict ] || git_as_mira -C "$work/wt" push -q origin feature 2>/dev/null
+  head0=$(git -C "$work/wt" rev-parse HEAD)
 
   git clone -q "$work/origin.git" "$work/other" 2>/dev/null
   if [ "${3:-}" = conflict ]; then printf 'theirs\n' >"$work/other/shared.txt"; else printf 'master\n' >"$work/other/master.txt"; fi
@@ -124,7 +127,8 @@ check 'with no PR, the branch is pushed and one opened ready' "[ $status -eq 0 ]
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' failure
 out=$(land); status=$?
-check 'a draft PR is marked ready before the push' "[ \"\$(cat '$work/state/pushed-at-ready')\" = 'branch at ready: ' ]" "$(cat "$work/state/pushed-at-ready" 2>/dev/null)"
+check 'a draft PR is marked ready before the push' "[ \"\$(cat '$work/state/pushed-at-ready')\" = 'branch at ready: $head0' ]" "$(cat "$work/state/pushed-at-ready" 2>/dev/null)"
+check 'the push waits for the ready runs on the old head' "[[ \"\$(calls)\" == *'pr ready 7'*'run list --workflow ci.yml --commit $head0'*'run list --workflow codeql.yml --commit $head0'* ]]" "$(calls)"
 check 'a red CI run is not merged' "[ $status -eq 1 ] && [[ \"\$(calls)\" != *'pr merge'* ]]" "exit $status: $out"
 check 'its PR is a draft again' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
 check 'the failure names the run' "[[ \"\$out\" == *'CI: failure https://ci/3'* ]]" "$out"
@@ -147,13 +151,13 @@ setup '{"number":5,"state":"MERGED","isDraft":false}' success
 out=$(land); status=$?
 check "a merged PR of a reused branch name is ignored, and a new one opened" "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr create --fill'* ]]" "exit $status: $out"
 
-setup '{"number":7,"state":"OPEN","isDraft":true}' cancelled
+setup '{"number":7,"state":"OPEN","isDraft":false}' cancelled
 printf '[{"databaseId":3,"createdAt":"2026-11-13T10:00:03Z"},{"databaseId":5,"createdAt":"2026-11-13T10:00:06Z"}]\n' >"$work/state/runs-ci.yml.later"
 run_json 5 success Changes success 2026-11-13T10:00:06Z >"$work/state/run-5"
 out=$(land "$work/wt" 1); status=$?
 check 'a run cancelled by a newer ready run gives way to it' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'run view 5 --json status'* ]]" "exit $status: $out"
 
-setup '{"number":7,"state":"OPEN","isDraft":true}' cancelled
+setup '{"number":7,"state":"OPEN","isDraft":false}' cancelled
 out=$(land); status=$?
 check 'a cancelled run with no newer one is not merged' "[ $status -eq 1 ] && [[ \"\$(calls)\" != *'pr merge'* ]]" "exit $status: $out"
 
@@ -169,12 +173,17 @@ out=$(land); status=$?
 check "a ready event from an earlier attempt is not taken for this one" "[ $status -eq 1 ] && [[ \"\$out\" == *'ready_for_review event never appeared'* ]] && [[ \"\$(calls)\" != *'run list'* ]]" "exit $status: $out"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/no-runs-on-$head0"
+out=$(land); status=$?
+check 'ready runs that never start on the old head stop it before the push' "[ $status -eq 1 ] && [[ \"\$out\" == *'never started'* ]] && [ \"\$(git -C '$work/origin.git' rev-parse feature)\" = '$head0' ]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":false}' success
 touch "$work/state/run-list-fails"
 out=$(land); status=$?
 check 'a gh call still failing at the timeout stops with that reason' "[ $status -eq 1 ] && [[ \"\$out\" == *'gh run list still failing at the timeout'* ]] && [[ \"\$out\" == *'CI: gh-failing'* ]]" "exit $status: $out"
 check 'its PR is a draft again too' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
 
-setup '{"number":7,"state":"OPEN","isDraft":true}' success
+setup '{"number":7,"state":"OPEN","isDraft":false}' success
 echo 3 >"$work/state/run-list-fails"
 out=$(land "$work/wt" 1); status=$?
 check 'an outage that ends before the timeout is ridden out, and the PR merged' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
