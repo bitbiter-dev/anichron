@@ -30,7 +30,14 @@ case "$1 $2" in
     printf '[{"event":"ready_for_review","created_at":"2026-11-12T09:00:00Z"},{"event":"labeled","created_at":"2026-11-13T09:59:00Z"}]\n'
     [ ! -f "$GH_STATE/readied" ] || printf '[{"event":"ready_for_review","created_at":"2026-11-13T10:00:00Z"}]\n' ;;
   'run list')
-    [ ! -f "$GH_STATE/run-list-fails" ] || { echo 'error connecting to api.github.com' >&2; exit 1; }
+    if [ -f "$GH_STATE/run-list-fails" ]; then
+      left=$(cat "$GH_STATE/run-list-fails")
+      if [ -z "$left" ] || [ "$left" -gt 0 ]; then
+        [ -z "$left" ] || echo $((left - 1)) >"$GH_STATE/run-list-fails"
+        echo 'error connecting to api.github.com' >&2
+        exit 1
+      fi
+    fi
     if [ -f "$GH_STATE/runs-$4.later" ] && [ -f "$GH_STATE/listed-$4" ]; then cat "$GH_STATE/runs-$4.later"; else touch "$GH_STATE/listed-$4"; cat "$GH_STATE/runs-$4"; fi ;;
   'run view') cat "$GH_STATE/run-$3" ;;
   'pr checks') cat "$GH_STATE/checks" ;;
@@ -149,9 +156,15 @@ check "a ready event from an earlier attempt is not taken for this one" "[ $stat
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success
 touch "$work/state/run-list-fails"
-out=$(LAND_GH_ATTEMPTS=3 land "$work/wt" 1); status=$?
-check 'a gh call that keeps failing stops with that reason, not a timeout' "[ $status -eq 1 ] && [[ \"\$out\" == *'gh run list failed 3 times in a row'* ]] && [[ \"\$out\" == *'CI: gh-failing'* ]]" "exit $status: $out"
+out=$(land); status=$?
+check 'a gh call still failing at the timeout stops with that reason' "[ $status -eq 1 ] && [[ \"\$out\" == *'gh run list still failing at the timeout'* ]] && [[ \"\$out\" == *'CI: gh-failing'* ]]" "exit $status: $out"
 check 'its PR is a draft again too' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+echo 3 >"$work/state/run-list-fails"
+out=$(land "$work/wt" 1); status=$?
+check 'an outage that ends before the timeout is ridden out, and the PR merged' "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
+check 'the outage and its end are announced' "[[ \"\$out\" == *'land: gh run list failed; trying again every 0s'*'land: gh run list answers again'* ]]" "$out"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success
 echo '[{"name":"CI gate","bucket":"pass"},{"name":"CodeQL","bucket":"fail"}]' >"$work/state/checks"

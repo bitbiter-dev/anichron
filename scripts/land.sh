@@ -10,11 +10,11 @@
 #   4. removes the worktree and the local branch. GitHub deletes the remote
 #      branch on merge.
 # Every message starts with `land: `: one line per phase and per finished CI or
-# CodeQL job. A `gh` call that keeps failing, a timeout, a signal, or master
-# moving during CI stops it with the reason. LAND_POLL_SECONDS is the wait
-# between checks (default 30), LAND_GH_ATTEMPTS how often a failing `gh` call is
-# tried (default 20, ten minutes at the default wait), LAND_TIMEOUT_MINUTES the
-# longest wait for the runs and checks together (default 120).
+# CodeQL job. A failing `gh` call (GitHub unreachable) is retried until it
+# answers, and the state read again then; only a failed run or check, the
+# timeout, a signal, or master moving during CI stops it, with the reason.
+# LAND_POLL_SECONDS is the wait between checks (default 30), LAND_TIMEOUT_MINUTES
+# the longest wait for everything, outages included (default 120).
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
 # a draft again if it had been marked ready; 2 usage; 3 merged, but cleaning up
@@ -23,20 +23,21 @@ set -euo pipefail
 
 poll="${LAND_POLL_SECONDS:-30}"
 timeout_minutes="${LAND_TIMEOUT_MINUTES:-120}"
-attempts="${LAND_GH_ATTEMPTS:-20}"
 
 say() { printf 'land: %s\n' "$*" >&2; }
 die() { say "$1"; exit "${2:-1}"; }
 
-# Runs gh, retrying a failed call up to $attempts times.
+# Runs gh until it succeeds or `deadline` passes, saying when it stops and
+# starts answering.
 gh_retry() {
-  local i
-  for ((i = 1; i <= attempts; i++)); do
-    gh "$@" && return
-    [ "$i" -eq "$attempts" ] || sleep "$poll"
+  local failed=''
+  until gh "$@"; do
+    [ "$(date +%s)" -lt "$deadline" ] || { say "gh $1 $2 still failing at the timeout"; return 1; }
+    [ -n "$failed" ] || say "gh $1 $2 failed; trying again every ${poll}s"
+    failed=1
+    sleep "$poll"
   done
-  say "gh $1 $2 failed $attempts times in a row"
-  return 1
+  [ -z "$failed" ] || say "gh $1 $2 answers again"
 }
 
 # The newest run of <workflow> on <sha> created since <since>, other than the
@@ -142,6 +143,7 @@ main() {
   fi
   say "merged origin/master into $branch"
 
+  deadline=$(($(date +%s) + timeout_minutes * 60))
   local pr number url
   pr=$(gh_retry pr list --head "$branch" --state open --json number,isDraft) || die 'cannot list the open PRs'
   number=$(jq -r '.[0].number // empty' <<<"$pr")
@@ -156,14 +158,14 @@ main() {
     [[ "$number" =~ ^[0-9]+$ ]] || die "cannot read the PR number from '$url'"
   fi
 
-  local sha deadline events seen
+  local sha events seen
   sha=$(git rev-parse HEAD)
-  deadline=$(($(date +%s) + timeout_minutes * 60))
   events=$(ready_events "$number") || die "cannot read the events of PR #$number"
   seen=$(grep -c . <<<"$events" || true)
 
   back_to_draft() {
     trap - TERM HUP INT
+    deadline=$(($(date +%s) + 600))
     gh_retry pr ready "$number" --undo >/dev/null || say "PR #$number could not be made a draft again"
     die "not merged, PR #$number is a draft again. $1"
   }
