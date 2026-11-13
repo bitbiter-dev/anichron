@@ -149,8 +149,8 @@ check "a ready event from an earlier attempt is not taken for this one" "[ $stat
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success
 touch "$work/state/run-list-fails"
-out=$(land "$work/wt" 1); status=$?
-check 'a gh call that keeps failing stops with that reason, not a timeout' "[ $status -eq 1 ] && [[ \"\$out\" == *'gh run list failed 5 times in a row'* ]] && [[ \"\$out\" == *'CI: gh-failing'* ]]" "exit $status: $out"
+out=$(LAND_GH_ATTEMPTS=3 land "$work/wt" 1); status=$?
+check 'a gh call that keeps failing stops with that reason, not a timeout' "[ $status -eq 1 ] && [[ \"\$out\" == *'gh run list failed 3 times in a row'* ]] && [[ \"\$out\" == *'CI: gh-failing'* ]]" "exit $status: $out"
 check 'its PR is a draft again too' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success

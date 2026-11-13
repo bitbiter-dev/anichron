@@ -12,8 +12,9 @@
 # Every message starts with `land: `: one line per phase and per finished CI or
 # CodeQL job. A `gh` call that keeps failing, a timeout, a signal, or master
 # moving during CI stops it with the reason. LAND_POLL_SECONDS is the wait
-# between checks (default 30), LAND_TIMEOUT_MINUTES the longest wait for the
-# runs and checks together (default 120).
+# between checks (default 30), LAND_GH_ATTEMPTS how often a failing `gh` call is
+# tried (default 20, ten minutes at the default wait), LAND_TIMEOUT_MINUTES the
+# longest wait for the runs and checks together (default 120).
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
 # a draft again if it had been marked ready; 2 usage; 3 merged, but cleaning up
@@ -22,7 +23,7 @@ set -euo pipefail
 
 poll="${LAND_POLL_SECONDS:-30}"
 timeout_minutes="${LAND_TIMEOUT_MINUTES:-120}"
-attempts=5
+attempts="${LAND_GH_ATTEMPTS:-20}"
 
 say() { printf 'land: %s\n' "$*" >&2; }
 die() { say "$1"; exit "${2:-1}"; }
