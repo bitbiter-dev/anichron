@@ -3,6 +3,7 @@
   "packageManager": "pnpm",
   "testRunner": "vitest",
   "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "related": false },
   "mutate": [
     "src/**/*.ts",
     "src/app/router.tsx",
@@ -14,6 +15,8 @@
   ],
   "thresholds": { "high": 100, "low": 100, "break": 100 },
   "timeoutMS": 60000,
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
   "reporters": ["clear-text", "progress", "html", "json"],
   "htmlReporter": { "fileName": "reports/mutation/mutation.html" },
   "jsonReporter": { "fileName": "reports/mutation/mutation.json" },

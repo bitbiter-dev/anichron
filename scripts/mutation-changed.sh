@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/mutation-changed.sh [--base <ref>] [--print] [source-file ...]
+# Usage: scripts/mutation-changed.sh [--base <ref>] [--print | --matrix [--all]] [source-file ...]
 #
 # Runs Stryker over only the C# files changed since the merge-base with <ref>
 # (default origin/master): committed, staged, unstaged and untracked. A changed
@@ -20,6 +20,15 @@
 # status is the worst of them. Files outside every target project are named
 # and skipped.
 #
+# --matrix prints CI's plan instead, as JSON: {"scope", "projects": [{"name",
+# "project", "args"}]}, one entry per Stryker run, its args for
+# scripts/stryker-sweep.sh. The scope is "changed", possibly with no projects,
+# unless a change is one a scoped run cannot see: a changed file under src/
+# (outside the UI) that is not C#, a deleted one, a test that names no single
+# source file, or a file in no mutation target project (Anichron.Testing, a
+# test double, a test base class). Then, and with --all, the scope is "full":
+# every target project, whole.
+#
 # Unit tests and Stryker run under the heavy lock (scripts/with-lock.sh).
 # A local pre-check only; the full sweep in CI is the authority. See
 # docs/mutation-testing.md, "The scoped local run".
@@ -27,13 +36,17 @@ set -euo pipefail
 
 base='origin/master'
 print=false
+matrix=false
+all=false
 explicit=()
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --matrix) matrix=true; shift ;;
+    --all) all=true; shift ;;
+    -h|--help) sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) explicit+=("${1#src/}"); shift ;;
   esac
@@ -43,6 +56,36 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root=$(git rev-parse --show-toplevel)
 src="$root/src"
 cd "$root"
+
+if $all && ! $matrix; then
+  echo '--all needs --matrix' >&2
+  exit 2
+fi
+
+# Notes go to stderr under --matrix, whose stdout is the plan.
+say() {
+  if $matrix; then echo "$@" >&2; else echo "$@"; fi
+}
+
+# One planned run: the csproj path in $1, its Stryker args on stdin, one per line.
+plan_entry() {
+  jq -R -s -c --arg csproj "$(basename "$1")" \
+    '{name: ($csproj | rtrimstr(".csproj")), project: $csproj, args: split("\n")[:-1]}'
+}
+
+full_plan() {
+  local projects project
+  [ -z "${1:-}" ] || echo "running every mutation target project: $1" >&2
+  projects=$("$here/mutation-targets.sh" "$src") || exit 2
+  while IFS= read -r project; do
+    [ -n "$project" ] && printf '%s\n' --project "$(basename "$project")" | plan_entry "$project"
+  done <<<"$projects" | jq -s -c '{scope: "full", projects: .}'
+  exit 0
+}
+
+if $all; then
+  full_plan
+fi
 
 if ! merge_base=$(git merge-base "$base" HEAD 2>/dev/null); then
   echo "cannot find a merge-base with '$base'; fetch it or pass --base <ref>" >&2
@@ -55,6 +98,16 @@ changed=$(
     git ls-files --others --exclude-standard -- 'src/*.cs'
   } | sort -u
 )
+
+if $matrix; then
+  unseen=$(
+    {
+      git diff --name-only "$merge_base" -- src ':(exclude)src/Anichron.UI'
+      git ls-files --others --exclude-standard -- src ':(exclude)src/Anichron.UI'
+    } | sort -u | comm -23 - <(echo "$changed")
+  )
+  [ -z "$unseen" ] || full_plan "changed beyond what a scoped run sees: $(tr '\n' ' ' <<<"$unseen" | sed 's/ $//')"
+fi
 
 targets=()
 unmapped=()
@@ -113,6 +166,10 @@ for file in "${explicit[@]+"${explicit[@]}"}"; do
   targets+=("$file")
 done
 
+if [ "${#unmapped[@]}" -gt 0 ] && $matrix; then
+  full_plan "changed test files that name no single source file: ${unmapped[*]}"
+fi
+
 if [ "${#unmapped[@]}" -gt 0 ]; then
   echo 'changed test files that name no single source file:' >&2
   printf '  %s\n' "${unmapped[@]}" >&2
@@ -124,12 +181,17 @@ if [ "${#unmapped[@]}" -gt 0 ]; then
 fi
 
 if [ "${#outside_tests[@]}" -gt 0 ]; then
-  echo "not mutated (tests of no production project): ${outside_tests[*]}"
+  say "not mutated (tests of no production project): ${outside_tests[*]}"
 fi
 
-if [ "${#targets[@]}" -eq 0 ]; then
-  echo "nothing changed under src/ since $base; nothing to mutate"
+empty_plan() {
+  say "$1"
+  if $matrix; then echo '{"scope":"changed","projects":[]}'; fi
   exit 0
+}
+
+if [ "${#targets[@]}" -eq 0 ]; then
+  empty_plan "nothing changed under src/ since $base; nothing to mutate"
 fi
 
 projects=$("$here/mutation-targets.sh" "$src") || exit 2
@@ -151,12 +213,12 @@ while IFS= read -r project; do
 done <<<"$projects"
 
 if [ -n "$outside" ]; then
+  $matrix && full_plan "changed outside every mutation target project: $(tr '\n' ' ' <<<"$outside" | sed 's/ $//')"
   echo "not mutated (in no mutation target project): $(tr '\n' ' ' <<<"$outside" | sed 's/ $//')"
 fi
 
 if [ "${#runs[@]}" -eq 0 ]; then
-  echo 'no changed file is in a mutation target project; nothing to mutate'
-  exit 0
+  empty_plan 'no changed file is in a mutation target project; nothing to mutate'
 fi
 
 args_for() {
@@ -172,6 +234,13 @@ if $print; then
   for project in "${runs[@]}"; do
     args_for "$project"
   done
+  exit 0
+fi
+
+if $matrix; then
+  for project in "${runs[@]}"; do
+    args_for "$project" | plan_entry "$project"
+  done | jq -s -c '{scope: "changed", projects: .}'
   exit 0
 fi
 

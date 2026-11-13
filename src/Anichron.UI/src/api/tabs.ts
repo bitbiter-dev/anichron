@@ -6,9 +6,8 @@ export interface Tabs {
   listen(handler: (message: TabMessage) => void): () => void;
 }
 
-const name = 'anichron-session';
-
 export function browserTabs(): Tabs {
+  const name = 'anichron-session';
   const channel = new BroadcastChannel(name);
   return {
     exclusively: (task) => navigator.locks.request(name, task),

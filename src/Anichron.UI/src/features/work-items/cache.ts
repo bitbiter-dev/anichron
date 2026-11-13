@@ -4,21 +4,30 @@ import type { WorkItem, WorkItemPage } from '../../api/work-items';
 import { workItemsKey } from './route';
 
 const pagesKey = [...workItemsKey, 'page'] as const;
-const pageKey = (page: number) => [...pagesKey, page] as const;
-const itemKey = (id: string) => [...workItemsKey, 'item', id] as const;
+function pageKey(page: number) {
+  return [...pagesKey, page] as const;
+}
+function itemKey(id: string) {
+  return [...workItemsKey, 'item', id] as const;
+}
 
-const instant = (text: string) => text.slice(0, -1);
+function instant(text: string) {
+  return text.slice(0, -1);
+}
 
-const updatedSince = (item: WorkItem, other: WorkItem) =>
-  instant(item.updatedAt) >= instant(other.updatedAt);
+function updatedSince(item: WorkItem, other: WorkItem) {
+  return instant(item.updatedAt) >= instant(other.updatedAt);
+}
 
-const requestedAfter = (item: WorkItem, other: WorkItem) =>
-  instant(item.requestedAt) > instant(other.requestedAt);
+function requestedAfter(item: WorkItem, other: WorkItem) {
+  return instant(item.requestedAt) > instant(other.requestedAt);
+}
 
-const pagesOf = (queryClient: QueryClient) =>
-  queryClient
+function pagesOf(queryClient: QueryClient) {
+  return queryClient
     .getQueriesData<WorkItemPage>({ queryKey: pagesKey })
     .flatMap(([, page]) => page ?? []);
+}
 
 function freshest(queryClient: QueryClient, fetched: WorkItem) {
   return [
@@ -56,8 +65,8 @@ export function merge(queryClient: QueryClient, item: WorkItem) {
     queryClient.setQueryData<WorkItemPage>(pageKey(1), (page) => page && inserted(page, item));
 }
 
-export const pageQuery = (api: ApiClient, queryClient: QueryClient, page: number) =>
-  queryOptions({
+export function pageQuery(api: ApiClient, queryClient: QueryClient, page: number) {
+  return queryOptions({
     queryKey: pageKey(page),
     queryFn: async () => {
       const fetched = await api.workItems.list(page);
@@ -66,9 +75,10 @@ export const pageQuery = (api: ApiClient, queryClient: QueryClient, page: number
     staleTime: Infinity,
     refetchOnMount: page > 1 && 'always',
   });
+}
 
-export const itemQuery = (api: ApiClient, queryClient: QueryClient, id: string) =>
-  queryOptions({
+export function itemQuery(api: ApiClient, queryClient: QueryClient, id: string) {
+  return queryOptions({
     queryKey: itemKey(id),
     queryFn: async () => {
       const fetched = await api.workItems.get(id);
@@ -76,3 +86,4 @@ export const itemQuery = (api: ApiClient, queryClient: QueryClient, id: string) 
     },
     staleTime: Infinity,
   });
+}

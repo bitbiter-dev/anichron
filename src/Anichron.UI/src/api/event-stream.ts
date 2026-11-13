@@ -12,14 +12,17 @@ export interface Received<T> {
 const firstBackoff = 1000;
 const maxBackoff = 30_000;
 
-const backoff = (failures: number) => Math.min(firstBackoff * 2 ** (failures - 1), maxBackoff);
+function backoff(failures: number) {
+  return Math.min(firstBackoff * 2 ** (failures - 1), maxBackoff);
+}
 
-const pause = (milliseconds: number, signal: AbortSignal) =>
-  new Promise<boolean>((resolve) => {
+function pause(milliseconds: number, signal: AbortSignal) {
+  return new Promise<boolean>((resolve) => {
     setTimeout(() => {
       resolve(!signal.aborted);
     }, milliseconds);
   });
+}
 
 export async function follow(
   open: Open,
