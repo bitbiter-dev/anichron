@@ -17,6 +17,8 @@
   "story": {
     "title": "Memories of {{date, datetime}}",
     "close": "Close",
+    "pause": "Pause",
+    "play": "Play",
     "previous": "Previous",
     "next": "Next",
     "star": "Star",
@@ -24,7 +26,11 @@
     "hide": "Hide",
     "hidden": "Memory hidden",
     "undo": "Undo",
-    "notSaved": "Couldn't save"
+    "notSaved": "Couldn't save",
+    "memory": "{{kind}}, {{year}}, {{place}} of {{count}}",
+    "photo": "Photo",
+    "video": "Video",
+    "livePhoto": "Live Photo"
   },
   "login": {
     "title": "Sign in to Anichron",
@@ -56,7 +62,9 @@
       "dark": "Dark"
     },
     "account": "Account",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "administration": "Administration",
+    "workItems": "Work queue"
   },
   "startFailed": {
     "unreachable": {
@@ -75,5 +83,54 @@
     "title": "Page not found",
     "body": "There is nothing at this address.",
     "home": "Go to On This Day"
+  },
+  "workItems": {
+    "title": "Work queue",
+    "item": "Work item",
+    "kinds": {
+      "TokenCleanup": "Token cleanup",
+      "WorkItemRetention": "Work item retention",
+      "Crawl": "Crawl",
+      "BurstDetection": "Burst detection",
+      "ProxySweep": "Proxy sweep",
+      "ProxyDeletion": "Proxy deletion"
+    },
+    "statuses": {
+      "Queued": "Queued",
+      "Running": "Running",
+      "Succeeded": "Succeeded",
+      "Failed": "Failed",
+      "Cancelled": "Cancelled"
+    },
+    "cancelRequested": "Cancelling",
+    "progress": "Progress",
+    "progressOf": "{{done}} of {{total}}",
+    "requested": "Requested {{at, datetime}}",
+    "cancel": "Cancel",
+    "cancelItem": "Cancel {{kind}}, requested {{at, datetime}}",
+    "reconnecting": "Reconnecting…",
+    "empty": "Nothing in the queue.",
+    "failed": "Couldn't load the work queue.",
+    "unreachable": "Can't reach Anichron. Check your connection.",
+    "retry": "Try again",
+    "pages": "Pages",
+    "newer": "Newer",
+    "older": "Older",
+    "notFound": "There is no such work item.",
+    "at": "{{at, datetime}}",
+    "fields": {
+      "status": "Status",
+      "requestedAt": "Requested",
+      "startedAt": "Started",
+      "finishedAt": "Finished",
+      "updatedAt": "Updated",
+      "cancelRequestedAt": "Cancel requested",
+      "attempt": "Attempt",
+      "stalls": "Stalls",
+      "result": "Result",
+      "partialResult": "Result so far",
+      "error": "Error"
+    },
+    "cancelFailed": "Couldn't cancel it. Try again."
   }
 }

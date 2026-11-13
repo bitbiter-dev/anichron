@@ -5,7 +5,9 @@
 # succeeded. A pull-request-only job may also be skipped, but only when the
 # event is not a pull request. A --backend job may also be skipped, but only
 # when the `changes` job (scripts/changed-areas.sh) reported `backend` as
-# "false". Anything else exits 1 and names each job at fault.
+# "false". Any job but `changes` may be skipped when `changes` reported
+# `tested` as "true" (scripts/tested-on-pr.sh). Anything else exits 1 and names
+# each job at fault.
 set -euo pipefail
 
 usage() {
@@ -65,12 +67,14 @@ backend=$(as_json_list ${backend_jobs[@]+"${backend_jobs[@]}"})
 
 blocked=$(jq -r --arg event "$event" --argjson pr_only "$pr_only" --argjson backend "$backend" '
   (.changes.outputs.backend == "false") as $backend_unchanged
+  | (.changes.outputs.tested == "true") as $tested
   | to_entries[]
   | .key as $job
   | select(
       .value.result != "success"
       and ((.value.result == "skipped" and $event != "pull_request" and ($pr_only | index($job) != null)) | not)
       and ((.value.result == "skipped" and $backend_unchanged and ($backend | index($job) != null)) | not)
+      and ((.value.result == "skipped" and $tested and $job != "changes") | not)
     )
   | "\(.key): \(.value.result)"
 ' <<<"$needs")

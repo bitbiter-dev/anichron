@@ -40,10 +40,10 @@ dotnet test --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
 
 An integration project or filter runs nothing without `-p:TestSuite=Integration` (or `All`).
 
-**The git hooks are the gates; don't run them by hand.**
+**The git hooks and CI are the gates; don't run the hooks by hand.**
 
 - `pre-commit`: `scripts/tool-versions.sh` (`dotnet-ef` in `.config/dotnet-tools.json` must match `Microsoft.EntityFrameworkCore`; bump them together), `scripts/lfs-pointers.sh` (a new binary type goes in `.gitattributes`), `scripts/docs-guard.sh`, and `dotnet format whitespace` on the staged C# files.
-- `pre-push`: `git lfs pre-push`, a build and the whole unit suite.
+- `pre-push`: only `git lfs pre-push`. CI builds and tests.
 - The build enforces style and analyzer rules (`EnforceCodeStyleInBuild`); the full `dotnet format --verify-no-changes` runs only in CI.
 - A commit in a worktree runs the main checkout's `task-runner.json` (`core.hooksPath` is absolute), so a hook change takes effect once it is on `master`.
 - While working, run only the tests you touched. No hook runs integration or mutation tests; run those yourself when your change needs them.
@@ -101,7 +101,7 @@ Mutants that flip between runs:
 
 - **Commands** are the `package.json` scripts, run from `src/Anichron.UI`. `pnpm dev` proxies `/api` to `http://localhost:5207`.
 - **API contract change** (an `ErrorCodes` constant included): run `scripts/derive-openapi.sh`, then `pnpm openapi`; CI fails on a stale `src/api/generated/v1.ts`. A screen's error messages are keyed by the server's `ErrorCode` and the client's `ValidationCode` (`src/api/problem.ts`).
-- **Hooks:** a commit with a UI file runs prettier and ESLint on the staged files, and `typecheck` (incremental) and `depcruise` on the whole project. A push runs `scripts/ui-pre-push.sh`.
+- **Hooks:** a commit with a UI file runs prettier and ESLint on the staged files, and `typecheck` (incremental) and `depcruise` on the whole project.
 - **CI:** `UI` runs all of them, plus the scoped mutation run and the bundle budget (`.size-limit.js`, over what `index.html` loads; a PR that raises a limit says why). `E2E` runs `pnpm e2e` against the PR's API image. Locally, build `anichron-api:e2e` and start `src/docker-compose.e2e.yml` (its header has the commands).
 
 **Session:** before any route renders, the app refreshes once and holds the session and user in memory. `src/api/session.ts` renews it with one single-flight refresh on a schedule and when visible again. A `401` from refresh signs out; a `401` from logout refreshes and retries once. Other failed starts show `src/app/StartFailed.tsx`. Data calls live apart, one module per area (`docs/architecture/ui-api.md`).
@@ -203,9 +203,12 @@ Read the file before changing its area, and fix what your change makes wrong in 
 
 - **Images:** the Worker is `runtime:10.0-noble`, multi-arch (amd64 + arm64); its native packages are in its Dockerfile (ADR 0009, 0016). The API is Alpine.
 - **CI** (`.github/workflows/ci.yml`): images push only after `CI gate` passes, tagged `sha-<hash>`, `edge` on master, SemVer on releases.
+  - A draft PR runs no CI or CodeQL; its gate fails as `Draft, no CI`, never as `CI gate`.
+  - A master push whose tree passed `CI gate` on its PR only publishes images (`scripts/tested-on-pr.sh`). The full sweeps, reports and badges run weekly (`docs/mutation-testing.md`, "The weekly full run").
+  - A failed master push or weekly run opens a "Full run failed" issue assigned to the maintainer (`scripts/full-run-report.sh`).
 - **Branch protection** requires only `CI gate` and `CodeQL`. A new required job goes into the gate's `needs` (`scripts/ci-gate.sh`), never into branch protection.
 - **Backend jobs skip** on a PR that changes only `src/Anichron.UI/` and Markdown outside `src/` (except ADR 0005), as `scripts/changed-areas.sh` decides. A job that should skip with the backend gets `needs: changes`, `if: needs.changes.outputs.backend == 'true'` and a `--backend <job>` in the gate's call; `scripts/ci-gate-guard.sh` checks they agree.
-- **Merging a PR:** wait until `CI gate` and `CodeQL` are green (`gh pr checks <n> --watch`), then ask the maintainer to confirm. Never merge before CI passes, and never without that confirmation.
+- **Merging a PR:** only through `scripts/land.sh` ("Landing work"). It merges once `CI gate` and `CodeQL` pass; no confirmation from the maintainer is needed.
 - **Configuration** (env vars):
   - The PostgreSQL connection comes only from `POSTGRES_CONNECTION__*` or Docker secrets.
   - `CORS__ALLOWEDORIGINS`: empty for same-origin; when set, the refresh cookie becomes `SameSite=None`.
@@ -220,7 +223,7 @@ Read the file before changing its area, and fix what your change makes wrong in 
 - **Issues:** https://github.com/bitbiter-dev/anichron/issues
 - **Wiki** (early ADRs that older issues link to): https://github.com/bitbiter-dev/anichron/wiki. New ADRs go in `docs/adr/`.
 - **What to work on next:**
-  1. An open "Architecture review due" issue goes first (`.claude/docs/design-process.md`, "Architecture review").
+  1. An open "Full run failed" issue goes first, then an open "Architecture review due" issue (`.claude/docs/design-process.md`, "Architecture review").
   2. Otherwise, an open `ready-for-agent` issue with no open blocker, in the order the epic milestones list.
   - A `needs-design` issue is picked only to write or approve its note; a `needs-decision` issue waits for the maintainer.
 
@@ -234,6 +237,20 @@ scripts/graph.sh explain <Symbol>    # direct callers and callees
 ```
 
 Grep stays the tool for text, config and anything that is not a symbol.
+
+## Landing work
+
+Drafts run no CI, and `scripts/land.sh` puts one PR at a time on this machine into CI. After implementing, don't pause for the maintainer:
+
+1. Run the tests you touched, and commit.
+2. Start `scripts/mutation-changed.sh` and `scripts/ui-mutation-changed.sh` in the background; each skips when its area is unchanged. They run the unit suite; no separate full-suite run.
+3. Push and open a **draft** PR, so the work is visible. Then run `/mattpocock-skills:code-review` (both subagents) while mutation runs.
+4. Fix the findings. Run mutation again only if the fixes changed code.
+5. Run `scripts/land.sh` in the background; its header says what it does and what each exit code means. Relay its `land:` and `with-lock:` lines to the chat with the Monitor tool, re-armed until it exits. On a failure, fix the cause and run it again.
+6. Once merged, remove the issue from its epic milestone's order (the milestone description), so the next agent reads the next issue first.
+
+- Don't poll CI, cancel another PR's run, or delete the remote branch (GitHub does on merge).
+- On a CI failure, read the failed job's summary and `gh run view <id> --log-failed`, not the whole log.
 
 ## Engineering process (objection, first caller, design note)
 

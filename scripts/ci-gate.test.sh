@@ -116,6 +116,22 @@ assert_fails 'a skipped backend job blocks on a push, where the backend always c
   "$script" push "$(needs_with_changes success "$backend_changed" checks=skipped)" \
   --backend checks
 
+echo "tested pushes"
+
+tested='{"backend":"true","tested":"true"}'
+
+assert_passes 'every skipped job passes on a push whose tree its pull request tested' \
+  "$script" push "$(needs_with_changes success "$tested" checks=skipped ui=skipped docker-api=skipped)" \
+  --backend checks docker-api
+assert_fails 'a failed job still blocks on a tested push' 'ui: failure' \
+  "$script" push "$(needs_with_changes success "$tested" checks=skipped ui=failure)" \
+  --backend checks
+assert_fails 'a skipped change detection blocks even when tested' 'changes: skipped' \
+  "$script" push "$(needs_with_changes skipped "$tested" checks=skipped)" \
+  --backend checks
+assert_fails 'a tested output other than "true" allows no skip' 'ui: skipped' \
+  "$script" push "$(needs_with_changes success '{"backend":"true","tested":"false"}' ui=skipped)"
+
 echo "misconfiguration"
 
 assert_fails 'a backend job missing from needs is refused' 'chekcs' \

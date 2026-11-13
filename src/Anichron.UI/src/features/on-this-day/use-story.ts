@@ -1,8 +1,9 @@
 import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
-import { createGestures, listenToKeys } from './navigation';
+import { createGestures, listenToKeys, listenToRelease } from './navigation';
 import { createStory, type Place } from './story';
+import { storyView } from './story-view';
 
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
   const [{ snapshot, story, gestures, subscribe }] = useState(() => {
@@ -13,30 +14,32 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     );
     const subscribe = (listener: () => void) => {
       const stopKeys = listenToKeys(story);
+      const stopRelease = listenToRelease(story);
       const stop = story.subscribe(listener);
       return () => {
         stop();
         stopKeys();
+        stopRelease();
       };
     };
     return { snapshot: years, story, gestures: createGestures(story), subscribe };
   });
-  const position = useSyncExternalStore(subscribe, story.position);
-  const memoryAt = ({ group, memory }: Place) =>
-    (snapshot[group] as YearGroup).memories[memory] as Memory;
+  const state = useSyncExternalStore(subscribe, story.state);
+  const group = snapshot[state.group] as YearGroup;
   return {
-    position,
-    group: snapshot[position.group] as YearGroup,
-    memory: memoryAt(position),
-    segments: { count: position.shown.length, current: position.shown.indexOf(position.memory) },
-    memoryAt,
+    state,
+    group,
+    ...storyView(state, group),
+    memoryAt: ({ group, memory }: Place) =>
+      (snapshot[group] as YearGroup).memories[memory] as Memory,
     hide: (place?: Place) => story.hide(place),
     undo: (place: Place) => {
       story.undo(place);
     },
     mediaReady: () => {
-      story.mediaReady(position.visit);
+      story.mediaReady(state.visit);
     },
     gestures,
+    togglePause: story.togglePause,
   };
 }

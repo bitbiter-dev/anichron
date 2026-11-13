@@ -6,6 +6,7 @@ on:
     tags: ['v*.*.*']
   pull_request:
     branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       push_to_registry:
@@ -14,19 +15,23 @@ on:
         default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.draft == true && 'draft' || 'ready' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Whether the pull request changes the backend (scripts/changed-areas.sh).
-  # The backend jobs skip when it does not; the gate allows exactly those skips.
+  # Areas changed (scripts/changed-areas.sh) and a tested master tree
+  # (scripts/tested-on-pr.sh); the gate allows the skips they imply.
   changes:
     name: Changes
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: read
+      checks: read
     outputs:
       backend: ${{ steps.areas.outputs.backend }}
+      tested: ${{ steps.tested.outputs.tested }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -44,10 +49,17 @@ jobs:
             git -c core.quotepath=false diff --name-only --no-renames HEAD^1 HEAD
           fi | scripts/changed-areas.sh "$EVENT" | tee -a "$GITHUB_OUTPUT"
 
+      - name: Tree tested on its pull request
+        id: tested
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/tested-on-pr.sh "$GITHUB_SHA" | tee -a "$GITHUB_OUTPUT"
+
   checks:
     name: Checks
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' && needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -121,6 +133,10 @@ jobs:
           scripts/tool-versions.test.sh
           scripts/lfs-pointers.test.sh
           scripts/docs-guard.test.sh
+          scripts/with-lock.test.sh
+          scripts/land.test.sh
+          scripts/tested-on-pr.test.sh
+          scripts/full-run-report.test.sh
 
       - name: Mutation setup matches its rules
         run: scripts/mutation-guard.sh
@@ -141,6 +157,8 @@ jobs:
   # Reads only the index, so its checkout has no LFS objects.
   lfs:
     name: LFS pointers
+    needs: changes
+    if: needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -152,6 +170,8 @@ jobs:
 
   docs:
     name: Docs
+    needs: changes
+    if: needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -164,7 +184,7 @@ jobs:
   integration:
     name: Integration tests
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' && needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -182,6 +202,8 @@ jobs:
 
   ui:
     name: UI
+    needs: changes
+    if: needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -223,7 +245,6 @@ jobs:
         run: |
           scripts/ui-mutation-changed.test.sh
           scripts/ui-mutation-guard.test.sh
-          scripts/ui-pre-push.test.sh
 
       - name: Mutation setup matches its rules
         working-directory: .
@@ -252,6 +273,8 @@ jobs:
   # in WebKit, Chromium and Firefox (src/Anichron.UI/e2e).
   e2e:
     name: E2E
+    needs: changes
+    if: needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -322,7 +345,7 @@ jobs:
   mutation-targets:
     name: Mutation targets
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' && needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -401,7 +424,7 @@ jobs:
     name: Mutation
     runs-on: ubuntu-latest
     needs: [changes, mutation-targets, mutation-project]
-    if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && needs.changes.outputs.tested != 'true' }}
     permissions:
       contents: read
     steps:
@@ -450,30 +473,6 @@ jobs:
           name: mutation-report
           path: mutation/reports/
           retention-days: 30
-
-      # The write is staged through a temp file and moved only on success.
-      # Redirecting straight to the final path would create it before the
-      # generator ran, so a refused report would leave a zero-byte file for the
-      # badge step to publish — destroying a working badge. The badge step
-      # validates the payload as well; both guards are cheap and it force-pushes.
-      - name: Build mutation badge payload
-        if: steps.merge.outcome == 'success'
-        continue-on-error: true
-        run: |
-          mkdir -p mutation-state
-          scripts/mutation-report.sh badge mutation/reports/mutation-report.json > mutation-state/mutation.json.tmp
-          mv mutation-state/mutation.json.tmp mutation-state/mutation.json
-
-      # An absent payload is meaningful to publish-badges.sh: it leaves the
-      # badge alone.
-      - name: Upload badge state
-        if: always() && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v7
-        with:
-          name: mutation-state
-          path: mutation-state/*.json
-          if-no-files-found: ignore
-          retention-days: 1
 
       - name: Enforce mutation score
         if: always()
@@ -551,13 +550,19 @@ jobs:
             sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}
 
   gate:
-    name: CI gate
+    name: ${{ github.event.pull_request.draft == true && 'Draft, no CI' || 'CI gate' }}
     runs-on: ubuntu-latest
     needs: [changes, checks, lfs, docs, integration, mutation, ui, e2e, docker-api, docker-worker]
     if: always()
     permissions:
       contents: read
     steps:
+      - name: Not a draft
+        if: github.event.pull_request.draft == true
+        run: |
+          echo '::error::A draft runs no CI. Mark it ready for review, or run scripts/land.sh.'
+          exit 1
+
       - uses: actions/checkout@v7
 
       - name: Every required job succeeded
@@ -632,78 +637,24 @@ jobs:
           secrets: |
             sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}
 
-  # Not gated on the mutation result, so a failed sweep still publishes its
-  # report — see docs/mutation-testing.md.
-  publish:
-    name: Publish quality reports
+  report:
+    name: Report a failed master run
     runs-on: ubuntu-latest
-    needs: [checks, mutation]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.checks.result == 'success' }}
+    needs: [gate, docker-publish]
+    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     permissions:
-      contents: write
-    outputs:
-      pages-artifact: ${{ steps.pages-upload.outcome == 'success' }}
+      contents: read
+      actions: read
+      issues: write
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v8
-        with:
-          name: coverage-report
-          path: coverage/report
-
-      - uses: actions/download-artifact@v8
-        continue-on-error: true
-        with:
-          name: mutation-report
-          path: mutation/reports
-
-      - uses: actions/download-artifact@v8
-        continue-on-error: true
-        with:
-          name: mutation-state
-          path: ${{ runner.temp }}/mutation-state
-
-      # Before the badge step, which switches the tree to the badges branch,
-      # where scripts/ does not exist. See docs/mutation-testing.md, "Why it
-      # runs before the badge step".
-      - name: Assemble Pages site
-        run: scripts/assemble-pages.sh coverage/report mutation/reports pages-site
-
-      # Branch manipulation lives in a script so it can be tested against a
-      # throwaway repo — see scripts/publish-badges.test.sh. It adds files to
-      # the badges branch rather than rebuilding it, which is what keeps the
-      # mutation badge alive.
-      - name: Update quality badges
+      - name: Open or update the failure issue
         env:
-          MUTATION_BADGE: ${{ runner.temp }}/mutation-state/mutation.json
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          scripts/publish-badges.sh coverage/report/badge_linecoverage.svg
-
-      # This step's id feeds outputs.pages-artifact, which is what gates the
-      # deploy-pages job. Renaming the step is fine; dropping the id is not.
-      - name: Upload Pages artifact
-        id: pages-upload
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: pages-site/
-
-  deploy-pages:
-    name: Deploy quality reports to Pages
-    runs-on: ubuntu-latest
-    needs: publish
-    if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.publish.outputs.pages-artifact == 'true' }}
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          OWNER: ${{ github.repository_owner }}
+        run: scripts/full-run-report.sh 'CI on master' "$RUN_ID" "$OWNER"
 
   # The browsable half of the schema documentation: an ER diagram and per-table pages,
   # generated by tbls against a throwaway database.
@@ -720,6 +671,8 @@ jobs:
   # keeps a tbls or container hiccup from blocking a merge on a schema that is otherwise fine.
   database-docs:
     name: Schema diagram
+    needs: changes
+    if: needs.changes.outputs.tested != 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
 

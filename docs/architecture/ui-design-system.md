@@ -47,7 +47,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 
 ## Motion and focus
 
-- Durations are tokens that become `0ms` under `prefers-reduced-motion`; no component checks the preference itself. Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`.
+- Durations are tokens that become `0ms` under `prefers-reduced-motion`, and the story's progress fill (`--animate-story-fill`) steps; no component checks the preference itself. Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`.
 - Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
 
 ## Base components
