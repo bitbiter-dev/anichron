@@ -5,6 +5,7 @@ import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
+import { paintBlurhash } from './blurhash';
 import { dayQuery, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
@@ -108,8 +109,20 @@ interface PlayerProps {
 
 function Player({ date, year, years, close }: PlayerProps) {
   const { t } = useTranslation();
-  const { state, group, memory, name, pause, controls, mediaReady, gestures, togglePause } =
-    useStory(years, year, close);
+  const {
+    state,
+    group,
+    memory,
+    name,
+    pause,
+    controls,
+    blurhash,
+    failed,
+    mediaReady,
+    mediaFailed,
+    gestures,
+    togglePause,
+  } = useStory(years, year, close);
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
@@ -125,17 +138,26 @@ function Player({ date, year, years, close }: PlayerProps) {
           className="absolute inset-0 select-none [-webkit-touch-callout:none]"
         >
           <div
+            key={state.visit}
             role="img"
             aria-label={t('story.memory', { ...name, kind: t(name.kind) })}
             className="absolute inset-0"
           >
-            <ProxyImage
-              key={state.visit}
-              src={memory.proxies.preview}
-              onDecoded={mediaReady}
-              className="size-full object-contain"
-            />
+            {blurhash && <Blurhash {...blurhash} />}
+            {!failed && (
+              <ProxyImage
+                src={memory.proxies.preview}
+                onDecoded={mediaReady}
+                onFailed={mediaFailed}
+                className="relative size-full object-contain"
+              />
+            )}
           </div>
+          {failed && (
+            <p className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center font-semibold">
+              {t('story.failed')}
+            </p>
+          )}
           <div className="absolute inset-0 flex">
             <Zone label={t('story.previous')} gestures={gestures} move="previous" />
             <Middle gestures={gestures} move="next" />
@@ -164,6 +186,25 @@ function Player({ date, year, years, close }: PlayerProps) {
         </m.div>
       </MotionConfig>
     </LazyMotion>
+  );
+}
+
+interface BlurhashProps {
+  hash: string;
+  width: number;
+  height: number;
+}
+
+function Blurhash({ hash, width, height }: BlurhashProps) {
+  return (
+    <canvas
+      ref={(canvas) => {
+        paintBlurhash(canvas, hash);
+      }}
+      width={width}
+      height={height}
+      className="absolute inset-0 size-full object-contain"
+    />
   );
 }
 

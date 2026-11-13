@@ -1,5 +1,6 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { encode } from 'blurhash';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
@@ -55,6 +56,8 @@ async function swipe(x: number, y: number, from = middle()) {
   await advance(2000);
 }
 
+const failure = "Couldn't load this memory";
+const segment = (index: number) => story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 const middle = () => button('Previous').nextElementSibling as HTMLElement;
 const picture = () => story().querySelector('img') as HTMLImageElement;
 
@@ -180,7 +183,7 @@ describe('opening a story', () => {
 describe('a story playing', () => {
   it('shows each memory for 5 s from the moment its picture is decoded', async () => {
     await openStory('/day/2026-11-11?year=2025');
-    await advance(30_000);
+    await advance(9000);
     expect(picture().getAttribute('src')).toBe(preview(ids.a2025));
 
     await shown();
@@ -302,8 +305,6 @@ describe('a story playing', () => {
 
   it('holds the progress of a memory still until its picture is decoded', async () => {
     await openStory('/day/2026-11-11?year=2025');
-    const segment = (index: number) =>
-      story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 
     const states = () =>
       [...story().querySelectorAll('ol > li > span')].map((span) =>
@@ -363,6 +364,223 @@ describe('a story playing', () => {
     expect(screen.getByRole('dialog', { name: storyName })).toBeVisible();
     expect(story().querySelector('p')?.textContent).toBe('1 year ago · 2025');
     expect(router.state.location.href).toBe('/day/2026-11-11?year=2025');
+  });
+});
+
+describe('a memory loading', () => {
+  async function loadingSecond() {
+    const rendered = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(button('Next'));
+    return rendered;
+  }
+
+  it('fails a picture that has not arrived after 10 s, and moves on 5 s later', async () => {
+    const { container } = await loadingSecond();
+
+    await advance(9999);
+    expect(within(story()).queryByText(failure)).toBeNull();
+    await advance(1);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(picture()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('shows a failed memory for 5 s before moving on', async () => {
+    await loadingSecond();
+    await advance(10_000);
+
+    await advance(4999);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(1);
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('fails a picture that breaks again after its reload, and moves on 5 s later', async () => {
+    await loadingSecond();
+
+    const broken = picture();
+    fireEvent.error(broken);
+    await advance(0);
+    expect(picture()).not.toBe(broken);
+    expect(within(story()).queryByText(failure)).toBeNull();
+    fireEvent.error(picture());
+    await advance(0);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(picture()).toBeNull();
+    await advance(4999);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('plays a picture that loads after its reload', async () => {
+    await loadingSecond();
+
+    fireEvent.error(picture());
+    await advance(0);
+    await shown();
+    await advance(4999);
+
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(showing()).toBe(preview(ids.b2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('stays failed when its picture decodes too late', async () => {
+    await loadingSecond();
+    let decode = () => undefined as unknown;
+    vi.spyOn(HTMLImageElement.prototype, 'decode').mockReturnValue(
+      new Promise((resolve) => {
+        decode = resolve;
+      }),
+    );
+    fireEvent.load(picture());
+
+    await advance(10_000);
+    decode();
+    await advance(4999);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(1);
+    expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('gives each memory its own 10 s to arrive', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    await user().click(button('Next'));
+    await advance(9999);
+
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('fails a picture that has not arrived after 10 s even while paused, and holds it', async () => {
+    await loadingSecond();
+
+    await user().click(button('Pause'));
+    await advance(10_000);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(30_000);
+    expect(within(story()).getByText(failure)).toBeVisible();
+  });
+
+  it('fills the progress segment while a failed memory shows', async () => {
+    await loadingSecond();
+    expect(segment(1).style.animationPlayState).toBe('paused');
+
+    await advance(10_000);
+
+    expect(segment(1).getAttribute('data-state')).toBe('playing');
+    expect(segment(1).style.animationPlayState).toBe('running');
+  });
+
+  it('stops waiting for a picture once closed', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2021');
+    await shown();
+    await user().click(button('Next'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await advance(0);
+    const closed = router.history.location.state.__TSR_key;
+    await advance(15_000);
+
+    expect(router.history.location.state.__TSR_key).toBe(closed);
+  });
+});
+
+describe('a blurhash', () => {
+  const plum = [200, 40, 90, 255];
+  const solid = (colour: number[]) =>
+    encode(new Uint8ClampedArray(Array.from({ length: 16 }, () => colour).flat()), 4, 4, 1, 1);
+  let painted: { width: number; height: number; data: Uint8ClampedArray }[];
+  const canvas = () => story().querySelector('canvas');
+
+  beforeEach(() => {
+    painted = [];
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createImageData: (width: number, height: number) => ({
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4),
+      }),
+      putImageData: (image: (typeof painted)[number], x: number, y: number) => {
+        expect([x, y]).toEqual([0, 0]);
+        painted.push(image);
+      },
+    } as unknown as CanvasRenderingContext2D);
+  });
+
+  const withBlurhash = (overrides: Parameters<typeof memory>[2] = {}) => {
+    years = [
+      yearGroup(2025, memory(ids.a2025, 2025, { blurhash: solid(plum), ...overrides })),
+      yearGroup(2023, memory(ids.a2023, 2023, { blurhash: solid(plum) })),
+    ];
+  };
+
+  const lastPainted = () => painted.at(-1) as (typeof painted)[number];
+  const pixels = (image: (typeof painted)[number]) =>
+    Array.from({ length: image.width * image.height }, (_, pixel) => [
+      ...image.data.slice(pixel * 4, pixel * 4 + 4),
+    ]);
+
+  it('shows behind a picture until it is decoded', async () => {
+    withBlurhash();
+    const { container } = await openStory('/day/2026-11-11?year=2025');
+
+    expect(canvas()?.nextElementSibling).toBe(picture());
+    expect([canvas()?.width, canvas()?.height]).toEqual([32, 24]);
+    const image = lastPainted();
+    expect([image.width, image.height]).toEqual([32, 24]);
+    expect(new Set(pixels(image).map(String))).toEqual(new Set([String(plum)]));
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    await shown();
+    expect(canvas()).toBeNull();
+  });
+
+  it.each([
+    [3024, 4032, [24, 32]],
+    [4000, 10, [32, 1]],
+    [null, null, [32, 32]],
+  ])('keeps the shape of a %s × %s picture', async (width, height, size) => {
+    withBlurhash({ width, height });
+    await openStory('/day/2026-11-11?year=2025');
+
+    expect([canvas()?.width, canvas()?.height]).toEqual(size);
+  });
+
+  it("shows with a failed memory's message", async () => {
+    withBlurhash();
+    await openStory('/day/2026-11-11?year=2025');
+
+    await advance(10_000);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(canvas()).not.toBeNull();
+    expect(new Set(pixels(lastPainted()).map(String))).toEqual(new Set([String(plum)]));
+  });
+
+  it('does not show for a memory without a preview', async () => {
+    withBlurhash({ proxies: { thumbnail: null, preview: null, video: null } });
+    renderApp('/day/2026-11-11?year=2025');
+
+    const memory = await screen.findByRole('img', { name: 'Photo, 2025, 1 of 1' });
+    expect(memory).toBeEmptyDOMElement();
+  });
+
+  it('leaves the player surface for a memory without one', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    expect(canvas()).toBeNull();
+
+    await advance(10_000);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(canvas()).toBeNull();
   });
 });
 
@@ -512,7 +730,7 @@ describe('moving through a story', () => {
 
     await user().click(button('Previous'));
     expect(showing()).toBe(preview(ids.a2025));
-    await advance(30_000);
+    await advance(9999);
     expect(showing()).toBe(preview(ids.a2025));
 
     await shown();
@@ -569,7 +787,7 @@ describe('moving through a story', () => {
 
     fireEvent.load(picture());
     fireEvent.click(button('Next'));
-    await advance(30_000);
+    await advance(9999);
 
     expect(showing()).toBe(preview(ids.b2025));
   });

@@ -1,4 +1,5 @@
 import type { Memory, YearGroup } from '../../api/flashbacks';
+import { blurhashOf } from './blurhash';
 import type { StoryState } from './story';
 
 export function storyView(state: StoryState, group: YearGroup) {
@@ -17,5 +18,7 @@ export function storyView(state: StoryState, group: YearGroup) {
     },
     pause: state.paused ? 'story.play' : 'story.pause',
     controls: state.held ? 'hidden' : 'visible',
+    blurhash: state.load === 'shown' ? null : blurhashOf(memory),
+    failed: state.load === 'failed',
   } as const;
 }
