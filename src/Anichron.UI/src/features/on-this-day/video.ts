@@ -11,8 +11,8 @@ export function createVideoPlayer(
 ) {
   let element: HTMLVideoElement | null = null;
   let visit = 0;
-  let reloaded = false;
-  let playing = false;
+  let reloaded: boolean;
+  let playing: boolean;
 
   function load(video: HTMLVideoElement) {
     const { proxies } = memoryOf(story.state());

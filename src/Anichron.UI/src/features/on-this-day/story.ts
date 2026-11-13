@@ -1,7 +1,7 @@
 export const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
 export const videoMilliseconds = 60_000;
-const hintMilliseconds = 2000;
+const hintMilliseconds = 1000;
 
 export type Load = 'loading' | 'shown' | 'failed';
 
@@ -55,6 +55,27 @@ function lasting({ kind, load }: StoryPosition) {
   return kind === 'video' && load === 'shown' ? videoMilliseconds : memoryMilliseconds;
 }
 
+function createClock(end: () => void) {
+  let remaining = 0;
+  let startedAt = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return {
+    set(milliseconds: number) {
+      remaining = milliseconds;
+    },
+    stop() {
+      if (timer === undefined) return;
+      clearTimeout(timer);
+      timer = undefined;
+      remaining -= Date.now() - startedAt;
+    },
+    start() {
+      startedAt = Date.now();
+      timer = setTimeout(end, remaining);
+    },
+  };
+}
+
 export function createStory(
   kinds: readonly (readonly Kind[])[],
   group: number,
@@ -87,10 +108,14 @@ export function createStory(
   let hinted = position.kind === 'video';
   let hint = hinted;
   let state = stateOf();
-  let remaining = lasting(position);
-  let startedAt = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let hintTimer: ReturnType<typeof setTimeout> | undefined;
+  const clock = createClock(expire);
+  const hintClock = createClock(() => {
+    update(() => {
+      hint = false;
+    });
+  });
+  clock.set(lasting(position));
+  hintClock.set(hintMilliseconds);
   let notify: (() => void) | undefined;
 
   function stateOf(): StoryState {
@@ -99,16 +124,14 @@ export function createStory(
   }
 
   function stop() {
-    if (timer === undefined) return;
-    clearTimeout(timer);
-    timer = undefined;
-    remaining -= Date.now() - startedAt;
+    clock.stop();
+    hintClock.stop();
   }
 
   function start() {
     if (!notify || paused || held) return;
-    startedAt = Date.now();
-    timer = setTimeout(expire, remaining);
+    clock.start();
+    if (hint && position.load !== 'loading') hintClock.start();
   }
 
   function expire() {
@@ -124,31 +147,20 @@ export function createStory(
     start();
   }
 
-  function endHintLater() {
-    clearTimeout(hintTimer);
-    if (hint && notify)
-      hintTimer = setTimeout(() => {
-        update(() => {
-          hint = false;
-        });
-      }, hintMilliseconds);
-  }
-
   function show(to: StoryPosition) {
     update(() => {
       position = to;
-      remaining = lasting(to);
+      clock.set(lasting(to));
       hint = to.kind === 'video' && !hinted;
       hinted ||= hint;
     });
-    endHintLater();
   }
 
   function settle(visit: number, load: Load) {
     if (visit === position.visit && position.load === 'loading')
       update(() => {
         position = { ...position, load };
-        remaining = lasting(position);
+        clock.set(lasting(position));
       });
   }
 
@@ -187,11 +199,9 @@ export function createStory(
     subscribe(listener) {
       notify = listener;
       start();
-      endHintLater();
       return () => {
         notify = undefined;
         stop();
-        clearTimeout(hintTimer);
       };
     },
     mediaReady(visit) {

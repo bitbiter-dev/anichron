@@ -571,6 +571,24 @@ describe('a video', () => {
     expect(video().getAttribute('poster')).toBe(preview(ids.a2025));
   });
 
+  it('has no poster without a preview', async () => {
+    years = [
+      yearGroup(
+        2025,
+        film(ids.a2025, 2025, {
+          proxies: {
+            thumbnail: null,
+            preview: null,
+            video: `proxies/${ids.a2025}/video?v=0123456789abcdef`,
+          },
+        }),
+      ),
+    ];
+    await openVideo();
+
+    expect(video().getAttribute('poster')).toBe('');
+  });
+
   it('lasts at most 60 s from the moment it plays', async () => {
     await openVideo();
     await advance(9000);
@@ -612,7 +630,7 @@ describe('a video', () => {
     expect(play).toHaveBeenCalled();
   });
 
-  it('tries to play again on Play when the browser refused to play it', async () => {
+  it('tries to play again on the next change when the browser refused to play it', async () => {
     const play = vi
       .spyOn(HTMLMediaElement.prototype, 'play')
       .mockRejectedValue(new DOMException('Low Power Mode', 'NotAllowedError'));
@@ -620,8 +638,7 @@ describe('a video', () => {
     await advance(0);
     play.mockClear();
 
-    await user().click(button('Pause'));
-    await user().click(button('Play'));
+    await user().keyboard('m');
 
     expect(play).toHaveBeenCalled();
   });
@@ -686,8 +703,10 @@ describe('a video', () => {
     await fire('error');
 
     expect(video()).not.toBeVisible();
+    expect(video().hasAttribute('src')).toBe(false);
     expect(showing()).toBe(preview(ids.a2025));
     expect(within(story()).queryByText(failure)).toBeNull();
+    expect(segment(0).style.animationDuration).toBe('5000ms');
     await advance(4999);
     expect(showing()).toBe(preview(ids.a2025));
     await advance(1);
@@ -804,7 +823,8 @@ describe('a video', () => {
 
     it('stays on for the next video', async () => {
       await openVideo();
-      await advance(2000);
+      await fire('playing');
+      await advance(1000);
       await user().click(sound('Turn sound on'));
       await fire('ended');
       await shown();
@@ -859,7 +879,8 @@ describe('a video', () => {
 
     it('hides its button while the story is held', async () => {
       await openVideo();
-      await advance(2000);
+      await fire('playing');
+      await advance(1000);
       const pointer = user();
 
       await pointer.pointer({ keys: '[MouseLeft>]', target: button('Next') });
@@ -872,15 +893,46 @@ describe('a video', () => {
   describe('the first one', () => {
     const hint = () => story().querySelector('[data-hint]') as HTMLElement;
 
-    it('shows where the sound is in the middle, then in the corner', async () => {
+    it('shows where the sound is in the middle until 1 s after it plays, then in the corner', async () => {
       const { container } = await openVideo();
 
       expect(hint().getAttribute('data-hint')).toBe('true');
       expect(within(hint()).getByRole('button', { name: 'Turn sound on' })).toBeVisible();
       expect(await axeResults(container)).toHaveNoViolations();
-      await advance(2000);
+      await advance(5000);
+      expect(hint().getAttribute('data-hint')).toBe('true');
+      await fire('playing');
+      await advance(999);
+      expect(hint().getAttribute('data-hint')).toBe('true');
+      await advance(1);
       expect(hint().getAttribute('data-hint')).toBe('false');
       expect(within(hint()).getByRole('button', { name: 'Turn sound on' })).toBeVisible();
+    });
+
+    it('keeps showing in the middle while the story is paused', async () => {
+      await openVideo();
+      await fire('playing');
+      await advance(400);
+
+      await user().click(button('Pause'));
+      await advance(30_000);
+      expect(hint().getAttribute('data-hint')).toBe('true');
+      await user().click(button('Play'));
+      await advance(599);
+      expect(hint().getAttribute('data-hint')).toBe('true');
+      await advance(1);
+      expect(hint().getAttribute('data-hint')).toBe('false');
+    });
+
+    it('shrinks into the corner 1 s after its video fails', async () => {
+      await openVideo();
+      await fire('error');
+      await fire('error');
+
+      await advance(999);
+      expect(hint().getAttribute('data-hint')).toBe('true');
+      await advance(1);
+      expect(hint().getAttribute('data-hint')).toBe('false');
     });
 
     it('turns the sound on when tapped', async () => {
@@ -894,7 +946,8 @@ describe('a video', () => {
 
     it('is the only one shown where the sound is', async () => {
       await openVideo();
-      await advance(2000);
+      await fire('playing');
+      await advance(1000);
       await fire('ended');
       await shown();
       await advance(5000);
@@ -904,14 +957,15 @@ describe('a video', () => {
 
     it('is not shown again when returning to it', async () => {
       await openVideo();
-      await advance(2000);
+      await fire('playing');
+      await advance(1000);
 
       await user().click(button('Previous'));
 
       expect(hint().getAttribute('data-hint')).toBe('false');
     });
 
-    it('may come after photos, and shows where the sound is for 2 s', async () => {
+    it('may come after photos', async () => {
       years = [yearGroup(2025, memory(ids.a2025, 2025), film(ids.b2025, 2025))];
       renderApp('/day/2026-11-11?year=2025');
       await screen.findByRole('dialog', { name: storyName });
@@ -923,10 +977,6 @@ describe('a video', () => {
       await advance(5000);
 
       expect(hint().getAttribute('data-hint')).toBe('true');
-      await advance(1999);
-      expect(hint().getAttribute('data-hint')).toBe('true');
-      await advance(1);
-      expect(hint().getAttribute('data-hint')).toBe('false');
     });
 
     it('stops showing once the story moves on', async () => {
