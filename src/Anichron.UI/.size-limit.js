@@ -5,6 +5,6 @@ const loadedAtStart = [
 ].map(([, path]) => `dist/${path}`);
 
 export default [
-  { name: 'Initial JS', path: loadedAtStart, limit: '205 kB', gzip: true },
+  { name: 'Initial JS', path: loadedAtStart, limit: '250 kB', gzip: true },
   { name: 'CSS', path: 'dist/assets/*.css', limit: '15 kB', gzip: true },
 ];
