@@ -43,8 +43,15 @@ case "$1 $2" in
     if [ -f "$GH_STATE/runs-$4.later" ] && [ -f "$GH_STATE/listed-$4" ]; then cat "$GH_STATE/runs-$4.later"; else touch "$GH_STATE/listed-$4"; cat "$GH_STATE/runs-$4"; fi ;;
   'run view') cat "$GH_STATE/run-$3" ;;
   'pr checks') cat "$GH_STATE/checks" ;;
-  'pr view') printf '{"mergeStateStatus":"%s"}\n' "$(cat "$GH_STATE/merge-state")" ;;
-  'pr merge') [ ! -f "$GH_STATE/merge-refused" ] ;;
+  'pr view')
+    if [ -f "$GH_STATE/merge-state.later" ] && [ -f "$GH_STATE/viewed" ]; then state=$(cat "$GH_STATE/merge-state.later"); else touch "$GH_STATE/viewed"; state=$(cat "$GH_STATE/merge-state"); fi
+    printf '{"mergeStateStatus":"%s"}\n' "$state" ;;
+  'pr merge')
+    [ ! -f "$GH_STATE/merge-refused" ] || exit 1
+    if [ -f "$GH_STATE/merge-refusals" ]; then
+      left=$(cat "$GH_STATE/merge-refusals")
+      [ "$left" -eq 0 ] || { echo $((left - 1)) >"$GH_STATE/merge-refusals"; exit 1; }
+    fi ;;
   *) echo "unexpected gh call: $*" >&2; exit 9 ;;
 esac
 EOF
@@ -98,7 +105,7 @@ pushed_already() {
 }
 
 land() {
-  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" WITH_LOCK_POLL_SECONDS=0 \
+  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" LAND_MERGE_SECONDS="${3:-0}" WITH_LOCK_POLL_SECONDS=0 \
     GIT_AUTHOR_NAME=mira GIT_AUTHOR_EMAIL=mira@example.org GIT_COMMITTER_NAME=mira GIT_COMMITTER_EMAIL=mira@example.org \
     "$script" 2>&1)
 }
@@ -140,6 +147,31 @@ touch "$work/state/merge-refused"
 out=$(land); status=$?
 check 'a merge GitHub refuses fails and keeps the worktree' "[ $status -eq 1 ] && [ -d '$work/wt' ]" "exit $status: $out"
 check 'a refused merge puts the PR back to draft' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+echo 2 >"$work/state/merge-refusals"
+echo BLOCKED >"$work/state/merge-state"
+out=$(land "$work/wt" 0 60); status=$?
+check 'a merge refused while the PR is BLOCKED is tried again, and merged' "[ $status -eq 0 ] && [ \"\$(grep -c '^pr merge 7' '$work/state/calls')\" -eq 3 ]" "exit $status: $out"
+check 'the refusal is announced once' "[ \"\$(grep -c 'GitHub refused the merge of a BLOCKED PR; trying again' <<<\"\$out\")\" -eq 1 ]" "$out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/merge-refused"
+echo BLOCKED >"$work/state/merge-state"
+out=$(land "$work/wt" 0 1); status=$?
+check 'a merge still refused when the window ends puts the PR back to draft' "[ $status -eq 1 ] && [ \"\$(grep -c '^pr merge 7' '$work/state/calls')\" -gt 1 ] && [ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/merge-refused"
+echo BEHIND >"$work/state/merge-state.later"
+out=$(land "$work/wt" 0 60); status=$?
+check 'master moving during the merge stops at once and says so' "[ $status -eq 1 ] && [ \"\$(grep -c '^pr merge 7' '$work/state/calls')\" -eq 1 ] && [[ \"\$out\" == *'master moved while CI ran'* ]]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/merge-refused"
+echo DIRTY >"$work/state/merge-state.later"
+out=$(land "$work/wt" 0 60); status=$?
+check 'a refusal in any other merge state stops at once and names it' "[ $status -eq 1 ] && [ \"\$(grep -c '^pr merge 7' '$work/state/calls')\" -eq 1 ] && [[ \"\$out\" == *'merge state DIRTY'* ]]" "exit $status: $out"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success conflict
 before=$(git -C "$work/wt" rev-parse HEAD)
