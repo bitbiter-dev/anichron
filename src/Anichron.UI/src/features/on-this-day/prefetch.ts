@@ -21,7 +21,7 @@ export function createPrefetch(memoryAt: MemoryAt, prefetchPicture: (url: string
   };
 }
 
-export function nextVideo(state: StoryState, memoryAt: MemoryAt) {
-  const video = upcomingOf(state, memoryAt).find((memory) => kindOf(memory) === 'video');
+export function nextVideo({ upcoming }: StoryState, memoryAt: MemoryAt) {
+  const video = upcoming.map(memoryAt).find((memory) => kindOf(memory) === 'video');
   return video?.proxies.video ?? null;
 }

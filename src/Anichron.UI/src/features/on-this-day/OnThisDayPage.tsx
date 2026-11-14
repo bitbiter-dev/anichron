@@ -8,7 +8,7 @@ import { Failed } from './Failed';
 import { ProxyImage } from './ProxyImage';
 import { RecentDays } from './RecentDays';
 import { Ring } from './Ring';
-import { storyHref, useOpening } from './use-opening';
+import { useOpening } from './use-opening';
 import { useToday } from './use-today';
 
 export function OnThisDayPage() {
@@ -41,28 +41,33 @@ function Today({ date }: { date: string }) {
 }
 
 function Gallery({ date, years }: { date: string; years: YearGroup[] }) {
-  const { t } = useTranslation();
-  const opening = useOpening();
   return (
     <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
       {years.map((group) => (
         <li key={group.year} className="shrink-0 snap-start">
-          <Link
-            to="/day/$date"
-            params={{ date }}
-            search={{ year: group.year }}
-            resetScroll={false}
-            aria-busy={opening === storyHref(date, group.year)}
-            className="group flex w-32 flex-col gap-2 rounded-card text-small outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            <div className="relative aspect-[3/4] overflow-hidden rounded-card bg-surface-raised outline-accent group-aria-busy:outline-2 group-aria-busy:-outline-offset-2">
-              <ProxyImage src={thumbnailOf(group)} className="size-full object-cover" />
-              <Ring className="inset-0 m-auto hidden size-8 group-aria-busy:block" />
-            </div>
-            {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
-          </Link>
+          <YearGroupLink date={date} group={group} />
         </li>
       ))}
     </ul>
+  );
+}
+
+function YearGroupLink({ date, group }: { date: string; group: YearGroup }) {
+  const { t } = useTranslation();
+  return (
+    <Link
+      to="/day/$date"
+      params={{ date }}
+      search={{ year: group.year }}
+      resetScroll={false}
+      aria-busy={useOpening(date, group.year)}
+      className="group flex min-w-32 flex-col gap-2 rounded-card text-small whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+    >
+      <div className="relative aspect-[3/4] w-32 overflow-hidden rounded-card bg-surface-raised outline-accent group-aria-busy:outline-2 group-aria-busy:-outline-offset-2">
+        <ProxyImage src={thumbnailOf(group)} className="size-full object-cover" />
+        <Ring className="inset-0 m-auto hidden size-8 group-aria-busy:block" />
+      </div>
+      {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
+    </Link>
   );
 }

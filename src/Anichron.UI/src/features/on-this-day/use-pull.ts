@@ -8,11 +8,12 @@ function reducesMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function pullLook(pulled: number, height: number, reduced: boolean) {
+function pullLook(pulled: number, height: number, reduced: boolean) {
   const share = Math.min(pulled / height, 1);
   const shrinks = !reduced && share > 0;
   return {
     backdrop: 1 - share,
+    fill: reduced ? 1 - share : 1,
     scale: shrinks ? 1 - share * (1 - cardScale) : 1,
     radius: shrinks ? cardRadius : 0,
   };
@@ -28,9 +29,10 @@ export function usePull(gestures: Gestures) {
       scale: useTransform(pulled, (value) => look(value).scale),
       borderRadius: useTransform(pulled, (value) => look(value).radius),
     },
+    fill: { opacity: useTransform(pulled, (value) => look(value).fill) },
     backdrop: { opacity: useTransform(pulled, (value) => look(value).backdrop) },
     onDrag: (_: unknown, { offset }: PanInfo) => {
-      pulled.set(Math.max(0, offset.y));
+      pulled.set(Math.abs(offset.x) > offset.y ? 0 : offset.y);
     },
     onDragEnd: (_: unknown, { offset, velocity }: PanInfo) => {
       if (!gestures.dragEnd(offset, velocity, window.innerHeight)) void animate(pulled, 0);

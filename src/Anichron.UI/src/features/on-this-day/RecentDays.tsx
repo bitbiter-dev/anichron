@@ -11,7 +11,7 @@ import {
   hasMemories,
   useRecentDays,
 } from './use-recent-days';
-import { storyHref, useOpening } from './use-opening';
+import { useOpening } from './use-opening';
 
 const item =
   'group flex w-18 flex-col items-center gap-1 rounded-card text-small outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
@@ -40,14 +40,14 @@ export function RecentDays({ today }: { today: string }) {
 }
 
 function DayLink({ date, label, newestYear, thumbnail }: DayWithMemories) {
-  const opening = useOpening();
+  const opening = useOpening(date, newestYear);
   return (
     <Link
       to="/day/$date"
       params={{ date }}
       search={{ year: newestYear }}
       resetScroll={false}
-      aria-busy={opening === storyHref(date, newestYear)}
+      aria-busy={opening}
       className={item}
     >
       <span className={`${circle} bg-surface-raised`}>

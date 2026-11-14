@@ -1214,22 +1214,20 @@ describe('the next memories', () => {
     expect(decoded).toEqual([preview(ids.a2023)]);
   });
 
-  it('preloads only the next video, within the next two memories, once a memory shows', async () => {
+  it('preloads only the next video, within the next two memories, and keeps it while moving', async () => {
     years = [
       yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025), memory(ids.c2025, 2025)),
       yearGroup(2023, film(ids.a2023, 2023), film(ids.a2021, 2023)),
     ];
     await openStory('/day/2026-11-11?year=2025');
-    await shown();
     expect(preloading()).toEqual([]);
     fireEvent.click(button('Next'));
-    expect(preloading()).toEqual([]);
-    await shown();
+    const preloaded = story().querySelector('video[preload="auto"]');
     expect(preloading()).toEqual([clip(ids.a2023)]);
     fireEvent.click(button('Next'));
-    await shown();
 
     expect(preloading()).toEqual([clip(ids.a2023)]);
+    expect(story().querySelector('video[preload="auto"]')).toBe(preloaded);
   });
 
   it('fetches only the cover of a burst ahead, not its frames', async () => {
@@ -1711,6 +1709,7 @@ describe('swiping through a story', () => {
 describe('pulling a story down', () => {
   const card = () => middle().parentElement?.parentElement as HTMLElement;
   const backdrop = () => card().previousElementSibling as HTMLElement;
+  const fill = () => card().firstElementChild as HTMLElement;
   const slowly = 500;
 
   function reduceMotion() {
@@ -1734,6 +1733,8 @@ describe('pulling a story down', () => {
 
     expect(card().style.transform).toBe('translateY(384px) scale(0.8)');
     expect(card().style.borderRadius).toBe('24px');
+    expect(fill()).toHaveClass('bg-player');
+    expect(fill().style.opacity).toBe('1');
     expect(backdrop().style.opacity).toBe('0.5');
     await release();
   });
@@ -1785,16 +1786,17 @@ describe('pulling a story down', () => {
 
     expect(card().style.transform).toBe('none');
     expect(card().style.borderRadius).toBe('0px');
+    expect(fill().style.opacity).toBe('0.5');
     expect(backdrop().style.opacity).toBe('0.5');
     await release();
   });
 
-  it('leaves the story in place when swiped sideways', async () => {
+  it('neither shrinks the story nor fades the backdrop when swiped sideways, even dipping down', async () => {
     await openStory('/day/2026-11-11?year=2025');
 
-    const release = await drag(-200, 0);
+    const release = await drag(-200, 150);
 
-    expect(card().style.transform).toBe('none');
+    expect(card().style.transform).toBe('translateY(150px)');
     expect(backdrop().style.opacity).toBe('1');
     await release();
   });

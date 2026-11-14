@@ -1,11 +1,12 @@
-import { useRouterState } from '@tanstack/react-router';
+import { useRouter, useRouterState } from '@tanstack/react-router';
 
-export function storyHref(date: string, year: number) {
-  return `/day/${date}?year=${String(year)}`;
-}
-
-export function useOpening() {
+export function useOpening(date: string, year: number) {
+  const { href } = useRouter().buildLocation({
+    to: '/day/$date',
+    params: { date },
+    search: { year },
+  });
   return useRouterState({
-    select: ({ isLoading, location }) => (isLoading ? location.href : undefined),
+    select: ({ isLoading, location }) => isLoading && location.href === href,
   });
 }

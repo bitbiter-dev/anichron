@@ -151,8 +151,9 @@ function Player({ date, year, day, close }: PlayerProps) {
           onDrag={pull.onDrag}
           onDragEnd={pull.onDragEnd}
           style={pull.card}
-          className="absolute inset-0 overflow-hidden bg-player select-none [-webkit-touch-callout:none]"
+          className="absolute inset-0 overflow-hidden select-none [-webkit-touch-callout:none]"
         >
+          <m.div style={pull.fill} className="absolute inset-0 bg-player" />
           <div
             key={state.visit}
             role="img"
