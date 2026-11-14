@@ -1798,6 +1798,15 @@ describe('pulling a story down', () => {
     await release();
   });
 
+  it('pulls along a drag exactly as far down as sideways', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+
+    const release = await drag(-384, 384);
+
+    expect(backdrop().style.opacity).toBe('0.5');
+    await release();
+  });
+
   it('neither shrinks the story nor fades the backdrop when swiped sideways, even dipping down', async () => {
     await openStory('/day/2026-11-11?year=2025');
 
