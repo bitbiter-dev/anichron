@@ -134,7 +134,7 @@ describe('opening a story', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Memories of November 11, 2024' }),
     ).toBeVisible();
-    expect(screen.getByText('1 year ago · 2023')).toBeVisible();
+    expect(await screen.findByText('1 year ago · 2023')).toBeVisible();
     expect(requested).toContain('2024-11-11');
   });
 
