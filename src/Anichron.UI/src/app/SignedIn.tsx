@@ -3,5 +3,6 @@ import { useUser } from '../shared/use-user';
 import { Splash } from './Splash';
 
 export function SignedIn() {
-  return useUser() ? <Outlet /> : <Splash />;
+  const user = useUser();
+  return user ? <Outlet key={user.id} /> : <Splash />;
 }

@@ -655,7 +655,7 @@ describe('the stream', () => {
     expect(events.connections).toHaveLength(1);
   });
 
-  it('starts again when another tab signs in', async () => {
+  it('starts again, listing afresh, when another tab signs in', async () => {
     const tabs = sharedTabs();
     lists({ items: [workItem(1)] });
     renderApp('/admin/work-items', tabs.tab());
@@ -665,6 +665,8 @@ describe('the stream', () => {
     act(() => {
       tabs.tab().announce('signed-in');
     });
+    await advance(1000);
+    expect(listed).toHaveLength(2);
     await screen.findByRole('list');
     const again = await opened(2);
     await on(stream, 'a', workItem(7, { kind: 'ProxySweep' }));
