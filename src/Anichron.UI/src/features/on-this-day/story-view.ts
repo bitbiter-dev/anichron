@@ -1,6 +1,21 @@
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { blurhashOf } from './blurhash';
-import type { StoryState } from './story';
+import { type Kind, memoryMilliseconds, type StoryState, videoMilliseconds } from './story';
+
+export function kindOf({ mediaType, proxies }: Memory): Kind {
+  if (mediaType === 'Video' && proxies.video) return 'video';
+  return proxies.preview ? 'picture' : 'none';
+}
+
+function durationOf({ kind, load }: StoryState, { durationSeconds }: Memory) {
+  if (kind !== 'video' || load === 'failed') return memoryMilliseconds;
+  return Math.min((durationSeconds ?? Infinity) * 1000, videoMilliseconds);
+}
+
+function imageOf({ kind, load }: StoryState) {
+  if (kind === 'video') return load === 'failed' ? 'poster' : null;
+  return load === 'failed' ? null : 'picture';
+}
 
 export function storyView(state: StoryState, group: YearGroup) {
   const kinds: Partial<Record<string, 'story.video' | 'story.livePhoto'>> = {
@@ -21,6 +36,14 @@ export function storyView(state: StoryState, group: YearGroup) {
     pause: state.paused ? 'story.play' : 'story.pause',
     controls: state.held ? 'hidden' : 'visible',
     blurhash: state.load === 'shown' ? null : blurhashOf(memory),
-    failed: state.load === 'failed',
+    failed: state.kind !== 'video' && state.load === 'failed',
+    image: imageOf(state),
+    video: state.kind === 'video' && state.load !== 'failed',
+    duration: durationOf(state, memory),
+    sound: {
+      shown: state.kind === 'video',
+      hint: state.hint,
+      label: state.muted ? 'story.soundOn' : 'story.soundOff',
+    },
   } as const;
 }
