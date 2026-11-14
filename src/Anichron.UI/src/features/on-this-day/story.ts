@@ -105,6 +105,7 @@ export function createStory(
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
+  let ended = false;
   let muted = true;
   let hinted = position.kind === 'video';
   let hint = hinted;
@@ -120,7 +121,7 @@ export function createStory(
   let notify: (() => void) | undefined;
 
   function stateOf(): StoryState {
-    const running = position.load !== 'loading' && !paused && !held;
+    const running = position.load !== 'loading' && !paused && !held && !ended;
     return { ...position, paused, held, running, muted, hint };
   }
 
@@ -130,14 +131,14 @@ export function createStory(
   }
 
   function start() {
-    if (!notify || paused || held) return;
+    if (!notify || paused || held || ended) return;
     clock.start();
     if (hint && position.load !== 'loading') hintClock.start();
   }
 
   function expire() {
     if (position.load === 'loading') settle(position.visit, 'failed');
-    else next();
+    else advance();
   }
 
   function update(change: () => void) {
@@ -151,6 +152,7 @@ export function createStory(
   function show(to: StoryPosition) {
     update(() => {
       position = to;
+      ended = false;
       clock.set(lasting(to));
       hint = to.kind === 'video' && !hinted;
       hinted ||= hint;
@@ -186,6 +188,16 @@ export function createStory(
     else show(at(group, later));
   }
 
+  function advance() {
+    const { group, memory } = position;
+    const last = shown(group).at(-1) === memory && groupsShown().every((index) => index <= group);
+    if (last)
+      update(() => {
+        ended = true;
+      });
+    else next();
+  }
+
   function previous() {
     const { group, memory } = position;
     const earlier = shown(group).findLast((index) => index < memory);
@@ -209,7 +221,7 @@ export function createStory(
       settle(visit, 'shown');
     },
     mediaEnded(visit) {
-      if (visit === position.visit) next();
+      if (visit === position.visit) advance();
     },
     mediaFailed(visit) {
       settle(visit, 'failed');

@@ -120,7 +120,6 @@ describe('the theme choice', () => {
     const { theme } = await openSettings();
     const keyboard = user();
     await keyboard.tab();
-    await keyboard.tab();
     expect(theme('System')).toHaveFocus();
 
     await keyboard.keyboard('{ArrowRight}');

@@ -85,7 +85,7 @@ function routeTree() {
       () => import('../features/settings/SettingsPage'),
       'SettingsPage',
     ),
-    staticData: { screen: { title: 'settings.title', parent: '/' } },
+    staticData: { screen: { title: 'settings.title' } },
   });
 
   const adminRoute = createRoute({
@@ -177,6 +177,6 @@ declare module '@tanstack/react-router' {
     router: ReturnType<typeof createAppRouter>;
   }
   interface StaticDataRouteOption {
-    screen?: { title: ParseKeys; parent: string };
+    screen?: { title: ParseKeys; parent?: string };
   }
 }

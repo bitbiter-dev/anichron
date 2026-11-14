@@ -201,7 +201,7 @@ describe('earlier days', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('says Nothing in these days briefly when it adds none, and the next tap moves on', async () => {
+  it('says Nothing in these days briefly when it adds none, and keeps it while the next tap loads', async () => {
     days['2026-10-18'] = [onDay('2026-10-18', 2023)];
     const { container } = await openLanding();
 
@@ -223,7 +223,7 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
 
-    expect(earlier()).toHaveAccessibleName('Earlier days');
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
     expect(await within(tray()).findByRole('link', { name: 'Sun 18 Oct' })).toBeVisible();
     expect(newRequests(before)).toEqual([
       '2026-10-18',
@@ -278,6 +278,7 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
 
+    expect(earlier()).toHaveAccessibleName('Earlier days');
     expect(await within(tray()).findByRole('button', { name: 'Nothing in these days' })).toBe(
       earlier(),
     );
@@ -298,7 +299,7 @@ describe('earlier days', () => {
     expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 
-  it('says Nothing in these days when six days that answer slowly turn out empty', async () => {
+  it('keeps saying Nothing in these days while six days that answer slowly turn out empty', async () => {
     days['2026-10-24'] = () =>
       new Promise((resolve) =>
         setTimeout(() => {
@@ -311,11 +312,13 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
     await advance(2500);
-    expect(earlier()).toHaveAccessibleName('Earlier days');
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
     await advance(500);
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
+    await advance(1900);
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
+    await advance(200);
 
-    expect(await within(tray()).findByRole('button', { name: 'Nothing in these days' })).toBe(
-      earlier(),
-    );
+    expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 });

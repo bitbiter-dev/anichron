@@ -959,3 +959,44 @@ describe('who sees the work queue', () => {
     expect(await screen.findByRole('heading', { name: 'Account' })).toBeVisible();
   });
 });
+
+describe('the back control of the work queue', () => {
+  const settings = { level: 1, name: 'Settings' } as const;
+
+  it('goes back in history when it was opened from Settings', async () => {
+    lists({ items: [] });
+    const { router } = renderApp('/settings');
+    fireEvent.click(await screen.findByRole('link', { name: 'Work queue' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Work queue' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(await screen.findByRole('heading', settings)).toBeVisible();
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it('replaces itself with Settings when it was opened directly', async () => {
+    lists({ items: [] });
+    const { router } = renderApp('/admin/work-items');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Work queue' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(await screen.findByRole('heading', settings)).toBeVisible();
+    expect(router.history.length).toBe(1);
+    expect(router.history.canGoBack()).toBe(false);
+  });
+
+  it('goes back in history to the Settings that replaced it', async () => {
+    lists({ items: [] });
+    const { router } = renderApp('/admin/work-items');
+    fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'Work queue' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Work queue' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(await screen.findByRole('heading', settings)).toBeVisible();
+    expect(router.history.canGoBack()).toBe(false);
+  });
+});
