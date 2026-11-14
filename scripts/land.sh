@@ -15,9 +15,9 @@
 # answers, and the state read again then; only a failed run or check, the
 # timeout, a signal, or master moving during CI stops it, with the reason.
 # LAND_POLL_SECONDS is the wait between checks (default 30), LAND_TIMEOUT_MINUTES
-# the longest wait for everything, outages included (default 120), and
-# LAND_MERGE_SECONDS how long a merge GitHub refuses is tried again (default
-# 300).
+# the longest wait for CI and the required checks, outages included (default
+# 120), and LAND_MERGE_SECONDS how long a merge GitHub refuses while it still
+# reports the PR BLOCKED or UNKNOWN is tried again (default 300).
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
 # a draft again if it had been marked ready; 2 usage; 3 merged, but cleaning up
@@ -124,13 +124,16 @@ await_started() {
   done
 }
 
-# Squash-merges <number> at <sha>, trying again while GitHub refuses, for up
-# to merge_seconds.
+# Squash-merges <number> at <sha>. A refusal while GitHub reports the PR
+# BLOCKED or UNKNOWN is tried again for up to merge_seconds; any other merge
+# state stops it. Sets `state` to the last merge state read.
 merge_pr() {
-  local number="$1" sha="$2" until=$(($(date +%s) + merge_seconds)) refused=''
+  local number="$1" sha="$2" deadline=$(($(date +%s) + merge_seconds)) refused=''
   until gh pr merge "$number" --squash --match-head-commit "$sha" >/dev/null; do
-    [ "$(date +%s)" -lt "$until" ] || return 1
-    [ -n "$refused" ] || say "GitHub refused the merge; trying again every ${poll}s"
+    state=$(gh_retry pr view "$number" --json mergeStateStatus | jq -r .mergeStateStatus) || return 1
+    case "$state" in BLOCKED | UNKNOWN) ;; *) return 1 ;; esac
+    [ "$(date +%s)" -lt "$deadline" ] || return 1
+    [ -n "$refused" ] || say "GitHub refused the merge of a $state PR; trying again every ${poll}s"
     refused=1
     sleep "$poll"
   done
@@ -233,8 +236,10 @@ main() {
 
   state=$(gh_retry pr view "$number" --json mergeStateStatus | jq -r .mergeStateStatus) || back_to_draft 'Its merge state could not be read.'
   [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'
-  merge_pr "$number" "$sha" \
-    || back_to_draft "GitHub refused the merge (merge state $state, gh's reason above)."
+  if ! merge_pr "$number" "$sha"; then
+    [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'
+    back_to_draft "GitHub refused the merge (merge state $state, gh's reason above)."
+  fi
   trap - TERM HUP INT
   say "merged PR #$number"
 
