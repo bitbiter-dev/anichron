@@ -606,9 +606,17 @@ describe('a video', () => {
     await openVideo();
     await fire('playing');
 
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
     await fire('ended');
     await advance(60_000);
+    const pointer = user();
+    await pointer.pointer({ keys: '[MouseLeft>]', target: middle() });
+    await advance(1000);
+    await pointer.pointer({ keys: '[/MouseLeft]', target: middle() });
+    await user().click(button('Pause'));
+    await user().click(button('Play'));
 
+    expect(play).not.toHaveBeenCalled();
     expect(video()).toBeVisible();
     expect(segment(0)).toHaveStyle({ animationPlayState: 'paused' });
   });

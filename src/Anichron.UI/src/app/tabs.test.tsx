@@ -88,6 +88,7 @@ function openTabs(firstPath: string, secondPath: string) {
     return {
       ...within(rendered.container),
       container: rendered.container,
+      router: rendered.router,
       unmount: rendered.unmount,
     };
   };
@@ -128,7 +129,7 @@ describe('two tabs of one browser', () => {
       refreshTakes(0),
       logoutSucceeds(() => logouts++),
     );
-    const [first, second] = openTabs('/settings', '/');
+    const [first, second] = openTabs('/settings', '/?from=link');
     expect(await first.findByRole('button', { name: 'Sign out' })).toBeVisible();
     expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
 
@@ -136,6 +137,7 @@ describe('two tabs of one browser', () => {
 
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
     expect(await second.findByRole('heading', loginHeading)).toBeVisible();
+    expect(second.router.state.location.href).toBe('/login');
     expect(second.queryByRole('link', memoriesOf('mira'))).toBeNull();
     expect(logouts).toBe(1);
   });

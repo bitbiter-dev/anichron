@@ -8,8 +8,7 @@ import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 
 export function SettingsPage() {
   const { t } = useTranslation();
-  const router = useRouter();
-  const { api, theme } = router.options.context;
+  const { api, theme } = useRouter().options.context;
   return (
     <main className="flex flex-col gap-6 p-4">
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
@@ -26,7 +25,7 @@ export function SettingsPage() {
         <h2 className="font-semibold">{t('settings.account')}</h2>
         <Button
           variant="danger"
-          onPress={() => void api.session.logout().then(() => router.navigate({ to: '/login' }))}
+          onPress={() => void api.session.logout()}
           className="self-start px-0"
         >
           {t('settings.signOut')}

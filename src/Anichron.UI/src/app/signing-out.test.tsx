@@ -63,6 +63,29 @@ describe('signing out', () => {
     expect(router.state.location.pathname).toBe('/login');
   });
 
+  it('returns to the page a session expired on after signing in again', async () => {
+    let refreshes = 0;
+    server.use(
+      refreshRespondsWith(() =>
+        ++refreshes === 1 ? HttpResponse.json(miraSession) : problemResponse(401, 'unauthorized'),
+      ),
+      logoutSucceeds(),
+      loginRespondsWith(() => HttpResponse.json(miraSession)),
+    );
+    const { router } = await openSignedIn();
+    signOut();
+    expect(await findLoginHeading()).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'mira' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('link', memoriesOf('mira'))).toBeVisible();
+
+    await act(() => vi.advanceTimersByTimeAsync(miraSession.expiresIn * 1000));
+
+    expect(await findLoginHeading()).toBeVisible();
+    expect(router.state.location.href).toBe('/login?redirect=%2F');
+  });
+
   it('renews an expired access token first, so the server ends the session', async () => {
     let refreshes = 0;
     const bearers: (string | null)[] = [];

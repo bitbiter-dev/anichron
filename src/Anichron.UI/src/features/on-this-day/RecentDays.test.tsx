@@ -236,6 +236,19 @@ describe('earlier days', () => {
     expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 
+  it('says Earlier days while the first six days still load', async () => {
+    days['2026-11-11'] = [onDay('2026-11-11', 2025)];
+    days['2026-11-09'] = () =>
+      new Promise((resolve) =>
+        setTimeout(() => {
+          resolve(Response.json({ date: '2026-11-09', years: [] }));
+        }, 3000),
+      );
+    await openLanding();
+
+    expect(earlier()).toHaveAccessibleName('Earlier days');
+  });
+
   it('says nothing when a retried day of the first six turns out empty', async () => {
     days['2026-11-09'] = () => problemResponse(500, 'internal_error');
     await openLanding();

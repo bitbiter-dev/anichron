@@ -44,7 +44,12 @@ function routeTree() {
     component: SignedIn,
     beforeLoad: ({ context, location }) => {
       const user = context.api.session.user();
-      if (!user) throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
+      if (!user)
+        throw redirect({
+          href: context.api.session.signedOut()
+            ? '/login'
+            : `/login?redirect=${encodeURIComponent(location.href)}`,
+        });
       return { user };
     },
   });

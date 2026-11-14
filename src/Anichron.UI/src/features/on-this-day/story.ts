@@ -21,6 +21,7 @@ export type Place = Pick<StoryPosition, 'group' | 'memory'>;
 export interface StoryState extends StoryPosition {
   paused: boolean;
   held: boolean;
+  ended: boolean;
   running: boolean;
   muted: boolean;
   hint: boolean;
@@ -122,7 +123,7 @@ export function createStory(
 
   function stateOf(): StoryState {
     const running = position.load !== 'loading' && !paused && !held && !ended;
-    return { ...position, paused, held, running, muted, hint };
+    return { ...position, paused, held, ended, running, muted, hint };
   }
 
   function stop() {
@@ -138,7 +139,7 @@ export function createStory(
 
   function expire() {
     if (position.load === 'loading') settle(position.visit, 'failed');
-    else advance();
+    else next(rest);
   }
 
   function update(change: () => void) {
@@ -175,27 +176,23 @@ export function createStory(
       });
   }
 
-  function nextGroup() {
+  function rest() {
+    update(() => {
+      ended = true;
+    });
+  }
+
+  function nextGroup(atEnd = close) {
     const later = groupsShown().find((group) => group > position.group);
-    if (later === undefined) close();
+    if (later === undefined) atEnd();
     else show(first(later));
   }
 
-  function next() {
+  function next(atEnd = close) {
     const { group, memory } = position;
     const later = shown(group).find((index) => index > memory);
-    if (later === undefined) nextGroup();
+    if (later === undefined) nextGroup(atEnd);
     else show(at(group, later));
-  }
-
-  function advance() {
-    const { group, memory } = position;
-    const last = shown(group).at(-1) === memory && groupsShown().every((index) => index <= group);
-    if (last)
-      update(() => {
-        ended = true;
-      });
-    else next();
   }
 
   function previous() {
@@ -221,7 +218,7 @@ export function createStory(
       settle(visit, 'shown');
     },
     mediaEnded(visit) {
-      if (visit === position.visit) advance();
+      if (visit === position.visit) next(rest);
     },
     mediaFailed(visit) {
       settle(visit, 'failed');
@@ -246,9 +243,13 @@ export function createStory(
       if (position.kind === 'video') toggleSound();
       else next();
     },
-    next,
+    next() {
+      next();
+    },
     previous,
-    nextGroup,
+    nextGroup() {
+      nextGroup();
+    },
     close,
     previousGroup() {
       const { group } = position;
