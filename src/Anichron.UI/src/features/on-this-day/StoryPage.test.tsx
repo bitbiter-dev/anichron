@@ -43,7 +43,7 @@ const galleryOf = (name: string) =>
 const story = () => screen.getByRole('dialog', { name: storyName });
 const button = (name: string) => within(story()).getByRole('button', { name });
 const showing = () => picture().getAttribute('src');
-async function swipe(x: number, y: number, from = middle()) {
+async function drag(x: number, y: number, from = middle(), stepMilliseconds = 16) {
   const at = (step: number) => ({
     clientX: 200 + x * step,
     clientY: 300 + y * step,
@@ -54,10 +54,17 @@ async function swipe(x: number, y: number, from = middle()) {
   fireEvent.pointerDown(from, at(0));
   for (const step of [0.5, 1]) {
     fireEvent.pointerMove(from, at(step));
-    await advance(16);
+    await advance(stepMilliseconds);
   }
-  fireEvent.pointerUp(from, at(1));
-  await advance(2000);
+  return async () => {
+    fireEvent.pointerUp(from, at(1));
+    await advance(2000);
+  };
+}
+
+async function swipe(x: number, y: number, from = middle(), stepMilliseconds = 16) {
+  const release = await drag(x, y, from, stepMilliseconds);
+  await release();
 }
 
 const failure = "Couldn't load this memory";
@@ -1698,6 +1705,98 @@ describe('swiping through a story', () => {
     const player = middle().parentElement?.parentElement as HTMLElement;
     expect(player.style.touchAction).toBe('none');
     expect(player).toHaveClass('select-none', '[-webkit-touch-callout:none]');
+  });
+});
+
+describe('pulling a story down', () => {
+  const card = () => middle().parentElement?.parentElement as HTMLElement;
+  const backdrop = () => card().previousElementSibling as HTMLElement;
+  const slowly = 500;
+
+  function reduceMotion() {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (media) =>
+        ({
+          matches: media === '(prefers-reduced-motion: reduce)',
+          media,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+  }
+
+  it('shrinks the story into a rounded card that follows the finger, and fades the backdrop', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+    expect(backdrop()).toHaveClass('bg-player');
+    expect(card().style.transform).toBe('none');
+
+    const release = await drag(0, 384);
+
+    expect(card().style.transform).toBe('translateY(384px) scale(0.8)');
+    expect(card().style.borderRadius).toBe('24px');
+    expect(backdrop().style.opacity).toBe('0.5');
+    await release();
+  });
+
+  it('shrinks no further than a card of 60%, with no backdrop left', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+
+    const release = await drag(0, 1000);
+
+    expect(card().style.transform).toBe('translateY(1000px) scale(0.6)');
+    expect(backdrop().style.opacity).toBe('0');
+    await release();
+  });
+
+  it('springs back when released short of a third of the screen', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+
+    await swipe(0, 255, middle(), slowly);
+
+    expect(story()).toBeVisible();
+    expect(card().style.transform).toBe('none');
+    expect(card().style.borderRadius).toBe('0px');
+    expect(backdrop().style.opacity).toBe('1');
+  });
+
+  it('closes when released past a third of the screen', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2023');
+
+    await swipe(0, 256, middle(), slowly);
+    await advance(0);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(router.state.location.href).toBe('/');
+  });
+
+  it('springs back from a slow short pull', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+
+    await swipe(0, 60, middle(), slowly);
+
+    expect(story()).toBeVisible();
+  });
+
+  it('only fades the backdrop under reduced motion', async () => {
+    reduceMotion();
+    await openStory('/day/2026-11-11?year=2023');
+
+    const release = await drag(0, 384);
+
+    expect(card().style.transform).toBe('none');
+    expect(card().style.borderRadius).toBe('0px');
+    expect(backdrop().style.opacity).toBe('0.5');
+    await release();
+  });
+
+  it('leaves the story in place when swiped sideways', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+
+    const release = await drag(-200, 0);
+
+    expect(card().style.transform).toBe('none');
+    expect(backdrop().style.opacity).toBe('1');
+    await release();
   });
 });
 

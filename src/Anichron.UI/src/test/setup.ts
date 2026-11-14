@@ -57,3 +57,15 @@ for (const method of ['play', 'pause', 'load'] as const)
     configurable: true,
     writable: true,
   });
+
+// jsdom matches no media query; a test replaces `matchMedia` to match one.
+Object.defineProperty(window, 'matchMedia', {
+  value: (media: string): Partial<MediaQueryList> => ({
+    matches: false,
+    media,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }),
+  configurable: true,
+  writable: true,
+});

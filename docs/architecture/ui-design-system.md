@@ -41,13 +41,13 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 
 - **Every screen** has the bottom bar: a floating glass pill on `env(safe-area-inset-bottom)`, or just above the edge without one (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
 - **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.
-- **Every screen below Home** also has the top bar: its title, and a back control when it has a parent, from the route's `staticData.screen` (title key and parent path) in `router.tsx`. A bottom bar destination has no parent.
+- **Every screen below Home** also has the top bar: its title, and a back control when it has a parent, from the route's `staticData.screen` (title key and parent path) in `router.tsx`. A bottom bar destination has no parent. Its glass is nearly solid (`--glass-bar-opacity`), so content scrolling under it never competes with the title.
 - **Back rule** (`back.ts`): when the previous history entry is the parent, back goes back in history; otherwise it replaces the current entry with the parent. So the back control, Android's back button and Safari's edge swipe agree.
 - On wide screens the same layout is centred at a readable width (`Shell.tsx`).
 
 ## Motion and focus
 
-- Durations are tokens that become `0ms` under `prefers-reduced-motion`, and the story's progress fill (`--animate-story-fill`) steps; no component checks the preference itself. Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`.
+- Durations are tokens that become `0ms` under `prefers-reduced-motion`, and the story's progress fill (`--animate-story-fill`) steps. Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. The pull to close reads it itself (`use-pull.ts`): no shrink, the backdrop fade only. A loading ring stops spinning (`motion-reduce:`).
 - Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
 
 ## Base components

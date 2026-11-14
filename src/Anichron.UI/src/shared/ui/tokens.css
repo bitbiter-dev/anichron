@@ -28,6 +28,7 @@
   --danger-700: #b42318;
 
   --glass-opacity: 0.7;
+  --glass-bar-opacity: 0.94;
   --glass-blur: 24px;
   --glass-edge: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.12));
   --shadow-glass:

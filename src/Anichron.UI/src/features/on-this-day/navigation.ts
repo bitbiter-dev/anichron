@@ -30,18 +30,20 @@ export function listenToInput(story: Story) {
 }
 
 const swipePixels = 60;
+const flickPixelsPerSecond = 800;
 
 interface Point {
   x: number;
   y: number;
 }
 
-function swipeMove({ x, y }: Point): Move | 'close' | undefined {
+function swipeMove({ x, y }: Point, velocity: Point, height: number): Move | 'close' | undefined {
   if (Math.abs(x) > Math.abs(y)) {
     if (x <= -swipePixels) return 'nextGroup';
     return x >= swipePixels ? 'previousGroup' : undefined;
   }
-  return y >= swipePixels ? 'close' : undefined;
+  const flicked = y >= swipePixels && velocity.y >= flickPixelsPerSecond;
+  return flicked || y >= height / 3 ? 'close' : undefined;
 }
 
 export function createGestures(story: Story) {
@@ -57,9 +59,10 @@ export function createGestures(story: Story) {
     tap: (move: Tap) => () => {
       if (!swiping) story[move]();
     },
-    dragEnd: (offset: Point) => {
-      const move = swipeMove(offset);
+    dragEnd: (offset: Point, velocity: Point, height: number) => {
+      const move = swipeMove(offset, velocity, height);
       if (move) story[move]();
+      return move === 'close';
     },
   };
 }

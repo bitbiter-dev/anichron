@@ -16,6 +16,7 @@ import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
 import { type Move, segmentState, type Tap } from './story';
 import { useInteractions } from './use-interactions';
+import { usePull } from './use-pull';
 import { useStory } from './use-story';
 import { useZonePress } from './use-zone-press';
 
@@ -32,7 +33,7 @@ export function StoryPage() {
     back.to('/');
   };
   return (
-    <ModalOverlay isOpen onOpenChange={close} className="fixed inset-0 z-20 bg-player">
+    <ModalOverlay isOpen onOpenChange={close} className="fixed inset-0 z-20">
       <Modal className="size-full">
         <Dialog
           aria-label={t('story.title', {
@@ -89,7 +90,7 @@ interface FallbackProps {
 
 function Fallback({ state, close, retry }: FallbackProps) {
   return (
-    <>
+    <div className="absolute inset-0 bg-player">
       {state.empty && <Navigate to="/" replace />}
       {state.failure && (
         <div className="p-4 pt-16">
@@ -99,7 +100,7 @@ function Fallback({ state, close, retry }: FallbackProps) {
       <div className="absolute top-[calc(env(safe-area-inset-top)+0.75rem)] right-2">
         <CloseButton close={close} />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -136,19 +137,21 @@ function Player({ date, year, day, close }: PlayerProps) {
     toggleSound,
   } = story;
   const interactions = useInteractions(date, story);
+  const pull = usePull(gestures);
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
+        <m.div style={pull.backdrop} className="absolute inset-0 bg-player" />
         <m.div
           drag
           dragConstraints={{ top: 0, right: 0, bottom: 0, left: 0 }}
-          dragElastic={{ top: 0, right: 0, bottom: 1, left: 0 }}
+          dragElastic={pull.elastic}
           dragSnapToOrigin
           onDragStart={gestures.dragStart}
-          onDragEnd={(_, { offset }) => {
-            gestures.dragEnd(offset);
-          }}
-          className="absolute inset-0 select-none [-webkit-touch-callout:none]"
+          onDrag={pull.onDrag}
+          onDragEnd={pull.onDragEnd}
+          style={pull.card}
+          className="absolute inset-0 overflow-hidden bg-player select-none [-webkit-touch-callout:none]"
         >
           <div
             key={state.visit}
