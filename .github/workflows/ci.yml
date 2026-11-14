@@ -115,6 +115,7 @@ jobs:
       - name: Test helper scripts
         run: |
           scripts/mutation-report.test.sh
+          scripts/mutation-merge-parts.test.sh
           scripts/publish-badges.test.sh
           scripts/assemble-pages.test.sh
           scripts/derive-db-docs.test.sh
@@ -464,33 +465,17 @@ jobs:
           pattern: mutation-part-*
           path: parts
 
-      # Refuses unless every planned project left a report, and on any
-      # inconsistency between them (scripts/mutation-report.sh, "merge").
       - name: Merge project reports
         id: merge
         continue-on-error: true
         env:
           PROJECTS: ${{ needs.mutation-targets.outputs.projects }}
         run: |
-          if [ -z "$PROJECTS" ]; then
-            echo "::error::No mutation target list to merge against"
-            exit 1
-          fi
           if [ "$PROJECTS" = '[]' ]; then
             echo '### Mutation: no changed backend file to mutate' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          missing=$(jq -r '.[].name' <<<"$PROJECTS" | while IFS= read -r name; do
-            [ -f "parts/mutation-part-$name/mutation-report.json" ] || echo "$name"
-          done)
-          if [ -n "$missing" ]; then
-            echo "::error::No mutation report from: $(echo $missing)"
-            exit 1
-          fi
-          mkdir -p mutation/reports
-          scripts/mutation-report.sh merge parts/*/mutation-report.json > mutation/reports/mutation-report.json.tmp
-          mv mutation/reports/mutation-report.json.tmp mutation/reports/mutation-report.json
-          cp scripts/mutation-viewer.html mutation/reports/mutation-report.html
+          scripts/mutation-merge-parts.sh "$PROJECTS" parts mutation/reports
 
       - name: Publish merged score
         if: steps.merge.outcome == 'success' && needs.mutation-targets.outputs.projects != '[]'

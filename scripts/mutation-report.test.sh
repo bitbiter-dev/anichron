@@ -162,6 +162,30 @@ fi
 assert_contains "names the first detected count" '8' "$out"
 assert_contains "names the second detected count" '5' "$out"
 
+compare_dir=$(mktemp -d "${TMPDIR:-/tmp}/mutation-report-compare.XXXXXXXX")
+status_of_1() { jq --arg s "$1" '.files["Example.cs"].mutants[0].status = $s' "$fixtures/divergent-a.json" > "$compare_dir/$2.json"; }
+status_of_1 RuntimeError crashed
+status_of_1 Timeout timed-out
+status_of_1 Survived survived
+
+if out=$("$script" compare "$compare_dir/crashed.json" "$compare_dir/timed-out.json" 2>&1); then
+  pass "a mutant valid in only one run is left out of both counts"
+else
+  fail "a mutant valid in only one run is left out of both counts" 'exit 0' "exit $? — $out"
+fi
+assert_contains "names the mutant it left out" 'Example.cs#1 (RuntimeError vs Timeout)' "$out"
+assert_contains "counts the shared valid mutants" 'detected counts agree: 7' "$out"
+
+if out=$("$script" compare "$compare_dir/timed-out.json" "$compare_dir/survived.json" 2>&1); then
+  fail "a detected mutant that survives in the other run is caught" 'non-zero exit' "exit 0 — $out"
+else
+  pass "a detected mutant that survives in the other run is caught"
+fi
+
+jq '.files["Other.cs"] = .files["Example.cs"] | del(.files["Example.cs"])' "$fixtures/divergent-a.json" > "$compare_dir/other.json"
+assert_fails "compare refuses reports of different code" 'mutate different code' "$script" compare "$fixtures/divergent-a.json" "$compare_dir/other.json"
+rm -rf "$compare_dir"
+
 echo
 echo "failing loudly"
 
