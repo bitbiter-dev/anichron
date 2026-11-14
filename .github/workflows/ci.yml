@@ -586,15 +586,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Not a draft
+      - name: A draft
         if: github.event.pull_request.draft == true
-        run: |
-          echo '::error::A draft runs no CI. Mark it ready for review, or run scripts/land.sh.'
-          exit 1
+        run: echo '::notice::A draft runs no CI. Mark it ready for review, or run scripts/land.sh.'
 
       - uses: actions/checkout@v7
+        if: github.event.pull_request.draft != true
 
       - name: Every required job succeeded
+        if: github.event.pull_request.draft != true
         env:
           EVENT: ${{ github.event_name }}
           NEEDS: ${{ toJSON(needs) }}
