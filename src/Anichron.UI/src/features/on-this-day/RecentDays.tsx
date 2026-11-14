@@ -22,7 +22,7 @@ export function RecentDays({ today }: { today: string }) {
   return (
     <ul
       aria-label={t('onThisDay.recentDays')}
-      className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2"
+      className="-mx-4 flex snap-x gap-4 overflow-x-auto border-t border-border px-4 pt-4 pb-2"
     >
       {days.map((day) => (
         <li key={day.date} className="shrink-0 snap-start">

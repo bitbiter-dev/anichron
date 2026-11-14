@@ -201,7 +201,7 @@ describe('earlier days', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('says Nothing in these days briefly when it adds none, and the next tap moves on', async () => {
+  it('says Nothing in these days briefly when it adds none, and keeps it while the next tap loads', async () => {
     days['2026-10-18'] = [onDay('2026-10-18', 2023)];
     const { container } = await openLanding();
 
@@ -223,7 +223,7 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
 
-    expect(earlier()).toHaveAccessibleName('Earlier days');
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
     expect(await within(tray()).findByRole('link', { name: 'Sun 18 Oct' })).toBeVisible();
     expect(newRequests(before)).toEqual([
       '2026-10-18',
@@ -233,6 +233,19 @@ describe('earlier days', () => {
       '2026-10-22',
       '2026-10-23',
     ]);
+    expect(earlier()).toHaveAccessibleName('Earlier days');
+  });
+
+  it('says Earlier days while the first six days still load', async () => {
+    days['2026-11-11'] = [onDay('2026-11-11', 2025)];
+    days['2026-11-09'] = () =>
+      new Promise((resolve) =>
+        setTimeout(() => {
+          resolve(Response.json({ date: '2026-11-09', years: [] }));
+        }, 3000),
+      );
+    await openLanding();
+
     expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 
@@ -278,6 +291,7 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
 
+    expect(earlier()).toHaveAccessibleName('Earlier days');
     expect(await within(tray()).findByRole('button', { name: 'Nothing in these days' })).toBe(
       earlier(),
     );
@@ -298,7 +312,7 @@ describe('earlier days', () => {
     expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 
-  it('says Nothing in these days when six days that answer slowly turn out empty', async () => {
+  it('keeps saying Nothing in these days while six days that answer slowly turn out empty', async () => {
     days['2026-10-24'] = () =>
       new Promise((resolve) =>
         setTimeout(() => {
@@ -311,11 +325,13 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
     await advance(2500);
-    expect(earlier()).toHaveAccessibleName('Earlier days');
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
     await advance(500);
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
+    await advance(1900);
+    expect(earlier()).toHaveAccessibleName('Nothing in these days');
+    await advance(200);
 
-    expect(await within(tray()).findByRole('button', { name: 'Nothing in these days' })).toBe(
-      earlier(),
-    );
+    expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 });

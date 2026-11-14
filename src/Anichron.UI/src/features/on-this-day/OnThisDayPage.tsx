@@ -14,7 +14,7 @@ export function OnThisDayPage() {
   const today = useToday();
   return (
     <>
-      <main className="flex flex-col gap-4 p-4">
+      <main className="flex flex-col gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
         <h1 className="text-title font-semibold">{t('onThisDay.title')}</h1>
         <Today date={today} />
         <RecentDays key={today} today={today} />

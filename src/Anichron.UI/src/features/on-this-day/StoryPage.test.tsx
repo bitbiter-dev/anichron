@@ -258,7 +258,7 @@ describe('a story playing', () => {
     expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
   });
 
-  it('plays year group after year group, and closes back to the landing screen after the last', async () => {
+  it('plays year group after year group, and rests on the last memory until moved on', async () => {
     const { router } = await openLanding();
     fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
     await screen.findByRole('dialog', { name: storyName });
@@ -285,21 +285,57 @@ describe('a story playing', () => {
       '5 years ago · 2021',
       '5 years ago · 2021',
     ]);
+    await advance(60_000);
+    expect(showing()).toBe(preview(ids.b2021));
+    expect(segment(1)).toHaveStyle({ animationPlayState: 'paused' });
+
+    await user().click(button('Next'));
+    await advance(0);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(router.state.location.href).toBe('/');
     expect(router.history.canGoBack()).toBe(false);
     expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
   });
 
-  it('closes after the last memory of a reloaded story too', async () => {
-    const { router } = await openStory('/day/2026-11-11?year=2021');
+  it('rests on the last memory of a reloaded story too', async () => {
+    await openStory('/day/2026-11-11?year=2021');
+    await shown();
+    await advance(5000);
+    await shown();
+    await advance(60_000);
+
+    expect(story()).toBeVisible();
+    expect(showing()).toBe(preview(ids.b2021));
+  });
+
+  it('rests on the last memory when played again with the pause button', async () => {
+    await openStory('/day/2026-11-11?year=2021');
     await shown();
     await advance(5000);
     await shown();
     await advance(5000);
 
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(router.state.location.href).toBe('/');
+    await user().click(button('Pause'));
+    await user().click(button('Play'));
+    await advance(60_000);
+
+    expect(showing()).toBe(preview(ids.b2021));
+    expect(segment(1)).toHaveStyle({ animationPlayState: 'paused' });
+  });
+
+  it('plays again from the last memory when going back', async () => {
+    await openStory('/day/2026-11-11?year=2021');
+    await shown();
+    await advance(5000);
+    await shown();
+    await advance(5000);
+
+    await user().click(button('Previous'));
+    await shown();
+    await advance(5000);
+
+    expect(await shown()).toBe(preview(ids.b2021));
+    expect(segment(1)).toHaveStyle({ animationPlayState: 'running' });
   });
 
   it('holds the progress of a memory still until its picture is decoded', async () => {
@@ -563,6 +599,26 @@ describe('a video', () => {
     expect(showing()).toBe(preview(ids.b2025));
     expect(video()).not.toBeVisible();
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('rests on its end when it is the last memory', async () => {
+    years = [yearGroup(2025, film(ids.a2025, 2025))];
+    await openVideo();
+    await fire('playing');
+
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+    await fire('ended');
+    await advance(60_000);
+    const pointer = user();
+    await pointer.pointer({ keys: '[MouseLeft>]', target: middle() });
+    await advance(1000);
+    await pointer.pointer({ keys: '[/MouseLeft]', target: middle() });
+    await user().click(button('Pause'));
+    await user().click(button('Play'));
+
+    expect(play).not.toHaveBeenCalled();
+    expect(video()).toBeVisible();
+    expect(segment(0)).toHaveStyle({ animationPlayState: 'paused' });
   });
 
   it('shows its preview as its poster', async () => {
@@ -1637,7 +1693,8 @@ describe('pausing a story', () => {
     expect(within(story()).queryByRole('button', { name: 'Pause' })).toBeNull();
     expect(within(story()).queryByRole('button', { name: 'Close' })).toBeNull();
     expect(within(story()).getByText('1 year ago · 2025')).not.toBeVisible();
-    expect(story().querySelector('ol > li > span')).toHaveStyle({ animationPlayState: 'paused' });
+    expect(story().querySelector('ol')).toBeVisible();
+    expect(segment(0)).toHaveStyle({ animationPlayState: 'paused' });
 
     await pointer.pointer({ keys: '[/MouseLeft]', target: button('Next') });
     expect(button('Pause')).toBeVisible();

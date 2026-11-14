@@ -34,6 +34,7 @@ export interface Session {
   logout(): Promise<void>;
   user: () => User | undefined;
   isSignedIn: () => boolean;
+  signedOut: () => boolean;
   onChange: (listener: () => void) => () => void;
   watch(): () => void;
 }
@@ -70,6 +71,7 @@ export function createSession(
   let restored: Promise<void> | undefined;
   let refreshing: ReturnType<typeof sendRefresh> | undefined;
   let failures = 0;
+  let signedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
 
@@ -156,7 +158,10 @@ export function createSession(
       restored = undefined;
       end();
     },
-    'signed-out': end,
+    'signed-out'() {
+      signedOut = true;
+      end();
+    },
   };
 
   const session: Session = {
@@ -176,16 +181,19 @@ export function createSession(
         send(() => client.POST('/api/v1/auth/login', { body })),
       );
       if (!answer.ok) throw new ProblemError(answer.problem);
+      signedOut = false;
       open(answer.data);
       tabs.announce('signed-in');
     },
     async logout() {
+      signedOut = true;
       if ((await endOnServer()).status === 401 && (await refresh()).ok) await endOnServer();
       end();
       tabs.announce('signed-out');
     },
     user: () => user,
     isSignedIn: () => user !== undefined,
+    signedOut: () => signedOut,
     onChange(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

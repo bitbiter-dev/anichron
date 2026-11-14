@@ -181,10 +181,7 @@ function Player({ date, year, day, close }: PlayerProps) {
             <Middle gestures={gestures} move="middle" />
             <Zone label={t('story.next')} gestures={gestures} move="next" />
           </div>
-          <div
-            style={{ visibility: controls }}
-            className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-1 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6"
-          >
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-1 bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
             <Segments
               key={state.visit}
               count={segments.count}
@@ -192,7 +189,7 @@ function Player({ date, year, day, close }: PlayerProps) {
               duration={duration}
               running={state.running}
             />
-            <div className="flex items-center">
+            <div style={{ visibility: controls }} className="flex items-center">
               <p role="status" className="flex-1 text-small font-semibold">
                 {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
               </p>
@@ -270,7 +267,7 @@ function Sound({ shown, hint, label, toggle }: SoundProps) {
     <m.div
       layout
       data-hint={hint}
-      className="group absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1rem)] size-11 data-[hint=true]:inset-0 data-[hint=true]:m-auto data-[hint=true]:size-32"
+      className="group absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] size-11 data-[hint=true]:inset-0 data-[hint=true]:m-auto data-[hint=true]:size-32"
     >
       <Button
         aria-label={t(label)}

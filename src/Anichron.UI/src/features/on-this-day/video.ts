@@ -22,8 +22,8 @@ export function createVideoPlayer(
   }
 
   function playOrPause(video: HTMLVideoElement) {
-    const { paused, held } = story.state();
-    const wanted = !paused && !held;
+    const { paused, held, ended } = story.state();
+    const wanted = !paused && !held && !ended;
     if (wanted === playing) return;
     playing = wanted;
     if (wanted)

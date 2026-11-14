@@ -145,14 +145,14 @@ describe('the bottom bar while scrolling', () => {
   });
 });
 
-describe('a screen below Home', () => {
-  it('has a top bar with its title and a back control, and the bottom bar', async () => {
+describe('Settings', () => {
+  it('has a top bar with its title and no back control, and the bottom bar', async () => {
     const { router, container } = await openHome();
 
     await openSettings(router);
 
     expect(screen.getByRole('banner')).toHaveTextContent('Settings');
-    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Back' })).toBeVisible();
+    expect(within(screen.getByRole('banner')).queryByRole('button')).toBeNull();
     expect(within(bar()).getByRole('link', { name: 'Settings' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -169,42 +169,5 @@ describe('a screen below Home', () => {
 
     expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(router.state.location.pathname).toBe('/');
-  });
-
-  it('goes back in history when it was opened from Home', async () => {
-    const { router } = await openHome();
-    await openSettings(router);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-
-    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
-    expect(router.state.location.pathname).toBe('/');
-    expect(router.history.canGoBack()).toBe(false);
-  });
-
-  it('replaces itself with Home when it was opened directly', async () => {
-    server.use(refreshSucceeds());
-    const { router } = renderApp('/settings');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-
-    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
-    expect(router.history.length).toBe(1);
-    expect(router.history.canGoBack()).toBe(false);
-  });
-
-  it('goes back in history to the Home that replaced it', async () => {
-    server.use(refreshSucceeds());
-    const { router } = renderApp('/settings');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
-    await openSettings(router);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-
-    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
-    expect(router.history.canGoBack()).toBe(false);
   });
 });

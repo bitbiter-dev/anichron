@@ -44,7 +44,12 @@ function routeTree() {
     component: SignedIn,
     beforeLoad: ({ context, location }) => {
       const user = context.api.session.user();
-      if (!user) throw redirect({ href: `/login?redirect=${encodeURIComponent(location.href)}` });
+      if (!user)
+        throw redirect({
+          href: context.api.session.signedOut()
+            ? '/login'
+            : `/login?redirect=${encodeURIComponent(location.href)}`,
+        });
       return { user };
     },
   });
@@ -85,7 +90,7 @@ function routeTree() {
       () => import('../features/settings/SettingsPage'),
       'SettingsPage',
     ),
-    staticData: { screen: { title: 'settings.title', parent: '/' } },
+    staticData: { screen: { title: 'settings.title' } },
   });
 
   const adminRoute = createRoute({
@@ -177,6 +182,6 @@ declare module '@tanstack/react-router' {
     router: ReturnType<typeof createAppRouter>;
   }
   interface StaticDataRouteOption {
-    screen?: { title: ParseKeys; parent: string };
+    screen?: { title: ParseKeys; parent?: string };
   }
 }

@@ -21,6 +21,7 @@ export type Place = Pick<StoryPosition, 'group' | 'memory'>;
 export interface StoryState extends StoryPosition {
   paused: boolean;
   held: boolean;
+  ended: boolean;
   running: boolean;
   muted: boolean;
   hint: boolean;
@@ -105,6 +106,7 @@ export function createStory(
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
+  let ended = false;
   let muted = true;
   let hinted = position.kind === 'video';
   let hint = hinted;
@@ -120,8 +122,8 @@ export function createStory(
   let notify: (() => void) | undefined;
 
   function stateOf(): StoryState {
-    const running = position.load !== 'loading' && !paused && !held;
-    return { ...position, paused, held, running, muted, hint };
+    const running = position.load !== 'loading' && !paused && !held && !ended;
+    return { ...position, paused, held, ended, running, muted, hint };
   }
 
   function stop() {
@@ -130,14 +132,14 @@ export function createStory(
   }
 
   function start() {
-    if (!notify || paused || held) return;
+    if (!notify || paused || held || ended) return;
     clock.start();
     if (hint && position.load !== 'loading') hintClock.start();
   }
 
   function expire() {
     if (position.load === 'loading') settle(position.visit, 'failed');
-    else next();
+    else next(rest);
   }
 
   function update(change: () => void) {
@@ -151,6 +153,7 @@ export function createStory(
   function show(to: StoryPosition) {
     update(() => {
       position = to;
+      ended = false;
       clock.set(lasting(to));
       hint = to.kind === 'video' && !hinted;
       hinted ||= hint;
@@ -173,16 +176,22 @@ export function createStory(
       });
   }
 
-  function nextGroup() {
+  function rest() {
+    update(() => {
+      ended = true;
+    });
+  }
+
+  function nextGroup(atEnd = close) {
     const later = groupsShown().find((group) => group > position.group);
-    if (later === undefined) close();
+    if (later === undefined) atEnd();
     else show(first(later));
   }
 
-  function next() {
+  function next(atEnd = close) {
     const { group, memory } = position;
     const later = shown(group).find((index) => index > memory);
-    if (later === undefined) nextGroup();
+    if (later === undefined) nextGroup(atEnd);
     else show(at(group, later));
   }
 
@@ -209,7 +218,7 @@ export function createStory(
       settle(visit, 'shown');
     },
     mediaEnded(visit) {
-      if (visit === position.visit) next();
+      if (visit === position.visit) next(rest);
     },
     mediaFailed(visit) {
       settle(visit, 'failed');
@@ -234,9 +243,13 @@ export function createStory(
       if (position.kind === 'video') toggleSound();
       else next();
     },
-    next,
+    next() {
+      next();
+    },
     previous,
-    nextGroup,
+    nextGroup() {
+      nextGroup();
+    },
     close,
     previousGroup() {
       const { group } = position;

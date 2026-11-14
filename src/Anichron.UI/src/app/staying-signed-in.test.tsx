@@ -146,7 +146,8 @@ describe('a session past its access token', () => {
     expect(screen.getByRole('link', memoriesOf('mira'))).toBeVisible();
 
     fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    await screen.findByRole('button', { name: 'Sign out' });
+    fireEvent.click(screen.getByRole('link', { name: 'Today' }));
     await advance(1000);
     expect(bearers).toHaveLength(2);
     expect(screen.getByRole('link', memoriesOf('mira'))).toBeVisible();

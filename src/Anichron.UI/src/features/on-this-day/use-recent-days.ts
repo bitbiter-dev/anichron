@@ -60,18 +60,23 @@ function withMemories(date: string, label: string, newest: YearGroup): DayWithMe
 export function useRecentDays(today: string) {
   const { t } = useTranslation();
   const { api } = useRouter().options.context;
-  const [{ pages, tapped }, setPaging] = useState({ pages: 1, tapped: false });
+  const [{ pages, tapped, wasNothing }, setPaging] = useState({
+    pages: 1,
+    tapped: false,
+    wasNothing: false,
+  });
   const dates = Array.from({ length: pages * daysPerPage }, (_, index) =>
     daysBefore(today, index + 1),
   );
   const todayView = dayView(useQuery(dayQuery(api, today)));
   const days = useQueries({ queries: dates.map((date) => dayQuery(api, date)) });
-  const addedNothing =
-    tapped && days.slice(-daysPerPage).every(({ data }) => data?.years.length === 0);
+  const added = days.slice(-daysPerPage);
+  const addedNothing = tapped && added.every(({ data }) => data?.years.length === 0);
+  const nothing = addedNothing || (wasNothing && added.some(({ isPending }) => isPending));
   useEffect(() => {
     if (!addedNothing) return undefined;
     const timer = setTimeout(() => {
-      setPaging((current) => ({ ...current, tapped: false }));
+      setPaging((current) => ({ ...current, tapped: false, wasNothing: false }));
     }, nothingMilliseconds);
     return () => {
       clearTimeout(timer);
@@ -87,9 +92,9 @@ export function useRecentDays(today: string) {
   return {
     days: recent,
     visible: recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
-    earlierLabel: addedNothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
+    earlierLabel: nothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
     showEarlier: () => {
-      setPaging({ pages: pages + 1, tapped: true });
+      setPaging({ pages: pages + 1, tapped: true, wasNothing: nothing });
     },
   } as const;
 }
