@@ -78,6 +78,23 @@ describe('the landing screen', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
+  it('shows a tapped year group loading until its story opens', async () => {
+    server.use(refreshSucceeds(), today());
+    renderApp('/');
+    const tapped = await screen.findByRole('link', { name: '3 years ago · 2023' });
+    expect(tapped).toHaveAttribute('aria-busy', 'false');
+
+    fireEvent.click(tapped);
+
+    expect(tapped).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
+    expect(await screen.findByRole('dialog')).toBeVisible();
+    expect(tapped).toHaveAttribute('aria-busy', 'false');
+  });
+
   it('asks for the date of the phone, not of UTC', async () => {
     vi.setSystemTime(new Date(2026, 10, 12, 0, 30));
     server.use(refreshSucceeds(), today());

@@ -2,6 +2,7 @@ export const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
 export const videoMilliseconds = 60_000;
 const hintMilliseconds = 1000;
+const upcomingCount = 2;
 
 export type Load = 'loading' | 'shown' | 'failed';
 
@@ -25,6 +26,7 @@ export interface StoryState extends StoryPosition {
   running: boolean;
   muted: boolean;
   hint: boolean;
+  upcoming: readonly Place[];
 }
 
 export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
@@ -103,6 +105,11 @@ export function createStory(
     };
   };
   const first = (group: number) => at(group, shown(group)[0] as number);
+  const upcoming = ({ group, memory }: Place) =>
+    groupsShown()
+      .flatMap((later) => shown(later).map((index) => ({ group: later, memory: index })))
+      .filter((place) => place.group > group || (place.group === group && place.memory > memory))
+      .slice(0, upcomingCount);
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
@@ -123,7 +130,7 @@ export function createStory(
 
   function stateOf(): StoryState {
     const running = position.load !== 'loading' && !paused && !held && !ended;
-    return { ...position, paused, held, ended, running, muted, hint };
+    return { ...position, paused, held, ended, running, muted, hint, upcoming: upcoming(position) };
   }
 
   function stop() {

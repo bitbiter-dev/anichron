@@ -4,6 +4,7 @@ import tokens from '../shared/ui/tokens.css?raw';
 
 const colours = (theme: Theme) => themeColours(tokens)[theme];
 const glassOpacity = () => Number(declarations(tokens).get('glass-opacity'));
+const glassBarOpacity = () => Number(declarations(tokens).get('glass-bar-opacity'));
 const surfaces = ['surface', 'surface-raised'];
 
 const text = [
@@ -23,6 +24,11 @@ const nonText = surfaces.flatMap((surface) => [
 it('makes the glass card see-through, but mostly card', () => {
   expect(glassOpacity()).toBeGreaterThan(0.5);
   expect(glassOpacity()).toBeLessThan(1);
+});
+
+it('makes the top bar nearly solid glass, so text scrolling under it never competes with its title', () => {
+  expect(glassBarOpacity()).toBeGreaterThanOrEqual(0.9);
+  expect(glassBarOpacity()).toBeLessThan(1);
 });
 
 describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {

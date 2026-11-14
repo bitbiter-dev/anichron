@@ -4,20 +4,23 @@ import { ChevronRight } from 'lucide-react';
 import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import { ProxyImage } from './ProxyImage';
+import { Ring } from './Ring';
 import {
   type DayWithMemories,
   type FailedDay,
   hasMemories,
   useRecentDays,
 } from './use-recent-days';
+import { useOpening } from './use-opening';
 
 const item =
-  'flex w-18 flex-col items-center gap-1 rounded-card text-small outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
-const circle = 'flex size-16 items-center justify-center overflow-hidden rounded-full';
+  'group flex w-18 flex-col items-center gap-1 rounded-card text-small outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+const circle = 'relative flex size-16 items-center justify-center rounded-full';
+const ring = '-inset-1 hidden group-aria-busy:block group-data-pending:block';
 
 export function RecentDays({ today }: { today: string }) {
   const { t } = useTranslation();
-  const { days, visible, earlierLabel, showEarlier } = useRecentDays(today);
+  const { days, visible, earlierLabel, loadingEarlier, showEarlier } = useRecentDays(today);
   if (!visible) return null;
   return (
     <ul
@@ -30,23 +33,26 @@ export function RecentDays({ today }: { today: string }) {
         </li>
       ))}
       <li className="shrink-0 snap-start">
-        <Earlier label={earlierLabel} onPress={showEarlier} />
+        <Earlier label={earlierLabel} loading={loadingEarlier} onPress={showEarlier} />
       </li>
     </ul>
   );
 }
 
 function DayLink({ date, label, newestYear, thumbnail }: DayWithMemories) {
+  const opening = useOpening(date, newestYear);
   return (
     <Link
       to="/day/$date"
       params={{ date }}
       search={{ year: newestYear }}
       resetScroll={false}
+      aria-busy={opening}
       className={item}
     >
       <span className={`${circle} bg-surface-raised`}>
-        <ProxyImage src={thumbnail} className="size-full object-cover" />
+        <ProxyImage src={thumbnail} className="size-full rounded-full object-cover" />
+        <Ring className={ring} />
       </span>
       {label}
     </Link>
@@ -65,12 +71,19 @@ function Retry({ label, retry }: FailedDay) {
   );
 }
 
-function Earlier({ label, onPress }: { label: ParseKeys; onPress: () => void }) {
+interface EarlierProps {
+  label: ParseKeys;
+  loading: boolean;
+  onPress: () => void;
+}
+
+function Earlier({ label, loading, onPress }: EarlierProps) {
   const { t } = useTranslation();
   return (
-    <Button onPress={onPress} className={item}>
+    <Button onPress={onPress} isPending={loading} className={item}>
       <span className={`${circle} bg-surface-raised`}>
         <ChevronRight aria-hidden className="size-6" />
+        <Ring className={ring} />
       </span>
       <span aria-live="polite">{t(label)}</span>
     </Button>

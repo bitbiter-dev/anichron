@@ -1,4 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/react';
+import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
@@ -124,6 +125,25 @@ describe('the recent days', () => {
     );
   });
 
+  it('shows a tapped day loading until its story opens', async () => {
+    days = { '2026-11-10': [onDay('2026-11-10', 2024)], '2026-11-09': [onDay('2026-11-09', 2023)] };
+    renderApp('/');
+    const tapped = await within(
+      await screen.findByRole('list', { name: 'Recent days' }),
+    ).findByRole('link', { name: 'Yesterday' });
+    expect(tapped).toHaveAttribute('aria-busy', 'false');
+
+    fireEvent.click(tapped);
+
+    expect(tapped).toHaveAttribute('aria-busy', 'true');
+    expect(within(tray()).getByRole('link', { name: 'Mon 9 Nov' })).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
+    expect(await screen.findByRole('dialog')).toBeVisible();
+    expect(tapped).toHaveAttribute('aria-busy', 'false');
+  });
+
   it('shows only the message when the whole week is empty', async () => {
     const { container } = renderApp('/');
 
@@ -234,6 +254,31 @@ describe('earlier days', () => {
       '2026-10-23',
     ]);
     expect(earlier()).toHaveAccessibleName('Earlier days');
+  });
+
+  it('shows it is loading until the days it added arrive', async () => {
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    days['2026-10-31'] = async () => {
+      await answered;
+      return HttpResponse.json({ date: '2026-10-31', years: [onDay('2026-10-31', 2023)] });
+    };
+    const { container } = await openLanding();
+    expect(earlier()).not.toHaveAttribute('data-pending');
+
+    fireEvent.click(earlier());
+
+    await vi.waitFor(() => {
+      expect(requested).toContain('2026-10-31');
+    });
+    expect(earlier()).toHaveAttribute('data-pending', 'true');
+    expect(earlier()).toHaveAttribute('aria-disabled', 'true');
+    expect(await axeResults(container)).toHaveNoViolations();
+    answer();
+    expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
+    expect(earlier()).not.toHaveAttribute('data-pending');
   });
 
   it('says Earlier days while the first six days still load', async () => {

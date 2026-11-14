@@ -12,7 +12,7 @@ interface TopBarProps {
 export function TopBar({ title, parent }: TopBarProps) {
   const { t } = useTranslation();
   return (
-    <header className="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center rounded-b-card px-2 pt-[env(safe-area-inset-top)] glass-card">
+    <header className="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center rounded-b-card px-2 pt-[env(safe-area-inset-top)] glass-card [--glass-opacity:var(--glass-bar-opacity)]">
       {parent && <BackButton parent={parent} />}
       <h1 className="col-start-2 flex min-h-11 items-center font-semibold">{t(title)}</h1>
     </header>

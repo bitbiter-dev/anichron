@@ -93,6 +93,7 @@ export function useRecentDays(today: string) {
     days: recent,
     visible: recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
     earlierLabel: nothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
+    loadingEarlier: tapped && added.some(({ isPending }) => isPending),
     showEarlier: () => {
       setPaging({ pages: pages + 1, tapped: true, wasNothing: nothing });
     },
