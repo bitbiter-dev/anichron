@@ -131,6 +131,7 @@ function Player({ date, year, day, close }: PlayerProps) {
     mediaFailed,
     gestures,
     videoEvents,
+    nextVideo,
     togglePause,
     toggleSound,
   } = story;
@@ -171,6 +172,9 @@ function Player({ date, year, day, close }: PlayerProps) {
             playsInline
             className="absolute inset-0 size-full object-contain"
           />
+          {nextVideo && (
+            <video key={nextVideo} src={nextVideo} preload="auto" hidden aria-hidden muted />
+          )}
           {failed && (
             <p className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center font-semibold">
               {t('story.failed')}

@@ -1,12 +1,14 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { encode } from 'blurhash';
+import { http, HttpResponse } from 'msw';
 import { act } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
 import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
+import { proxyAnswers } from '../../test/handlers/proxies';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -1060,6 +1062,185 @@ describe('a video', () => {
 
       expect(hint().getAttribute('data-hint')).toBe('false');
     });
+  });
+});
+
+describe('the next memories', () => {
+  const clip = (id: string) => `/api/v1/proxies/${id}/video?v=0123456789abcdef`;
+  const film = (id: string, year: number) =>
+    memory(id, year, {
+      mediaType: 'Video',
+      durationSeconds: 12,
+      proxies: {
+        thumbnail: `proxies/${id}/thumbnail?v=0123456789abcdef`,
+        preview: `proxies/${id}/preview?v=0123456789abcdef`,
+        video: `proxies/${id}/video?v=0123456789abcdef`,
+      },
+    });
+  const preloading = () =>
+    [...story().querySelectorAll('video[preload="auto"]')].map((video) =>
+      video.getAttribute('src'),
+    );
+  let received: string[];
+  let decoded: string[];
+  let decode: MockInstance<HTMLImageElement['decode']>;
+  let answer: (url: string) => Response | undefined;
+
+  async function arrived(...urls: string[]) {
+    await vi.waitFor(() => {
+      expect(decoded).toEqual(urls);
+    });
+    expect(received).toEqual(urls);
+  }
+
+  beforeEach(() => {
+    received = [];
+    decoded = [];
+    answer = () => undefined;
+    decode = vi.spyOn(HTMLImageElement.prototype, 'decode');
+    decode.mockImplementation(function (this: HTMLImageElement) {
+      if (!this.isConnected) decoded.push(this.getAttribute('src') ?? '');
+      return Promise.resolve();
+    });
+    server.use(proxyAnswers(received, (url) => answer(url)));
+  });
+
+  it("fetches and decodes the next two memories' previews once a memory shows, across a year group's end", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await advance(0);
+    expect(received).toEqual([]);
+
+    await shown();
+    await arrived(preview(ids.b2025), preview(ids.a2023));
+    fireEvent.click(button('Next'));
+    await shown();
+
+    await arrived(preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
+  });
+
+  it('fetches each preview once, however often the story passes it', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    fireEvent.click(button('Next'));
+    await shown();
+    fireEvent.click(button('Previous'));
+    await shown();
+    fireEvent.click(button('Next'));
+    await shown();
+
+    await arrived(preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
+  });
+
+  it('fetches ahead of a failed memory too', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await advance(10_000);
+
+    await arrived(preview(ids.b2025), preview(ids.a2023));
+  });
+
+  it('fetches ahead of a memory without a preview at once, and skips one ahead', async () => {
+    const bare = { thumbnail: null, preview: null, video: null };
+    years = [
+      yearGroup(2025, memory(ids.a2025, 2025, { proxies: bare })),
+      yearGroup(2023, memory(ids.a2023, 2023, { proxies: bare }), memory(ids.b2025, 2023)),
+    ];
+    renderApp('/day/2026-11-11?year=2025');
+
+    await arrived(preview(ids.b2025));
+  });
+
+  it('skips a hidden memory', async () => {
+    server.use(interactionAnswers([]));
+    await openStory('/day/2026-11-11?year=2025');
+    fireEvent.click(button('Next'));
+    fireEvent.click(button('Hide'));
+    await shown();
+
+    await arrived(preview(ids.a2021), preview(ids.b2021));
+  });
+
+  it('decodes a preview only once all of it has arrived', async () => {
+    let finish: () => void = () => undefined;
+    answer = (url) => {
+      if (url !== preview(ids.b2025)) return undefined;
+      const body = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1]));
+          finish = () => {
+            controller.close();
+          };
+        },
+      });
+      return new Response(body);
+    };
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await vi.waitFor(() => {
+      expect(decoded).toEqual([preview(ids.a2023)]);
+    });
+
+    finish();
+
+    await vi.waitFor(() => {
+      expect(decoded).toEqual([preview(ids.a2023), preview(ids.b2025)]);
+    });
+  });
+
+  it('leaves a preview the server refuses or cannot send, or that cannot be decoded', async () => {
+    answer = (url) => {
+      if (url === preview(ids.b2025)) return problemResponse(401, 'unauthorized');
+      return url === preview(ids.a2021) ? HttpResponse.error() : undefined;
+    };
+    decode.mockImplementation(function (this: HTMLImageElement) {
+      if (!this.isConnected) decoded.push(this.getAttribute('src') ?? '');
+      return Promise.reject(new Error('broken'));
+    });
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    fireEvent.click(button('Next'));
+    await shown();
+    await vi.waitFor(() => {
+      expect(received).toHaveLength(3);
+    });
+    await advance(0);
+
+    expect(decoded).toEqual([preview(ids.a2023)]);
+  });
+
+  it('preloads only the next video, within the next two memories, once a memory shows', async () => {
+    years = [
+      yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025), memory(ids.c2025, 2025)),
+      yearGroup(2023, film(ids.a2023, 2023), film(ids.a2021, 2023)),
+    ];
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    expect(preloading()).toEqual([]);
+    fireEvent.click(button('Next'));
+    expect(preloading()).toEqual([]);
+    await shown();
+    expect(preloading()).toEqual([clip(ids.a2023)]);
+    fireEvent.click(button('Next'));
+    await shown();
+
+    expect(preloading()).toEqual([clip(ids.a2023)]);
+  });
+
+  it('fetches only the cover of a burst ahead, not its frames', async () => {
+    const burstId = '0199a1b2-c3d4-7e5f-8a9b-0000000b0000';
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025),
+        memory(ids.b2025, 2025, { burst: { burstId, isCover: true, count: 8 } }),
+      ),
+    ];
+    const frames = vi.fn();
+    server.use(http.get('/api/v1/bursts/:burstId/assets', frames));
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    await arrived(preview(ids.b2025));
+    expect(frames).not.toHaveBeenCalled();
   });
 });
 
