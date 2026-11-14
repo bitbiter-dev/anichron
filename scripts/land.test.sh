@@ -44,7 +44,12 @@ case "$1 $2" in
   'run view') cat "$GH_STATE/run-$3" ;;
   'pr checks') cat "$GH_STATE/checks" ;;
   'pr view') printf '{"mergeStateStatus":"%s"}\n' "$(cat "$GH_STATE/merge-state")" ;;
-  'pr merge') [ ! -f "$GH_STATE/merge-refused" ] ;;
+  'pr merge')
+    [ ! -f "$GH_STATE/merge-refused" ] || exit 1
+    if [ -f "$GH_STATE/merge-refusals" ]; then
+      left=$(cat "$GH_STATE/merge-refusals")
+      [ "$left" -eq 0 ] || { echo $((left - 1)) >"$GH_STATE/merge-refusals"; exit 1; }
+    fi ;;
   *) echo "unexpected gh call: $*" >&2; exit 9 ;;
 esac
 EOF
@@ -98,7 +103,7 @@ pushed_already() {
 }
 
 land() {
-  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" WITH_LOCK_POLL_SECONDS=0 \
+  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" LAND_MERGE_SECONDS="${3:-0}" WITH_LOCK_POLL_SECONDS=0 \
     GIT_AUTHOR_NAME=mira GIT_AUTHOR_EMAIL=mira@example.org GIT_COMMITTER_NAME=mira GIT_COMMITTER_EMAIL=mira@example.org \
     "$script" 2>&1)
 }
@@ -140,6 +145,12 @@ touch "$work/state/merge-refused"
 out=$(land); status=$?
 check 'a merge GitHub refuses fails and keeps the worktree' "[ $status -eq 1 ] && [ -d '$work/wt' ]" "exit $status: $out"
 check 'a refused merge puts the PR back to draft' "[ \"\$(tail -1 '$work/state/calls')\" = 'pr ready 7 --undo' ]" "$(calls)"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+echo 2 >"$work/state/merge-refusals"
+out=$(land "$work/wt" 0 60); status=$?
+check 'a merge GitHub refuses at first is tried again, and merged' "[ $status -eq 0 ] && [ \"\$(grep -c '^pr merge 7' '$work/state/calls')\" -eq 3 ]" "exit $status: $out"
+check 'the refusal is announced once' "[ \"\$(grep -c 'GitHub refused the merge; trying again' <<<\"\$out\")\" -eq 1 ]" "$out"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success conflict
 before=$(git -C "$work/wt" rev-parse HEAD)

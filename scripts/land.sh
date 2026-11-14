@@ -15,7 +15,9 @@
 # answers, and the state read again then; only a failed run or check, the
 # timeout, a signal, or master moving during CI stops it, with the reason.
 # LAND_POLL_SECONDS is the wait between checks (default 30), LAND_TIMEOUT_MINUTES
-# the longest wait for everything, outages included (default 120).
+# the longest wait for everything, outages included (default 120), and
+# LAND_MERGE_SECONDS how long a merge GitHub refuses is tried again (default
+# 300).
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
 # a draft again if it had been marked ready; 2 usage; 3 merged, but cleaning up
@@ -24,6 +26,7 @@ set -euo pipefail
 
 poll="${LAND_POLL_SECONDS:-30}"
 timeout_minutes="${LAND_TIMEOUT_MINUTES:-120}"
+merge_seconds="${LAND_MERGE_SECONDS:-300}"
 
 say() { printf 'land: %s\n' "$*" >&2; }
 die() { say "$1"; exit "${2:-1}"; }
@@ -117,6 +120,18 @@ await_started() {
     runs=$(gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json createdAt) || return 1
     jq -e --arg since "$since" 'any(.[]; .createdAt >= $since)' <<<"$runs" >/dev/null && return
     [ "$(date +%s)" -lt "$deadline" ] || { say "$workflow never started on $sha"; return 1; }
+    sleep "$poll"
+  done
+}
+
+# Squash-merges <number> at <sha>, trying again while GitHub refuses, for up
+# to merge_seconds.
+merge_pr() {
+  local number="$1" sha="$2" until=$(($(date +%s) + merge_seconds)) refused=''
+  until gh pr merge "$number" --squash --match-head-commit "$sha" >/dev/null; do
+    [ "$(date +%s)" -lt "$until" ] || return 1
+    [ -n "$refused" ] || say "GitHub refused the merge; trying again every ${poll}s"
+    refused=1
     sleep "$poll"
   done
 }
@@ -218,7 +233,7 @@ main() {
 
   state=$(gh_retry pr view "$number" --json mergeStateStatus | jq -r .mergeStateStatus) || back_to_draft 'Its merge state could not be read.'
   [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'
-  gh pr merge "$number" --squash --match-head-commit "$sha" >/dev/null \
+  merge_pr "$number" "$sha" \
     || back_to_draft "GitHub refused the merge (merge state $state, gh's reason above)."
   trap - TERM HUP INT
   say "merged PR #$number"
