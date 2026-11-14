@@ -11,6 +11,7 @@ import {
 } from '../test/handlers/auth';
 import {
   everyoneHasMemories,
+  hold,
   memoriesOf,
   memory,
   onThisDayAnswers,
@@ -53,7 +54,9 @@ const miraDay = () => [yearGroup(2023, memory('0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4
 const unauthorized = () => HttpResponse.json({ status: 401 }, { status: 401 });
 
 function dayRespondsWith(
-  respond: (bearer: string | null) => ReturnType<typeof miraDay> | Response | Promise<Response>,
+  respond: (
+    bearer: string | null,
+  ) => ReturnType<typeof miraDay> | Response | Promise<ReturnType<typeof miraDay> | Response>,
 ) {
   return onThisDayAnswers(
     todayAnd([], (_, bearer) => {
@@ -125,9 +128,13 @@ describe('a session past its access token', () => {
   });
 
   it('keeps what it already fetched across a refresh', async () => {
+    const refetch = hold();
     server.use(
       refreshAnswers(),
-      dayAccepts(() => true),
+      dayRespondsWith(async () => {
+        if (bearers.length > 1) await refetch.until;
+        return miraDay();
+      }),
     );
     await openSignedIn();
     expect(bearers).toHaveLength(1);
@@ -137,6 +144,13 @@ describe('a session past its access token', () => {
     expect(refreshes).toBe(3);
     expect(bearers).toHaveLength(1);
     expect(screen.getByRole('link', memoriesOf('mira'))).toBeVisible();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    await advance(1000);
+    expect(bearers).toHaveLength(2);
+    expect(screen.getByRole('link', memoriesOf('mira'))).toBeVisible();
+    refetch.release();
   });
 
   it('is refreshed on the lifetime of the session a refresh returned', async () => {

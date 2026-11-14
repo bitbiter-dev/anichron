@@ -9,6 +9,10 @@ on:
   schedule:
     - cron: '0 3 * * 1'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.draft == true && 'draft' || 'ready' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.name }})

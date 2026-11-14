@@ -12,7 +12,13 @@ import {
   refreshRespondsWith,
   refreshSucceeds,
 } from '../test/handlers/auth';
-import { everyoneHasMemories, memoriesOf } from '../test/handlers/flashbacks';
+import {
+  assetIdOf,
+  eachSeesTheirOwn,
+  everyoneHasMemories,
+  hold,
+  memoriesOf,
+} from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 
@@ -138,16 +144,21 @@ describe('signing out', () => {
 
   it('leaves nothing of the previous user for the next one to see', async () => {
     const noor = { ...miraSession.user, username: 'noor', email: 'noor@example.com' };
+    const answered: string[] = [];
+    const noorsDay = hold();
+    const holds = new Map([['noor', noorsDay.until]]);
     server.use(
-      refreshSucceeds(),
+      refreshSucceeds({ ...miraSession, accessToken: 'token-mira' }),
       logoutSucceeds(),
       loginRespondsWith(() =>
         HttpResponse.json({ ...miraSession, accessToken: 'token-noor', user: noor }),
       ),
+      eachSeesTheirOwn(answered, holds),
     );
-    await openSignedIn();
+    const { container } = await openSignedIn();
     signOut();
     expect(await findLoginHeading()).toBeVisible();
+    answered.length = 0;
 
     fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'noor' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
@@ -155,8 +166,17 @@ describe('signing out', () => {
     expect(await screen.findByRole('button', { name: 'Sign out' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
+    await act(() => vi.advanceTimersByTimeAsync(1000));
 
     expect(screen.queryByRole('link', memoriesOf('mira'))).toBeNull();
-    expect(screen.getByRole('link', memoriesOf('noor'))).toBeVisible();
+    expect(container.innerHTML).not.toContain(assetIdOf('mira'));
+
+    noorsDay.release();
+    expect(await screen.findByRole('link', memoriesOf('noor'))).toBeVisible();
+    expect(container.innerHTML).toContain(assetIdOf('noor'));
+    expect(container.innerHTML).not.toContain(assetIdOf('mira'));
+    expect(answered).not.toContain('mira');
+    expect(answered).toContain('noor');
+    expect(await axeResults(container)).toHaveNoViolations();
   });
 });
