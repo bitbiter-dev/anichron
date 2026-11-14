@@ -35,7 +35,8 @@ export function usePull(gestures: Gestures) {
       pulled.set(Math.abs(offset.x) > offset.y ? 0 : offset.y);
     },
     onDragEnd: (_: unknown, { offset, velocity }: PanInfo) => {
-      if (!gestures.dragEnd(offset, velocity, window.innerHeight)) void animate(pulled, 0);
+      gestures.dragEnd(offset, velocity, window.innerHeight);
+      void animate(pulled, 0);
     },
   };
 }

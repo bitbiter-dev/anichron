@@ -62,7 +62,6 @@ export function createGestures(story: Story) {
     dragEnd: (offset: Point, velocity: Point, height: number) => {
       const move = swipeMove(offset, velocity, height);
       if (move) story[move]();
-      return move === 'close';
     },
   };
 }

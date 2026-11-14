@@ -1125,6 +1125,13 @@ describe('the next memories', () => {
     await arrived(preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
   });
 
+  it('fetches ahead of a later year group only the memories after it', async () => {
+    await openStory('/day/2026-11-11?year=2023');
+    await shown();
+
+    await arrived(preview(ids.a2021), preview(ids.b2021));
+  });
+
   it('fetches each preview once, however often the story passes it', async () => {
     await openStory('/day/2026-11-11?year=2025');
     await shown();
