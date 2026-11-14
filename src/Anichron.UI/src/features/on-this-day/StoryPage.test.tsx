@@ -979,6 +979,21 @@ describe('a video', () => {
       expect(hint().getAttribute('data-hint')).toBe('true');
     });
 
+    it('waits for the first video past several photos', async () => {
+      years = [
+        yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025), film(ids.c2025, 2025)),
+      ];
+      renderApp('/day/2026-11-11?year=2025');
+      await screen.findByRole('dialog', { name: storyName });
+      await vi.waitFor(() => {
+        expect(picture()).not.toBeNull();
+      });
+      await user().click(button('Next'));
+      await user().click(button('Next'));
+
+      expect(hint().getAttribute('data-hint')).toBe('true');
+    });
+
     it('stops showing once the story moves on', async () => {
       years = [
         yearGroup(2025, film(ids.a2025, 2025), film(ids.b2025, 2025)),

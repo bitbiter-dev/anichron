@@ -87,6 +87,7 @@ export function createStory(
   const shown = (group: number) =>
     [...memories(group).keys()].filter((memory) => !hidden.has(keyOf({ group, memory })));
   const groupsShown = () => [...kinds.keys()].filter((group) => shown(group).length > 0);
+  const firstLoad: Record<Kind, Load> = { none: 'shown', picture: 'loading', video: 'loading' };
   let visits = 0;
   const at = (group: number, memory: number): StoryPosition => {
     const kind = memories(group)[memory] as Kind;
@@ -96,7 +97,7 @@ export function createStory(
       // Stryker disable next-line UpdateOperator
       visit: ++visits,
       kind,
-      load: kind === 'none' ? 'shown' : 'loading',
+      load: firstLoad[kind],
       shown: shown(group),
     };
   };
