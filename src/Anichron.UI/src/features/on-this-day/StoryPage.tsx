@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
-import { Pause, Play, X } from 'lucide-react';
+import { Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,7 @@ import { focusOnMount } from './focus';
 import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
-import { memoryMilliseconds, type Move, segmentState } from './story';
+import { type Move, segmentState, type Tap } from './story';
 import { useInteractions } from './use-interactions';
 import { useStory } from './use-story';
 import { useZonePress } from './use-zone-press';
@@ -123,10 +123,16 @@ function Player({ date, year, day, close }: PlayerProps) {
     controls,
     blurhash,
     failed,
+    image,
+    video,
+    duration,
+    sound,
     mediaReady,
     mediaFailed,
     gestures,
+    videoEvents,
     togglePause,
+    toggleSound,
   } = story;
   const interactions = useInteractions(date, story);
   return (
@@ -150,15 +156,21 @@ function Player({ date, year, day, close }: PlayerProps) {
             className="absolute inset-0"
           >
             {blurhash && <Blurhash {...blurhash} />}
-            {!failed && (
-              <ProxyImage
-                src={memory.proxies.preview}
-                onDecoded={mediaReady}
-                onFailed={mediaFailed}
-                className="relative size-full object-contain"
-              />
-            )}
+            <Picture
+              image={image}
+              src={memory.proxies.preview}
+              onDecoded={mediaReady}
+              onFailed={mediaFailed}
+            />
           </div>
+          <video
+            {...videoEvents}
+            hidden={!video}
+            aria-hidden
+            muted
+            playsInline
+            className="absolute inset-0 size-full object-contain"
+          />
           {failed && (
             <p className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center font-semibold">
               {t('story.failed')}
@@ -166,7 +178,7 @@ function Player({ date, year, day, close }: PlayerProps) {
           )}
           <div className="absolute inset-0 flex">
             <Zone label={t('story.previous')} gestures={gestures} move="previous" />
-            <Middle gestures={gestures} move="next" />
+            <Middle gestures={gestures} move="middle" />
             <Zone label={t('story.next')} gestures={gestures} move="next" />
           </div>
           <div
@@ -177,6 +189,7 @@ function Player({ date, year, day, close }: PlayerProps) {
               key={state.visit}
               count={segments.count}
               current={segments.current}
+              duration={duration}
               running={state.running}
             />
             <div className="flex items-center">
@@ -195,11 +208,29 @@ function Player({ date, year, day, close }: PlayerProps) {
               onToggle={interactions.toggle}
               onHide={interactions.hide}
             />
+            <Sound {...sound} toggle={toggleSound} />
           </div>
         </m.div>
         <Toasts toasts={interactions.toasts} />
       </MotionConfig>
     </LazyMotion>
+  );
+}
+
+interface PictureProps {
+  image: 'picture' | 'poster' | null;
+  src: string | null;
+  onDecoded: () => void;
+  onFailed: () => void;
+}
+
+function Picture({ image, src, onDecoded, onFailed }: PictureProps) {
+  const className = 'relative size-full object-contain';
+  if (image === 'poster') return <ProxyImage src={src} className={className} />;
+  return (
+    image && (
+      <ProxyImage src={src} onDecoded={onDecoded} onFailed={onFailed} className={className} />
+    )
   );
 }
 
@@ -222,12 +253,43 @@ function Blurhash({ hash, width, height }: BlurhashProps) {
   );
 }
 
+const soundIcons = { 'story.soundOn': VolumeX, 'story.soundOff': Volume2 };
+
+interface SoundProps {
+  shown: boolean;
+  hint: boolean;
+  label: keyof typeof soundIcons;
+  toggle: () => void;
+}
+
+function Sound({ shown, hint, label, toggle }: SoundProps) {
+  const { t } = useTranslation();
+  const Icon = soundIcons[label];
+  if (!shown) return null;
+  return (
+    <m.div
+      layout
+      data-hint={hint}
+      className="group absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1rem)] size-11 data-[hint=true]:inset-0 data-[hint=true]:m-auto data-[hint=true]:size-32"
+    >
+      <Button
+        aria-label={t(label)}
+        onPress={toggle}
+        className="flex size-full items-center justify-center rounded-full bg-player/40 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      >
+        <Icon aria-hidden className="size-1/2 group-data-[hint=true]:opacity-60" />
+      </Button>
+    </m.div>
+  );
+}
+
 interface PressZoneProps {
   gestures: Gestures;
-  move: Move;
+  move: Tap;
 }
 
 interface ZoneProps extends PressZoneProps {
+  move: Move;
   label: string;
 }
 
@@ -249,17 +311,18 @@ function Middle({ gestures, move }: PressZoneProps) {
 interface SegmentsProps {
   count: number;
   current: number;
+  duration: number;
   running: boolean;
 }
 
-function Segments({ count, current, running }: SegmentsProps) {
+function Segments({ count, current, duration, running }: SegmentsProps) {
   return (
     <ol aria-hidden className="flex gap-1">
       {Array.from({ length: count }, (_, index) => (
         <li key={index} className="h-0.5 flex-1 overflow-hidden rounded-full bg-on-player/40">
           <span
             style={{
-              animationDuration: `${String(memoryMilliseconds)}ms`,
+              animationDuration: `${String(duration)}ms`,
               animationPlayState: running ? 'running' : 'paused',
             }}
             data-state={segmentState(index, current)}

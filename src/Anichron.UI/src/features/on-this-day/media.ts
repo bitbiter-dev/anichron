@@ -7,13 +7,26 @@ export function useRecovering(onFailed: () => void) {
   return {
     reloads,
     onError: () => {
-      if (reloads > 0) onFailed();
-      else
-        void session.renewMedia().then(() => {
+      recover(
+        reloads > 0,
+        () => session.renewMedia(),
+        () => {
           setReloads(1);
-        });
+        },
+        onFailed,
+      );
     },
   };
+}
+
+export function recover(
+  reloaded: boolean,
+  renew: () => Promise<void>,
+  reload: () => void,
+  onFailed: () => void,
+) {
+  if (reloaded) onFailed();
+  else void renew().then(reload);
 }
 
 export function decoded(image: HTMLImageElement, ready: () => void) {

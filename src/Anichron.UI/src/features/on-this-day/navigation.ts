@@ -1,7 +1,7 @@
 import { listen } from '../../shared/listen';
-import type { Move, Story } from './story';
+import type { Move, Story, Tap } from './story';
 
-type KeyAction = Move | 'togglePause';
+type KeyAction = Move | 'togglePause' | 'toggleSound';
 
 function keyAction(event: KeyboardEvent): KeyAction | undefined {
   if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) return undefined;
@@ -9,6 +9,8 @@ function keyAction(event: KeyboardEvent): KeyAction | undefined {
     ArrowLeft: ['previous', 'previousGroup'],
     ArrowRight: ['next', 'nextGroup'],
     ' ': ['togglePause', undefined],
+    m: ['toggleSound', undefined],
+    M: ['toggleSound', 'toggleSound'],
   };
   return keys[event.key]?.[Number(event.shiftKey)];
 }
@@ -52,7 +54,7 @@ export function createGestures(story: Story) {
     dragStart: () => {
       swiping = true;
     },
-    tap: (move: Move) => () => {
+    tap: (move: Tap) => () => {
       if (!swiping) story[move]();
     },
     dragEnd: (offset: Point) => {

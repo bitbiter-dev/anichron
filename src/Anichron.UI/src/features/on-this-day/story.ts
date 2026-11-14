@@ -1,12 +1,17 @@
 export const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
+export const videoMilliseconds = 60_000;
+const hintMilliseconds = 1000;
 
 export type Load = 'loading' | 'shown' | 'failed';
+
+export type Kind = 'none' | 'picture' | 'video';
 
 export interface StoryPosition {
   group: number;
   memory: number;
   visit: number;
+  kind: Kind;
   load: Load;
   shown: readonly number[];
 }
@@ -17,14 +22,22 @@ export interface StoryState extends StoryPosition {
   paused: boolean;
   held: boolean;
   running: boolean;
+  muted: boolean;
+  hint: boolean;
 }
 
 export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
 
-export type Story = Record<Move | 'close' | 'togglePause' | 'hold' | 'release', () => void> & {
+export type Tap = Move | 'middle';
+
+export type Story = Record<
+  Tap | 'close' | 'togglePause' | 'toggleSound' | 'hold' | 'release',
+  () => void
+> & {
   state: () => StoryState;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
+  mediaEnded: (visit: number) => void;
   mediaFailed: (visit: number) => void;
   hide: (place?: Place) => Place;
   undo: (place: Place) => void;
@@ -37,52 +50,94 @@ export function segmentState(index: number, current: number): SegmentState {
   return index === current ? 'playing' : 'next';
 }
 
+function lasting({ kind, load }: StoryPosition) {
+  if (load === 'loading') return loadMilliseconds;
+  return kind === 'video' && load === 'shown' ? videoMilliseconds : memoryMilliseconds;
+}
+
+function createClock(end: () => void) {
+  let remaining = 0;
+  let startedAt = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return {
+    set(milliseconds: number) {
+      remaining = milliseconds;
+    },
+    stop() {
+      if (timer === undefined) return;
+      clearTimeout(timer);
+      timer = undefined;
+      remaining -= Date.now() - startedAt;
+    },
+    start() {
+      startedAt = Date.now();
+      timer = setTimeout(end, remaining);
+    },
+  };
+}
+
 export function createStory(
-  pictures: readonly (readonly boolean[])[],
+  kinds: readonly (readonly Kind[])[],
   group: number,
   close: () => void,
 ): Story {
-  const memories = (group: number) => pictures[group] as readonly boolean[];
+  const memories = (group: number) => kinds[group] as readonly Kind[];
   const hidden = new Set<string>();
   const keyOf = ({ group, memory }: Place) => `${String(group)}/${String(memory)}`;
   const shown = (group: number) =>
     [...memories(group).keys()].filter((memory) => !hidden.has(keyOf({ group, memory })));
-  const groupsShown = () => [...pictures.keys()].filter((group) => shown(group).length > 0);
+  const groupsShown = () => [...kinds.keys()].filter((group) => shown(group).length > 0);
+  const firstLoad: Record<Kind, Load> = { none: 'shown', picture: 'loading', video: 'loading' };
   let visits = 0;
-  const at = (group: number, memory: number): StoryPosition => ({
-    group,
-    memory,
-    // Stryker disable next-line UpdateOperator
-    visit: ++visits,
-    load: memories(group)[memory] ? 'loading' : 'shown',
-    shown: shown(group),
-  });
+  const at = (group: number, memory: number): StoryPosition => {
+    const kind = memories(group)[memory] as Kind;
+    return {
+      group,
+      memory,
+      // Stryker disable next-line UpdateOperator
+      visit: ++visits,
+      kind,
+      load: firstLoad[kind],
+      shown: shown(group),
+    };
+  };
   const first = (group: number) => at(group, shown(group)[0] as number);
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
+  let muted = true;
+  let hinted = position.kind === 'video';
+  let hint = hinted;
   let state = stateOf();
-  let remaining = memoryMilliseconds;
-  let startedAt = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  const clock = createClock(expire);
+  const hintClock = createClock(() => {
+    update(() => {
+      hint = false;
+    });
+  });
+  clock.set(lasting(position));
+  hintClock.set(hintMilliseconds);
   let notify: (() => void) | undefined;
 
   function stateOf(): StoryState {
-    return { ...position, paused, held, running: position.load !== 'loading' && !paused && !held };
+    const running = position.load !== 'loading' && !paused && !held;
+    return { ...position, paused, held, running, muted, hint };
   }
 
   function stop() {
-    if (timer === undefined) return;
-    clearTimeout(timer);
-    timer = undefined;
-    remaining -= Date.now() - startedAt;
+    clock.stop();
+    hintClock.stop();
   }
 
   function start() {
-    if (!notify || !state.running) return;
-    startedAt = Date.now();
-    timer = setTimeout(next, remaining);
+    if (!notify || paused || held) return;
+    clock.start();
+    if (hint && position.load !== 'loading') hintClock.start();
+  }
+
+  function expire() {
+    if (position.load === 'loading') settle(position.visit, 'failed');
+    else next();
   }
 
   function update(change: () => void) {
@@ -93,25 +148,28 @@ export function createStory(
     start();
   }
 
-  function watch() {
-    clearTimeout(watchdog);
-    watchdog = setTimeout(() => {
-      settle(position.visit, 'failed');
-    }, loadMilliseconds);
-  }
-
   function show(to: StoryPosition) {
     update(() => {
       position = to;
-      remaining = memoryMilliseconds;
+      clock.set(lasting(to));
+      hint = to.kind === 'video' && !hinted;
+      hinted ||= hint;
     });
-    watch();
   }
 
   function settle(visit: number, load: Load) {
     if (visit === position.visit && position.load === 'loading')
       update(() => {
         position = { ...position, load };
+        clock.set(lasting(position));
+      });
+  }
+
+  function toggleSound() {
+    if (position.kind === 'video')
+      update(() => {
+        muted = !muted;
+        hint = false;
       });
   }
 
@@ -142,15 +200,16 @@ export function createStory(
     subscribe(listener) {
       notify = listener;
       start();
-      watch();
       return () => {
         notify = undefined;
         stop();
-        clearTimeout(watchdog);
       };
     },
     mediaReady(visit) {
       settle(visit, 'shown');
+    },
+    mediaEnded(visit) {
+      if (visit === position.visit) next();
     },
     mediaFailed(visit) {
       settle(visit, 'failed');
@@ -169,6 +228,11 @@ export function createStory(
       update(() => {
         held = false;
       });
+    },
+    toggleSound,
+    middle() {
+      if (position.kind === 'video') toggleSound();
+      else next();
     },
     next,
     previous,
