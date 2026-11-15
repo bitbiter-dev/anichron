@@ -22,7 +22,7 @@ function sourceOf(state: StoryState, { proxies, livePhotoVideoUrl }: Memory): So
   const poster = proxies.preview ?? '';
   if (state.kind === 'video' && state.load !== 'failed')
     return { src: proxies.video as string, poster };
-  if (state.kind === 'live' && state.livePlay) return { src: livePhotoVideoUrl as string, poster };
+  if (state.livePlay) return { src: livePhotoVideoUrl as string, poster };
   return null;
 }
 
