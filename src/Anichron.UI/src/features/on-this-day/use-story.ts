@@ -4,6 +4,7 @@ import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
 import { createPrefetch, nextVideo } from './prefetch';
+import { reducesMotion } from './reduced-motion';
 import { createStory, type Place } from './story';
 import { kindOf, storyView } from './story-view';
 import { createVideoPlayer } from './video';
@@ -17,6 +18,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       years.map((group) => group.memories.map(kindOf)),
       startGroup(years, year),
       close,
+      !reducesMotion(),
     );
     const player = createVideoPlayer(story, memoryAt, () => session.renewMedia());
     const prefetch = createPrefetch(memoryAt, (url) => {
@@ -66,5 +68,6 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     videoEvents: player.events,
     togglePause: story.togglePause,
     toggleSound: story.toggleSound,
+    replay: story.replay,
   };
 }

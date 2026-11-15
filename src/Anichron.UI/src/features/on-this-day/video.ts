@@ -1,29 +1,52 @@
 import type { Memory } from '../../api/flashbacks';
 import { recover } from './media';
-import type { Story } from './story';
+import type { Story, StoryState } from './story';
 
-type StoryMedia = Pick<Story, 'state' | 'mediaReady' | 'mediaEnded' | 'mediaFailed'>;
+type StoryMedia = Pick<
+  Story,
+  'state' | 'mediaReady' | 'mediaEnded' | 'mediaFailed' | 'livePlaying' | 'liveEnded'
+>;
+
+interface Source {
+  src: string;
+  poster: string;
+}
+
+interface MediaEvents {
+  playing: () => void;
+  ended: () => void;
+  error: () => void;
+}
+
+function sourceOf(state: StoryState, { proxies, livePhotoVideoUrl }: Memory): Source | null {
+  const poster = proxies.preview ?? '';
+  if (state.kind === 'video' && state.load !== 'failed')
+    return { src: proxies.video as string, poster };
+  if (state.livePlay) return { src: livePhotoVideoUrl as string, poster };
+  return null;
+}
 
 export function createVideoPlayer(
   story: StoryMedia,
-  memoryOf: (state: ReturnType<Story['state']>) => Memory,
+  memoryOf: (state: StoryState) => Memory,
   renew: () => Promise<void>,
 ) {
   let element: HTMLVideoElement | null = null;
   let visit = 0;
+  let playId = 0;
+  let events: MediaEvents;
+  let source: Source;
   let reloaded: boolean;
   let playing: boolean;
 
   function load(video: HTMLVideoElement) {
-    const { proxies } = memoryOf(story.state());
-    video.poster = proxies.preview ?? '';
-    video.src = proxies.video as string;
+    video.poster = source.poster;
+    video.src = source.src;
     playing = false;
   }
 
   function playOrPause(video: HTMLVideoElement) {
-    const { paused, held, ended } = story.state();
-    const wanted = !paused && !held && !ended;
+    const wanted = story.state().playsMedia;
     if (wanted === playing) return;
     playing = wanted;
     if (wanted)
@@ -36,8 +59,9 @@ export function createVideoPlayer(
   function sync() {
     if (!element) return;
     const state = story.state();
-    element.muted = state.muted;
-    if (state.kind !== 'video' || state.load === 'failed') {
+    const wanted = sourceOf(state, memoryOf(state));
+    element.muted = state.muted || state.kind === 'live';
+    if (!wanted) {
       element.pause();
       if (element.hasAttribute('src')) {
         element.removeAttribute('src');
@@ -45,8 +69,11 @@ export function createVideoPlayer(
       }
       return;
     }
-    if (state.visit !== visit) {
+    if (state.playId !== playId) {
+      playId = state.playId;
       visit = state.visit;
+      events = state.kind === 'live' ? liveEvents : videoEvents;
+      source = wanted;
       reloaded = false;
       load(element);
     }
@@ -70,6 +97,21 @@ export function createVideoPlayer(
     );
   }
 
+  const liveEvents: MediaEvents = {
+    playing: story.livePlaying,
+    ended: story.liveEnded,
+    error: story.liveEnded,
+  };
+  const videoEvents: MediaEvents = {
+    playing: () => {
+      story.mediaReady(visit);
+    },
+    ended: () => {
+      story.mediaEnded(visit);
+    },
+    error: failed,
+  };
+
   return {
     sync,
     events: {
@@ -78,12 +120,14 @@ export function createVideoPlayer(
         sync();
       },
       onPlaying: () => {
-        story.mediaReady(visit);
+        events.playing();
       },
       onEnded: () => {
-        story.mediaEnded(visit);
+        events.ended();
       },
-      onError: failed,
+      onError: () => {
+        events.error();
+      },
     },
   };
 }

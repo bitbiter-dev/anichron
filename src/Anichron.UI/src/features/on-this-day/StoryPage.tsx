@@ -10,6 +10,7 @@ import { paintBlurhash } from './blurhash';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
+import { LivePhotoIcon } from './LivePhotoIcon';
 import { focusOnMount } from './focus';
 import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
@@ -135,6 +136,8 @@ function Player({ date, year, day, close }: PlayerProps) {
     nextVideo,
     togglePause,
     toggleSound,
+    liveButton,
+    replay,
   } = story;
   const interactions = useInteractions(date, story);
   const pull = usePull(gestures);
@@ -198,6 +201,7 @@ function Player({ date, year, day, close }: PlayerProps) {
               running={state.running}
             />
             <div style={{ visibility: controls }} className="flex items-center">
+              <LiveButton shown={liveButton} play={replay} />
               <p role="status" className="flex-1 text-small font-semibold">
                 {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
               </p>
@@ -255,6 +259,25 @@ function Blurhash({ hash, width, height }: BlurhashProps) {
       height={height}
       className="absolute inset-0 size-full object-contain"
     />
+  );
+}
+
+interface LiveButtonProps {
+  shown: boolean;
+  play: () => void;
+}
+
+function LiveButton({ shown, play }: LiveButtonProps) {
+  const { t } = useTranslation();
+  if (!shown) return null;
+  return (
+    <Button
+      aria-label={t('story.playLivePhoto')}
+      onPress={play}
+      className={`pointer-events-auto ${roundButton}`}
+    >
+      <LivePhotoIcon className="size-6" />
+    </Button>
   );
 }
 
