@@ -1134,6 +1134,20 @@ describe('a Live Photo', () => {
     expect(showing()).toBe(preview(ids.b2025));
   });
 
+  it('rests on the photo when its 5 s end during the play and it is the last memory', async () => {
+    years = [yearGroup(2025, live(ids.a2025, 2025))];
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(3000);
+    await fire('playing');
+
+    await advance(2000);
+
+    expect(video()).not.toBeVisible();
+    expect(video().hasAttribute('src')).toBe(false);
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
   it('plays nothing when its photo fails', async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
     await openStory('/day/2026-11-11?year=2025');

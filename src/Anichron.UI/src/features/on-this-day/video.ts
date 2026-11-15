@@ -12,11 +12,17 @@ interface Source {
   poster: string;
 }
 
+interface MediaEvents {
+  playing: () => void;
+  ended: () => void;
+  error: () => void;
+}
+
 function sourceOf(state: StoryState, { proxies, livePhotoVideoUrl }: Memory): Source | null {
+  const poster = proxies.preview ?? '';
   if (state.kind === 'video' && state.load !== 'failed')
-    return { src: proxies.video as string, poster: proxies.preview ?? '' };
-  if (state.kind === 'live' && state.live !== 'still')
-    return { src: livePhotoVideoUrl as string, poster: '' };
+    return { src: proxies.video as string, poster };
+  if (state.kind === 'live' && state.livePlay) return { src: livePhotoVideoUrl as string, poster };
   return null;
 }
 
@@ -27,8 +33,8 @@ export function createVideoPlayer(
 ) {
   let element: HTMLVideoElement | null = null;
   let visit = 0;
-  let take = 0;
-  let live = false;
+  let playId = 0;
+  let events: MediaEvents;
   let source: Source;
   let reloaded: boolean;
   let playing: boolean;
@@ -63,10 +69,10 @@ export function createVideoPlayer(
       }
       return;
     }
-    if (state.take !== take) {
-      take = state.take;
+    if (state.playId !== playId) {
+      playId = state.playId;
       visit = state.visit;
-      live = state.kind === 'live';
+      events = state.kind === 'live' ? liveEvents : videoEvents;
       source = wanted;
       reloaded = false;
       load(element);
@@ -91,6 +97,21 @@ export function createVideoPlayer(
     );
   }
 
+  const liveEvents: MediaEvents = {
+    playing: story.livePlaying,
+    ended: story.liveEnded,
+    error: story.liveEnded,
+  };
+  const videoEvents: MediaEvents = {
+    playing: () => {
+      story.mediaReady(visit);
+    },
+    ended: () => {
+      story.mediaEnded(visit);
+    },
+    error: failed,
+  };
+
   return {
     sync,
     events: {
@@ -99,16 +120,13 @@ export function createVideoPlayer(
         sync();
       },
       onPlaying: () => {
-        if (live) story.livePlaying();
-        else story.mediaReady(visit);
+        events.playing();
       },
       onEnded: () => {
-        if (live) story.liveEnded();
-        else story.mediaEnded(visit);
+        events.ended();
       },
       onError: () => {
-        if (live) story.liveEnded();
-        else failed();
+        events.error();
       },
     },
   };

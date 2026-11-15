@@ -136,7 +136,7 @@ function Player({ date, year, day, close }: PlayerProps) {
     nextVideo,
     togglePause,
     toggleSound,
-    live,
+    liveButton,
     replay,
   } = story;
   const interactions = useInteractions(date, story);
@@ -201,7 +201,7 @@ function Player({ date, year, day, close }: PlayerProps) {
               running={state.running}
             />
             <div style={{ visibility: controls }} className="flex items-center">
-              <LiveButton shown={live} play={replay} />
+              <LiveButton shown={liveButton} play={replay} />
               <p role="status" className="flex-1 text-small font-semibold">
                 {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
               </p>
