@@ -17,3 +17,9 @@
     transform: scaleX(1);
   }
 }
+
+@keyframes live-blink {
+  to {
+    opacity: 0.3;
+  }
+}

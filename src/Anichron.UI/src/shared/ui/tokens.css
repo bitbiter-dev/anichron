@@ -90,4 +90,5 @@
   --default-transition-duration: var(--duration-fast);
 
   --animate-story-fill: story-fill linear forwards;
+  --animate-live-blink: live-blink 0.8s ease-in-out infinite alternate;
 }

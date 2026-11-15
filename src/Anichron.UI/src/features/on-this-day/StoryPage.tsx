@@ -137,6 +137,7 @@ function Player({ date, year, day, close }: PlayerProps) {
     togglePause,
     toggleSound,
     liveButton,
+    liveLoading,
     replay,
   } = story;
   const interactions = useInteractions(date, story);
@@ -200,11 +201,13 @@ function Player({ date, year, day, close }: PlayerProps) {
               duration={duration}
               running={state.running}
             />
-            <div style={{ visibility: controls }} className="flex items-center">
-              <LiveButton shown={liveButton} play={replay} />
-              <p role="status" className="flex-1 text-small font-semibold">
-                {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
-              </p>
+            <div style={{ visibility: controls }} className="flex items-start">
+              <div className="flex flex-1 flex-col items-start">
+                <p role="status" className="flex h-11 items-center text-small font-semibold">
+                  {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
+                </p>
+                <LiveButton shown={liveButton} loading={liveLoading} play={replay} />
+              </div>
               <div className="pointer-events-auto flex">
                 <PauseButton label={pause} toggle={togglePause} />
                 <CloseButton close={close} />
@@ -264,19 +267,24 @@ function Blurhash({ hash, width, height }: BlurhashProps) {
 
 interface LiveButtonProps {
   shown: boolean;
+  loading: boolean;
   play: () => void;
 }
 
-function LiveButton({ shown, play }: LiveButtonProps) {
+function LiveButton({ shown, loading, play }: LiveButtonProps) {
   const { t } = useTranslation();
   if (!shown) return null;
   return (
     <Button
       aria-label={t('story.playLivePhoto')}
       onPress={play}
-      className={`pointer-events-auto ${roundButton}`}
+      data-loading={loading}
+      className="group pointer-events-auto flex h-11 items-center outline-none"
     >
-      <LivePhotoIcon className="size-6" />
+      <span className="flex items-center gap-1 rounded-full py-1 pr-2.5 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:outline-2 group-data-focus-visible:outline-offset-2 group-data-focus-visible:outline-focus">
+        <LivePhotoIcon className="size-5 group-data-[loading=true]:animate-live-blink motion-reduce:group-data-[loading=true]:animate-none motion-reduce:group-data-[loading=true]:opacity-50" />
+        {t('story.live')}
+      </span>
     </Button>
   );
 }

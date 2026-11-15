@@ -31,6 +31,7 @@
     "photo": "Photo",
     "video": "Video",
     "livePhoto": "Live Photo",
+    "live": "Live",
     "playLivePhoto": "Play Live Photo",
     "failed": "Couldn't load this memory",
     "soundOn": "Turn sound on",

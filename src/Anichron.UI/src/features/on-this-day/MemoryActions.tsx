@@ -16,7 +16,7 @@ interface MemoryActionsProps {
 export function MemoryActions({ interaction, onToggle, onHide }: MemoryActionsProps) {
   const { t } = useTranslation();
   return (
-    <div className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] mx-auto flex w-fit gap-2 rounded-full bg-player/40 p-1 backdrop-blur-md">
+    <div className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] mx-auto flex w-fit gap-2 rounded-full p-1 player-glass">
       <ToggleAction
         flag="starred"
         icon={Star}
