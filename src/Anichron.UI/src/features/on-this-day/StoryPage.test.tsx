@@ -867,6 +867,19 @@ describe('a video', () => {
     expect(video()).not.toBeVisible();
   });
 
+  it('pauses its video while the story is held', async () => {
+    await openVideo();
+    await fire('playing');
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
+    const pointer = user();
+
+    await pointer.pointer({ keys: '[MouseLeft>]', target: button('Next') });
+    await advance(1000);
+
+    expect(pause).toHaveBeenCalled();
+    await pointer.pointer({ keys: '[/MouseLeft]', target: button('Next') });
+  });
+
   describe('its sound', () => {
     const sound = (name: string) => within(story()).getByRole('button', { name });
 
@@ -1173,6 +1186,7 @@ describe('a Live Photo', () => {
     const pointer = user();
     await pointer.pointer({ keys: '[MouseLeft>]', target: middle() });
     await advance(1000);
+    expect(video().hasAttribute('src')).toBe(false);
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
 
     await shown();
@@ -1365,6 +1379,21 @@ describe('a Live Photo', () => {
       expect(showing()).toBe(preview(ids.b2025));
     });
 
+    it('keeps playing when a press ends anywhere else', async () => {
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      button('Play Live Photo').focus();
+      await user().keyboard('{Enter}');
+      expect(showing()).toBe(preview(ids.a2025));
+      await fire('playing');
+
+      fireEvent.pointerUp(window);
+      await advance(0);
+
+      expect(video()).toBeVisible();
+      expect(video().hasAttribute('src')).toBe(true);
+    });
+
     it('lets the story play on when the video breaks', async () => {
       await watched();
       await replay();
@@ -1508,6 +1537,15 @@ describe('a Live Photo', () => {
 
       expect(video().getAttribute('src')).toBe('blob:video-1');
       expect(fetched()).toEqual([motionOf(ids.a2025)]);
+    });
+
+    it('fetches nothing while the picture showing still loads, even as the story changes', async () => {
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), liveAt(ids.b2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      fireEvent.click(button('Pause'));
+      await advance(0);
+
+      expect(fetched()).toEqual([]);
     });
 
     it("fetches the next Live Photos' videos once a memory shows, and plays them from memory", async () => {
