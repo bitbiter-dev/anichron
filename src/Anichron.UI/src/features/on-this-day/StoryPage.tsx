@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
-import { Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
+import { CircleDotDashed, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
@@ -135,6 +135,8 @@ function Player({ date, year, day, close }: PlayerProps) {
     nextVideo,
     togglePause,
     toggleSound,
+    live,
+    replay,
   } = story;
   const interactions = useInteractions(date, story);
   const pull = usePull(gestures);
@@ -198,6 +200,7 @@ function Player({ date, year, day, close }: PlayerProps) {
               running={state.running}
             />
             <div style={{ visibility: controls }} className="flex items-center">
+              <LiveButton shown={live} play={replay} />
               <p role="status" className="flex-1 text-small font-semibold">
                 {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
               </p>
@@ -255,6 +258,25 @@ function Blurhash({ hash, width, height }: BlurhashProps) {
       height={height}
       className="absolute inset-0 size-full object-contain"
     />
+  );
+}
+
+interface LiveButtonProps {
+  shown: boolean;
+  play: () => void;
+}
+
+function LiveButton({ shown, play }: LiveButtonProps) {
+  const { t } = useTranslation();
+  if (!shown) return null;
+  return (
+    <Button
+      aria-label={t('story.playLivePhoto')}
+      onPress={play}
+      className={`pointer-events-auto ${roundButton}`}
+    >
+      <CircleDotDashed aria-hidden className="size-6" />
+    </Button>
   );
 }
 

@@ -1,12 +1,9 @@
 import { animate, type PanInfo, useMotionValue, useTransform } from 'motion/react';
 import type { Gestures } from './navigation';
+import { reducesMotion } from './reduced-motion';
 
 const cardScale = 0.6;
 const cardRadius = 24;
-
-function reducesMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 function pullLook(pulled: number, height: number, reduced: boolean) {
   const share = Math.min(pulled / height, 1);

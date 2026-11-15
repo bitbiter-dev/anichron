@@ -2,9 +2,10 @@ import type { Memory, YearGroup } from '../../api/flashbacks';
 import { blurhashOf } from './blurhash';
 import { type Kind, memoryMilliseconds, type StoryState, videoMilliseconds } from './story';
 
-export function kindOf({ mediaType, proxies }: Memory): Kind {
+export function kindOf({ mediaType, proxies, livePhotoVideoUrl }: Memory): Kind {
   if (mediaType === 'Video' && proxies.video) return 'video';
-  return proxies.preview ? 'picture' : 'none';
+  if (!proxies.preview) return 'none';
+  return livePhotoVideoUrl ? 'live' : 'picture';
 }
 
 function durationOf({ kind, load }: StoryState, { durationSeconds }: Memory) {
@@ -38,7 +39,8 @@ export function storyView(state: StoryState, group: YearGroup) {
     blurhash: state.load === 'shown' ? null : blurhashOf(memory),
     failed: state.kind !== 'video' && state.load === 'failed',
     image: imageOf(state),
-    video: state.kind === 'video' && state.load !== 'failed',
+    video: (state.kind === 'video' && state.load !== 'failed') || state.liveShown,
+    live: state.kind === 'live' && state.load === 'shown',
     duration: durationOf(state, memory),
     sound: {
       shown: state.kind === 'video',

@@ -5,7 +5,7 @@ import type { Authorized } from './session';
 type Schemas = components['schemas'];
 type Proxies = Schemas['AssetProxyUrls'];
 
-export type Memory = Omit<Schemas['AssetDto'], 'livePhotoVideoUrl'>;
+export type Memory = Schemas['AssetDto'];
 
 export interface YearGroup {
   year: number;
@@ -30,6 +30,7 @@ function memoryOf(asset: Schemas['AssetDto']): Memory {
     proxies: Object.fromEntries(
       Object.entries(asset.proxies).map(([type, url]) => [type, fromApi(url)]),
     ) as Proxies,
+    livePhotoVideoUrl: fromApi(asset.livePhotoVideoUrl),
   };
 }
 
