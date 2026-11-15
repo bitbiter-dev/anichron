@@ -18,6 +18,11 @@ function imageOf({ kind, load }: StoryState) {
   return load === 'failed' ? null : 'picture';
 }
 
+function liveOf({ livePlay, liveShown, playsMedia }: StoryState) {
+  if (!livePlay || !playsMedia) return 'still';
+  return liveShown ? 'playing' : 'loading';
+}
+
 export function storyView(state: StoryState, group: YearGroup) {
   const kinds: Partial<Record<string, 'story.video' | 'story.livePhoto'>> = {
     Video: 'story.video',
@@ -41,7 +46,7 @@ export function storyView(state: StoryState, group: YearGroup) {
     image: imageOf(state),
     video: (state.kind === 'video' && state.load !== 'failed') || state.liveShown,
     liveButton: state.kind === 'live' && state.load === 'shown',
-    liveLoading: state.livePlay && !state.liveShown && state.playsMedia,
+    live: liveOf(state),
     duration: durationOf(state, memory),
     sound: {
       shown: state.kind === 'video',

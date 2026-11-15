@@ -18,6 +18,31 @@
   }
 }
 
+@property --live-ring-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes live-ring {
+  to {
+    --live-ring-angle: 360deg;
+  }
+}
+
+@utility live-ring {
+  padding: 2px;
+  background: conic-gradient(
+    from var(--live-ring-angle),
+    var(--color-player-accent) 0 30%,
+    transparent 30%
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: var(--animate-live-ring);
+}
+
 @keyframes live-blink {
   to {
     opacity: 0.3;

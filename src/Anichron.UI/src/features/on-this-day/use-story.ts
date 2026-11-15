@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
-import { createPrefetch, nextVideo } from './prefetch';
+import { createLiveVideos, createPrefetch, nextVideo } from './prefetch';
 import { reducesMotion } from './reduced-motion';
 import { createStory, type Place } from './story';
 import { kindOf, storyView } from './story-view';
@@ -20,14 +20,24 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       close,
       !reducesMotion(),
     );
-    const player = createVideoPlayer(story, memoryAt, () => session.renewMedia());
+    const videos = media.videos();
+    const player = createVideoPlayer(
+      story,
+      memoryAt,
+      () => session.renewMedia(),
+      (url) => videos.sourceOf(url),
+    );
     const prefetch = createPrefetch(memoryAt, (url) => {
       media.prefetchPicture(url);
+    });
+    const keepLiveVideos = createLiveVideos(memoryAt, (urls) => {
+      videos.keep(urls);
     });
     const subscribe = (listener: () => void) => {
       const stopInput = listenToInput(story);
       prefetch(story.state());
       const stop = story.subscribe(() => {
+        keepLiveVideos(story.state());
         player.sync();
         prefetch(story.state());
         listener();
@@ -35,6 +45,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       return () => {
         stop();
         stopInput();
+        videos.clear();
       };
     };
     return {

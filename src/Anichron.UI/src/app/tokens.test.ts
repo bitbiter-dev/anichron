@@ -50,6 +50,7 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
       'on-accent',
       'on-player',
       'player',
+      'player-accent',
       'player-glass',
       'surface',
       'surface-raised',
@@ -94,6 +95,18 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
     );
     expect(contrastRatio(colours(theme)['on-player'] ?? '', glass)).toBeGreaterThanOrEqual(4.5);
   });
+
+  it.each(['player', 'on-player'])(
+    'shows player-accent on the player glass over %s',
+    (backdrop) => {
+      const glass = blend(
+        colours(theme)['player-glass'] ?? '',
+        colours(theme)[backdrop] ?? '',
+        playerGlassOpacity(),
+      );
+      expect(contrastRatio(colours(theme)['player-accent'] ?? '', glass)).toBeGreaterThanOrEqual(3);
+    },
+  );
 
   it('keeps the player black', () => {
     expect(colours(theme).player).toBe('#000000');
