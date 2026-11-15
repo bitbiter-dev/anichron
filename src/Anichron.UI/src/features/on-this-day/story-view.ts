@@ -41,7 +41,7 @@ export function storyView(state: StoryState, group: YearGroup) {
     image: imageOf(state),
     video: (state.kind === 'video' && state.load !== 'failed') || state.liveShown,
     liveButton: state.kind === 'live' && state.load === 'shown',
-    liveLoading: state.livePlay && !state.liveShown,
+    liveLoading: state.livePlay && !state.liveShown && state.playsMedia,
     duration: durationOf(state, memory),
     sound: {
       shown: state.kind === 'video',

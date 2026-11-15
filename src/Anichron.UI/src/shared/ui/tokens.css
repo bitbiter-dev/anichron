@@ -31,6 +31,8 @@
   --glass-bar-opacity: 0.94;
   --glass-blur: 24px;
   --glass-edge: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.12));
+  --player-glass-opacity: 0.7;
+  --player-glass-edge: rgb(255 255 255 / 0.15);
   --shadow-glass:
     inset 0 1px 0 light-dark(rgb(255 255 255 / 0.8), rgb(255 255 255 / 0.1)),
     0 20px 48px -12px light-dark(rgb(31 28 25 / 0.2), rgb(0 0 0 / 0.6));
@@ -40,6 +42,7 @@
 
   --duration-fast: 150ms;
   --duration-base: 250ms;
+  --duration-blink: 800ms;
 }
 
 [data-theme='light'] {
@@ -55,6 +58,7 @@
     --duration-fast: 0ms;
     --duration-base: 0ms;
     --animate-story-fill: story-fill steps(5) forwards;
+    --animate-live-blink: none;
   }
 }
 
@@ -74,6 +78,7 @@
   --color-backdrop-cool: light-dark(var(--blue-100), var(--blue-800));
   --color-player: var(--black);
   --color-on-player: var(--neutral-0);
+  --color-player-glass: var(--neutral-850);
 
   --radius-*: initial;
   --radius-field: 0.75rem;
@@ -90,5 +95,5 @@
   --default-transition-duration: var(--duration-fast);
 
   --animate-story-fill: story-fill linear forwards;
-  --animate-live-blink: live-blink 0.8s ease-in-out infinite alternate;
+  --animate-live-blink: live-blink var(--duration-blink) ease-in-out infinite alternate;
 }

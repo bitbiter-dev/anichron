@@ -28,13 +28,13 @@
 @utility player-glass {
   background: color-mix(
     in srgb,
-    color-mix(in srgb, var(--color-on-player) 20%, var(--color-player)) 60%,
+    var(--color-player-glass) calc(var(--player-glass-opacity) * 100%),
     transparent
   );
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
-  border: 1px solid color-mix(in srgb, var(--color-on-player) 15%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--player-glass-edge);
 
   @supports not (backdrop-filter: blur(1px)) {
-    background: color-mix(in srgb, var(--color-on-player) 20%, var(--color-player));
+    background: var(--color-player-glass);
   }
 }

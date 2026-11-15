@@ -281,8 +281,8 @@ function LiveButton({ shown, loading, play }: LiveButtonProps) {
       data-loading={loading}
       className="group pointer-events-auto flex h-11 items-center outline-none"
     >
-      <span className="flex items-center gap-1 rounded-full py-1 pr-2.5 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:outline-2 group-data-focus-visible:outline-offset-2 group-data-focus-visible:outline-focus">
-        <LivePhotoIcon className="size-5 group-data-[loading=true]:animate-live-blink motion-reduce:group-data-[loading=true]:animate-none motion-reduce:group-data-[loading=true]:opacity-50" />
+      <span className="flex items-center gap-1 rounded-full py-0.5 pr-2 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:outline-2 group-data-focus-visible:outline-offset-2 group-data-focus-visible:outline-focus">
+        <LivePhotoIcon className="size-4 group-data-[loading=true]:animate-live-blink motion-reduce:group-data-[loading=true]:opacity-50" />
         {t('story.live')}
       </span>
     </Button>
