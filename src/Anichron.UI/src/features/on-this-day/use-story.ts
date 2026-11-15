@@ -4,7 +4,6 @@ import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
 import { createKeepLiveVideos, createPrefetch, nextVideo } from './prefetch';
-import { reducesMotion } from './reduced-motion';
 import { createStory, type Place } from './story';
 import { kindOf, storyView } from './story-view';
 import { createVideoPlayer } from './video';
@@ -18,7 +17,6 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       years.map((group) => group.memories.map(kindOf)),
       startGroup(years, year),
       close,
-      !reducesMotion(),
     );
     const videos = media.videos();
     const player = createVideoPlayer(

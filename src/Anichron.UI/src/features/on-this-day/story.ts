@@ -95,7 +95,6 @@ export function createStory(
   kinds: readonly (readonly Kind[])[],
   group: number,
   close: () => void,
-  autoplaysLive: boolean,
 ): Story {
   const memories = (group: number) => kinds[group] as readonly Kind[];
   const hidden = new Set<string>();
@@ -218,7 +217,6 @@ export function createStory(
     if (visit === position.visit && position.load === 'loading')
       update(() => {
         position = { ...position, load };
-        if (load === 'shown' && autoplaysLive && position.kind === 'live') play({});
         clock.set(lasting(position));
       });
   }
