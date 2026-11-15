@@ -19,11 +19,12 @@ async function fetchAndDecode(url: string) {
 }
 
 interface Kept {
-  source: string | null;
+  source?: string;
 }
 
 function createVideos(): Videos {
   const kept = new Map<string, Kept>();
+  const notKept: Kept = {};
 
   async function load(url: string, entry: Kept) {
     const response = await fetch(new URL(url, location.origin));
@@ -32,25 +33,24 @@ function createVideos(): Videos {
     if (kept.get(url) === entry) entry.source = URL.createObjectURL(blob);
   }
 
-  function drop(url: string) {
-    const source = kept.get(url)?.source;
+  function drop(url: string, { source }: Kept) {
     kept.delete(url);
     if (source) URL.revokeObjectURL(source);
   }
 
   return {
     keep(urls) {
-      for (const url of kept.keys()) if (!urls.includes(url)) drop(url);
+      for (const [url, entry] of kept) if (!urls.includes(url)) drop(url, entry);
       for (const url of urls) {
         if (kept.has(url)) continue;
-        const entry: Kept = { source: null };
+        const entry: Kept = {};
         kept.set(url, entry);
         load(url, entry).catch(() => undefined);
       }
     },
-    sourceOf: (url) => kept.get(url)?.source ?? url,
+    sourceOf: (url) => (kept.get(url) ?? notKept).source ?? url,
     clear() {
-      for (const url of kept.keys()) drop(url);
+      for (const [url, entry] of kept) drop(url, entry);
     },
   };
 }

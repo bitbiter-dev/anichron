@@ -218,13 +218,14 @@ export function createStory(
     if (visit === position.visit && position.load === 'loading')
       update(() => {
         position = { ...position, load };
-        if (load === 'shown' && autoplaysLive && position.kind === 'live') play(false);
+        if (load === 'shown' && autoplaysLive && position.kind === 'live')
+          play({ replaying: false });
         clock.set(lasting(position));
       });
   }
 
-  function play(replaying: boolean) {
-    position = { ...position, livePlay: true, replaying, liveShown: false, playId: ++visits };
+  function play(change: Partial<StoryPosition>) {
+    position = { ...position, ...change, livePlay: true, liveShown: false, playId: ++visits };
   }
 
   function toggleSound() {
@@ -296,7 +297,7 @@ export function createStory(
     replay() {
       update(() => {
         paused = false;
-        play(true);
+        play({ replaying: true });
       });
     },
     togglePause() {
@@ -307,10 +308,7 @@ export function createStory(
     hold() {
       update(() => {
         held = true;
-        if (position.kind === 'live' && position.load === 'shown') {
-          play(true);
-          position = { ...position, heldPlay: true };
-        }
+        if (position.kind === 'live' && position.load === 'shown') play({ heldPlay: true });
       });
     },
     release() {

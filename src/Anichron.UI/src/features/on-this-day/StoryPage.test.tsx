@@ -1641,6 +1641,7 @@ describe('a Live Photo', () => {
       await advance(0);
 
       expect(create).not.toHaveBeenCalled();
+      expect(revoke).not.toHaveBeenCalled();
     });
   });
 
