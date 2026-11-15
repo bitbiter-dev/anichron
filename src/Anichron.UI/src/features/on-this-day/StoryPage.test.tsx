@@ -616,6 +616,16 @@ describe('a video', () => {
     expect(segment(0)).toHaveStyle({ animationPlayState: 'paused' });
   });
 
+  it('loads its video once while it plays', async () => {
+    await openVideo();
+    const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
+
+    await fire('playing');
+    await advance(5000);
+
+    expect(src).not.toHaveBeenCalled();
+  });
+
   it('shows its preview as its poster', async () => {
     await openVideo();
 

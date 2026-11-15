@@ -206,7 +206,7 @@ export function createStory(
     if (visit === position.visit && position.load === 'loading')
       update(() => {
         position = { ...position, load };
-        if (load === 'shown' && autoplaysLive) play(false);
+        if (load === 'shown' && autoplaysLive && position.kind === 'live') play(false);
         clock.set(lasting(position));
       });
   }
