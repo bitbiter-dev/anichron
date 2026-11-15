@@ -41,6 +41,12 @@ export function dayQuery(api: ApiClient, date: string) {
   return queryOptions({ queryKey: dayKey(date), queryFn: () => api.flashbacks.onThisDay(date) });
 }
 
+const burstsKey = ['burst'] as const;
+
+export function burstQuery(api: ApiClient, id: string) {
+  return queryOptions({ queryKey: [...burstsKey, id], queryFn: () => api.bursts.frames(id) });
+}
+
 export interface Interaction {
   id: string;
   change: Change;
@@ -51,17 +57,13 @@ function reverse(change: Change): Change {
 }
 
 function apply(queryClient: QueryClient, date: string, { id, change }: Interaction) {
+  const changed = (memory: Memory) =>
+    memory.id === id ? { ...memory, interaction: { ...memory.interaction, ...change } } : memory;
   const day = queryClient.getQueryData<Day>(dayKey(date)) as Day;
   queryClient.setQueryData<Day>(dayKey(date), {
-    years: day.years.map((group) => ({
-      ...group,
-      memories: group.memories.map((memory) =>
-        memory.id === id
-          ? { ...memory, interaction: { ...memory.interaction, ...change } }
-          : memory,
-      ),
-    })),
+    years: day.years.map((group) => ({ ...group, memories: group.memories.map(changed) })),
   });
+  queryClient.setQueriesData<Memory[]>({ queryKey: burstsKey }, (frames) => frames?.map(changed));
 }
 
 export function interactionMutation(api: ApiClient, queryClient: QueryClient, date: string) {

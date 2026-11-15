@@ -24,7 +24,7 @@ function fromApi(url: string | null) {
   return url && `/api/v1/${url}`;
 }
 
-function memoryOf(asset: Schemas['AssetDto']): Memory {
+export function memoryOf(asset: Schemas['AssetDto']): Memory {
   return {
     ...asset,
     proxies: Object.fromEntries(

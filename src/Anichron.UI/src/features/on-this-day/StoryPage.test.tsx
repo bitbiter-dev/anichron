@@ -7,7 +7,14 @@ import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { axeResults } from '../../test/axe';
 import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
-import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
+import {
+  hold,
+  memory,
+  onThisDayAnswers,
+  todayAnd,
+  yearGroup,
+} from '../../test/handlers/flashbacks';
+import { burstAnswers } from '../../test/handlers/bursts';
 import { proxyAnswers } from '../../test/handlers/proxies';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
@@ -1042,7 +1049,9 @@ describe('a video', () => {
     it('may come after photos', async () => {
       years = [yearGroup(2025, memory(ids.a2025, 2025), film(ids.b2025, 2025))];
       renderApp('/day/2026-11-11?year=2025');
-      await screen.findByRole('dialog', { name: storyName });
+      await within(await screen.findByRole('dialog', { name: storyName })).findByRole('button', {
+        name: 'Previous',
+      });
       await vi.waitFor(() => {
         expect(picture()).not.toBeNull();
       });
@@ -1058,7 +1067,9 @@ describe('a video', () => {
         yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025), film(ids.c2025, 2025)),
       ];
       renderApp('/day/2026-11-11?year=2025');
-      await screen.findByRole('dialog', { name: storyName });
+      await within(await screen.findByRole('dialog', { name: storyName })).findByRole('button', {
+        name: 'Previous',
+      });
       await vi.waitFor(() => {
         expect(picture()).not.toBeNull();
       });
@@ -1192,7 +1203,7 @@ describe('a Live Photo', () => {
     await shown();
     await advance(30_000);
     expect(play).not.toHaveBeenCalled();
-    expect(within(story()).queryByRole('button', { name: 'Play Live Photo' })).toBeNull();
+    expect(button('Play Live Photo')).toHaveAttribute('data-live', 'still');
     expect(showing()).toBe(preview(ids.a2025));
 
     await pointer.pointer({ keys: '[/MouseLeft]', target: middle() });
@@ -1275,6 +1286,60 @@ describe('a Live Photo', () => {
       await release();
       expect(video().hasAttribute('src')).toBe(false);
       expect(within(story()).getByRole('button', { name: 'Play' })).toBeVisible();
+    });
+
+    it('keeps its Live pill showing what its video does, and hides the other controls', async () => {
+      const live = () => button('Play Live Photo').getAttribute('data-live');
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+
+      const release = await hold();
+
+      expect(button('Play Live Photo')).toBeVisible();
+      expect(live()).toBe('loading');
+      await fire('playing');
+      expect(live()).toBe('playing');
+      await fire('ended');
+      expect(live()).toBe('still');
+      expect(button('Play Live Photo')).toBeVisible();
+      expect(within(story()).queryByRole('button', { name: 'Pause' })).toBeNull();
+      expect(within(story()).queryByRole('button', { name: 'Star' })).toBeNull();
+      expect(within(story()).getByText('1 year ago · 2025')).not.toBeVisible();
+      await release();
+    });
+
+    it.each([
+      ['photo', memory(ids.a2025, 2025)],
+      [
+        'video',
+        memory(ids.a2025, 2025, {
+          mediaType: 'Video',
+          proxies: {
+            thumbnail: null,
+            preview: `proxies/${ids.a2025}/preview?v=1`,
+            video: `proxies/${ids.a2025}/video?v=1`,
+          },
+        }),
+      ],
+      [
+        'burst',
+        memory(ids.a2025, 2025, {
+          burst: { burstId: ids.c2025, isCover: true, count: 2 },
+          livePhotoVideoUrl: `proxies/${movId}/video?v=fedcba9876543210`,
+        }),
+      ],
+    ])('shows no Live pill on a hold on a %s', async (_, held) => {
+      years = [yearGroup(2025, held)];
+      renderApp('/day/2026-11-11?year=2025');
+      await within(await screen.findByRole('dialog', { name: storyName })).findByRole('button', {
+        name: 'Previous',
+      });
+
+      const release = await hold();
+
+      expect(within(story()).queryByRole('button', { name: 'Play Live Photo' })).toBeNull();
+      expect(within(story()).queryByRole('button', { name: 'Pause' })).toBeNull();
+      await release();
     });
 
     it('plays its video when the story rests on it at the end', async () => {
@@ -3233,5 +3298,417 @@ describe('starring, liking and hiding', () => {
     await user().keyboard('{F6}{Tab}{Tab}');
 
     expect(within(toast()).getByRole('button', { name: 'Undo' })).toHaveFocus();
+  });
+});
+
+describe('a burst', () => {
+  const burstId = '0199a1b2-c3d4-7e5f-8a9b-0000000e2025';
+  const frameIds = [
+    ids.a2025,
+    '0199a1b2-c3d4-7e5f-8a9b-0000000f2025',
+    '0199a1b2-c3d4-7e5f-8a9b-0000000c2025',
+  ];
+  const frame = (id: string, index: number) =>
+    memory(id, 2025, { burst: { burstId, isCover: index === 0, count: frameIds.length } });
+  let opened: string[];
+  let sent: Interacted[];
+  let refuse: boolean;
+
+  beforeEach(() => {
+    opened = [];
+    sent = [];
+    refuse = false;
+    years = [
+      yearGroup(2025, frame(ids.a2025, 0), memory(ids.b2025, 2025)),
+      yearGroup(2023, memory(ids.a2023, 2023)),
+    ];
+    server.use(
+      burstAnswers((id) => {
+        opened.push(id);
+        const hidden = sent.filter(({ body }) => (body as { hidden?: boolean }).hidden);
+        return frameIds.map(frame).filter((shown) => !hidden.some(({ id }) => id === shown.id));
+      }),
+      interactionAnswers(sent, () => (refuse ? problemResponse(500, 'unknown') : undefined)),
+    );
+  });
+
+  const details = () => screen.getByRole('dialog', { name: 'Burst frames' });
+  const counter = () => within(details()).getByText(/^\d+ \/ \d+$/);
+  const frameShown = () =>
+    within(details())
+      .getAllByRole('img')
+      .map((img) => img.getAttribute('aria-label'));
+
+  async function openDetails() {
+    await user().click(middle());
+    return await screen.findByRole('img', { name: 'Frame 1 of 3' });
+  }
+
+  it('opens its frames from the cover on a middle tap, with the story paused', async () => {
+    const { container } = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(1000);
+
+    await openDetails();
+
+    expect(opened).toEqual([burstId]);
+    expect(counter()).toHaveTextContent('1 / 3');
+    expect(frameShown()).toEqual(['Frame 1 of 3', 'Frame 2 of 3', 'Frame 3 of 3']);
+    expect(
+      [...details().querySelectorAll('img')].map((image) => image.getAttribute('src')),
+    ).toEqual(frameIds.map(preview));
+    expect(await axeResults(container)).toHaveNoViolations();
+    await advance(30_000);
+    expect(details()).toBeVisible();
+    expect(document.querySelector('ol > li > span')).toHaveStyle({
+      animationPlayState: 'paused',
+    });
+  });
+
+  it('closes on Esc and plays on from where the story paused', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await advance(1000);
+    await openDetails();
+    await advance(30_000);
+
+    await user().keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog', { name: 'Burst frames' })).toBeNull();
+    expect(story()).toBeVisible();
+    expect(segment(0)).toHaveStyle({ animationPlayState: 'running' });
+    await advance(3999);
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  const frames = () => details().querySelector('ul') as HTMLUListElement;
+  const detailsButton = (name: string) => within(details()).getByRole('button', { name });
+
+  function scrolled(left: number, width = 390) {
+    Object.defineProperty(frames(), 'clientWidth', { value: width, configurable: true });
+    Object.defineProperty(frames(), 'scrollLeft', { value: left, configurable: true });
+    fireEvent.scroll(frames());
+  }
+
+  async function tap(clientX: number) {
+    await user().pointer({ keys: '[MouseLeft]', target: frames(), coords: { clientX } });
+  }
+
+  async function opened3() {
+    const rendered = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await openDetails();
+    return rendered;
+  }
+
+  it('moves a frame with the arrow keys, stops at either end, and scrolls to it', async () => {
+    await opened3();
+    Object.defineProperty(frames(), 'clientWidth', { value: 390, configurable: true });
+    const scrolledTo = vi.spyOn(Element.prototype, 'scrollLeft', 'set');
+
+    await user().keyboard('{ArrowLeft}');
+    expect(counter()).toHaveTextContent('1 / 3');
+    await user().keyboard('{ArrowRight}');
+    expect(counter()).toHaveTextContent('2 / 3');
+    await user().keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
+    expect(counter()).toHaveTextContent('3 / 3');
+    await user().keyboard('{ArrowLeft}');
+
+    expect(counter()).toHaveTextContent('2 / 3');
+    expect(scrolledTo.mock.calls).toEqual([[0], [390], [780], [780], [780], [390]]);
+  });
+
+  it('moves a frame on a tap on its left or right half', async () => {
+    await opened3();
+
+    await tap(900);
+    expect(counter()).toHaveTextContent('2 / 3');
+    await tap(900);
+    await tap(900);
+    expect(counter()).toHaveTextContent('3 / 3');
+    await tap(100);
+    expect(counter()).toHaveTextContent('2 / 3');
+    await tap(511);
+    expect(counter()).toHaveTextContent('1 / 3');
+    await tap(512);
+    expect(counter()).toHaveTextContent('2 / 3');
+  });
+
+  it('moves a frame from its Previous frame and Next frame buttons', async () => {
+    await opened3();
+
+    await user().click(detailsButton('Next frame'));
+    await user().click(detailsButton('Next frame'));
+    expect(counter()).toHaveTextContent('3 / 3');
+    await user().click(detailsButton('Previous frame'));
+
+    expect(counter()).toHaveTextContent('2 / 3');
+  });
+
+  it('counts the frame a swipe scrolls to, to the nearest one', async () => {
+    await opened3();
+
+    scrolled(700);
+    expect(counter()).toHaveTextContent('3 / 3');
+    scrolled(580);
+    expect(counter()).toHaveTextContent('2 / 3');
+    scrolled(100, 0);
+
+    expect(counter()).toHaveTextContent('2 / 3');
+  });
+
+  it('never moves on by itself', async () => {
+    await opened3();
+
+    await advance(60_000);
+
+    expect(counter()).toHaveTextContent('1 / 3');
+  });
+
+  it('leaves the story where it was while the frames are open', async () => {
+    await opened3();
+
+    await user().keyboard('{Shift>}{ArrowRight}{/Shift}{ArrowRight} m');
+    await user().keyboard('{Escape}');
+
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(button('Pause')).toBeVisible();
+    await advance(5000);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('stays paused once closed when the story was paused before', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(button('Pause'));
+    await openDetails();
+
+    await user().click(detailsButton('Close'));
+
+    expect(screen.queryByRole('dialog', { name: 'Burst frames' })).toBeNull();
+    expect(button('Play')).toBeVisible();
+    await advance(10_000);
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('closes on a swipe down, back to the story', async () => {
+    await opened3();
+
+    await swipe(0, 300, frames());
+
+    expect(screen.queryByRole('dialog', { name: 'Burst frames' })).toBeNull();
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(5000);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('neither closes nor moves a frame on a short swipe down', async () => {
+    await opened3();
+    await user().keyboard('{ArrowRight}');
+
+    await swipe(0, 100, frames(), 500);
+
+    expect(counter()).toHaveTextContent('2 / 3');
+  });
+
+  it("opens on Enter, but not on Enter on one of the story's buttons", async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    button('Pause').focus();
+
+    await user().keyboard('{Enter}');
+    expect(button('Play')).toBeVisible();
+    expect(screen.queryByRole('dialog', { name: 'Burst frames' })).toBeNull();
+    story().focus();
+    await user().keyboard('{Enter}');
+
+    expect(await screen.findByRole('dialog', { name: 'Burst frames' })).toBeVisible();
+  });
+
+  it('moves on from a photo on Enter', async () => {
+    years = [yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025))];
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    story().focus();
+
+    await user().keyboard('{Enter}');
+
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  const toast = () => screen.getByRole('alertdialog');
+
+  describe('its frames', () => {
+    it.each([
+      ['Star', 'starred'],
+      ['Like', 'liked'],
+    ])('%s each frame on its own', async (name, flag) => {
+      await opened3();
+      await user().keyboard('{ArrowRight}');
+
+      await user().click(detailsButton(name));
+      await advance(0);
+
+      expect(detailsButton(name)).toHaveAttribute('aria-pressed', 'true');
+      await user().keyboard('{ArrowLeft}');
+      expect(detailsButton(name)).toHaveAttribute('aria-pressed', 'false');
+      expect(sent).toEqual([{ id: frameIds[1], body: { [flag]: true } }]);
+    });
+
+    it('takes a hidden frame out at once, and Undo puts it back', async () => {
+      const { container } = await opened3();
+      await user().keyboard('{ArrowRight}');
+
+      await user().click(detailsButton('Hide'));
+
+      expect(frameShown()).toEqual(['Frame 1 of 2', 'Frame 2 of 2']);
+      expect(counter()).toHaveTextContent('2 / 2');
+      expect(details().querySelectorAll('img')[1]?.getAttribute('src')).toBe(
+        preview(frameIds[2] as string),
+      );
+      expect(toast()).toHaveTextContent('Memory hidden');
+      expect(await axeResults(container)).toHaveNoViolations();
+      await user().click(within(toast()).getByRole('button', { name: 'Undo' }));
+      await advance(0);
+
+      expect(frameShown()).toEqual(['Frame 1 of 3', 'Frame 2 of 3', 'Frame 3 of 3']);
+      expect(sent).toEqual([
+        { id: frameIds[1], body: { hidden: true } },
+        { id: frameIds[1], body: { hidden: false } },
+      ]);
+    });
+
+    it('puts a frame back whose hide could not be saved', async () => {
+      await opened3();
+      refuse = true;
+
+      await user().click(detailsButton('Hide'));
+      await advance(0);
+
+      expect(frameShown()).toEqual(['Frame 1 of 3', 'Frame 2 of 3', 'Frame 3 of 3']);
+      expect(toast()).toHaveTextContent("Couldn't save");
+    });
+
+    it('makes the next frame the cover when the cover is hidden', async () => {
+      await opened3();
+
+      await user().click(detailsButton('Hide'));
+      await user().keyboard('{Escape}');
+      await advance(0);
+
+      expect(showing()).toBe(preview(frameIds[1] as string));
+      expect(within(story()).getByText('+1')).toBeVisible();
+      expect(sent).toEqual([{ id: ids.a2025, body: { hidden: true } }]);
+    });
+
+    it('hides the card when its last frame is hidden, and Undo brings it back', async () => {
+      await opened3();
+      await user().click(detailsButton('Hide'));
+      await user().click(detailsButton('Hide'));
+
+      await user().click(detailsButton('Hide'));
+
+      expect(screen.queryByRole('dialog', { name: 'Burst frames' })).toBeNull();
+      expect(showing()).toBe(preview(ids.b2025));
+      await user().click(
+        within(screen.getAllByRole('alertdialog')[0] as HTMLElement).getByRole('button', {
+          name: 'Undo',
+        }),
+      );
+      await advance(0);
+      expect(showing()).toBe(preview(frameIds[2] as string));
+      expect(within(story()).queryByText(/^\+/)).toBeNull();
+      expect(sent).toHaveLength(4);
+      expect(sent).toEqual(
+        expect.arrayContaining([
+          { id: frameIds[0], body: { hidden: true } },
+          { id: frameIds[1], body: { hidden: true } },
+          { id: frameIds[2], body: { hidden: true } },
+          { id: frameIds[2], body: { hidden: false } },
+        ]),
+      );
+    });
+  });
+
+  it('keeps the card on Hide, with its next frame as the cover', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    await user().click(button('Hide'));
+    await advance(0);
+
+    expect(opened).toEqual([burstId]);
+    expect(sent).toEqual([{ id: ids.a2025, body: { hidden: true } }]);
+    expect(showing()).toBe(preview(frameIds[1] as string));
+    expect(within(story()).getByText('+1')).toBeVisible();
+    await user().click(within(toast()).getByRole('button', { name: 'Undo' }));
+    await advance(0);
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(within(story()).getByText('+2')).toBeVisible();
+  });
+
+  it('moves on from a card on Hide when it has one frame left', async () => {
+    years = [
+      yearGroup(
+        2025,
+        memory(ids.a2025, 2025, { burst: { burstId, isCover: true, count: 1 } }),
+        memory(ids.b2025, 2025),
+      ),
+    ];
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    await user().click(button('Hide'));
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(opened).toEqual([]);
+    expect(sent).toEqual([{ id: ids.a2025, body: { hidden: true } }]);
+  });
+
+  it('shows its cover while its frames load, and Try again when they fail', async () => {
+    const answered = hold();
+    let fails = true;
+    server.use(
+      burstAnswers(async () => {
+        await answered.until;
+        return fails ? problemResponse(500, 'unknown') : frameIds.map(frame);
+      }),
+    );
+    const { container } = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    await user().click(middle());
+    await screen.findByRole('dialog', { name: 'Burst frames' });
+    expect(frameShown()).toEqual(['Frame 1 of 1']);
+    expect(within(details()).queryByText(/^\d+ \/ \d+$/)).toBeNull();
+    answered.release();
+    await advance(8000);
+    await within(details()).findByText("Couldn't load these frames");
+    expect(await axeResults(container)).toHaveNoViolations();
+    fails = false;
+    await user().click(detailsButton('Try again'));
+
+    expect(await within(details()).findByText('1 / 3')).toBeVisible();
+    expect(within(details()).queryByText("Couldn't load these frames")).toBeNull();
+  });
+
+  it('shows its cover with +2 for its other frames for 5 s, as one memory', async () => {
+    const { container } = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+
+    expect(within(story()).getByRole('img', { name: 'Burst, 2025, 1 of 2' })).toBeVisible();
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(within(story()).getByText('+2')).toBeVisible();
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+    expect(within(story()).queryByText('+2')).toBeNull();
+    expect(opened).toEqual([]);
+    await user().click(button('Previous'));
+    expect(await axeResults(container)).toHaveNoViolations();
   });
 });

@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
-import { Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
+import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { Day } from '../../api/flashbacks';
 import { Toasts } from '../../shared/ui/Toast';
 import { paintBlurhash } from './blurhash';
+import { BurstDetails } from './BurstDetails';
+import { otherFrames } from './burst';
+import { CloseButton, roundButton } from './CloseButton';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
@@ -17,6 +20,7 @@ import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
 import { type Move, segmentState, type Tap } from './story';
 import type { LiveState } from './story-view';
+import { useCard } from './use-card';
 import { useInteractions } from './use-interactions';
 import { usePull } from './use-pull';
 import { useStory } from './use-story';
@@ -52,18 +56,6 @@ export function StoryPage() {
         </Dialog>
       </Modal>
     </ModalOverlay>
-  );
-}
-
-const roundButton =
-  'flex size-11 items-center justify-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
-
-function CloseButton({ close }: { close: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <Button aria-label={t('story.close')} onPress={close} className={roundButton}>
-      <X aria-hidden className="size-6" />
-    </Button>
   );
 }
 
@@ -141,7 +133,8 @@ function Player({ date, year, day, close }: PlayerProps) {
     live,
     replay,
   } = story;
-  const interactions = useInteractions(date, story);
+  const card = useCard(memory);
+  const interactions = useInteractions(date, { ...story, memory: card });
   const pull = usePull(gestures);
   return (
     <LazyMotion features={domMax} strict>
@@ -168,7 +161,7 @@ function Player({ date, year, day, close }: PlayerProps) {
             {blurhash && <Blurhash {...blurhash} />}
             <Picture
               image={image}
-              src={memory.proxies.preview}
+              src={card.proxies.preview}
               onDecoded={mediaReady}
               onFailed={mediaFailed}
             />
@@ -184,6 +177,7 @@ function Player({ date, year, day, close }: PlayerProps) {
           {nextVideo && (
             <video key={nextVideo} src={nextVideo} preload="auto" hidden aria-hidden muted />
           )}
+          <OtherFrames count={otherFrames(card)} />
           {failed && (
             <p className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center font-semibold">
               {t('story.failed')}
@@ -202,14 +196,18 @@ function Player({ date, year, day, close }: PlayerProps) {
               duration={duration}
               running={state.running}
             />
-            <div style={{ visibility: controls }} className="flex items-start">
+            <div className="flex items-start">
               <div className="flex flex-1 flex-col items-start">
-                <p role="status" className="flex h-11 items-center text-small font-semibold">
+                <p
+                  role="status"
+                  style={{ visibility: controls }}
+                  className="flex h-11 items-center text-small font-semibold"
+                >
                   {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
                 </p>
                 <LiveButton shown={liveButton} live={live} play={replay} />
               </div>
-              <div className="pointer-events-auto flex">
+              <div style={{ visibility: controls }} className="pointer-events-auto flex">
                 <PauseButton label={pause} toggle={togglePause} />
                 <CloseButton close={close} />
               </div>
@@ -217,13 +215,21 @@ function Player({ date, year, day, close }: PlayerProps) {
           </div>
           <div style={{ visibility: controls }}>
             <MemoryActions
-              interaction={interactionOf(day, memory)}
+              interaction={interactionOf(day, card)}
               onToggle={interactions.toggle}
-              onHide={interactions.hide}
+              onHide={() => {
+                interactions.hide();
+              }}
             />
             <Sound {...sound} toggle={toggleSound} />
           </div>
         </m.div>
+        <BurstDetails
+          open={state.details}
+          card={card}
+          close={story.closeDetails}
+          interactions={interactions}
+        />
         <Toasts toasts={interactions.toasts} />
       </MotionConfig>
     </LazyMotion>
@@ -244,6 +250,16 @@ function Picture({ image, src, onDecoded, onFailed }: PictureProps) {
     image && (
       <ProxyImage src={src} onDecoded={onDecoded} onFailed={onFailed} className={className} />
     )
+  );
+}
+
+function OtherFrames({ count }: { count: number }) {
+  const { t } = useTranslation();
+  if (count < 1) return null;
+  return (
+    <p className="pointer-events-none absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1.75rem)] rounded-full px-2 py-0.5 text-small font-semibold player-glass">
+      {t('story.otherFrames', { count })}
+    </p>
   );
 }
 
