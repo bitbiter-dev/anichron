@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
-import { createLiveVideos, createPrefetch, nextVideo } from './prefetch';
+import { createKeepLiveVideos, createPrefetch, nextVideo } from './prefetch';
 import { reducesMotion } from './reduced-motion';
 import { createStory, type Place } from './story';
 import { kindOf, storyView } from './story-view';
@@ -30,7 +30,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     const prefetch = createPrefetch(memoryAt, (url) => {
       media.prefetchPicture(url);
     });
-    const keepLiveVideos = createLiveVideos(memoryAt, (urls) => {
+    const keepLiveVideos = createKeepLiveVideos(memoryAt, (urls) => {
       videos.keep(urls);
     });
     const subscribe = (listener: () => void) => {

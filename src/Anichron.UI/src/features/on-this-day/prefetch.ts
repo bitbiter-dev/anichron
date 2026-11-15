@@ -21,7 +21,7 @@ export function createPrefetch(memoryAt: MemoryAt, prefetchPicture: (url: string
   };
 }
 
-export function createLiveVideos(memoryAt: MemoryAt, keep: (urls: string[]) => void) {
+export function createKeepLiveVideos(memoryAt: MemoryAt, keep: (urls: string[]) => void) {
   return (state: StoryState) => {
     if (state.load === 'loading') return;
     keep(

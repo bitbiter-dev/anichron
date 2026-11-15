@@ -18,7 +18,9 @@ function imageOf({ kind, load }: StoryState) {
   return load === 'failed' ? null : 'picture';
 }
 
-function liveOf({ livePlay, liveShown, playsMedia }: StoryState) {
+export type LiveState = 'loading' | 'playing' | 'still';
+
+function liveOf({ livePlay, liveShown, playsMedia }: StoryState): LiveState {
   if (!livePlay || !playsMedia) return 'still';
   return liveShown ? 'playing' : 'loading';
 }

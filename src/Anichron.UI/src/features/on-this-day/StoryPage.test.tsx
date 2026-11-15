@@ -1071,7 +1071,7 @@ describe('a video', () => {
 describe('a Live Photo', () => {
   const movId = '0199a1b2-c3d4-7e5f-8a9b-0000000d2025';
   const motion = `/api/v1/proxies/${movId}/video?v=fedcba9876543210`;
-  const kept = 'blob:video';
+  const keptSource = 'blob:video';
   const video = () => story().querySelector('video') as HTMLVideoElement;
   const live = (id: string, year: number) =>
     memory(id, year, {
@@ -1244,7 +1244,7 @@ describe('a Live Photo', () => {
       const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
 
       const release = await hold();
-      expect(src).toHaveBeenCalledExactlyOnceWith(kept);
+      expect(src).toHaveBeenCalledExactlyOnceWith(keptSource);
       expect(play).toHaveBeenCalledOnce();
       expect(video().muted).toBe(true);
       await fire('playing');
@@ -1267,7 +1267,7 @@ describe('a Live Photo', () => {
 
       const release = await hold();
 
-      expect(src).toHaveBeenCalledExactlyOnceWith(kept);
+      expect(src).toHaveBeenCalledExactlyOnceWith(keptSource);
       await release();
     });
 
@@ -1313,7 +1313,7 @@ describe('a Live Photo', () => {
 
       const release = await hold();
 
-      expect(video().getAttribute('src')).toBe(kept);
+      expect(video().getAttribute('src')).toBe(keptSource);
       expect(play).toHaveBeenCalledOnce();
       await release();
     });
@@ -1388,7 +1388,7 @@ describe('a Live Photo', () => {
       const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
 
       await replay();
-      expect(video().getAttribute('src')).toBe(kept);
+      expect(video().getAttribute('src')).toBe(keptSource);
       expect(video().muted).toBe(true);
       expect(play).toHaveBeenCalledOnce();
       await fire('playing');
@@ -1441,7 +1441,7 @@ describe('a Live Photo', () => {
       const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
 
       await replay();
-      expect(src.mock.calls).toEqual([[kept]]);
+      expect(src.mock.calls).toEqual([[keptSource]]);
       expect(video()).not.toBeVisible();
       await fire('playing');
       await advance(30_000);
@@ -1657,7 +1657,7 @@ describe('a Live Photo', () => {
       await pointer.pointer({ keys: '[MouseLeft>]', target: middle() });
       await advance(1000);
 
-      expect(video().getAttribute('src')).toBe(kept);
+      expect(video().getAttribute('src')).toBe(keptSource);
       await pointer.pointer({ keys: '[/MouseLeft]', target: middle() });
     });
 
@@ -1671,7 +1671,7 @@ describe('a Live Photo', () => {
 
       await user().click(button('Play Live Photo'));
 
-      expect(video().getAttribute('src')).toBe(kept);
+      expect(video().getAttribute('src')).toBe(keptSource);
       expect(play).toHaveBeenCalledOnce();
     });
   });

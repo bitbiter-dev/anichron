@@ -16,6 +16,7 @@ import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
 import { type Move, segmentState, type Tap } from './story';
+import type { LiveState } from './story-view';
 import { useInteractions } from './use-interactions';
 import { usePull } from './use-pull';
 import { useStory } from './use-story';
@@ -267,7 +268,7 @@ function Blurhash({ hash, width, height }: BlurhashProps) {
 
 interface LiveButtonProps {
   shown: boolean;
-  live: 'loading' | 'playing' | 'still';
+  live: LiveState;
   play: () => void;
 }
 
