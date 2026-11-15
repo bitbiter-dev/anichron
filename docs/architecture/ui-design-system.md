@@ -15,7 +15,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 - Photo-first: warm neutral grey chrome, one accent (teal) used only for primary actions, focus and selection.
 - About 12 px radius, pill buttons, touch targets of at least 44 px.
-- The story player is black in both themes.
+- The story player is black in both themes. Its Live Photo button and memory actions sit on grey frosted pills (`player-glass`).
 - A standalone screen (sign-in) puts a frosted glass card over a backdrop of colour glows. Fields and buttons on it stay solid. Without blur support the card falls back to a solid surface.
 
 ## Tokens
@@ -24,7 +24,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 - **Semantic tokens** are the only ones registered with Tailwind (`surface`, `fg`, `accent`, `danger`, `focus`, `player`, …). Tailwind's default palette is cleared, so an off-palette class generates nothing.
 - Radius and type size follow the same split. Spacing keeps Tailwind's scale.
 - A new kind of colour starts as a semantic token with a value for each theme.
-- Glass is three utilities in `src/app/glass.css`, built only from tokens.
+- Glass is a set of utilities in `src/app/glass.css`, built only from tokens.
 
 ## Themes
 
@@ -48,6 +48,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 ## Motion and focus
 
 - Durations are tokens that become `0ms` under `prefers-reduced-motion`, and the story's progress fill (`--animate-story-fill`) steps. Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. Two parts of the story read it themselves (`reduced-motion.ts`): the pull to close only fades the backdrop, and a Live Photo plays only from its button. A loading ring stops spinning (`motion-reduce:`).
+- A Live Photo icon blinks while the story waits for its video to play; under reduced motion `--animate-live-blink` is `none` and the icon dims instead.
 - Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
 
 ## Base components

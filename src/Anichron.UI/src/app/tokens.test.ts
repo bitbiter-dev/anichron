@@ -5,6 +5,7 @@ import tokens from '../shared/ui/tokens.css?raw';
 const colours = (theme: Theme) => themeColours(tokens)[theme];
 const glassOpacity = () => Number(declarations(tokens).get('glass-opacity'));
 const glassBarOpacity = () => Number(declarations(tokens).get('glass-bar-opacity'));
+const playerGlassOpacity = () => Number(declarations(tokens).get('player-glass-opacity'));
 const surfaces = ['surface', 'surface-raised'];
 
 const text = [
@@ -49,6 +50,7 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
       'on-accent',
       'on-player',
       'player',
+      'player-glass',
       'surface',
       'surface-raised',
     ]);
@@ -83,6 +85,15 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
       });
     },
   );
+
+  it.each(['player', 'on-player'])('reads on-player on the player glass over %s', (backdrop) => {
+    const glass = blend(
+      colours(theme)['player-glass'] ?? '',
+      colours(theme)[backdrop] ?? '',
+      playerGlassOpacity(),
+    );
+    expect(contrastRatio(colours(theme)['on-player'] ?? '', glass)).toBeGreaterThanOrEqual(4.5);
+  });
 
   it('keeps the player black', () => {
     expect(colours(theme).player).toBe('#000000');

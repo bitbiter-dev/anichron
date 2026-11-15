@@ -1265,6 +1265,35 @@ describe('a Live Photo', () => {
       await fire('ended');
     }
 
+    it('says Live, and blinks while its video loads until it plays or ends', async () => {
+      const loading = () => button('Play Live Photo').getAttribute('data-loading');
+      const { container } = await openStory('/day/2026-11-11?year=2025');
+      await shown();
+
+      expect(button('Play Live Photo')).toHaveTextContent('Live');
+      expect(loading()).toBe('true');
+      expect(await axeResults(container)).toHaveNoViolations();
+      await fire('playing');
+      expect(loading()).toBe('false');
+      await fire('ended');
+      expect(loading()).toBe('false');
+      await replay();
+      expect(loading()).toBe('true');
+      await fire('error');
+      expect(loading()).toBe('false');
+    });
+
+    it('stops blinking while the story is paused before its video plays', async () => {
+      const loading = () => button('Play Live Photo').getAttribute('data-loading');
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+
+      await user().click(button('Pause'));
+      expect(loading()).toBe('false');
+      await user().click(button('Play'));
+      expect(loading()).toBe('true');
+    });
+
     it('plays the video once more and holds the story still while it plays', async () => {
       const { container } = await openStory('/day/2026-11-11?year=2025');
       await shown();

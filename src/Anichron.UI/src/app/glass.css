@@ -24,3 +24,17 @@
 @utility lift-accent {
   box-shadow: var(--shadow-accent);
 }
+
+@utility player-glass {
+  background: color-mix(
+    in srgb,
+    var(--color-player-glass) calc(var(--player-glass-opacity) * 100%),
+    transparent
+  );
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--player-glass-edge);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--color-player-glass);
+  }
+}
