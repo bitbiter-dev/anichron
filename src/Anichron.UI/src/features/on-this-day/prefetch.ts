@@ -21,6 +21,17 @@ export function createPrefetch(memoryAt: MemoryAt, prefetchPicture: (url: string
   };
 }
 
+export function createKeepLiveVideos(memoryAt: MemoryAt, keep: (urls: string[]) => void) {
+  return (state: StoryState) => {
+    if (state.load === 'loading') return;
+    keep(
+      [state, ...state.upcoming, ...state.behind]
+        .map(memoryAt)
+        .flatMap(({ livePhotoVideoUrl }) => livePhotoVideoUrl ?? []),
+    );
+  };
+}
+
 export function nextVideo({ upcoming }: StoryState, memoryAt: MemoryAt) {
   const video = upcoming.map(memoryAt).find((memory) => kindOf(memory) === 'video');
   return video?.proxies.video ?? null;

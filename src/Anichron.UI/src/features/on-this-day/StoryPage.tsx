@@ -16,6 +16,7 @@ import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
 import type { Gestures } from './navigation';
 import { type Move, segmentState, type Tap } from './story';
+import type { LiveState } from './story-view';
 import { useInteractions } from './use-interactions';
 import { usePull } from './use-pull';
 import { useStory } from './use-story';
@@ -137,7 +138,7 @@ function Player({ date, year, day, close }: PlayerProps) {
     togglePause,
     toggleSound,
     liveButton,
-    liveLoading,
+    live,
     replay,
   } = story;
   const interactions = useInteractions(date, story);
@@ -206,7 +207,7 @@ function Player({ date, year, day, close }: PlayerProps) {
                 <p role="status" className="flex h-11 items-center text-small font-semibold">
                   {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
                 </p>
-                <LiveButton shown={liveButton} loading={liveLoading} play={replay} />
+                <LiveButton shown={liveButton} live={live} play={replay} />
               </div>
               <div className="pointer-events-auto flex">
                 <PauseButton label={pause} toggle={togglePause} />
@@ -267,22 +268,26 @@ function Blurhash({ hash, width, height }: BlurhashProps) {
 
 interface LiveButtonProps {
   shown: boolean;
-  loading: boolean;
+  live: LiveState;
   play: () => void;
 }
 
-function LiveButton({ shown, loading, play }: LiveButtonProps) {
+function LiveButton({ shown, live, play }: LiveButtonProps) {
   const { t } = useTranslation();
   if (!shown) return null;
   return (
     <Button
       aria-label={t('story.playLivePhoto')}
       onPress={play}
-      data-loading={loading}
+      data-live={live}
       className="group pointer-events-auto flex h-11 items-center outline-none"
     >
-      <span className="flex items-center gap-1 rounded-full py-0.5 pr-2 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:outline-2 group-data-focus-visible:outline-offset-2 group-data-focus-visible:outline-focus">
-        <LivePhotoIcon className="size-4 group-data-[loading=true]:animate-live-blink motion-reduce:group-data-[loading=true]:opacity-50" />
+      <span className="relative flex items-center gap-1 rounded-full py-0.5 pr-2 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:outline-2 group-data-focus-visible:outline-offset-2 group-data-focus-visible:outline-focus">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -inset-px hidden live-ring rounded-full group-data-[live=loading]:block"
+        />
+        <LivePhotoIcon className="size-4 group-data-[live=playing]:animate-live-blink motion-reduce:group-data-[live=playing]:opacity-50" />
         {t('story.live')}
       </span>
     </Button>

@@ -3,6 +3,7 @@ const loadMilliseconds = 10_000;
 export const videoMilliseconds = 60_000;
 const hintMilliseconds = 1000;
 const upcomingCount = 2;
+const behindCount = 3;
 
 export type Load = 'loading' | 'shown' | 'failed';
 
@@ -19,6 +20,7 @@ export interface StoryPosition {
   livePlay: boolean;
   replaying: boolean;
   liveShown: boolean;
+  heldPlay: boolean;
 }
 
 export type Place = Pick<StoryPosition, 'group' | 'memory'>;
@@ -32,6 +34,7 @@ export interface StoryState extends StoryPosition {
   hint: boolean;
   playsMedia: boolean;
   upcoming: readonly Place[];
+  behind: readonly Place[];
 }
 
 export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
@@ -53,7 +56,7 @@ export type Story = Record<
   undo: (place: Place) => void;
 };
 
-const stillLive = { livePlay: false, liveShown: false } as const;
+const stillLive = { livePlay: false, liveShown: false, heldPlay: false } as const;
 
 export type SegmentState = 'seen' | 'playing' | 'next';
 
@@ -92,7 +95,6 @@ export function createStory(
   kinds: readonly (readonly Kind[])[],
   group: number,
   close: () => void,
-  autoplaysLive: boolean,
 ): Story {
   const memories = (group: number) => kinds[group] as readonly Kind[];
   const hidden = new Set<string>();
@@ -122,14 +124,22 @@ export function createStory(
       livePlay: false,
       replaying: false,
       liveShown: false,
+      heldPlay: false,
     };
   };
   const first = (group: number) => at(group, shown(group)[0] as number);
-  const upcoming = ({ group, memory }: Place) =>
-    groupsShown()
-      .flatMap((later) => shown(later).map((index) => ({ group: later, memory: index })))
-      .filter((place) => place.group > group || (place.group === group && place.memory > memory))
+  const places = () =>
+    groupsShown().flatMap((group) => shown(group).map((memory) => ({ group, memory })));
+  const isAfter = (place: Place, { group, memory }: Place) =>
+    place.group > group || (place.group === group && place.memory > memory);
+  const upcoming = (from: Place) =>
+    places()
+      .filter((place) => isAfter(place, from))
       .slice(0, upcomingCount);
+  const behind = (from: Place) =>
+    places()
+      .filter((place) => isAfter(from, place))
+      .slice(-behindCount);
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
@@ -154,7 +164,7 @@ export function createStory(
 
   function stateOf(): StoryState {
     const running = position.load !== 'loading' && !paused && !held && !ended && !replayShown();
-    const playsMedia = !held && !paused && (position.replaying || !ended);
+    const playsMedia = held ? position.heldPlay : !paused && (position.replaying || !ended);
     return {
       ...position,
       paused,
@@ -165,6 +175,7 @@ export function createStory(
       hint,
       playsMedia,
       upcoming: upcoming(position),
+      behind: behind(position),
     };
   }
 
@@ -206,13 +217,12 @@ export function createStory(
     if (visit === position.visit && position.load === 'loading')
       update(() => {
         position = { ...position, load };
-        if (load === 'shown' && autoplaysLive && position.kind === 'live') play(false);
         clock.set(lasting(position));
       });
   }
 
-  function play(replaying: boolean) {
-    position = { ...position, livePlay: true, replaying, liveShown: false, playId: ++visits };
+  function play(change: Partial<StoryPosition>) {
+    position = { ...position, ...change, livePlay: true, liveShown: false, playId: ++visits };
   }
 
   function toggleSound() {
@@ -284,7 +294,7 @@ export function createStory(
     replay() {
       update(() => {
         paused = false;
-        play(true);
+        play({ replaying: true });
       });
     },
     togglePause() {
@@ -295,11 +305,13 @@ export function createStory(
     hold() {
       update(() => {
         held = true;
+        if (position.kind === 'live' && position.load === 'shown') play({ heldPlay: true });
       });
     },
     release() {
       update(() => {
         held = false;
+        if (position.heldPlay) position = { ...position, ...stillLive };
       });
     },
     toggleSound,

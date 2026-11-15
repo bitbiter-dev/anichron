@@ -58,6 +58,14 @@ for (const method of ['play', 'pause', 'load'] as const)
     writable: true,
   });
 
+// jsdom makes no object URLs; a test replaces them to see which it makes and frees.
+for (const method of ['createObjectURL', 'revokeObjectURL'] as const)
+  Object.defineProperty(URL, method, {
+    value: method === 'createObjectURL' ? () => 'blob:video' : () => undefined,
+    configurable: true,
+    writable: true,
+  });
+
 // jsdom matches no media query; a test replaces `matchMedia` to match one.
 Object.defineProperty(window, 'matchMedia', {
   value: (media: string): Partial<MediaQueryList> => ({

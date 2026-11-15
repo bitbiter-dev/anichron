@@ -867,6 +867,19 @@ describe('a video', () => {
     expect(video()).not.toBeVisible();
   });
 
+  it('pauses its video while the story is held', async () => {
+    await openVideo();
+    await fire('playing');
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
+    const pointer = user();
+
+    await pointer.pointer({ keys: '[MouseLeft>]', target: button('Next') });
+    await advance(1000);
+
+    expect(pause).toHaveBeenCalled();
+    await pointer.pointer({ keys: '[/MouseLeft]', target: button('Next') });
+  });
+
   describe('its sound', () => {
     const sound = (name: string) => within(story()).getByRole('button', { name });
 
@@ -1070,7 +1083,7 @@ describe('a video', () => {
 
 describe('a Live Photo', () => {
   const movId = '0199a1b2-c3d4-7e5f-8a9b-0000000d2025';
-  const motion = `/api/v1/proxies/${movId}/video?v=fedcba9876543210`;
+  const keptSource = 'blob:video';
   const video = () => story().querySelector('video') as HTMLVideoElement;
   const live = (id: string, year: number) =>
     memory(id, year, {
@@ -1087,52 +1100,28 @@ describe('a Live Photo', () => {
     years = [yearGroup(2025, live(ids.a2025, 2025), memory(ids.b2025, 2025))];
   });
 
-  it('plays its video once, muted, when its photo shows, then rests on the photo within its 5 s', async () => {
+  it('shows its photo for 5 s and plays its video only when asked', async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
     const { container } = await openStory('/day/2026-11-11?year=2025');
-    expect(video().hasAttribute('src')).toBe(false);
-    expect(play).not.toHaveBeenCalled();
-
-    await shown();
-    expect(video().getAttribute('src')).toBe(motion);
-    expect(video().muted).toBe(true);
-    expect(play).toHaveBeenCalledOnce();
-    expect(video()).not.toBeVisible();
-    await advance(500);
-    await fire('playing');
-    expect(video()).toBeVisible();
-    expect(segment(0).style.animationPlayState).toBe('running');
-    await advance(2500);
-    await fire('ended');
-
-    expect(video()).not.toBeVisible();
-    expect(video().hasAttribute('src')).toBe(false);
-    expect(showing()).toBe(preview(ids.a2025));
-    await advance(1999);
-    expect(showing()).toBe(preview(ids.a2025));
-    await advance(1);
-    expect(showing()).toBe(preview(ids.b2025));
-    expect(await axeResults(container)).toHaveNoViolations();
-  });
-
-  it('leaves the photo on screen when its video has not played, and moves on after 5 s', async () => {
-    await openStory('/day/2026-11-11?year=2025');
     await shown();
 
     await advance(4999);
+    expect(play).not.toHaveBeenCalled();
+    expect(video().hasAttribute('src')).toBe(false);
     expect(video()).not.toBeVisible();
     expect(showing()).toBe(preview(ids.a2025));
+    expect(await axeResults(container)).toHaveNoViolations();
     await advance(1);
     expect(showing()).toBe(preview(ids.b2025));
-    expect(video().hasAttribute('src')).toBe(false);
   });
 
   it('leaves the photo on screen when its video breaks, without reloading it', async () => {
-    const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
     await openStory('/day/2026-11-11?year=2025');
     await shown();
-    await fire('playing');
     await advance(1000);
+    const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
+    await user().click(button('Play Live Photo'));
+    await fire('playing');
 
     await fire('error');
     expect(video()).not.toBeVisible();
@@ -1142,20 +1131,6 @@ describe('a Live Photo', () => {
     expect(showing()).toBe(preview(ids.a2025));
     await advance(1);
     expect(showing()).toBe(preview(ids.b2025));
-  });
-
-  it('rests on the photo when its 5 s end during the play and it is the last memory', async () => {
-    years = [yearGroup(2025, live(ids.a2025, 2025))];
-    await openStory('/day/2026-11-11?year=2025');
-    await shown();
-    await advance(3000);
-    await fire('playing');
-
-    await advance(2000);
-
-    expect(video()).not.toBeVisible();
-    expect(video().hasAttribute('src')).toBe(false);
-    expect(showing()).toBe(preview(ids.a2025));
   });
 
   it('plays nothing when its photo fails', async () => {
@@ -1191,8 +1166,9 @@ describe('a Live Photo', () => {
 
     await fire('ended');
     await shown();
+    await user().click(button('Play Live Photo'));
 
-    expect(video().getAttribute('src')).toBe(motion);
+    expect(video().getAttribute('src')).toBe(keptSource);
     expect(video().muted).toBe(true);
   });
 
@@ -1205,11 +1181,12 @@ describe('a Live Photo', () => {
     expect(showing()).toBe(preview(ids.b2025));
   });
 
-  it('pauses while held, playing nothing, and plays on when released', async () => {
+  it('pauses while held before its photo shows, playing nothing, and plays on when released', async () => {
     await openStory('/day/2026-11-11?year=2025');
     const pointer = user();
     await pointer.pointer({ keys: '[MouseLeft>]', target: middle() });
     await advance(1000);
+    expect(video().hasAttribute('src')).toBe(false);
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
 
     await shown();
@@ -1219,24 +1196,100 @@ describe('a Live Photo', () => {
     expect(showing()).toBe(preview(ids.a2025));
 
     await pointer.pointer({ keys: '[/MouseLeft]', target: middle() });
-    expect(play).toHaveBeenCalledOnce();
+    expect(play).not.toHaveBeenCalled();
     await advance(4999);
     expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
   });
 
-  it('pauses its video while held', async () => {
-    await openStory('/day/2026-11-11?year=2025');
-    await shown();
-    await fire('playing');
-    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
-    const pointer = user();
+  describe('held', () => {
+    async function hold() {
+      const pointer = user();
+      await pointer.pointer({ keys: '[MouseLeft>]', target: middle() });
+      await advance(1000);
+      return async () => {
+        await pointer.pointer({ keys: '[/MouseLeft]', target: middle() });
+      };
+    }
 
-    await pointer.pointer({ keys: '[MouseLeft>]', target: middle() });
-    await advance(1000);
+    it('plays its video once more from the start, and the story holds still', async () => {
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+      const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
 
-    expect(pause).toHaveBeenCalled();
-    expect(video()).toBeVisible();
-    await pointer.pointer({ keys: '[/MouseLeft]', target: middle() });
+      const release = await hold();
+      expect(src).toHaveBeenCalledExactlyOnceWith(keptSource);
+      expect(play).toHaveBeenCalledOnce();
+      expect(video().muted).toBe(true);
+      await fire('playing');
+      expect(video()).toBeVisible();
+      await advance(30_000);
+      expect(showing()).toBe(preview(ids.a2025));
+      await fire('ended');
+      expect(video()).not.toBeVisible();
+      expect(showing()).toBe(preview(ids.a2025));
+      await release();
+
+      expect(segment(0).style.animationPlayState).toBe('running');
+    });
+
+    it('starts its video again when held during a play', async () => {
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await user().click(button('Play Live Photo'));
+      await fire('playing');
+      const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
+
+      const release = await hold();
+
+      expect(src).toHaveBeenCalledExactlyOnceWith(keptSource);
+      await release();
+    });
+
+    it('stops its video when released, and the story plays on', async () => {
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      const release = await hold();
+      await fire('playing');
+
+      await release();
+
+      expect(video()).not.toBeVisible();
+      expect(video().hasAttribute('src')).toBe(false);
+      expect(segment(0).style.animationPlayState).toBe('running');
+      await advance(5000);
+      expect(showing()).toBe(preview(ids.b2025));
+    });
+
+    it('plays its video while the story is paused', async () => {
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await user().click(button('Pause'));
+      const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+
+      const release = await hold();
+
+      expect(play).toHaveBeenCalledOnce();
+      await release();
+      expect(video().hasAttribute('src')).toBe(false);
+      expect(within(story()).getByRole('button', { name: 'Play' })).toBeVisible();
+    });
+
+    it('plays its video when the story rests on it at the end', async () => {
+      years = [yearGroup(2025, live(ids.a2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await advance(5000);
+      const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+
+      const release = await hold();
+
+      expect(video().getAttribute('src')).toBe(keptSource);
+      expect(play).toHaveBeenCalledOnce();
+      await release();
+    });
   });
 
   it('shows no Live Photo button on a photo, nor before its photo shows', async () => {
@@ -1260,50 +1313,54 @@ describe('a Live Photo', () => {
     async function watched() {
       await openStory('/day/2026-11-11?year=2025');
       await shown();
-      await fire('playing');
       await advance(2000);
-      await fire('ended');
     }
 
-    it('says Live, and blinks while its video loads until it plays or ends', async () => {
-      const loading = () => button('Play Live Photo').getAttribute('data-loading');
+    it('says Live, rings while its video loads, and pulses while it plays', async () => {
+      const live = () => button('Play Live Photo').getAttribute('data-live');
       const { container } = await openStory('/day/2026-11-11?year=2025');
       await shown();
 
       expect(button('Play Live Photo')).toHaveTextContent('Live');
-      expect(loading()).toBe('true');
+      expect(live()).toBe('still');
+      await replay();
+      expect(live()).toBe('loading');
       expect(await axeResults(container)).toHaveNoViolations();
       await fire('playing');
-      expect(loading()).toBe('false');
+      expect(live()).toBe('playing');
       await fire('ended');
-      expect(loading()).toBe('false');
+      expect(live()).toBe('still');
       await replay();
-      expect(loading()).toBe('true');
+      expect(live()).toBe('loading');
+      await fire('playing');
+      expect(live()).toBe('playing');
       await fire('error');
-      expect(loading()).toBe('false');
+      expect(live()).toBe('still');
     });
 
-    it('stops blinking while the story is paused before its video plays', async () => {
-      const loading = () => button('Play Live Photo').getAttribute('data-loading');
+    it('stays still while the story is paused', async () => {
+      const live = () => button('Play Live Photo').getAttribute('data-live');
       await openStory('/day/2026-11-11?year=2025');
       await shown();
+      await replay();
 
       await user().click(button('Pause'));
-      expect(loading()).toBe('false');
+      expect(live()).toBe('still');
       await user().click(button('Play'));
-      expect(loading()).toBe('true');
+      expect(live()).toBe('loading');
+      await fire('playing');
+      await user().click(button('Pause'));
+      expect(live()).toBe('still');
     });
 
-    it('plays the video once more and holds the story still while it plays', async () => {
+    it('plays the video and holds the story still while it plays', async () => {
       const { container } = await openStory('/day/2026-11-11?year=2025');
       await shown();
-      await fire('playing');
       await advance(2000);
-      await fire('ended');
       const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
 
       await replay();
-      expect(video().getAttribute('src')).toBe(motion);
+      expect(video().getAttribute('src')).toBe(keptSource);
       expect(video().muted).toBe(true);
       expect(play).toHaveBeenCalledOnce();
       await fire('playing');
@@ -1320,6 +1377,21 @@ describe('a Live Photo', () => {
       expect(showing()).toBe(preview(ids.a2025));
       await advance(1);
       expect(showing()).toBe(preview(ids.b2025));
+    });
+
+    it('keeps playing when a press ends anywhere else', async () => {
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      button('Play Live Photo').focus();
+      await user().keyboard('{Enter}');
+      expect(showing()).toBe(preview(ids.a2025));
+      await fire('playing');
+
+      fireEvent.pointerUp(window);
+      await advance(0);
+
+      expect(video()).toBeVisible();
+      expect(video().hasAttribute('src')).toBe(true);
     });
 
     it('lets the story play on when the video breaks', async () => {
@@ -1348,15 +1420,16 @@ describe('a Live Photo', () => {
       expect(showing()).toBe(preview(ids.b2025));
     });
 
-    it('plays the video again from its start during its first play, and holds the story', async () => {
+    it('plays the video again from its start during a play, and holds the story', async () => {
       await openStory('/day/2026-11-11?year=2025');
       await shown();
-      await fire('playing');
       await advance(1000);
+      await replay();
+      await fire('playing');
       const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
 
       await replay();
-      expect(src.mock.calls).toEqual([[motion]]);
+      expect(src.mock.calls).toEqual([[keptSource]]);
       expect(video()).not.toBeVisible();
       await fire('playing');
       await advance(30_000);
@@ -1419,23 +1492,159 @@ describe('a Live Photo', () => {
     });
   });
 
-  describe('under reduced motion', () => {
+  describe('its video, kept loaded', () => {
+    const movOf = (id: string) => id.replace('0000000', '0000mov');
+    const motionOf = (id: string) => `/api/v1/proxies/${movOf(id)}/video?v=fedcba9876543210`;
+    const liveAt = (id: string, year: number) =>
+      memory(id, year, {
+        mediaType: 'LivePhoto',
+        livePhotoVideoUrl: `proxies/${movOf(id)}/video?v=fedcba9876543210`,
+      });
+    let received: string[];
+    let answer: (url: string) => Promise<Response | undefined> | undefined;
+    let create: MockInstance<typeof URL.createObjectURL>;
+    let revoke: MockInstance<typeof URL.revokeObjectURL>;
+    const fetched = () => received.filter((url) => url.includes('mov'));
+    const created = () => create.mock.results.map(({ value }) => value as string);
+    const revoked = () => revoke.mock.calls.map(([url]) => url);
+
     beforeEach(() => {
-      reduceMotion();
+      received = [];
+      answer = () => undefined;
+      server.use(proxyAnswers(received, (url) => answer(url)));
+      create = vi.spyOn(URL, 'createObjectURL');
+      create.mockImplementation(() => `blob:video-${String(create.mock.calls.length)}`);
+      revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     });
 
-    it('plays nothing when it shows, and plays its video from the button', async () => {
-      const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+    async function kept(count: number) {
+      await vi.waitFor(() => {
+        expect(create).toHaveBeenCalledTimes(count);
+      });
+    }
+
+    it('plays from memory when the story comes back to it', async () => {
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025))];
       await openStory('/day/2026-11-11?year=2025');
       await shown();
-      await advance(1000);
-      expect(play).not.toHaveBeenCalled();
-      expect(video().hasAttribute('src')).toBe(false);
+      await kept(1);
 
-      await user().click(button('Play Live Photo'));
+      fireEvent.click(button('Next'));
+      await shown();
+      fireEvent.click(button('Previous'));
+      await shown();
+      fireEvent.click(button('Play Live Photo'));
 
-      expect(video().getAttribute('src')).toBe(motion);
-      expect(play).toHaveBeenCalledOnce();
+      expect(video().getAttribute('src')).toBe('blob:video-1');
+      expect(fetched()).toEqual([motionOf(ids.a2025)]);
+    });
+
+    it('fetches nothing while the picture showing still loads, even as the story changes', async () => {
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), liveAt(ids.b2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      fireEvent.click(button('Pause'));
+      await advance(0);
+
+      expect(fetched()).toEqual([]);
+    });
+
+    it("fetches the next Live Photos' videos once a memory shows, and plays them from memory", async () => {
+      years = [
+        yearGroup(2025, memory(ids.a2025, 2025), liveAt(ids.b2025, 2025)),
+        yearGroup(2023, liveAt(ids.a2023, 2023)),
+      ];
+      const asked = vi.spyOn(globalThis, 'fetch');
+      await openStory('/day/2026-11-11?year=2025');
+      await advance(0);
+      expect(fetched()).toEqual([]);
+
+      await shown();
+      await kept(2);
+      expect(fetched()).toEqual([motionOf(ids.b2025), motionOf(ids.a2023)]);
+      expect(
+        asked.mock.calls
+          .flatMap(([url]) => (url instanceof URL ? [url.pathname + url.search] : []))
+          .filter((url) => !url.endsWith('/preview?v=0123456789abcdef')),
+      ).toEqual([motionOf(ids.b2025), motionOf(ids.a2023)]);
+      fireEvent.click(button('Next'));
+      await shown();
+      fireEvent.click(button('Play Live Photo'));
+
+      expect(video().getAttribute('src')).toBe('blob:video-1');
+    });
+
+    it('keeps the three before, frees older ones, and frees all when the story closes', async () => {
+      const order = [ids.a2025, ids.b2025, ids.c2025, ids.a2023, ids.a2021, ids.b2021];
+      years = [yearGroup(2025, ...order.map((id) => liveAt(id, 2025)))];
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await kept(3);
+      for (const count of [4, 5, 6]) {
+        fireEvent.click(button('Next'));
+        await shown();
+        await kept(count);
+      }
+      expect(revoked()).toEqual([]);
+
+      fireEvent.click(button('Next'));
+      await shown();
+      expect(revoked()).toHaveLength(1);
+      for (let step = 0; step < 4; step++) {
+        fireEvent.click(button('Previous'));
+        await shown();
+      }
+      await kept(7);
+      expect(fetched().filter((url) => url === motionOf(ids.a2025))).toHaveLength(2);
+
+      fireEvent.click(button('Close'));
+      await advance(0);
+      expect(revoked().toSorted()).toEqual(created().toSorted());
+    });
+
+    it('plays from the network a video the server refuses, and asks for it once', async () => {
+      answer = (url) =>
+        Promise.resolve(url.includes('mov') ? problemResponse(401, 'unauthorized') : undefined);
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await vi.waitFor(() => {
+        expect(fetched()).toHaveLength(1);
+      });
+
+      fireEvent.click(button('Next'));
+      await shown();
+      fireEvent.click(button('Previous'));
+      await shown();
+      fireEvent.click(button('Play Live Photo'));
+
+      expect(video().getAttribute('src')).toBe(motionOf(ids.a2025));
+      expect(fetched()).toHaveLength(1);
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('keeps nothing of a video that arrives after the story closed', async () => {
+      let arrive: () => void = () => undefined;
+      answer = (url) =>
+        url.includes('mov')
+          ? new Promise((resolve) => {
+              arrive = () => {
+                resolve(undefined);
+              };
+            })
+          : undefined;
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await vi.waitFor(() => {
+        expect(fetched()).toHaveLength(1);
+      });
+
+      fireEvent.click(button('Close'));
+      arrive();
+      await advance(0);
+
+      expect(create).not.toHaveBeenCalled();
+      expect(revoke).not.toHaveBeenCalled();
     });
   });
 });
@@ -1468,13 +1677,18 @@ describe('the next memories', () => {
     expect(received).toEqual(urls);
   }
 
+  function record(image: HTMLImageElement) {
+    const src = image.getAttribute('src') ?? '';
+    if (!image.isConnected && received.includes(src)) decoded.push(src);
+  }
+
   beforeEach(() => {
     received = [];
     decoded = [];
     answer = () => undefined;
     decode = vi.spyOn(HTMLImageElement.prototype, 'decode');
     decode.mockImplementation(function (this: HTMLImageElement) {
-      if (!this.isConnected) decoded.push(this.getAttribute('src') ?? '');
+      record(this);
       return Promise.resolve();
     });
     server.use(proxyAnswers(received, (url) => answer(url)));
@@ -1574,7 +1788,7 @@ describe('the next memories', () => {
       return url === preview(ids.a2021) ? HttpResponse.error() : undefined;
     };
     decode.mockImplementation(function (this: HTMLImageElement) {
-      if (!this.isConnected) decoded.push(this.getAttribute('src') ?? '');
+      record(this);
       return Promise.reject(new Error('broken'));
     });
     await openStory('/day/2026-11-11?year=2025');

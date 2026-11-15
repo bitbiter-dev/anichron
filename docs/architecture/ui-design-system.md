@@ -47,8 +47,10 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 
 ## Motion and focus
 
-- Durations are tokens that become `0ms` under `prefers-reduced-motion`, and the story's progress fill (`--animate-story-fill`) steps. Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. Two parts of the story read it themselves (`reduced-motion.ts`): the pull to close only fades the backdrop, and a Live Photo plays only from its button. A loading ring stops spinning (`motion-reduce:`).
-- A Live Photo icon blinks while the story waits for its video to play; under reduced motion `--animate-live-blink` is `none` and the icon dims instead.
+- Transition durations are tokens that become `0ms` under `prefers-reduced-motion`; looping animations are `none` there, and the story's progress fill (`--animate-story-fill`) steps.
+- Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. The pull to close reads it itself (`reduced-motion.ts`) and only fades the backdrop. A Live Photo never plays by itself, only from its button or a hold.
+- A loading ring stops spinning (`motion-reduce:`).
+- The Live pill shows a turning `player-accent` arc while its video loads (`live-ring`) and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
 - Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
 
 ## Base components

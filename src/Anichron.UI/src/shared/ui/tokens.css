@@ -14,6 +14,7 @@
   --black: #000000;
 
   --accent-200: #a6c9c4;
+  --accent-300: #5eead4;
   --accent-400: #2cc5b0;
   --accent-700: #0f766e;
   --accent-800: #1e534a;
@@ -43,6 +44,7 @@
   --duration-fast: 150ms;
   --duration-base: 250ms;
   --duration-blink: 800ms;
+  --duration-spin: 1s;
 }
 
 [data-theme='light'] {
@@ -59,6 +61,7 @@
     --duration-base: 0ms;
     --animate-story-fill: story-fill steps(5) forwards;
     --animate-live-blink: none;
+    --animate-live-ring: none;
   }
 }
 
@@ -79,6 +82,7 @@
   --color-player: var(--black);
   --color-on-player: var(--neutral-0);
   --color-player-glass: var(--neutral-850);
+  --color-player-accent: var(--accent-300);
 
   --radius-*: initial;
   --radius-field: 0.75rem;
@@ -96,4 +100,5 @@
 
   --animate-story-fill: story-fill linear forwards;
   --animate-live-blink: live-blink var(--duration-blink) ease-in-out infinite alternate;
+  --animate-live-ring: live-ring var(--duration-spin) linear infinite;
 }
