@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
-import { CircleDotDashed, Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
+import { Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { paintBlurhash } from './blurhash';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
 import { Failed } from './Failed';
+import { LivePhotoIcon } from './LivePhotoIcon';
 import { focusOnMount } from './focus';
 import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
@@ -275,7 +276,7 @@ function LiveButton({ shown, play }: LiveButtonProps) {
       onPress={play}
       className={`pointer-events-auto ${roundButton}`}
     >
-      <CircleDotDashed aria-hidden className="size-6" />
+      <LivePhotoIcon className="size-6" />
     </Button>
   );
 }
