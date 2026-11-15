@@ -218,8 +218,7 @@ export function createStory(
     if (visit === position.visit && position.load === 'loading')
       update(() => {
         position = { ...position, load };
-        if (load === 'shown' && autoplaysLive && position.kind === 'live')
-          play({ replaying: false });
+        if (load === 'shown' && autoplaysLive && position.kind === 'live') play({});
         clock.set(lasting(position));
       });
   }

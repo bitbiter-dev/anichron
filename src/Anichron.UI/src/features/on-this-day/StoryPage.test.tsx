@@ -1558,6 +1558,7 @@ describe('a Live Photo', () => {
         yearGroup(2025, memory(ids.a2025, 2025), liveAt(ids.b2025, 2025)),
         yearGroup(2023, liveAt(ids.a2023, 2023)),
       ];
+      const asked = vi.spyOn(globalThis, 'fetch');
       await openStory('/day/2026-11-11?year=2025');
       await advance(0);
       expect(fetched()).toEqual([]);
@@ -1565,6 +1566,11 @@ describe('a Live Photo', () => {
       await shown();
       await kept(2);
       expect(fetched()).toEqual([motionOf(ids.b2025), motionOf(ids.a2023)]);
+      expect(
+        asked.mock.calls
+          .flatMap(([url]) => (url instanceof URL ? [url.pathname + url.search] : []))
+          .filter((url) => !url.endsWith('/preview?v=0123456789abcdef')),
+      ).toEqual([motionOf(ids.b2025), motionOf(ids.a2023)]);
       fireEvent.click(button('Next'));
       await shown();
 
