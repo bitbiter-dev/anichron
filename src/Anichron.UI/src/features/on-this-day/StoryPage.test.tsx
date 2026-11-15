@@ -1677,13 +1677,18 @@ describe('the next memories', () => {
     expect(received).toEqual(urls);
   }
 
+  function record(image: HTMLImageElement) {
+    const src = image.getAttribute('src') ?? '';
+    if (!image.isConnected && received.includes(src)) decoded.push(src);
+  }
+
   beforeEach(() => {
     received = [];
     decoded = [];
     answer = () => undefined;
     decode = vi.spyOn(HTMLImageElement.prototype, 'decode');
     decode.mockImplementation(function (this: HTMLImageElement) {
-      if (!this.isConnected) decoded.push(this.getAttribute('src') ?? '');
+      record(this);
       return Promise.resolve();
     });
     server.use(proxyAnswers(received, (url) => answer(url)));
@@ -1783,7 +1788,7 @@ describe('the next memories', () => {
       return url === preview(ids.a2021) ? HttpResponse.error() : undefined;
     };
     decode.mockImplementation(function (this: HTMLImageElement) {
-      if (!this.isConnected) decoded.push(this.getAttribute('src') ?? '');
+      record(this);
       return Promise.reject(new Error('broken'));
     });
     await openStory('/day/2026-11-11?year=2025');
