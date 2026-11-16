@@ -31,6 +31,7 @@ afterEach(async () => {
   localStorage.clear();
   server.resetHandlers();
   vi.useRealTimers();
+  await new Promise((resolve) => setTimeout(resolve, 0));
   Reflect.deleteProperty(document, 'visibilityState');
   Reflect.deleteProperty(document.documentElement, 'scrollHeight');
   Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
