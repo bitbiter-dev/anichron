@@ -18,7 +18,8 @@ tree() {
   mkdir -p "$ui/src/app" "$work/repo/docs/adr" "$work/repo/.github/workflows" "$work/repo/scripts"
   cat >"$ui/stryker.config.json" <<'JSON'
 { "testRunner": "vitest", "incremental": true, "mutate": ["src/**/*.ts", "src/app/router.tsx", "!src/**/*.test.ts"],
-  "thresholds": { "high": 100, "low": 100, "break": 100 } }
+  "thresholds": { "high": 100, "low": 100, "break": 100 },
+  "plugins": ["@stryker-mutator/vitest-runner", "./stryker/static-leaks.ts"], "reporters": ["static-leaks", "json"] }
 JSON
   printf '{ "scripts": { "mutate": "stryker run" } }\n' >"$ui/package.json"
   printf '| `src/app/router.tsx` | back |\n| `!src/**/*.test.ts` | tests |\n| `src/app/clock.ts` | equivalent |\n' \
@@ -54,6 +55,14 @@ check 'a runner other than vitest fails' 1 'testRunner is "command"'
 tree
 sed -i.bak 's/"break": 100/"break": 90/' "$work/repo/src/Anichron.UI/stryker.config.json"
 check 'a threshold below 100 fails' 1 'thresholds.break is 90'
+
+tree
+sed -i.bak 's/"static-leaks", "json"/"json"/' "$work/repo/src/Anichron.UI/stryker.config.json"
+check 'a missing static-leaks reporter fails' 1 'static-leaks reporter is not loaded'
+
+tree
+sed -i.bak 's#, "./stryker/static-leaks.ts"##' "$work/repo/src/Anichron.UI/stryker.config.json"
+check 'an unloaded static-leaks plugin fails' 1 'static-leaks reporter is not loaded'
 
 tree
 sed -i.bak 's/"incremental": true/"incremental": false/' "$work/repo/src/Anichron.UI/stryker.config.json"

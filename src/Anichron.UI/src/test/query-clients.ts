@@ -8,9 +8,11 @@ export function track(queryClient: QueryClient) {
   return queryClient;
 }
 
-export async function settleQueries() {
-  for (let step = 0; [...rendered].some((client) => client.isFetching() > 0); step++) {
-    if (step === 10_000) throw new Error('queries did not settle within 10 s of fake time.');
+export async function settleRequests() {
+  const busy = (client: QueryClient) => client.isFetching() + client.isMutating() > 0;
+  for (let step = 0; [...rendered].some(busy); step++) {
+    if (step === 10_000)
+      throw new Error('queries and mutations did not settle within 10 s of fake time.');
     await vi.advanceTimersByTimeAsync(1);
   }
   rendered.clear();

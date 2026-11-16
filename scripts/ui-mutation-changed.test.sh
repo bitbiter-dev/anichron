@@ -133,6 +133,13 @@ echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/shared/a.ts"
 fakes 0 ''
 run_check 'no artifact runs every mutant' "$repo" 0 'no incremental baseline from master; every mutant runs'
 
+repo=$(fixture stale)
+echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/shared/a.ts"
+mkdir -p "$repo/src/Anichron.UI/.stryker-tmp/sandbox-old"
+fakes 0 ''
+run_check 'a run clears sandboxes an aborted run left' "$repo" 0 'stryker:'
+if [ ! -e "$repo/src/Anichron.UI/.stryker-tmp" ]; then pass 'the stale sandbox is gone'; else fail 'the stale sandbox is gone' 'no .stryker-tmp' "$(ls "$repo/src/Anichron.UI/.stryker-tmp")"; fi
+
 repo=$(fixture failing)
 echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/shared/a.ts"
 fakes 2 ''
