@@ -40,7 +40,15 @@
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
-  animation: var(--animate-live-ring);
+  animation:
+    var(--animate-live-ring),
+    live-ring-in var(--duration-fast) ease-out var(--delay-live-ring) backwards;
+}
+
+@keyframes live-ring-in {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes live-blink {

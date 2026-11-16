@@ -1304,7 +1304,7 @@ describe('a Live Photo', () => {
       expect(button('Play Live Photo')).toBeVisible();
       expect(within(story()).queryByRole('button', { name: 'Pause' })).toBeNull();
       expect(within(story()).queryByRole('button', { name: 'Star' })).toBeNull();
-      expect(within(story()).getByText('1 year ago · 2025')).not.toBeVisible();
+      expect(within(story()).getByText('1 year ago · 2025')).toBeVisible();
       await release();
     });
 
@@ -2628,7 +2628,7 @@ describe('pausing a story', () => {
     expect(showing()).toBe(preview(ids.a2025));
   });
 
-  it('pauses while held and hides the controls, and plays on when released', async () => {
+  it('pauses while held and hides the controls but the years ago, and plays on when released', async () => {
     await openStory('/day/2026-11-11?year=2025');
     await shown();
     await advance(1000);
@@ -2639,7 +2639,7 @@ describe('pausing a story', () => {
     expect(showing()).toBe(preview(ids.a2025));
     expect(within(story()).queryByRole('button', { name: 'Pause' })).toBeNull();
     expect(within(story()).queryByRole('button', { name: 'Close' })).toBeNull();
-    expect(within(story()).getByText('1 year ago · 2025')).not.toBeVisible();
+    expect(within(story()).getByText('1 year ago · 2025')).toBeVisible();
     expect(story().querySelector('ol')).toBeVisible();
     expect(segment(0)).toHaveStyle({ animationPlayState: 'paused' });
 
