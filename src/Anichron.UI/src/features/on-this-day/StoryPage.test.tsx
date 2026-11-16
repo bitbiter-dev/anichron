@@ -2985,7 +2985,10 @@ describe('starring, liking and hiding', () => {
   });
 
   it('keeps a change through a reload of its day that was already on its way, and only that reload', async () => {
-    await openStory('/day/2026-11-11?year=2025');
+    const { router } = await openStory('/day/2026-11-11?year=2025');
+    await vi.waitFor(() => {
+      expect(router.options.context.queryClient.isFetching()).toBe(0);
+    });
     const reloads = new Map<string, (response: Response) => void>();
     server.use(
       onThisDayAnswers((date) =>
