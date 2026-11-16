@@ -38,7 +38,10 @@ export function dayKey(date: string) {
 }
 
 export function dayQuery(api: ApiClient, date: string) {
-  return queryOptions({ queryKey: dayKey(date), queryFn: () => api.flashbacks.onThisDay(date) });
+  return queryOptions({
+    queryKey: dayKey(date),
+    queryFn: ({ signal }) => api.flashbacks.onThisDay(date, signal),
+  });
 }
 
 const burstsKey = ['burst'] as const;

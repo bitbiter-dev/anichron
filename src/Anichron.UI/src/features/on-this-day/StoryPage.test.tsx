@@ -2841,6 +2841,29 @@ describe('starring, liking and hiding', () => {
     };
   }
 
+  it('stops reloading the day once the next change starts', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    const reload = hold();
+    const reloads: AbortSignal[] = [];
+    server.use(
+      http.get('/api/v1/flashbacks/on-this-day', async ({ request }) => {
+        reloads.push(request.signal);
+        await reload.until;
+        return HttpResponse.json({ date: '2026-11-11', years: withSaved(years) });
+      }),
+    );
+    fireEvent.click(button('Star'));
+    await vi.waitFor(() => {
+      expect(reloads).toHaveLength(1);
+    });
+
+    fireEvent.click(button('Like'));
+    await advance(0);
+
+    expect(reloads[0]?.aborted).toBe(true);
+    reload.release();
+  });
+
   it.each([
     ['Star', 'starred'],
     ['Like', 'liked'],
