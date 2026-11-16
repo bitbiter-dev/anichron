@@ -12,7 +12,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 - An area module sends each call through `authorized`, which `createSession` hands to `client.ts`: the bearer token, and on a `401` one refresh and one retry. A token renewed meanwhile is retried without refreshing; a second `401` signs out.
 - A refresh that fails without signing out throws `SessionNotRenewed`, and the query retry predicate (`src/app/query-client.ts`) stops on it.
-- Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`).
+- Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`, reused by `bursts.ts`).
 - An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more; a second error is a failure (`features/on-this-day/media.ts`). See "The refresh rules".
 - `src/api/media.ts` prefetches a picture: it fetches the proxy URL, then decodes it with `new Image()`, which reads the HTTP cache (proxy URLs are immutable). A refused or failed prefetch is dropped; the `<img>` that shows it later recovers as above. The story calls it for the memories ahead of the one showing (`features/on-this-day/prefetch.ts`, `story.ts`).
 - `media.videos()` keeps a story's Live Photo videos in memory as object URLs: the ones around the memory showing, each fetched once, freed when they leave that window or the story closes. A refused fetch plays from the network instead (`features/on-this-day/prefetch.ts`, `use-story.ts`).

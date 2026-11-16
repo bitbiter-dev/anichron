@@ -1,7 +1,7 @@
 import { listen } from '../../shared/listen';
 import type { Move, Story, Tap } from './story';
 
-type KeyAction = Move | 'togglePause' | 'toggleSound';
+type KeyAction = Tap | 'togglePause' | 'toggleSound';
 
 function keyAction(event: KeyboardEvent): KeyAction | undefined {
   if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) return undefined;
@@ -9,6 +9,7 @@ function keyAction(event: KeyboardEvent): KeyAction | undefined {
     ArrowLeft: ['previous', 'previousGroup'],
     ArrowRight: ['next', 'nextGroup'],
     ' ': ['togglePause', undefined],
+    Enter: ['middle', undefined],
     m: ['toggleSound', undefined],
     M: ['toggleSound', 'toggleSound'],
   };
@@ -18,7 +19,7 @@ function keyAction(event: KeyboardEvent): KeyAction | undefined {
 export function listenToInput(story: Story) {
   const onKey = (event: Event) => {
     const action = keyAction(event as KeyboardEvent);
-    if (action) story[action]();
+    if (action && !story.state().details) story[action]();
   };
   const stops = [
     listen(document, 'keydown', onKey),
@@ -44,6 +45,10 @@ function swipeMove({ x, y }: Point, velocity: Point, height: number): Move | 'cl
   }
   const flicked = y >= swipePixels && velocity.y >= flickPixelsPerSecond;
   return flicked || y >= height / 3 ? 'close' : undefined;
+}
+
+export function closesOnSwipe(offset: Point, velocity: Point, height: number) {
+  return swipeMove(offset, velocity, height) === 'close';
 }
 
 export function createGestures(story: Story) {

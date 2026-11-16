@@ -4,7 +4,7 @@
 # The UI's counterpart of mutation-guard.sh. Fails when the StrykerJS setup in
 # src/Anichron.UI drifts from the rules in CLAUDE.md ("The UI") and ADR 0014:
 #   - stryker.config.json keeps testRunner "vitest", thresholds of 100,
-#     incremental mode on and no ignoreStatic;
+#     incremental mode on, no ignoreStatic, and its static-leaks reporter;
 #   - its mutate list starts from "src/**/*.ts", and every other entry (an
 #     exclusion, or a view file brought back into scope) is named in ADR 0014;
 #   - no workflow, hook, script or package.json script passes a flag that
@@ -45,6 +45,10 @@ done
 
 [ "$(jq -r '.ignoreStatic // false' "$config")" = false ] \
   || violations+=("stryker.config.json: ignoreStatic is set; it hides mutants from the gate")
+
+jq -e '(.plugins // []) | index("./stryker/static-leaks.ts")' "$config" >/dev/null \
+  && jq -e '(.reporters // []) | index("static-leaks")' "$config" >/dev/null \
+  || violations+=("stryker.config.json: the static-leaks reporter is not loaded; a leak then reruns the whole suite per mutant")
 
 [ "$(jq -r '.mutate[0] // "unset"' "$config")" = 'src/**/*.ts' ] \
   || violations+=('stryker.config.json: mutate must start with "src/**/*.ts", the logic files')
