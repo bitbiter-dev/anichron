@@ -76,7 +76,7 @@ export function useRecentDays(today: string) {
   useEffect(() => {
     if (!addedNothing) return undefined;
     const timer = setTimeout(() => {
-      setPaging((current) => ({ ...current, tapped: false, wasNothing: false }));
+      setPaging((current) => ({ ...current, tapped: false }));
     }, nothingMilliseconds);
     return () => {
       clearTimeout(timer);

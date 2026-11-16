@@ -2021,6 +2021,20 @@ describe('closing a story', () => {
     expect(router.history.canGoBack()).toBe(false);
   });
 
+  it('stops playing once closed, so it fetches nothing more ahead', async () => {
+    const received: string[] = [];
+    server.use(proxyAnswers(received));
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    fireEvent.click(button('Close'));
+    await advance(0);
+    expect(screen.queryByRole('dialog', { name: storyName })).toBeNull();
+
+    await advance(60_000);
+
+    expect(received).not.toContain(preview(ids.a2021));
+  });
+
   it("with the browser's back button closes it", async () => {
     const { router } = await openLanding();
     fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
