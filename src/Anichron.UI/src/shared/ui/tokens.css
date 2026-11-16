@@ -45,6 +45,7 @@
   --duration-base: 250ms;
   --duration-blink: 800ms;
   --duration-spin: 1s;
+  --delay-live-ring: 300ms;
 }
 
 [data-theme='light'] {

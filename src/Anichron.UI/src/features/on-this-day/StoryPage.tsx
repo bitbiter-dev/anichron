@@ -198,11 +198,7 @@ function Player({ date, year, day, close }: PlayerProps) {
             />
             <div className="flex items-start">
               <div className="flex flex-1 flex-col items-start">
-                <p
-                  role="status"
-                  style={{ visibility: controls }}
-                  className="flex h-11 items-center text-small font-semibold"
-                >
+                <p role="status" className="flex h-11 items-center text-small font-semibold">
                   {t('onThisDay.yearsAgo', yearsAgo(date, group.year))}
                 </p>
                 <LiveButton shown={liveButton} live={live} play={replay} />

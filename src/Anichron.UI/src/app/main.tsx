@@ -6,6 +6,7 @@ import { browserTabs } from '../api/tabs';
 import { createI18n } from '../i18n/i18n';
 import { App } from './App';
 import { createQueryClient } from './query-client';
+import { registerServiceWorker } from './register-service-worker';
 import './styles.css';
 import { createAppRouter } from './router';
 
@@ -23,3 +24,5 @@ if (root) {
     </StrictMode>,
   );
 }
+
+registerServiceWorker(import.meta.env.PROD);

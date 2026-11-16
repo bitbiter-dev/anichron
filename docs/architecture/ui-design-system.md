@@ -31,7 +31,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 - Each semantic token is a `light-dark()` of two primitives, so screens need no `dark:` classes.
 - `data-theme` on `<html>` sets `color-scheme` and so overrides the system choice; without it, the device decides.
 - The System / Light / Dark choice is stored per device (`src/shared/theme.ts`, which owns the storage key), followed across tabs through the `storage` event, and System when storage is unavailable.
-- `/theme-init.js` applies it before first paint: a second Vite build (`vite.theme-init.config.ts`) of `src/app/theme-init.ts`, because the CSP forbids an inline script. `pnpm dev` serves it through a plugin in `vite.config.ts`.
+- `/theme-init.js` applies it before first paint: a nested Vite build (`vite.theme-init.config.ts`) of `src/app/theme-init.ts`, because the CSP forbids an inline script. Plugins in `vite.config.ts` emit it into the build and serve it under `pnpm dev`.
 - A Light or Dark choice puts a `theme-color` tag without `media` first, copying that scheme's colour from its own tag; System removes it.
 - The surface colours (`--neutral-50`, `--neutral-950`) are repeated as literals in `index.html`'s `theme-color` metas and the manifest (`ui-serving.md`, "The Home Screen files"), since static files cannot read a CSS variable. Changing a surface changes them too.
 
@@ -50,7 +50,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 - Transition durations are tokens that become `0ms` under `prefers-reduced-motion`; looping animations are `none` there, and the story's progress fill (`--animate-story-fill`) steps.
 - Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. The pull to close reads it itself (`reduced-motion.ts`) and only fades the backdrop. A Live Photo never plays by itself, only from its button or a hold.
 - A loading ring stops spinning (`motion-reduce:`).
-- The Live pill stays visible through a hold that hides the other controls. It shows a turning `player-accent` arc while its video loads (`live-ring`) and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
+- The Live pill and the years-ago line stay visible through a hold that hides the other controls. The pill shows a turning `player-accent` arc while its video loads (`live-ring`), faded in after `--delay-live-ring` so a quick load shows none, and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
 - Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
 
 ## Base components
