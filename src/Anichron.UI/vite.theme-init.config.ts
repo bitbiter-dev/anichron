@@ -5,7 +5,6 @@ export default defineConfig({
   publicDir: false,
   build: {
     target: browserslistToEsbuild(),
-    emptyOutDir: false,
     lib: {
       entry: 'src/app/theme-init.ts',
       formats: ['iife'],

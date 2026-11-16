@@ -31,7 +31,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 - Each semantic token is a `light-dark()` of two primitives, so screens need no `dark:` classes.
 - `data-theme` on `<html>` sets `color-scheme` and so overrides the system choice; without it, the device decides.
 - The System / Light / Dark choice is stored per device (`src/shared/theme.ts`, which owns the storage key), followed across tabs through the `storage` event, and System when storage is unavailable.
-- `/theme-init.js` applies it before first paint: a second Vite build (`vite.theme-init.config.ts`) of `src/app/theme-init.ts`, because the CSP forbids an inline script. `pnpm dev` serves it through a plugin in `vite.config.ts`.
+- `/theme-init.js` applies it before first paint: a nested Vite build (`vite.theme-init.config.ts`) of `src/app/theme-init.ts`, because the CSP forbids an inline script. Plugins in `vite.config.ts` emit it into the build and serve it under `pnpm dev`.
 - A Light or Dark choice puts a `theme-color` tag without `media` first, copying that scheme's colour from its own tag; System removes it.
 - The surface colours (`--neutral-50`, `--neutral-950`) are repeated as literals in `index.html`'s `theme-color` metas and the manifest (`ui-serving.md`, "The Home Screen files"), since static files cannot read a CSS variable. Changing a surface changes them too.
 

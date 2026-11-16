@@ -1,5 +1,9 @@
 @utility glow-backdrop {
   background:
+    linear-gradient(
+      var(--color-surface) calc(env(safe-area-inset-top) + 1rem),
+      transparent calc(env(safe-area-inset-top) + 5rem)
+    ),
     radial-gradient(60% 50% at 15% 20%, var(--color-backdrop-accent), transparent),
     radial-gradient(60% 50% at 90% 85%, var(--color-backdrop-warm), transparent),
     radial-gradient(50% 40% at 85% 15%, var(--color-backdrop-cool), transparent),

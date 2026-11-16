@@ -20,7 +20,10 @@ export default defineConfig({
   },
   projects: [
     { name: 'webkit-iphone', use: { ...devices['iPhone 16'] } },
-    { name: 'chromium-pixel', use: { ...devices['Pixel 9'] } },
+    {
+      name: 'chromium-pixel',
+      use: { ...devices['Pixel 9'], launchOptions: { args: ['--ignore-certificate-errors'] } },
+    },
     {
       name: 'firefox-phone',
       use: {

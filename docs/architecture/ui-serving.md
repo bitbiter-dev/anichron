@@ -33,6 +33,16 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 - One icon serves iOS and Android. It is opaque and full bleed, with the sun and its reflection inside the centred 80% circle a maskable crop keeps.
 - `index.html` links the manifest and the touch icon, with one `theme-color` per colour scheme (the two surface colours). The manifest takes the dark surface.
 
+## Service worker
+
+- `src/app/sw.ts` builds to `/sw.js` (vite-plugin-pwa in `injectManifest` mode, `vite.config.ts`). It sits in the web root, so it is served `no-cache`, and it is not part of the initial JS.
+- `src/app/register-service-worker.ts` registers it only in a production build, through a Trusted Types policy. `pnpm dev` has none.
+- **Precached:** `index.html`, `theme-init.js` and every file under `/assets/` (the plugin's `globPatterns`). The main build emits `theme-init.js`, so it is in the list; without it an offline start would lose the chosen theme.
+- **Navigations** to an app page are answered from the precached `index.html`, by the server's fallback rule: never under `/api`, never a path with an extension (`src/app/app-shell.ts`).
+- **Never routed:** every request under `/api`, navigation or not, and every file not precached. They go to the network, and the service worker caches none of them.
+- **No media cache.** Media relies on the browser's HTTP cache, where a current proxy URL is `immutable` (`media-reads.md`). The UI requests only the proxy URLs the API listed for the signed-in user, so the cache never shows one user's media to another, and cache limits and videos are not the service worker's concern.
+- With no network, the precached frame starts and the start-up refresh fails as unreachable, so the app shows "Can't reach Anichron".
+
 ## Security headers
 
 - `UseSecurityHeaders` runs first and sets the headers in `OnStarting`, so every response gets them, errors included.
@@ -44,4 +54,6 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 ## Tests
 
 - **Seam 1** (`UiServingTests`, `SecurityHeadersTests`): the in-process host on a fixture web root.
+- **Seam 3** (`app-shell.test.ts`, `register-service-worker.test.ts`): the service worker's routes on an in-memory cache, and its registration.
 - **Seam 4** (`src/Anichron.UI/e2e/`): Playwright against the built image (`src/docker-compose.e2e.yml`, Caddy on HTTPS because the cookies are `Secure`). It checks headers, caching, CSP and Trusted Types violations, other-origin requests and axe; `home-screen.spec.ts` checks the head tags, the manifest and its icons. Users are created only through the public API, and the compose file raises the rate limits.
+- `offline.spec.ts` checks an offline reload, in Chromium only. Chromium fetches no service worker over a certificate it does not trust, so its project ignores certificate errors (`playwright.config.ts`).

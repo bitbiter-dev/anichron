@@ -28,6 +28,8 @@ Starts from `src/**/*.ts`. Every other entry is listed here, and `scripts/ui-mut
 | `!src/i18n/locales/**` | Catalogs are data |
 | `!src/api/generated/**` | Generated (ADR 0005, rule 1) |
 
+The service worker needs no entry: `src/app/app-shell.ts` holds its routes and is mutated like any `.ts`, and its entry `src/app/sw.ts` is one call with nothing to mutate.
+
 ### Individual sites (`// Stryker disable`)
 
 A directive needs a row naming its file and the ADR 0005 proof: no input tells the mutant apart, and no rewrite removes the branch.

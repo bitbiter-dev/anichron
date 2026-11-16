@@ -12,6 +12,23 @@ const controls = (page: Page) => [
 const style = (locator: Locator, property: string) =>
   locator.evaluate((element, name) => getComputedStyle(element).getPropertyValue(name), property);
 
+const topRowColours = async (page: Page) => {
+  const width = page.viewportSize()?.width ?? 0;
+  const png = await page.screenshot({ clip: { x: 0, y: 0, width, height: 1 } });
+  return page.evaluate(async (base64) => {
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext('2d');
+    context?.drawImage(bitmap, 0, 0);
+    const pixels = context?.getImageData(0, 0, bitmap.width, bitmap.height).data ?? [];
+    const colours = new Set<string>();
+    for (let index = 0; index < pixels.length; index += 4)
+      colours.add(`rgb(${Array.from(pixels.slice(index, index + 3)).join(', ')})`);
+    return [...colours];
+  }, png.toString('base64'));
+};
+
 const ring = (locator: Locator) =>
   locator.evaluate((element) => {
     const { outlineStyle, outlineWidth, outlineOffset, outlineColor } = getComputedStyle(element);
@@ -64,6 +81,16 @@ test('every login control is at least 44 px tall', async ({ page }) => {
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {
+  test(`the login screen's top edge is the ${colorScheme} surface, so it meets the status bar without a line`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    expect(await topRowColours(page)).toEqual([surface[colorScheme]]);
+  });
+
   test(`the login screen is captured in ${colorScheme}`, async ({ page }, testInfo) => {
     await page.emulateMedia({ colorScheme });
     await page.goto('/login');

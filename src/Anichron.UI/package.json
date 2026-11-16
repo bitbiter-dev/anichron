@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && vite build -c vite.theme-init.config.ts",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && tsc -p tsconfig.e2e.json",
     "lint": "eslint .",
     "format": "prettier --check .",
@@ -55,6 +55,8 @@
     "react-i18next": "18.0.0",
     "tailwind-merge": "3.7.0",
     "tailwind-variants": "4.0.1",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -96,6 +98,7 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",
     "vite": "8.3.6",
+    "vite-plugin-pwa": "2.0.0",
     "vitest": "5.1.0",
     "vitest-axe": "0.1.0"
   }
