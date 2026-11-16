@@ -1,22 +1,20 @@
-import { Dialog, Button, Modal, ModalOverlay } from 'react-aria-components';
 import { m } from 'motion/react';
+import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { Memory } from '../../api/flashbacks';
+import { Blurhash } from './BlurhashCanvas';
 import { CloseButton } from './CloseButton';
-import { MemoryActions } from './MemoryActions';
 import { Failed } from './Failed';
+import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
-import { useBurstDetails } from './use-burst-details';
-import type { Toggle } from './use-interactions';
+import { useBurstDetails, useFrameBlurhash } from './use-burst-details';
+import type { useInteractions } from './use-interactions';
 
 interface BurstDetailsProps {
   open: boolean;
   card: Memory;
   close: () => void;
-  interactions: {
-    toggle: (flag: Toggle, memory: Memory) => (on: boolean) => void;
-    hide: (memory: Memory) => void;
-  };
+  interactions: Pick<ReturnType<typeof useInteractions>, 'toggleFrame' | 'hideFrame'>;
 }
 
 export function BurstDetails({ open, ...props }: BurstDetailsProps) {
@@ -26,9 +24,7 @@ export function BurstDetails({ open, ...props }: BurstDetailsProps) {
 function Details({ card, close, interactions }: Omit<BurstDetailsProps, 'open'>) {
   const { t } = useTranslation();
   const { attach, ...details } = useBurstDetails(card, close);
-  const { frames, current } = details;
-  const count = frames.length;
-  const frame = frames[current] as Memory;
+  const { count, frame } = details;
   return (
     <ModalOverlay isOpen onOpenChange={close} className="fixed inset-0 z-[25] bg-player">
       <Modal className="size-full">
@@ -50,15 +46,9 @@ function Details({ card, close, interactions }: Omit<BurstDetailsProps, 'open'>)
               {...details.pressProps}
               className="flex size-full snap-x snap-mandatory [scrollbar-width:none] overflow-x-auto overscroll-x-contain"
             >
-              {frames.map((frame, index) => (
-                <li key={frame.id} className="size-full shrink-0 snap-center snap-always">
-                  <div
-                    role="img"
-                    aria-label={t('story.frame', { place: index + 1, count })}
-                    className="size-full"
-                  >
-                    <ProxyImage src={frame.proxies.preview} className="size-full object-contain" />
-                  </div>
+              {details.frames.map(({ memory, place }) => (
+                <li key={memory.id} className="size-full shrink-0 snap-center snap-always">
+                  <Frame memory={memory} label={t('story.frame', { place, count })} />
                 </li>
               ))}
             </ul>
@@ -71,7 +61,7 @@ function Details({ card, close, interactions }: Omit<BurstDetailsProps, 'open'>)
           </Button>
           <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
             <p className="flex-1 text-small font-semibold">
-              {details.loaded && t('story.framePlace', { place: current + 1, count })}
+              {details.loaded && t('story.framePlace', { place: details.place, count })}
             </p>
             <div className="pointer-events-auto">
               <CloseButton close={close} />
@@ -79,9 +69,9 @@ function Details({ card, close, interactions }: Omit<BurstDetailsProps, 'open'>)
           </div>
           <MemoryActions
             interaction={frame.interaction}
-            onToggle={(flag) => interactions.toggle(flag, frame)}
+            onToggle={interactions.toggleFrame(frame)}
             onHide={() => {
-              interactions.hide(frame);
+              interactions.hideFrame(frame);
             }}
           />
           {details.failed && (
@@ -92,5 +82,19 @@ function Details({ card, close, interactions }: Omit<BurstDetailsProps, 'open'>)
         </Dialog>
       </Modal>
     </ModalOverlay>
+  );
+}
+
+function Frame({ memory, label }: { memory: Memory; label: string }) {
+  const { blurhash, onDecoded } = useFrameBlurhash(memory);
+  return (
+    <div role="img" aria-label={label} className="relative size-full">
+      {blurhash && <Blurhash {...blurhash} />}
+      <ProxyImage
+        src={memory.proxies.preview}
+        onDecoded={onDecoded}
+        className="relative size-full object-contain"
+      />
+    </div>
   );
 }

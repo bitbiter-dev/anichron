@@ -2,6 +2,10 @@ import type { Memory } from '../../api/flashbacks';
 
 type Burst = NonNullable<Memory['burst']>;
 
+export function burstIdOf({ burst }: Memory) {
+  return (burst as Burst).burstId;
+}
+
 export function otherFrames({ burst }: Memory) {
   return (burst?.count ?? 1) - 1;
 }

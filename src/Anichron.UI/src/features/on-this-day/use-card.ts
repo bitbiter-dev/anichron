@@ -6,6 +6,7 @@ import { burstQuery } from './day';
 
 export function useCard(memory: Memory) {
   const { api } = useRouter().options.context;
-  const { data } = useQuery({ ...burstQuery(api, memory.burst?.burstId ?? ''), enabled: false });
+  const burst = burstQuery(api, String(memory.burst?.burstId));
+  const { data } = useQuery({ ...burst, enabled: false });
   return cardOf(memory, data);
 }

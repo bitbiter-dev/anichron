@@ -5,7 +5,8 @@ import { type UIEvent, useEffect, useState } from 'react';
 import { usePress } from 'react-aria/usePress';
 import type { Memory } from '../../api/flashbacks';
 import { listen } from '../../shared/listen';
-import { clampFrame, createFrameScroll, framesShown } from './burst';
+import { blurhashOf } from './blurhash';
+import { burstIdOf, clampFrame, createFrameScroll, framesShown } from './burst';
 import { burstQuery } from './day';
 import { closesOnSwipe } from './navigation';
 
@@ -14,9 +15,19 @@ function frameStep(key: string) {
   return steps[key];
 }
 
+export function useFrameBlurhash(frame: Memory) {
+  const [decoded, setDecoded] = useState(false);
+  return {
+    blurhash: decoded ? null : blurhashOf(frame),
+    onDecoded: () => {
+      setDecoded(true);
+    },
+  };
+}
+
 export function useBurstDetails(card: Memory, close: () => void) {
   const { api } = useRouter().options.context;
-  const query = useQuery(burstQuery(api, (card.burst as NonNullable<Memory['burst']>).burstId));
+  const query = useQuery(burstQuery(api, burstIdOf(card)));
   const frames = framesShown(query.data) ?? [card];
   const [chosen, setChosen] = useState(0);
   const [scroll] = useState(createFrameScroll);
@@ -43,8 +54,10 @@ export function useBurstDetails(card: Memory, close: () => void) {
   });
 
   return {
-    frames,
-    current,
+    frames: frames.map((memory, index) => ({ memory, place: index + 1 })),
+    count: frames.length,
+    frame: frames[current] as Memory,
+    place: current + 1,
     loaded: query.isSuccess,
     failed: query.isError,
     retry: () => void query.refetch(),

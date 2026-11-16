@@ -6,7 +6,7 @@ import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { Day } from '../../api/flashbacks';
 import { Toasts } from '../../shared/ui/Toast';
-import { paintBlurhash } from './blurhash';
+import { Blurhash } from './BlurhashCanvas';
 import { BurstDetails } from './BurstDetails';
 import { otherFrames } from './burst';
 import { CloseButton, roundButton } from './CloseButton';
@@ -217,9 +217,7 @@ function Player({ date, year, day, close }: PlayerProps) {
             <MemoryActions
               interaction={interactionOf(day, card)}
               onToggle={interactions.toggle}
-              onHide={() => {
-                interactions.hide();
-              }}
+              onHide={interactions.hide}
             />
             <Sound {...sound} toggle={toggleSound} />
           </div>
@@ -255,30 +253,11 @@ function Picture({ image, src, onDecoded, onFailed }: PictureProps) {
 
 function OtherFrames({ count }: { count: number }) {
   const { t } = useTranslation();
-  if (count < 1) return null;
+  if (!count) return null;
   return (
     <p className="pointer-events-none absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1.75rem)] rounded-full px-2 py-0.5 text-small font-semibold player-glass">
       {t('story.otherFrames', { count })}
     </p>
-  );
-}
-
-interface BlurhashProps {
-  hash: string;
-  width: number;
-  height: number;
-}
-
-function Blurhash({ hash, width, height }: BlurhashProps) {
-  return (
-    <canvas
-      ref={(canvas) => {
-        paintBlurhash(canvas, hash);
-      }}
-      width={width}
-      height={height}
-      className="absolute inset-0 size-full object-contain"
-    />
   );
 }
 

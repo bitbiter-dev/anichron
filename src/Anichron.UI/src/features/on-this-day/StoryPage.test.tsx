@@ -3649,6 +3649,62 @@ describe('a burst', () => {
     expect(within(story()).getByText('+2')).toBeVisible();
   });
 
+  it("says Couldn't save and hides nothing when its frames do not load on Hide", async () => {
+    server.use(burstAnswers(() => problemResponse(500, 'unknown')));
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(button('Pause'));
+
+    await user().click(button('Hide'));
+    await advance(8000);
+
+    expect(toast()).toHaveTextContent("Couldn't save");
+    expect(sent).toEqual([]);
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(within(story()).getByText('+2')).toBeVisible();
+  });
+
+  it('keeps its new cover when the story comes back to it much later', async () => {
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(button('Hide'));
+    await advance(0);
+    await user().click(button('Pause'));
+    await user().click(button('Next'));
+
+    await advance(60 * 60_000);
+    await user().click(button('Previous'));
+
+    expect(showing()).toBe(preview(frameIds[1] as string));
+    expect(within(story()).getByText('+1')).toBeVisible();
+  });
+
+  it("shows each frame's blurhash until its picture shows", async () => {
+    const blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createImageData: (width: number, height: number) => ({
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4),
+      }),
+      putImageData: () => undefined,
+    } as unknown as CanvasRenderingContext2D);
+    server.use(
+      burstAnswers(() => frameIds.map((id, index) => ({ ...frame(id, index), blurhash }))),
+    );
+    await opened3();
+    const canvases = () => details().querySelectorAll('canvas');
+    expect(canvases()).toHaveLength(3);
+
+    fireEvent.load(details().querySelectorAll('img')[1] as HTMLImageElement);
+    await advance(0);
+
+    expect(canvases()).toHaveLength(2);
+    expect(
+      within(details()).getByRole('img', { name: 'Frame 2 of 3' }).querySelector('canvas'),
+    ).toBeNull();
+  });
+
   it('moves on from a card on Hide when it has one frame left', async () => {
     years = [
       yearGroup(

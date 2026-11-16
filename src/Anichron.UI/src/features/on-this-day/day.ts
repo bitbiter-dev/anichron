@@ -44,7 +44,11 @@ export function dayQuery(api: ApiClient, date: string) {
 const burstsKey = ['burst'] as const;
 
 export function burstQuery(api: ApiClient, id: string) {
-  return queryOptions({ queryKey: [...burstsKey, id], queryFn: () => api.bursts.frames(id) });
+  return queryOptions({
+    queryKey: [...burstsKey, id],
+    queryFn: () => api.bursts.frames(id),
+    gcTime: Infinity,
+  });
 }
 
 export interface Interaction {

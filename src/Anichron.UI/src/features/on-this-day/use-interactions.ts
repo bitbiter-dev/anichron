@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Change, Flag } from '../../api/assets';
 import type { Memory } from '../../api/flashbacks';
 import { createToasts } from '../../shared/toasts';
-import { otherFrames } from './burst';
+import { burstIdOf, otherFrames } from './burst';
 import { burstQuery, interactionMutation } from './day';
 import type { Place } from './story';
 
@@ -22,39 +22,50 @@ export function useInteractions(date: string, story: StoryControls) {
   const [toasts] = useState(createToasts);
   const { mutateAsync } = useMutation(interactionMutation(api, queryClient, date));
 
+  function notSaved() {
+    toasts.show({ message: 'story.notSaved' });
+  }
+
   function send(memory: Memory, change: Change, rollBack: () => void = () => undefined) {
     mutateAsync({ id: memory.id, change }).catch(() => {
       rollBack();
-      toasts.show({ message: 'story.notSaved' });
+      notSaved();
     });
   }
 
-  function hidden(onUndo: () => void) {
-    return toasts.show({
+  function hideWith(memory: Memory, onUndo: () => void, rollBack: () => void) {
+    const key = toasts.show({
       message: 'story.hidden',
       action: { label: 'story.undo', onAction: onUndo },
+    });
+    send(memory, { hidden: true }, () => {
+      toasts.close(key);
+      rollBack();
     });
   }
 
   function hideMemory(memory: Memory) {
     const place = story.hide();
-    const key = hidden(() => {
-      story.undo(place);
-      send(memory, { hidden: false }, () => story.hide(place));
-    });
-    send(memory, { hidden: true }, () => {
-      toasts.close(key);
-      story.undo(place);
-    });
+    hideWith(
+      memory,
+      () => {
+        story.undo(place);
+        send(memory, { hidden: false }, () => story.hide(place));
+      },
+      () => {
+        story.undo(place);
+      },
+    );
   }
 
   function hideFrame(frame: Memory) {
-    const key = hidden(() => {
-      send(frame, { hidden: false });
-    });
-    send(frame, { hidden: true }, () => {
-      toasts.close(key);
-    });
+    hideWith(
+      frame,
+      () => {
+        send(frame, { hidden: false });
+      },
+      () => undefined,
+    );
   }
 
   function hide(memory: Memory) {
@@ -64,24 +75,24 @@ export function useInteractions(date: string, story: StoryControls) {
       hideMemory(memory);
       return;
     }
-    const burst = burstQuery(api, (card.burst as NonNullable<Memory['burst']>).burstId);
     void queryClient
-      .query({ ...burst, staleTime: 'static' })
-      .catch(() => undefined)
+      .query({ ...burstQuery(api, burstIdOf(card)), staleTime: 'static' })
       .then(() => {
         hideFrame(memory);
-      });
+      }, notSaved);
   }
 
   return {
     toasts,
-    toggle:
-      (flag: Toggle, memory = story.memory) =>
-      (on: boolean) => {
-        send(memory, { [flag]: on });
-      },
-    hide: (memory = story.memory) => {
-      hide(memory);
+    toggle: (flag: Toggle) => (on: boolean) => {
+      send(story.memory, { [flag]: on });
     },
+    toggleFrame: (frame: Memory) => (flag: Toggle) => (on: boolean) => {
+      send(frame, { [flag]: on });
+    },
+    hide: () => {
+      hide(story.memory);
+    },
+    hideFrame: hide,
   };
 }
