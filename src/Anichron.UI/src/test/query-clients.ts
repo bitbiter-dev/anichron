@@ -15,5 +15,8 @@ export async function settleRequests() {
       throw new Error('queries and mutations did not settle within 10 s of fake time.');
     await vi.advanceTimersByTimeAsync(1);
   }
+}
+
+export function forgetQueryClients() {
   rendered.clear();
 }
