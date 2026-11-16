@@ -8,6 +8,7 @@ const files: Record<string, string> = {
   '/index.html': frame,
   '/theme-init.js': 'applyTheme();',
   '/assets/index-abc123.js': 'render();',
+  '/assets/index-old456.js': 'renderBefore();',
 };
 
 const manifest = () => [
@@ -48,7 +49,7 @@ class ExtendableEvent extends Event {
 
 class FetchEvent extends ExtendableEvent {
   readonly request: Request;
-  answer: Promise<Response> | undefined;
+  answer: Promise<Response | undefined> | undefined;
 
   constructor(request: Request) {
     super('fetch');
@@ -56,7 +57,7 @@ class FetchEvent extends ExtendableEvent {
   }
 
   respondWith(response: Promise<Response>) {
-    this.answer = response;
+    this.answer = Promise.resolve(response);
   }
 }
 
@@ -74,15 +75,16 @@ function serviceWorker() {
   return {
     scope,
     lifecycle: (type: 'install' | 'activate') => dispatch(new ExtendableEvent(type)),
-    async fetch(request: Request) {
+    async served(request: Request) {
       const event = new FetchEvent(request);
       await dispatch(event);
-      return event.answer && settled(event.answer);
+      if (!event.answer) return 'network';
+      return (await settled(event.answer))?.text();
     },
   };
 }
 
-async function installed() {
+async function installed(entries = manifest()) {
   vi.stubGlobal('fetch', (request: Request) => {
     const body = files[new URL(request.url).pathname];
     return body === undefined
@@ -90,7 +92,7 @@ async function installed() {
       : Promise.resolve(new Response(body));
   });
   const worker = serviceWorker();
-  serveAppShell(worker.scope, manifest());
+  serveAppShell(worker.scope, entries);
   await worker.lifecycle('install');
   await worker.lifecycle('activate');
   vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')));
@@ -110,7 +112,7 @@ it.each(['/', '/login', '/day/2024-11-16', '/apiary', '/memories/api', '/admin.x
   async (path) => {
     const worker = await installed();
 
-    expect(await (await worker.fetch(navigation(path)))?.text()).toBe(frame);
+    expect(await worker.served(navigation(path))).toBe(frame);
   },
 );
 
@@ -119,7 +121,7 @@ it.each(['/theme-init.js', '/assets/index-abc123.js'])(
   async (path) => {
     const worker = await installed();
 
-    expect(await (await worker.fetch(new Request(url(path))))?.text()).toBe(files[path]);
+    expect(await worker.served(new Request(url(path)))).toBe(files[path]);
   },
 );
 
@@ -133,7 +135,7 @@ it.each([
 ])('leaves a navigation to %s to the network', async (path) => {
   const worker = await installed();
 
-  expect(await worker.fetch(navigation(path))).toBeUndefined();
+  expect(await worker.served(navigation(path))).toBe('network');
 });
 
 it.each(['/api/v1/session/refresh', '/api/v1/proxies/1/thumbnail?v=abc'])(
@@ -141,8 +143,8 @@ it.each(['/api/v1/session/refresh', '/api/v1/proxies/1/thumbnail?v=abc'])(
   async (path) => {
     const worker = await installed();
 
-    expect(await worker.fetch(new Request(url(path), { method: 'POST' }))).toBeUndefined();
-    expect(await worker.fetch(new Request(url(path)))).toBeUndefined();
+    expect(await worker.served(new Request(url(path), { method: 'POST' }))).toBe('network');
+    expect(await worker.served(new Request(url(path)))).toBe('network');
   },
 );
 
@@ -151,12 +153,32 @@ it.each(['/icon.svg', '/manifest.webmanifest', '/day/2024.11'])(
   async (path) => {
     const worker = await installed();
 
-    expect(await worker.fetch(navigation(path))).toBeUndefined();
+    expect(await worker.served(navigation(path))).toBe('network');
   },
 );
 
 it('leaves a request for a file it did not precache to the network', async () => {
   const worker = await installed();
 
-  expect(await worker.fetch(new Request(url('/icon-192.png')))).toBeUndefined();
+  expect(await worker.served(new Request(url('/icon-192.png')))).toBe('network');
+});
+
+it('leaves a request for an app page that is not a navigation to the network', async () => {
+  const worker = await installed();
+
+  expect(await worker.served(new Request(url('/login')))).toBe('network');
+});
+
+it('drops the files an earlier version precached once it activates', async () => {
+  const cachedPaths = async () => {
+    const [name] = await caches.keys();
+    const requests = await (await caches.open(name as string)).keys();
+    return requests.map((request) => new URL(request.url).pathname);
+  };
+  await installed([...manifest(), { url: 'assets/index-old456.js', revision: null }]);
+  expect(await cachedPaths()).toContain('/assets/index-old456.js');
+
+  await installed();
+
+  expect(await cachedPaths()).not.toContain('/assets/index-old456.js');
 });
