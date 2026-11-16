@@ -10,16 +10,18 @@ interface Fetch extends Lifecycle {
   respondWith(response: Promise<Response>): void;
 }
 
+export type PrecacheManifest = (string | PrecacheEntry)[];
+
 export interface WorkerScope {
   addEventListener(type: 'install' | 'activate', listener: (event: Lifecycle) => void): void;
   addEventListener(type: 'fetch', listener: (event: Fetch) => void): void;
 }
 
 function isAppPage(path: string) {
-  return !/^\/api(\/|$)/.test(path) && !/\.[^/]*$/.test(path);
+  return !/^\/api(\/|$)/i.test(path) && !/\.[^/]*$/.test(path);
 }
 
-export function serveAppShell(scope: WorkerScope, manifest: (string | PrecacheEntry)[]) {
+export function serveAppShell(scope: WorkerScope, manifest: PrecacheManifest) {
   const precache = new PrecacheController();
   precache.addToCacheList(manifest);
   const router = new Router();

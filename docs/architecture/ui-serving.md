@@ -37,11 +37,11 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 
 - `src/app/sw.ts` builds to `/sw.js` (vite-plugin-pwa in `injectManifest` mode, `vite.config.ts`). It sits in the web root, so it is served `no-cache`, and it is not part of the initial JS.
 - `src/app/register-service-worker.ts` registers it only in a production build, through a Trusted Types policy. `pnpm dev` has none.
-- **Precached:** `index.html`, `theme-init.js` and every file under `/assets/` (the plugin's `globPatterns`). The main build emits `theme-init.js`, so it is in the list; without it an offline start would lose the chosen theme.
-- **Navigations** to an app page are answered from the precached `index.html`, by the server's fallback rule: never under `/api`, never a path with an extension (`src/app/app-shell.ts`).
+- **Precached:** the files the plugin's `globPatterns` name. The main build emits `theme-init.js`, so the chosen theme survives an offline start.
+- **Navigations** to an app page are answered from the precached `index.html`, by the server's fallback rule (`src/app/app-shell.ts`). A change to that rule changes both.
 - **Never routed:** every request under `/api`, navigation or not, and every file not precached. They go to the network, and the service worker caches none of them.
 - **No media cache.** Media relies on the browser's HTTP cache, where a current proxy URL is `immutable` (`media-reads.md`). The UI requests only the proxy URLs the API listed for the signed-in user, so the cache never shows one user's media to another, and cache limits and videos are not the service worker's concern.
-- With no network, the precached frame starts and the start-up refresh fails as unreachable, so the app shows "Can't reach Anichron".
+- With no network, the precached frame starts and the start-up refresh fails as unreachable (`StartFailed`).
 
 ## Security headers
 

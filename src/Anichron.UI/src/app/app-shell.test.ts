@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { memoryCaches } from '../test/caches';
 import { serveAppShell, type WorkerScope } from './app-shell';
 
@@ -24,7 +24,6 @@ const navigation = (path: string) => {
   return request;
 };
 
-// Workbox writes to the cache a task later; a hung promise fails at once instead of timing out.
 async function settled<T>(promise: Promise<T>) {
   const progress = { done: false };
   const result = promise.finally(() => (progress.done = true));
@@ -33,7 +32,6 @@ async function settled<T>(promise: Promise<T>) {
   return result;
 }
 
-// A worker resolves a relative URL against its location; Node's Request does not.
 class WorkerRequest extends Request {
   constructor(input: RequestInfo | URL, init?: RequestInit) {
     super(typeof input === 'string' ? new URL(input, location.href) : input, init);
@@ -107,34 +105,36 @@ beforeEach(() => {
   return () => vi.unstubAllGlobals();
 });
 
-describe('with the network cut after install', () => {
-  it.each(['/', '/login', '/day/2024-11-16', '/apiary', '/memories/api', '/admin.x/work-items'])(
-    'answers a navigation to the app page %s with the precached frame',
-    async (path) => {
-      const worker = await installed();
-
-      expect(await (await worker.fetch(navigation(path)))?.text()).toBe(frame);
-    },
-  );
-
-  it.each(['/theme-init.js', '/assets/index-abc123.js'])(
-    'answers a request for %s from the precache',
-    async (path) => {
-      const worker = await installed();
-
-      expect(await (await worker.fetch(new Request(url(path))))?.text()).toBe(files[path]);
-    },
-  );
-});
-
-it.each(['/api', '/api/', '/api/v1/session/refresh', '/api/v1/flashbacks?date=2024-11-16'])(
-  'leaves a navigation to %s to the network',
+it.each(['/', '/login', '/day/2024-11-16', '/apiary', '/memories/api', '/admin.x/work-items'])(
+  'answers a navigation to the app page %s with the precached frame',
   async (path) => {
     const worker = await installed();
 
-    expect(await worker.fetch(navigation(path))).toBeUndefined();
+    expect(await (await worker.fetch(navigation(path)))?.text()).toBe(frame);
   },
 );
+
+it.each(['/theme-init.js', '/assets/index-abc123.js'])(
+  'answers a request for %s from the precache',
+  async (path) => {
+    const worker = await installed();
+
+    expect(await (await worker.fetch(new Request(url(path))))?.text()).toBe(files[path]);
+  },
+);
+
+it.each([
+  '/api',
+  '/api/',
+  '/API/v1/session',
+  '/Api',
+  '/api/v1/session/refresh',
+  '/api/v1/flashbacks?date=2024-11-16',
+])('leaves a navigation to %s to the network', async (path) => {
+  const worker = await installed();
+
+  expect(await worker.fetch(navigation(path))).toBeUndefined();
+});
 
 it.each(['/api/v1/session/refresh', '/api/v1/proxies/1/thumbnail?v=abc'])(
   'leaves a request for %s to the network',
