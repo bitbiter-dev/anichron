@@ -7,7 +7,7 @@ const behindCount = 3;
 
 export type Load = 'loading' | 'shown' | 'failed';
 
-export type Kind = 'none' | 'picture' | 'video' | 'live';
+export type Kind = 'none' | 'picture' | 'video' | 'live' | 'burst';
 
 export interface StoryPosition {
   group: number;
@@ -28,6 +28,7 @@ export type Place = Pick<StoryPosition, 'group' | 'memory'>;
 export interface StoryState extends StoryPosition {
   paused: boolean;
   held: boolean;
+  details: boolean;
   ended: boolean;
   running: boolean;
   muted: boolean;
@@ -42,7 +43,7 @@ export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
 export type Tap = Move | 'middle';
 
 export type Story = Record<
-  Tap | 'close' | 'togglePause' | 'toggleSound' | 'hold' | 'release' | 'replay',
+  Tap | 'close' | 'closeDetails' | 'togglePause' | 'toggleSound' | 'hold' | 'release' | 'replay',
   () => void
 > & {
   state: () => StoryState;
@@ -107,6 +108,7 @@ export function createStory(
     picture: 'loading',
     video: 'loading',
     live: 'loading',
+    burst: 'loading',
   };
   let visits = 0;
   const at = (group: number, memory: number): StoryPosition => {
@@ -143,6 +145,7 @@ export function createStory(
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
+  let details = false;
   let ended = false;
   let muted = true;
   let hinted = position.kind === 'video';
@@ -163,12 +166,14 @@ export function createStory(
   }
 
   function stateOf(): StoryState {
-    const running = position.load !== 'loading' && !paused && !held && !ended && !replayShown();
+    const running =
+      position.load !== 'loading' && !paused && !held && !details && !ended && !replayShown();
     const playsMedia = held ? position.heldPlay : !paused && (position.replaying || !ended);
     return {
       ...position,
       paused,
       held,
+      details,
       ended,
       running,
       muted,
@@ -185,7 +190,7 @@ export function createStory(
   }
 
   function start() {
-    if (!notify || paused || held || ended || replayShown()) return;
+    if (!notify || paused || held || details || ended || replayShown()) return;
     clock.start();
     if (hint && position.load !== 'loading') hintClock.start();
   }
@@ -231,6 +236,12 @@ export function createStory(
         muted = !muted;
         hint = false;
       });
+  }
+
+  function setDetails(open: boolean) {
+    update(() => {
+      details = open;
+    });
   }
 
   function rest() {
@@ -317,7 +328,11 @@ export function createStory(
     toggleSound,
     middle() {
       if (position.kind === 'video') toggleSound();
+      else if (position.kind === 'burst') setDetails(true);
       else next();
+    },
+    closeDetails() {
+      setDetails(false);
     },
     next() {
       next();

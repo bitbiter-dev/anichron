@@ -17,14 +17,14 @@ export interface Day {
 }
 
 export interface Flashbacks {
-  onThisDay(date: string): Promise<Day>;
+  onThisDay(date: string, signal?: AbortSignal): Promise<Day>;
 }
 
 function fromApi(url: string | null) {
   return url && `/api/v1/${url}`;
 }
 
-function memoryOf(asset: Schemas['AssetDto']): Memory {
+export function memoryOf(asset: Schemas['AssetDto']): Memory {
   return {
     ...asset,
     proxies: Object.fromEntries(
@@ -36,9 +36,13 @@ function memoryOf(asset: Schemas['AssetDto']): Memory {
 
 export function createFlashbacks(client: Client<paths>, authorized: Authorized): Flashbacks {
   return {
-    async onThisDay(date) {
+    async onThisDay(date, signal) {
       const day = await authorized((init) =>
-        client.GET('/api/v1/flashbacks/on-this-day', { ...init, params: { query: { date } } }),
+        client.GET('/api/v1/flashbacks/on-this-day', {
+          ...init,
+          signal,
+          params: { query: { date } },
+        }),
       );
       return {
         years: day.years.map(({ year, assets }) => ({

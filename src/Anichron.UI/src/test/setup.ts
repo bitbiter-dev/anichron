@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import * as matchers from 'vitest-axe/matchers';
 import { addThemeColourTags, removeThemeColourTags } from './index-head';
 import { resumeMotionFrames } from './motion';
-import { settleQueries } from './query-clients';
+import { forgetQueryClients, settleRequests } from './query-clients';
 import { server } from './server';
 
 expect.extend(matchers);
@@ -23,14 +23,17 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await settleQueries();
+  await settleRequests();
   cleanup();
+  await settleRequests();
+  forgetQueryClients();
   document.documentElement.removeAttribute('lang');
   document.documentElement.removeAttribute('data-theme');
   removeThemeColourTags();
   localStorage.clear();
   server.resetHandlers();
   vi.useRealTimers();
+  await new Promise((resolve) => setTimeout(resolve, 0));
   Reflect.deleteProperty(document, 'visibilityState');
   Reflect.deleteProperty(document.documentElement, 'scrollHeight');
   Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });

@@ -61,7 +61,6 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     state,
     group,
     ...storyView(state, group),
-    memoryAt,
     nextVideo: nextVideo(state, memoryAt),
     hide: (place?: Place) => story.hide(place),
     undo: (place: Place) => {
@@ -75,6 +74,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     },
     gestures,
     videoEvents: player.events,
+    closeDetails: story.closeDetails,
     togglePause: story.togglePause,
     toggleSound: story.toggleSound,
     replay: story.replay,

@@ -14,7 +14,8 @@
 #     without one, every mutant runs.
 # --all runs every mutant regardless (--force) and writes a fresh baseline.
 # --print prints the Stryker arguments instead of running it. Stryker runs
-# under the heavy lock (scripts/with-lock.sh).
+# under the heavy lock (scripts/with-lock.sh), after clearing sandboxes an
+# aborted run left behind (its static-leaks reporter exits mid-run).
 #
 # See docs/mutation-testing.md, "The UI".
 set -euo pipefail
@@ -28,7 +29,7 @@ while [ "$#" -gt 0 ]; do
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --all) all=true; shift ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -90,4 +91,6 @@ if [ "${#args[@]}" -eq 0 ] && [ ! -f "$baseline" ]; then
 fi
 
 cd "$ui"
-"$here/with-lock.sh" heavy pnpm exec stryker run "${args[@]+"${args[@]}"}"
+"$here/with-lock.sh" heavy sh -c 'rm -rf "$1" && shift && exec "$@"' sh \
+  "$(jq -r '.tempDirName // ".stryker-tmp"' stryker.config.json)" \
+  pnpm exec stryker run "${args[@]+"${args[@]}"}"
