@@ -3511,6 +3511,8 @@ describe('a burst', () => {
     await swipe(0, 100, frames(), 500);
 
     expect(counter()).toHaveTextContent('2 / 3');
+    await tap(900);
+    expect(counter()).toHaveTextContent('3 / 3');
   });
 
   it("opens on Enter, but not on Enter on one of the story's buttons", async () => {

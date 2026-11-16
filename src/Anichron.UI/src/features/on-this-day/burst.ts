@@ -27,7 +27,7 @@ export function clampFrame(index: number, count: number) {
 
 export function createFrameScroll() {
   let list: HTMLElement | null = null;
-  let dragging = false;
+  let dragging: boolean | undefined;
   return {
     attach: (element: HTMLElement | null) => {
       list = element;
