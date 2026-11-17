@@ -246,29 +246,92 @@ describe('the install section', () => {
     Reflect.deleteProperty(navigator, 'maxTouchPoints');
   });
 
-  it('explains Share, then Add to Home Screen, on an iPhone', async () => {
+  const safariSteps = ['Tap Share', 'Tap Show More', 'Tap Add to Home Screen'];
+  const showHow = () => screen.getByRole('button', { name: 'Show how to install' });
+  const stepsDialog = () => screen.getByRole('dialog', { name: 'Install the app' });
+  const steps = () =>
+    within(stepsDialog())
+      .getAllByRole('listitem')
+      .map((step) => step.textContent);
+
+  async function openSteps() {
+    await user().click(showHow());
+  }
+
+  it('shows the steps for Safari on an iPhone in a dialog, each with its icon', async () => {
     browsingOn(iPhone);
     const { container } = await openSettings();
-
-    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+    expect(within(section() as HTMLElement).getByRole('button')).toBe(showHow());
     expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
+
+    await openSteps();
+
+    expect(steps()).toEqual(safariSteps);
+    for (const step of within(stepsDialog()).getAllByRole('listitem'))
+      expect(step.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('explains the same steps on an iPad asking for the mobile site', async () => {
+  it.each([
+    [
+      'its close button',
+      () => user().click(within(stepsDialog()).getByRole('button', { name: 'Close' })),
+    ],
+    ['Escape', () => user().keyboard('{Escape}')],
+  ])('closes the steps with %s', async (_, close) => {
+    browsingOn(iPhone);
+    await openSettings();
+    await openSteps();
+
+    await close();
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(showHow()).toBeVisible();
+  });
+
+  it.each([
+    [
+      'Chrome',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.46 Mobile/15E148 Safari/604.1',
+      ['Tap More', 'Tap Share', 'Tap Add to Home Screen'],
+    ],
+    [
+      'Firefox',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/145.0 Mobile/15E148 Safari/605.1.15',
+      ['Tap Share', 'Tap Add to Home Screen'],
+    ],
+    [
+      'another browser',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/142.0.3595.53 Version/26.0 Mobile/15E148 Safari/604.1',
+      safariSteps,
+    ],
+  ])('shows the steps for %s on an iPhone', async (_, userAgent, expected) => {
+    browsingOn(userAgent);
+    await openSettings();
+
+    await openSteps();
+
+    expect(steps()).toEqual(expected);
+  });
+
+  it('shows the same steps on an iPad asking for the mobile site', async () => {
     browsingOn(
       'Mozilla/5.0 (iPad; CPU OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1',
     );
     await openSettings();
 
-    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+    await openSteps();
+
+    expect(steps()).toEqual(safariSteps);
   });
 
-  it('explains the same steps on an iPad, which Safari presents as a Mac', async () => {
+  it('shows the same steps on an iPad, which Safari presents as a Mac', async () => {
     browsingOn(mac, 5);
     await openSettings();
 
-    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+    await openSteps();
+
+    expect(steps()).toEqual(safariSteps);
   });
 
   it('is hidden in Safari on a Mac', async () => {

@@ -9,7 +9,8 @@ interface InstallButton {
   install: () => void;
 }
 
-export type InstallOffer = 'none' | 'ios' | 'android' | InstallButton;
+export type IosOffer = 'ios-safari' | 'ios-chrome' | 'ios-firefox';
+export type InstallOffer = 'none' | IosOffer | 'android' | InstallButton;
 export type Install = ReturnType<typeof keepInstallPrompt>;
 
 function installed() {
@@ -25,6 +26,11 @@ function userAgentHas(platform: RegExp) {
 
 function onIos() {
   return userAgentHas(/iPhone|iPad/) || (userAgentHas(/Macintosh/) && navigator.maxTouchPoints > 0);
+}
+
+function iosBrowser(): IosOffer {
+  if (userAgentHas(/CriOS\//)) return 'ios-chrome';
+  return userAgentHas(/FxiOS\//) ? 'ios-firefox' : 'ios-safari';
 }
 
 export function keepInstallPrompt() {
@@ -58,7 +64,7 @@ export function keepInstallPrompt() {
   return {
     offer: (): InstallOffer => {
       if (installedHere || installed()) return 'none';
-      if (onIos()) return 'ios';
+      if (onIos()) return iosBrowser();
       return button ?? (userAgentHas(/Android/) ? 'android' : 'none');
     },
     subscribe: (listener: () => void) => listen(changes, 'change', listener),
