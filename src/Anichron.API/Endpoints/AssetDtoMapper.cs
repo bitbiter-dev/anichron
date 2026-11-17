@@ -15,7 +15,7 @@ internal static class AssetDtoMapper
 
         return new AssetDto(
             view.Id,
-            PublishedMediaType(view.MediaType, liveVideoUrl is not null),
+            Published(view.MediaType, liveVideoUrl is not null).ToString(),
             view.Year,
             view.Month,
             view.Day,
@@ -35,12 +35,12 @@ internal static class AssetDtoMapper
     internal static AssetInteractionDto ToDto(InteractionState state)
         => new(state.Starred, state.Liked, state.Hidden, FlashbackWeight.For(state.Liked));
 
-    private static string PublishedMediaType(MediaType type, bool playsLive)
+    private static PublishedMediaType Published(MediaType type, bool playsLive)
         => type switch
         {
-            MediaType.Image => "Image",
-            MediaType.Video => "Video",
-            MediaType.LivePhoto => playsLive ? "LivePhoto" : "Image",
+            MediaType.Image => PublishedMediaType.Image,
+            MediaType.Video => PublishedMediaType.Video,
+            MediaType.LivePhoto => playsLive ? PublishedMediaType.LivePhoto : PublishedMediaType.Image,
             _ => throw new UnreachableException($"MediaType {type} has no published value."),
         };
 }

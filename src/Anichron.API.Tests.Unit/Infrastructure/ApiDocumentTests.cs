@@ -144,11 +144,16 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
         => EnumNames("WorkKind").Should().Equal(
             "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion");
 
+    [Fact]
+    public void PublishedMediaType_IsItsNames()
+        => EnumNames("PublishedMediaType").Should().Equal("Image", "Video", "LivePhoto");
+
     [Theory]
-    [InlineData("kind", "WorkKind")]
-    [InlineData("status", "WorkItemStatus")]
-    public void WorkItemDto_NamesItsEnums(string property, string schema)
-        => composed.Value.Components!.Schemas!["WorkItemDto"].Properties!.Should().ContainKey(property)
+    [InlineData("WorkItemDto", "kind", "WorkKind")]
+    [InlineData("WorkItemDto", "status", "WorkItemStatus")]
+    [InlineData("AssetDto", "mediaType", "PublishedMediaType")]
+    public void Dto_NamesItsEnums(string dto, string property, string schema)
+        => composed.Value.Components!.Schemas![dto].Properties!.Should().ContainKey(property)
             .WhoseValue.Should().BeOfType<OpenApiSchemaReference>().Which.Reference.Id.Should().Be(schema);
 
     private IEnumerable<string> EnumNames(string schema)

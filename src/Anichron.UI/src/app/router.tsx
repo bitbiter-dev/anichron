@@ -107,7 +107,7 @@ function routeTree() {
     getParentRoute: () => adminRoute,
     path: '/admin/work-items',
     onLeave: ({ context }) => {
-      context.queryClient.removeQueries({ queryKey: workItemsKey });
+      context.queryClient.removeQueries({ queryKey: workItemsKey() });
     },
     component: lazyRouteComponent(
       () => import('../features/work-items/WorkItemsPage'),
