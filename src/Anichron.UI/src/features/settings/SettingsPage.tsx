@@ -5,6 +5,7 @@ import { themes } from '../../shared/theme';
 import { SignOutButton } from '../../shared/ui/SignOutButton';
 import { useUser } from '../../shared/use-user';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
+import { InstallSection } from './InstallSection';
 
 export function SettingsPage() {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export function SettingsPage() {
           onChange={theme.choose}
         />
       </section>
+      <InstallSection />
       {useUser()?.isAdmin && <Administration />}
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
         <h2 className="font-semibold">{t('settings.account')}</h2>

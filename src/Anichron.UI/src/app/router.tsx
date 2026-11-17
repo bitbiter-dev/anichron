@@ -17,6 +17,7 @@ import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
+import type { Install } from './install';
 import { NotFound } from './NotFound';
 import type { Updates } from './register-service-worker';
 import { returnPath } from './return-path';
@@ -31,6 +32,7 @@ interface RouterContext {
   back: Back;
   theme: ThemeChoice;
   updates: Updates;
+  install: Install;
 }
 
 function routeTree() {
@@ -195,6 +197,7 @@ export function createAppRouter(
   api: ApiClient,
   queryClient: QueryClient,
   updates: Updates,
+  install: Install,
   history: RouterHistory = createBrowserHistory(),
 ) {
   const router = createRouter({
@@ -208,6 +211,7 @@ export function createAppRouter(
       back: createBack(history),
       theme: createThemeChoice(),
       updates,
+      install,
     },
   });
   let userId: string | undefined;

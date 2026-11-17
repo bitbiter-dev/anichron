@@ -5,6 +5,7 @@ import { createApiClient } from '../api/client';
 import { browserTabs } from '../api/tabs';
 import { createI18n } from '../i18n/i18n';
 import { App } from './App';
+import { keepInstallPrompt } from './install';
 import { createQueryClient } from './query-client';
 import { registerServiceWorker } from './register-service-worker';
 import './styles.css';
@@ -16,12 +17,18 @@ z.config({ jitless: true });
 const updates = registerServiceWorker(import.meta.env.PROD, () => {
   location.reload();
 });
+const install = keepInstallPrompt();
 const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
     <StrictMode>
       <App
-        router={createAppRouter(createApiClient(browserTabs()), createQueryClient(), updates)}
+        router={createAppRouter(
+          createApiClient(browserTabs()),
+          createQueryClient(),
+          updates,
+          install,
+        )}
         i18n={createI18n()}
       />
     </StrictMode>,

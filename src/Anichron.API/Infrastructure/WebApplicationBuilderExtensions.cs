@@ -5,9 +5,9 @@ namespace Anichron.API.Infrastructure;
 
 public static class WebApplicationBuilderExtensions
 {
-    extension(WebApplicationBuilder builder)
+    extension(IHostApplicationBuilder builder)
     {
-        public WebApplicationBuilder AddAppConfiguration()
+        public IHostApplicationBuilder AddAppConfiguration()
         {
             var iniPath = AppIniInitializer.PathUnder(builder.Environment.ContentRootPath);
             new AppIniInitializer(new FileSystem()).EnsureUpToDate(iniPath, ApiIniDefaults.Entries);

@@ -7,26 +7,43 @@ namespace Anichron.API.Infrastructure;
 
 public static partial class DatabaseStartupExtensions
 {
-    extension(WebApplication app)
+    public const string MigrateCommand = "migrate";
+
+    public static async Task MigrateAndSeedAsync(string[] args)
     {
-        public async Task MigrateAndSeedDatabaseAsync(CancellationToken ct)
+        using var hostSettings = new ConfigurationManager();
+        hostSettings.AddEnvironmentVariables("ASPNETCORE_");
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = args, Configuration = hostSettings });
+        builder.AddAppConfiguration();
+        builder.Services.AddDatabase(builder.Configuration).AddBootstrapAdmin(builder.Configuration);
+
+        using var host = builder.Build();
+        await host.StartAsync();
+        await host.MigrateAndSeedDatabaseAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+        await host.StopAsync();
+    }
+
+    extension(IHost host)
+    {
+        private async Task MigrateAndSeedDatabaseAsync(CancellationToken ct)
         {
+            var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(DatabaseStartupExtensions));
             await new DatabaseStartupRetry(
-                    app.Services.GetRequiredService<TimeProvider>(),
+                    TimeProvider.System,
                     AppDefaults.Startup.MaxDbRetryAttempts,
                     TimeSpan.FromSeconds(AppDefaults.Startup.DbRetryDelaySeconds))
                 .RunAsync(
-                    app.MigrateOnceAsync,
-                    (ex, attempt) => Log.DatabaseNotReady(app.Logger, ex, attempt,
+                    host.MigrateOnceAsync,
+                    (ex, attempt) => Log.DatabaseNotReady(logger, ex, attempt,
                         AppDefaults.Startup.MaxDbRetryAttempts, AppDefaults.Startup.DbRetryDelaySeconds),
-                    ex => Log.DatabaseUnavailable(app.Logger, ex, AppDefaults.Startup.MaxDbRetryAttempts),
+                    ex => Log.DatabaseUnavailable(logger, ex, AppDefaults.Startup.MaxDbRetryAttempts),
                     ct);
-            await app.SeedAsync(ct);
+            await host.SeedAsync(ct);
         }
 
         private async Task MigrateOnceAsync(CancellationToken ct)
         {
-            await using var scope = app.Services.CreateAsyncScope();
+            await using var scope = host.Services.CreateAsyncScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AnichronDbContext>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<AnichronDbContext>>();
 
@@ -36,7 +53,7 @@ public static partial class DatabaseStartupExtensions
 
         private async Task SeedAsync(CancellationToken ct)
         {
-            await using var scope = app.Services.CreateAsyncScope();
+            await using var scope = host.Services.CreateAsyncScope();
             var bootstrapSeeder = scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>();
             await bootstrapSeeder.SeedAsync(ct);
 
