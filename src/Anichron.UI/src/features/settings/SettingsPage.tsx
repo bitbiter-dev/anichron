@@ -9,7 +9,7 @@ import { useAccount } from './account';
 import { InstallSection } from './InstallSection';
 
 const card = 'flex flex-col overflow-hidden rounded-card glass-card';
-const divider = 'border-t border-border/40';
+const divider = 'border-t border-border';
 
 export function SettingsPage() {
   const { t } = useTranslation();

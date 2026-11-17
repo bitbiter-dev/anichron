@@ -1,8 +1,7 @@
 import { useRouter } from '@tanstack/react-router';
 import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
-import { cardOf } from './burst';
-import { burstQuery, startGroup } from './day';
+import { previewOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
 import { createKeepLiveVideos, createPrefetch, nextVideo } from './prefetch';
 import { createStory, type Place } from './story';
@@ -15,19 +14,15 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
   const [{ snapshot, story, gestures, player, subscribe, memoryAt }] = useState(() => {
     const memoryAt = ({ group, memory }: Place) =>
       (years[group] as YearGroup).memories[memory] as Memory;
-    const prefetch = createPrefetch(memoryAt, (url) => media.loadPicture(url));
-    const previewAt = (place: Place) => {
-      const memory = memoryAt(place);
-      const frames = queryClient.getQueryData(
-        burstQuery(api, String(memory.burst?.burstId)).queryKey,
-      );
-      return cardOf(memory, frames).proxies.preview;
-    };
+    const prefetch = createPrefetch(
+      (place) => previewOf(api, queryClient, memoryAt(place)),
+      (url) => media.loadPicture(url),
+    );
     const story = createStory(
       years.map((group) => group.memories.map(kindOf)),
       startGroup(years, year),
       close,
-      (place) => prefetch.decoded(previewAt(place)),
+      (place) => prefetch.decoded(place),
     );
     const videos = media.videos();
     const player = createVideoPlayer(

@@ -116,10 +116,13 @@ export async function loadStory(
   const day = queryClient.getQueryData<Day>(dayKey(date));
   const group = day?.years[startGroup(day.years, year)];
   if (!group) return;
-  const memory = group.memories[0] as Memory;
-  const frames = queryClient.getQueryData(burstQuery(api, String(memory.burst?.burstId)).queryKey);
-  const first = cardOf(memory, frames).proxies.preview;
+  const first = previewOf(api, queryClient, group.memories[0] as Memory);
   if (first) await api.media.loadPicture(first);
+}
+
+export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
+  const frames = queryClient.getQueryData(burstQuery(api, String(memory.burst?.burstId)).queryKey);
+  return cardOf(memory, frames).proxies.preview;
 }
 
 // Stryker disable next-line BlockStatement

@@ -1,9 +1,8 @@
-import { Ellipsis, Share, SquarePlus } from 'lucide-react';
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../shared/ui/Button';
 import { Modal } from '../../shared/ui/Modal';
-import { type InstallStep, useInstallSection } from './install-section';
+import { type ShownStep, useInstallSection } from './install-section';
 
 type Section = NonNullable<ReturnType<typeof useInstallSection>>;
 
@@ -24,8 +23,8 @@ export function InstallSection() {
 
 function Offer({ section }: { section: Section }) {
   const { t } = useTranslation();
-  if ('text' in section) return <p>{t('settings.install.steps.android')}</p>;
-  if ('install' in section)
+  if (section.kind === 'android') return <p>{t('settings.install.steps.android')}</p>;
+  if (section.kind === 'prompt')
     return (
       <Button onPress={section.install} className="self-start">
         {t('settings.install.button')}
@@ -41,14 +40,19 @@ function Offer({ section }: { section: Section }) {
   );
 }
 
-function Steps({ steps, close }: { steps: readonly InstallStep[]; close: () => void }) {
+function Steps({ steps, close }: { steps: readonly ShownStep[]; close: () => void }) {
   const { t } = useTranslation();
   return (
     <Modal title={t('settings.install.title')} onClose={close}>
       <ol className="flex flex-col gap-3">
-        {steps.map((step) => (
+        {steps.map(({ step, icon: Icon, shape }) => (
           <li key={step} className="flex items-center gap-3">
-            <StepIcon step={step} />
+            <span
+              aria-hidden
+              className={`flex shrink-0 items-center bg-surface text-accent ${shapes[shape]}`}
+            >
+              <Icon aria-hidden className="size-5" />
+            </span>
             {t(`settings.install.ios.${step}`)}
           </li>
         ))}
@@ -60,19 +64,7 @@ function Steps({ steps, close }: { steps: readonly InstallStep[]; close: () => v
   );
 }
 
-const icons = { share: Share, showMore: Ellipsis, more: Ellipsis, add: SquarePlus } as const;
-
 const shapes = {
   button: 'size-11 justify-center rounded-full',
   row: 'h-11 w-24 justify-end rounded-field px-3',
 } as const;
-
-function StepIcon({ step }: { step: InstallStep }) {
-  const Icon = icons[step];
-  const shape = step === 'add' ? shapes.row : shapes.button;
-  return (
-    <span aria-hidden className={`flex shrink-0 items-center bg-fg/10 text-accent ${shape}`}>
-      <Icon aria-hidden className="size-5" />
-    </span>
-  );
-}

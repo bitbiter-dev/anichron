@@ -13,9 +13,9 @@ export function Modal({ title, onClose, children }: ModalProps) {
       isOpen
       isDismissable
       onOpenChange={onClose}
-      className="fixed inset-0 z-40 flex items-center justify-center bg-player/50 p-4"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-scrim/50 p-4"
     >
-      <AriaModal className="shadow-glass w-full max-w-sm rounded-card bg-surface-raised p-6 text-fg">
+      <AriaModal className="w-full max-w-sm rounded-card bg-surface-raised p-6 text-fg shadow-(--shadow-glass)">
         <Dialog className="flex flex-col gap-4 outline-none">
           <Heading slot="title" className="text-title font-semibold">
             {title}

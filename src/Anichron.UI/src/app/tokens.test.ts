@@ -52,6 +52,7 @@ describe.each<Theme>(['light', 'dark'])('the %s theme', (theme) => {
       'player',
       'player-accent',
       'player-glass',
+      'scrim',
       'surface',
       'surface-raised',
     ]);

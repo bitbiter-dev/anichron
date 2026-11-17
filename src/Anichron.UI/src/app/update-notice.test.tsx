@@ -58,7 +58,7 @@ describe('the new-version notice', () => {
   });
 
   it('opens a dialog offering Reload or Later once a new version is waiting', async () => {
-    const { container } = await waiting();
+    await waiting();
 
     expect(noticeDialog()).toBeVisible();
     expect(
@@ -67,7 +67,7 @@ describe('the new-version notice', () => {
         .map((b) => b.textContent),
     ).toEqual(['Later', 'Reload']);
     expect(noticeDialog()).toContainElement(document.activeElement as HTMLElement);
-    expect(await axeResults(container)).toHaveNoViolations();
+    expect(await axeResults(document.body)).toHaveNoViolations();
   });
 
   it('keeps focus inside the dialog', async () => {

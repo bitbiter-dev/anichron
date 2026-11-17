@@ -246,6 +246,9 @@ describe('the install section', () => {
     Reflect.deleteProperty(navigator, 'maxTouchPoints');
   });
 
+  const iconName = (icon: SVGElement) => /lucide-([a-z-]+)$/.exec(icon.classList[1] ?? '')?.[1];
+  const shapeOf = (icon: SVGElement) =>
+    /rounded-(full|field)/.exec(icon.parentElement?.className ?? '')?.[1];
   const safariSteps = ['Tap Share', 'Tap Show More', 'Tap Add to Home Screen'];
   const showHow = () => screen.getByRole('button', { name: 'Show how to install' });
   const stepsDialog = () => screen.getByRole('dialog', { name: 'Install the app' });
@@ -260,16 +263,23 @@ describe('the install section', () => {
 
   it('shows the steps for Safari on an iPhone in a dialog, each with its icon', async () => {
     browsingOn(iPhone);
-    const { container } = await openSettings();
+    await openSettings();
     expect(within(section() as HTMLElement).getByRole('button')).toBe(showHow());
     expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
 
     await openSteps();
 
     expect(steps()).toEqual(safariSteps);
-    for (const step of within(stepsDialog()).getAllByRole('listitem'))
-      expect(step.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
-    expect(await axeResults(container)).toHaveNoViolations();
+    const icons = within(stepsDialog())
+      .getAllByRole('listitem')
+      .map((step) => step.querySelector('svg') as SVGElement);
+    for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(icons.map((icon) => [iconName(icon), shapeOf(icon)])).toEqual([
+      ['share', 'full'],
+      ['ellipsis', 'full'],
+      ['square-plus', 'field'],
+    ]);
+    expect(await axeResults(document.body)).toHaveNoViolations();
   });
 
   it.each([

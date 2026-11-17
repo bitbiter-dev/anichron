@@ -140,7 +140,12 @@ merge_once() {
   local watchdog status
   gh pr merge "$1" --squash --match-head-commit "$2" >/dev/null &
   merging=$!
-  (sleep "$merge_call_seconds" && kill "$merging") >/dev/null 2>&1 &
+  (
+    trap 'kill "$sleeper" 2>/dev/null' TERM
+    sleep "$merge_call_seconds" &
+    sleeper=$!
+    wait "$sleeper" && kill "$merging"
+  ) >/dev/null 2>&1 &
   watchdog=$!
   wait "$merging" && status=0 || status=$?
   kill "$watchdog" 2>/dev/null || true

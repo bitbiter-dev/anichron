@@ -4,20 +4,16 @@ import { kindOf } from './story-view';
 
 type MemoryAt = (place: Place) => Memory;
 
-function upcomingOf({ load, upcoming }: StoryState, memoryAt: MemoryAt) {
-  return load === 'loading' ? [] : upcoming.map(memoryAt);
-}
-
 export function createPrefetch(
-  memoryAt: MemoryAt,
+  previewAt: (place: Place) => string | null,
   prefetchPicture: (url: string) => Promise<boolean>,
 ) {
   const fetched = new Set<string>();
   const decoded = new Set<string | null>();
   return {
-    fetchAhead(state: StoryState) {
-      for (const { proxies } of upcomingOf(state, memoryAt)) {
-        const url = proxies.preview;
+    fetchAhead({ load, upcoming }: StoryState) {
+      if (load === 'loading') return;
+      for (const url of upcoming.map(previewAt)) {
         if (url && !fetched.has(url)) {
           fetched.add(url);
           void prefetchPicture(url).then((done) => {
@@ -26,7 +22,7 @@ export function createPrefetch(
         }
       }
     },
-    decoded: (url: string | null) => decoded.has(url),
+    decoded: (place: Place) => decoded.has(previewAt(place)),
   };
 }
 
