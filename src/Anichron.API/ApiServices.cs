@@ -14,7 +14,7 @@ public static class ApiServices
                 .ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict)
                 .AddOpenApi(options => options
                     .AddDocumentTransformer<ProblemCodeDocumentTransformer>()
-                    .AddDocumentTransformer<WorkItemEnumDocumentTransformer>())
+                    .AddDocumentTransformer<EnumDocumentTransformer>())
                 .AddApiProblems()
                 .AddDatabase(configuration)
                 .AddForwardedHeadersSupport(configuration)

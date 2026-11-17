@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { WorkItem, WorkItemPage } from '../../api/work-items';
 import { buttonStyles } from '../../shared/ui/Button';
 import { pageQuery } from './cache';
-import { Failed } from './Failed';
+import { Failed } from '../../shared/ui/Failed';
 import { Cancel, Progress } from './parts';
 import { at, cancellable, failureOf, pagesAround, statusOf } from './view';
 

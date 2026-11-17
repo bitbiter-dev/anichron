@@ -3,7 +3,7 @@ import { getRouteApi, useRouter } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { WorkItem } from '../../api/work-items';
 import { itemQuery } from './cache';
-import { Failed } from './Failed';
+import { Failed } from '../../shared/ui/Failed';
 import { Cancel, Progress } from './parts';
 import { at, cancellable, failureOf, resultFields, statusOf, timestamps } from './view';
 

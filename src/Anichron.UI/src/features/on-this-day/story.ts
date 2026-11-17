@@ -57,7 +57,9 @@ export type Story = Record<
   undo: (place: Place) => void;
 };
 
-const stillLive = { livePlay: false, liveShown: false, heldPlay: false } as const;
+function stillLive() {
+  return { livePlay: false, liveShown: false, heldPlay: false } as const;
+}
 
 export type SegmentState = 'seen' | 'playing' | 'next';
 
@@ -247,7 +249,7 @@ export function createStory(
   function rest() {
     update(() => {
       ended = true;
-      position = { ...position, ...stillLive };
+      position = { ...position, ...stillLive() };
     });
   }
 
@@ -299,7 +301,7 @@ export function createStory(
     },
     liveEnded() {
       update(() => {
-        position = { ...position, ...stillLive };
+        position = { ...position, ...stillLive() };
       });
     },
     replay() {
@@ -322,7 +324,7 @@ export function createStory(
     release() {
       update(() => {
         held = false;
-        if (position.heldPlay) position = { ...position, ...stillLive };
+        if (position.heldPlay) position = { ...position, ...stillLive() };
       });
     },
     toggleSound,

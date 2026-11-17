@@ -2379,7 +2379,7 @@ export interface components {
         AssetDto: {
             /** Format: uuid */
             id: string;
-            mediaType: string;
+            mediaType: components["schemas"]["PublishedMediaType"];
             /** Format: int32 */
             year: number;
             /** Format: int32 */
@@ -2500,6 +2500,8 @@ export interface components {
             /** Format: uuid */
             workItemId: string;
         };
+        /** @enum {string} */
+        PublishedMediaType: "Image" | "Video" | "LivePhoto";
         RefreshRequest: {
             refreshToken: string;
         };

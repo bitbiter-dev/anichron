@@ -2502,7 +2502,7 @@
             "format": "uuid"
           },
           "mediaType": {
-            "type": "string"
+            "$ref": "#/components/schemas/PublishedMediaType"
           },
           "year": {
             "type": "integer",
@@ -3008,6 +3008,14 @@
             "format": "uuid"
           }
         }
+      },
+      "PublishedMediaType": {
+        "enum": [
+          "Image",
+          "Video",
+          "LivePhoto"
+        ],
+        "type": "string"
       },
       "RefreshRequest": {
         "required": [
