@@ -48,6 +48,10 @@ _Avoid_: Timezone, location zone, offset
 An asset whose file records no capture date. It is kept and can be shown, but never appears in On This Day or a burst.
 _Avoid_: No date, unknown date
 
+**Storage config**:
+A folder on the NAS that an admin assigned to one user, whose photos and videos become that user's memories. A user without one has no memories to show.
+_Avoid_: Library, source, share, mount
+
 **Missing**:
 An asset whose file a complete crawl of its storage config did not find at its path.
 _Avoid_: Gone, lost, deleted
