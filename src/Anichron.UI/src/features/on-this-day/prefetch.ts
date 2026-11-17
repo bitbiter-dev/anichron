@@ -13,7 +13,7 @@ export function createPrefetch(
   prefetchPicture: (url: string) => Promise<boolean>,
 ) {
   const fetched = new Set<string>();
-  const decoded = new Set<string>();
+  const decoded = new Set<string | null>();
   return {
     fetchAhead(state: StoryState) {
       for (const { proxies } of upcomingOf(state, memoryAt)) {
@@ -26,7 +26,7 @@ export function createPrefetch(
         }
       }
     },
-    decoded: (url: string | null) => url !== null && decoded.has(url),
+    decoded: (url: string | null) => decoded.has(url),
   };
 }
 

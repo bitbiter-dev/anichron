@@ -2160,8 +2160,14 @@ describe('a blurhash', () => {
       expect(painted).toEqual([]);
     });
 
-    it('is shown for a memory whose preview could not be fetched ahead', async () => {
-      previewsNotPrefetched();
+    it.each([
+      ['refused', () => new HttpResponse(null, { status: 503 })],
+      ['not sent', () => HttpResponse.error()],
+      ['not decoded', () => undefined],
+    ])('is shown for a memory whose preview was %s ahead', async (how, answer) => {
+      server.use(proxyAnswers([], answer));
+      if (how === 'not decoded')
+        vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(new Error('broken'));
       threeYears();
       await openStory('/day/2026-11-11?year=2025');
       await shown();
@@ -2172,6 +2178,40 @@ describe('a blurhash', () => {
 
       expect(showing()).toBe(preview(ids.a2023));
       expect(canvas()).not.toBeNull();
+    });
+
+    it('still waits for a video to play', async () => {
+      threeYears({
+        mediaType: 'Video',
+        durationSeconds: 12,
+        proxies: {
+          thumbnail: `proxies/${ids.a2023}/thumbnail?v=0123456789abcdef`,
+          preview: `proxies/${ids.a2023}/preview?v=0123456789abcdef`,
+          video: `proxies/${ids.a2023}/video?v=0123456789abcdef`,
+        },
+      });
+      await openFetchingAhead();
+
+      fireEvent.click(button('Next'));
+      await advance(0);
+
+      expect(canvas()).not.toBeNull();
+      expect(segment(0).style.animationPlayState).toBe('paused');
+    });
+
+    it('fails a picture that breaks after its reload', async () => {
+      threeYears();
+      await openFetchingAhead();
+      fireEvent.click(button('Next'));
+      await advance(0);
+
+      fireEvent.error(picture());
+      await advance(0);
+      fireEvent.error(picture());
+      await advance(0);
+
+      expect(within(story()).getByText(failure)).toBeVisible();
+      expect(picture()).toBeNull();
     });
   });
 

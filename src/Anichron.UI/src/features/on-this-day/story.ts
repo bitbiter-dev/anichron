@@ -218,8 +218,8 @@ export function createStory(
     });
   }
 
-  function settle(visit: number, load: Load) {
-    if (visit === position.visit && position.load === 'loading')
+  function settle(visit: number, load: Load, from: readonly Load[] = ['loading']) {
+    if (visit === position.visit && from.includes(position.load))
       update(() => {
         position = { ...position, load };
         clock.set(lasting(position));
@@ -290,7 +290,7 @@ export function createStory(
       if (visit === position.visit) next(rest);
     },
     mediaFailed(visit) {
-      settle(visit, 'failed');
+      settle(visit, 'failed', position.kind === 'video' ? ['loading'] : ['loading', 'shown']);
     },
     livePlaying() {
       update(() => {
