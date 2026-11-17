@@ -104,6 +104,7 @@ async function wakeAfter(milliseconds: number, state: DocumentVisibilityState = 
 }
 
 beforeEach(() => {
+  vi.setSystemTime(new Date(2026, 10, 11, 8));
   server.use(everyoneHasMemories());
   refreshes = 0;
   bearers = [];
