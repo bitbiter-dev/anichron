@@ -106,7 +106,7 @@ Mutants that flip between runs:
 
 **Session:** before any route renders, the app refreshes once and holds the session and user in memory. `src/api/session.ts` renews it with one single-flight refresh on a schedule and when visible again. A `401` from refresh signs out; a `401` from logout refreshes and retries once. Other failed starts show `src/app/StartFailed.tsx`. Data calls live apart, one module per area (`docs/architecture/ui-api.md`).
 
-**Tabs:** login, refresh and logout run under one Web Lock, and signing in or out is announced on a `BroadcastChannel`, so every other tab starts again or signs out. Both go through the port in `src/api/tabs.ts`, composed in `main.tsx`; tests use `src/test/tabs.ts`.
+**Tabs:** login, refresh, logout and a password change run under one Web Lock, and signing in (a password change included) or out is announced on a `BroadcastChannel`, so every other tab starts again or signs out. Both go through the port in `src/api/tabs.ts`, composed in `main.tsx`; tests use `src/test/tabs.ts`.
 
 **Layout:** `src/app/` (entry, providers, `router.tsx`), `src/api/`, `src/i18n/`, `src/shared/`, `src/features/<name>/`, `src/test/`, `src/design/` (dev-only design page).
 

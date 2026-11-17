@@ -5,7 +5,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 ## Where calls live
 
 - `src/api/client.ts`: `createApiClient(tabs)` composes the router context's `api`, the session plus one module per area. Only `src/api/` touches the network (ESLint).
-- `src/api/session.ts`: every call that issues, renews or ends a session (`restore`, `login`, `logout`), the timer, visibility and tab handling, and the signed-in state.
+- `src/api/session.ts`: every call that issues, renews or ends a session (`restore`, `login`, `logout`, `changePassword`), the timer, visibility and tab handling, and the signed-in state.
 - `src/api/<area>.ts`: data calls, one module per area, created by its first caller. A data call is never a session method.
 
 ## Data calls

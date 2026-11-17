@@ -95,6 +95,28 @@ function routeTree() {
     staticData: { screen: { title: 'settings.title' } },
   });
 
+  const passwordRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: '/settings/password',
+    component: lazyRouteComponent(
+      () => import('../features/password/ChangePasswordPage'),
+      'ChangePasswordPage',
+    ),
+    staticData: { screen: { title: 'password.title', parent: '/settings' } },
+  });
+
+  const forcedPasswordRoute = createRoute({
+    getParentRoute: () => signedInRoute,
+    path: '/change-password',
+    beforeLoad: ({ context }) => {
+      if (!context.user.mustChangePassword) throw redirect({ href: '/' });
+    },
+    component: lazyRouteComponent(
+      () => import('../features/password/ChangePasswordPage'),
+      'ForcedPasswordPage',
+    ),
+  });
+
   const adminRoute = createRoute({
     getParentRoute: () => shellRoute,
     id: 'admin',
@@ -150,8 +172,10 @@ function routeTree() {
       shellRoute.addChildren([
         onThisDayRoute.addChildren([homeRoute, storyRoute]),
         settingsRoute,
+        passwordRoute,
         adminRoute.addChildren([workItemsRoute.addChildren([workItemListRoute, workItemRoute])]),
       ]),
+      forcedPasswordRoute,
     ]),
     loginRoute,
   ]);

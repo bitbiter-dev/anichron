@@ -37,7 +37,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 ## The shell
 
-The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays outside it.
+The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the forced password change stay outside it.
 
 - **Every screen** has the bottom bar: a floating glass pill on `env(safe-area-inset-bottom)`, or just above the edge without one (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
 - **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.

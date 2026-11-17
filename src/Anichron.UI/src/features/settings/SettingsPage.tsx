@@ -1,4 +1,4 @@
-import { Link, useRouter } from '@tanstack/react-router';
+import { Link, useRouter, type LinkProps } from '@tanstack/react-router';
 import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themes } from '../../shared/theme';
@@ -23,6 +23,7 @@ export function SettingsPage() {
       {useUser()?.isAdmin && <Administration />}
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
         <h2 className="font-semibold">{t('settings.account')}</h2>
+        <SettingsLink to="/settings/password">{t('settings.changePassword')}</SettingsLink>
         <Button
           variant="danger"
           onPress={() => void api.session.logout()}
@@ -40,12 +41,18 @@ function Administration() {
   return (
     <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
       <h2 className="font-semibold">{t('settings.administration')}</h2>
-      <Link
-        to="/admin/work-items"
-        className="self-start font-semibold text-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-      >
-        {t('settings.workItems')}
-      </Link>
+      <SettingsLink to="/admin/work-items">{t('settings.workItems')}</SettingsLink>
     </section>
+  );
+}
+
+function SettingsLink({ to, children }: { to: LinkProps['to']; children: string }) {
+  return (
+    <Link
+      to={to}
+      className="self-start font-semibold text-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+    >
+      {children}
+    </Link>
   );
 }
