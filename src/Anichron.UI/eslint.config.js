@@ -48,10 +48,10 @@ const importTime = [
   `${moduleScope} > ${typed}`,
   `${moduleScope} > ${typed} > ${typed}`,
 ]
-  .flatMap((value) => [
-    `${value} > :function`,
-    `${value} > :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], Literal[value=true], Literal[value=false])`,
-    `${value} > :matches(CallExpression, NewExpression) :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], :function)`,
+  .flatMap((parent) => [
+    `${parent} > :function`,
+    `${parent} > :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], Literal[value=true], Literal[value=false])`,
+    `${parent} > :matches(CallExpression, NewExpression) :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], :function)`,
   ])
   .map((selector) => ({
     selector,
