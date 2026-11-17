@@ -111,7 +111,8 @@ export async function loadStory(
   year: number,
 ) {
   const day = queryClient.getQueryData<Day>(dayKey(date));
-  const first = day?.years[startGroup(day.years, year)]?.memories[0]?.proxies.preview;
+  const group = day?.years[startGroup(day.years, year)];
+  const first = group && (group.memories[0] as Memory).proxies.preview;
   if (first) await api.media.loadPicture(first);
 }
 

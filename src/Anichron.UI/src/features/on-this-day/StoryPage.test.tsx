@@ -242,6 +242,18 @@ describe('opening a story', () => {
     expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
   });
 
+  it('opens a day already loaded without memories, waiting on no picture', async () => {
+    years = [];
+    const { router } = renderApp('/');
+    await screen.findByText('Nothing from this day in earlier years');
+
+    await act(() => router.navigate({ href: '/day/2026-11-11?year=2023' }));
+
+    expect(await screen.findByText('Nothing from this day in earlier years')).toBeVisible();
+    expect(router.state.location.href).toBe('/');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('closes at once on a day without memories', async () => {
     years = [];
     const { router } = renderApp('/day/2026-11-11?year=2023');

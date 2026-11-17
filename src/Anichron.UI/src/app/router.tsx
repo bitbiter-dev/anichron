@@ -82,7 +82,6 @@ function routeTree() {
     },
     loader: ({ context, params, location }) =>
       loadStory(context.api, context.queryClient, params.date, storySearch(location.search).year),
-    shouldReload: false,
     onLeave: ({ context, params }) =>
       void context.queryClient.invalidateQueries({ queryKey: dayKey(params.date) }),
     component: lazyRouteComponent(() => import('../features/on-this-day/StoryPage'), 'StoryPage'),
