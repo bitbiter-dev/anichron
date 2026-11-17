@@ -105,6 +105,12 @@ async function openLanding() {
   return rendered;
 }
 
+async function openLanding2023() {
+  const rendered = renderApp('/');
+  await screen.findByRole('link', { name: '3 years ago · 2023' });
+  return rendered;
+}
+
 async function openStory(path: string) {
   const rendered = renderApp(path);
   await screen.findByRole('dialog', { name: storyName });
@@ -184,6 +190,27 @@ describe('opening a story', () => {
     await advance(900_000);
 
     expect(received.filter((url) => url === preview(ids.a2023))).toHaveLength(1);
+  });
+
+  it('opens at once on a first memory without a picture, asking for none', async () => {
+    years = [
+      yearGroup(
+        2023,
+        memory(ids.a2023, 2023, { proxies: { thumbnail: null, preview: null, video: null } }),
+      ),
+    ];
+    const urls: string[] = [];
+    const record = ({ request }: { request: Request }) => {
+      urls.push(new URL(request.url).pathname);
+    };
+    server.events.on('request:start', record);
+    await openLanding2023();
+
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+    server.events.removeListener('request:start', record);
+    expect(urls.filter((path) => !path.startsWith('/api/'))).toEqual([]);
   });
 
   it('opens when the first picture cannot be loaded', async () => {
