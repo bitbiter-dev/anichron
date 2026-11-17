@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
-import { logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
+import { adminSession, logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
 import { everyoneHasMemories } from '../../test/handlers/flashbacks';
 import { themeColourTags } from '../../test/index-head';
 import { renderApp } from '../../test/render-app';
@@ -121,6 +121,8 @@ describe('the theme choice', () => {
     const { theme } = await openSettings();
     const keyboard = user();
     await keyboard.tab();
+    expect(screen.getByRole('link', { name: 'Change password' })).toHaveFocus();
+    await keyboard.tab();
     expect(theme('System')).toHaveFocus();
 
     await keyboard.keyboard('{ArrowRight}');
@@ -149,6 +151,50 @@ describe('the theme choice', () => {
 });
 
 describe('the account section', () => {
+  const cards = () => [...screen.getByRole('main').children];
+
+  it('comes first, showing who is signed in with a row to change the password', async () => {
+    const { container } = await openSettings();
+
+    const account = cards()[0] as HTMLElement;
+    expect(within(account).getByRole('heading', { level: 2, name: 'Account' })).toBeInTheDocument();
+    expect(account).toHaveTextContent(/^AccountMmiraChange password$/);
+    expect(within(account).queryByText('Admin')).toBeNull();
+    const change = within(account).getByRole('link', { name: 'Change password' });
+    expect(change).toHaveAttribute('href', '/settings/password');
+    expect(change.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('says Admin for an admin, whose work queue is a row too', async () => {
+    server.use(refreshSucceeds(adminSession));
+    renderApp('/settings');
+
+    const account = await screen.findByRole('region', { name: 'Account' });
+    expect(within(account).getByText('alice')).toBeVisible();
+    expect(within(account).getByText('Admin')).toBeVisible();
+    const queue = screen.getByRole('link', { name: 'Work queue' });
+    expect(queue).toHaveAttribute('href', '/admin/work-items');
+    expect(queue.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it.each(['light', 'dark'] as const)(
+    'ends with Sign out in a card of its own, readable in the %s theme',
+    async (name) => {
+      const { container, theme } = await openSettings();
+      fireEvent.click(theme(name === 'light' ? 'Light' : 'Dark'));
+
+      const last = cards().at(-1) as HTMLElement;
+      expect(
+        within(last)
+          .getAllByRole('button')
+          .map((b) => b.textContent),
+      ).toEqual(['Sign out']);
+      expect(last).toHaveTextContent(/^Sign out$/);
+      expect(await axeResults(container)).toHaveNoViolations();
+    },
+  );
+
   it('signs out at once, without asking first', async () => {
     let logouts = 0;
     server.use(logoutSucceeds(() => logouts++));

@@ -86,7 +86,8 @@
     "account": "Account",
     "administration": "Administration",
     "workItems": "Work queue",
-    "changePassword": "Change password"
+    "changePassword": "Change password",
+    "admin": "Admin"
   },
   "password": {
     "title": "Change password",
