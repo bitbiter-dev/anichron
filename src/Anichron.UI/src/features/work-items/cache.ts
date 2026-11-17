@@ -3,12 +3,14 @@ import type { ApiClient } from '../../api/client';
 import type { WorkItem, WorkItemPage } from '../../api/work-items';
 import { workItemsKey } from './route';
 
-const pagesKey = [...workItemsKey, 'page'] as const;
+function pagesKey() {
+  return [...workItemsKey(), 'page'] as const;
+}
 function pageKey(page: number) {
-  return [...pagesKey, page] as const;
+  return [...pagesKey(), page] as const;
 }
 function itemKey(id: string) {
-  return [...workItemsKey, 'item', id] as const;
+  return [...workItemsKey(), 'item', id] as const;
 }
 
 function instant(text: string) {
@@ -25,7 +27,7 @@ function requestedAfter(item: WorkItem, other: WorkItem) {
 
 function pagesOf(queryClient: QueryClient) {
   return queryClient
-    .getQueriesData<WorkItemPage>({ queryKey: pagesKey })
+    .getQueriesData<WorkItemPage>({ queryKey: pagesKey() })
     .flatMap(([, page]) => page ?? []);
 }
 
@@ -49,7 +51,7 @@ function inserted(page: WorkItemPage, item: WorkItem): WorkItemPage {
 export function merge(queryClient: QueryClient, item: WorkItem) {
   const known = pagesOf(queryClient).some((page) => page.items.some(({ id }) => id === item.id));
   queryClient.setQueriesData<WorkItemPage>(
-    { queryKey: pagesKey },
+    { queryKey: pagesKey() },
     (page) =>
       page && {
         ...page,

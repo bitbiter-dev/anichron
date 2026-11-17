@@ -48,12 +48,16 @@ _Avoid_: Timezone, location zone, offset
 An asset whose file records no capture date. It is kept and can be shown, but never appears in On This Day or a burst.
 _Avoid_: No date, unknown date
 
+**Storage config**:
+A folder on the NAS that an admin assigned to one user, whose photos and videos become that user's memories. A user without one has no memories to show.
+_Avoid_: Library, source, share, mount
+
 **Missing**:
 An asset whose file a complete crawl of its storage config did not find at its path.
 _Avoid_: Gone, lost, deleted
 
 **Soft-deleted**:
-An asset hidden from every view because its file is missing or its path now holds other content; the asset and the user's stars, likes and hidden flag are kept so it can come back.
+An asset hidden from every view because its file is missing, its path now holds other content, or it is a Live Photo's video whose photo now has another video; the asset and the user's stars, likes and hidden flag are kept so it can come back.
 _Avoid_: Trashed, archived, deleted
 
 **Auto-restore**:
@@ -67,3 +71,7 @@ _Avoid_: Hard delete, permanently delete, empty trash
 **Overwritten**:
 A file whose path now holds content that the same storage config already stores at another path, either as a copy of that file or because that file was moved there.
 _Avoid_: Replaced, clobbered
+
+**Superseded**:
+A Live Photo's video whose photo now has another video. It stays soft-deleted even while its file is still on the NAS, because it is never a memory of its own.
+_Avoid_: Replaced, orphaned video, let-go video

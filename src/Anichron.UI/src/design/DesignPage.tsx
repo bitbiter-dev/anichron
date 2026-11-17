@@ -178,7 +178,7 @@ function Components({ theme }: { theme: Theme }) {
           <TextField label="Username or email" defaultValue="mira" isDisabled />
         </State>
         <State name="invalid">
-          <TextField label="Username or email" error="login.errors.required" />
+          <TextField label="Username or email" error="errors.required" />
         </State>
       </States>
       <States title="Alert">
@@ -208,7 +208,7 @@ function Components({ theme }: { theme: Theme }) {
   );
 }
 
-const themeOptions = themeNames.map((value) => ({ value, label: value }));
+const themeOptions = themeNames().map((value) => ({ value, label: value }));
 
 function ThemeDemo() {
   const [value, setValue] = useState<ThemeName>('system');

@@ -12,12 +12,14 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
 import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
-import { dayKey, isCalendarDate, storySearch } from '../features/on-this-day/day';
+import { dayKey, isCalendarDate, loadStory, storySearch } from '../features/on-this-day/day';
 import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
+import type { Install } from './install';
 import { NotFound } from './NotFound';
+import type { Updates } from './register-service-worker';
 import { returnPath } from './return-path';
 import { Shell } from './Shell';
 import { SignedIn } from './SignedIn';
@@ -29,6 +31,8 @@ interface RouterContext {
   queryClient: QueryClient;
   back: Back;
   theme: ThemeChoice;
+  updates: Updates;
+  install: Install;
 }
 
 function routeTree() {
@@ -78,6 +82,16 @@ function routeTree() {
     beforeLoad: ({ params }) => {
       if (!isCalendarDate(params.date)) throw notFound({ routeId: rootRoute.id });
     },
+    loader: ({ cause, context, params, location }) =>
+      cause === 'enter'
+        ? loadStory(
+            context.api,
+            context.queryClient,
+            params.date,
+            storySearch(location.search).year,
+          )
+        : undefined,
+    gcTime: 0,
     onLeave: ({ context, params }) =>
       void context.queryClient.invalidateQueries({ queryKey: dayKey(params.date) }),
     component: lazyRouteComponent(() => import('../features/on-this-day/StoryPage'), 'StoryPage'),
@@ -93,6 +107,28 @@ function routeTree() {
     staticData: { screen: { title: 'settings.title' } },
   });
 
+  const passwordRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: '/settings/password',
+    component: lazyRouteComponent(
+      () => import('../features/password/ChangePasswordPage'),
+      'ChangePasswordPage',
+    ),
+    staticData: { screen: { title: 'password.title', parent: '/settings' } },
+  });
+
+  const forcedPasswordRoute = createRoute({
+    getParentRoute: () => signedInRoute,
+    path: '/change-password',
+    beforeLoad: ({ context }) => {
+      if (!context.user.mustChangePassword) throw redirect({ href: '/' });
+    },
+    component: lazyRouteComponent(
+      () => import('../features/password/ChangePasswordPage'),
+      'ForcedPasswordPage',
+    ),
+  });
+
   const adminRoute = createRoute({
     getParentRoute: () => shellRoute,
     id: 'admin',
@@ -105,7 +141,7 @@ function routeTree() {
     getParentRoute: () => adminRoute,
     path: '/admin/work-items',
     onLeave: ({ context }) => {
-      context.queryClient.removeQueries({ queryKey: workItemsKey });
+      context.queryClient.removeQueries({ queryKey: workItemsKey() });
     },
     component: lazyRouteComponent(
       () => import('../features/work-items/WorkItemsPage'),
@@ -148,8 +184,10 @@ function routeTree() {
       shellRoute.addChildren([
         onThisDayRoute.addChildren([homeRoute, storyRoute]),
         settingsRoute,
+        passwordRoute,
         adminRoute.addChildren([workItemsRoute.addChildren([workItemListRoute, workItemRoute])]),
       ]),
+      forcedPasswordRoute,
     ]),
     loginRoute,
   ]);
@@ -158,6 +196,8 @@ function routeTree() {
 export function createAppRouter(
   api: ApiClient,
   queryClient: QueryClient,
+  updates: Updates,
+  install: Install,
   history: RouterHistory = createBrowserHistory(),
 ) {
   const router = createRouter({
@@ -165,7 +205,14 @@ export function createAppRouter(
     history,
     scrollRestoration: true,
     defaultNotFoundComponent: NotFound,
-    context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
+    context: {
+      api,
+      queryClient,
+      back: createBack(history),
+      theme: createThemeChoice(),
+      updates,
+      install,
+    },
   });
   let userId: string | undefined;
   api.session.onChange(() => {

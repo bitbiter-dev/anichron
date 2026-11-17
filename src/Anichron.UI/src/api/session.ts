@@ -11,6 +11,7 @@ import type { TabMessage, Tabs } from './tabs';
 
 type Schemas = components['schemas'];
 export type LoginRequest = Schemas['LoginRequest'];
+export type ChangePasswordRequest = Schemas['ChangePasswordRequest'];
 export type User = Schemas['UserProfileResponse'];
 
 export interface Call<T> {
@@ -32,6 +33,7 @@ export interface Session {
   renewMedia(): Promise<void>;
   login(request: LoginRequest): Promise<void>;
   logout(): Promise<void>;
+  changePassword(request: ChangePasswordRequest): Promise<void>;
   user: () => User | undefined;
   isSignedIn: () => boolean;
   signedOut: () => boolean;
@@ -190,6 +192,14 @@ export function createSession(
       if ((await endOnServer()).status === 401 && (await refresh()).ok) await endOnServer();
       end();
       tabs.announce('signed-out');
+    },
+    async changePassword(body) {
+      open(
+        await authorized((init) =>
+          tabs.exclusively(() => client.POST('/api/v1/users/me/password', { ...init, body })),
+        ),
+      );
+      tabs.announce('signed-in');
     },
     user: () => user,
     isSignedIn: () => user !== undefined,

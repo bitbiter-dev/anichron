@@ -201,14 +201,14 @@ public sealed class WorkerServiceCollectionExtensionsTests
     // ==========================================================================
 
     [Fact]
-    public void AddWorkerHostedServices_MigratesFirstThenRunsTheWorkQueue()
+    public void AddWorkerHostedServices_InitializesFirstThenRunsTheWorkQueue()
     {
         var services = new ServiceCollection();
 
         services.AddWorkerHostedServices();
 
         services.Where(d => d.ServiceType == typeof(IHostedService)).Select(d => d.ImplementationType).Should().Equal(
-            typeof(DatabaseMigratorService), typeof(WorkerInitializer), typeof(WorkScheduler), typeof(WorkExecutor));
+            typeof(WorkerInitializer), typeof(WorkScheduler), typeof(WorkExecutor));
     }
 
     // ==========================================================================
@@ -261,7 +261,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
 
         var hosted = provider.GetServices<IHostedService>();
 
-        hosted.Should().HaveCount(4);
+        hosted.Should().HaveCount(3);
         provider.GetRequiredService<WorkHandlerRegistry>().Should().NotBeNull();
         using var scope = provider.CreateScope();
         provider.GetServices<WorkHandlerRegistration>().Select(r => r.Kind).Should().BeEquivalentTo(Enum.GetValues<WorkKind>());
@@ -365,7 +365,6 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IBurstRepository), typeof(EfBurstRepository) },
         { typeof(IProxyOrphanStore), typeof(EfProxyOrphanStore) },
         { typeof(ActiveStorageConfigs), typeof(ActiveStorageConfigs) },
-        { typeof(IDatabaseMigrator), typeof(EfDatabaseMigrator) },
         { typeof(IWorkQueue), typeof(EfWorkQueue) },
     };
 

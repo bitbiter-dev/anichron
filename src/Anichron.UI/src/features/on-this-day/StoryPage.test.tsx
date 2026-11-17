@@ -4,6 +4,7 @@ import { encode } from 'blurhash';
 import { http, HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
+import type { Memory } from '../../api/flashbacks';
 import { axeResults } from '../../test/axe';
 import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
@@ -104,6 +105,12 @@ async function openLanding() {
   return rendered;
 }
 
+async function openLanding2023() {
+  const rendered = renderApp('/');
+  await screen.findByRole('link', { name: '3 years ago · 2023' });
+  return rendered;
+}
+
 async function openStory(path: string) {
   const rendered = renderApp(path);
   await screen.findByRole('dialog', { name: storyName });
@@ -139,6 +146,84 @@ describe('opening a story', () => {
     expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
     expect(within(story()).getByText('3 years ago · 2023')).toBeVisible();
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('keeps the tapped year busy until its first picture is loaded, then opens on it', async () => {
+    let answerFirst: (answer: undefined) => void = () => undefined;
+    const received: string[] = [];
+    server.use(
+      proxyAnswers(received, (url) =>
+        url === preview(ids.a2023)
+          ? new Promise<undefined>((resolve) => {
+              answerFirst = resolve;
+            })
+          : undefined,
+      ),
+    );
+    await openLanding();
+    const tapped = screen.getByRole('link', { name: '3 years ago · 2023' });
+
+    fireEvent.click(tapped);
+    await vi.waitFor(() => {
+      expect(received).toContain(preview(ids.a2023));
+    });
+    await advance(5000);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('link', { name: '3 years ago · 2023' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    expect(received).not.toContain(preview(ids.a2021));
+    answerFirst(undefined);
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+    expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
+  });
+
+  it('loads the first picture only on opening, not again when the session renews', async () => {
+    const received: string[] = [];
+    server.use(proxyAnswers(received));
+    await openLanding();
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    await screen.findByRole('dialog', { name: storyName });
+
+    await advance(900_000);
+
+    expect(received.filter((url) => url === preview(ids.a2023))).toHaveLength(1);
+  });
+
+  it('opens at once on a first memory without a picture, asking for none', async () => {
+    years = [
+      yearGroup(
+        2023,
+        memory(ids.a2023, 2023, { proxies: { thumbnail: null, preview: null, video: null } }),
+      ),
+    ];
+    const urls: string[] = [];
+    const record = ({ request }: { request: Request }) => {
+      urls.push(new URL(request.url).pathname);
+    };
+    server.events.on('request:start', record);
+    await openLanding2023();
+
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+    server.events.removeListener('request:start', record);
+    expect(urls.filter((path) => !path.startsWith('/api/'))).toEqual([]);
+  });
+
+  it('opens when the first picture cannot be loaded', async () => {
+    server.use(
+      proxyAnswers([], (url) =>
+        url === preview(ids.a2023) ? new HttpResponse(null, { status: 404 }) : undefined,
+      ),
+    );
+    await openLanding();
+
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
   });
 
   it('opens a reload at the year group in the address, from its first memory', async () => {
@@ -198,6 +283,18 @@ describe('opening a story', () => {
     fireEvent.click(within(story()).getByRole('button', { name: 'Try again' }));
     await advance(0);
     expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
+  });
+
+  it('closes at once on a day already loaded without memories', async () => {
+    years = [];
+    const { router } = renderApp('/');
+    await screen.findByText('Nothing from this day in earlier years');
+
+    await act(() => router.navigate({ href: '/day/2026-11-11?year=2023' }));
+
+    expect(await screen.findByText('Nothing from this day in earlier years')).toBeVisible();
+    expect(router.state.location.href).toBe('/');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('closes at once on a day without memories', async () => {
@@ -2748,7 +2845,7 @@ describe('a story for a screen reader', () => {
   const named = (name: string) => within(story()).getByRole('img', { name });
 
   it('names each memory by its kind, year and place in its year group', async () => {
-    const withVideo = (id: string, mediaType: string) =>
+    const withVideo = (id: string, mediaType: Exclude<Memory['mediaType'], 'Image'>) =>
       memory(id, 2021, {
         mediaType,
         proxies: {
@@ -3442,6 +3539,39 @@ describe('a burst', () => {
     await openDetails();
     return rendered;
   }
+
+  it('opens again on the frame now its cover, once that is loaded', async () => {
+    renderApp('/');
+    fireEvent.click(await screen.findByRole('link', { name: '1 year ago · 2025' }));
+    await screen.findByRole('dialog', { name: storyName });
+    await shown();
+    await openDetails();
+    await user().click(detailsButton('Hide'));
+    await user().keyboard('{Escape}');
+    fireEvent.click(button('Close'));
+    await advance(5000);
+    expect(screen.queryByRole('dialog', { name: storyName })).toBeNull();
+    let answerCover: (answer: undefined) => void = () => undefined;
+    const received: string[] = [];
+    server.use(
+      proxyAnswers(received, (url) =>
+        url === preview(frameIds[1] as string)
+          ? new Promise<undefined>((resolve) => {
+              answerCover = resolve;
+            })
+          : undefined,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    await vi.waitFor(() => {
+      expect(received).toContain(preview(frameIds[1] as string));
+    });
+
+    expect(screen.queryByRole('dialog', { name: storyName })).toBeNull();
+    answerCover(undefined);
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+  });
 
   it('moves a frame with the arrow keys, stops at either end, and scrolls to it', async () => {
     await opened3();

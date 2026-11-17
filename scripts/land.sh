@@ -6,7 +6,8 @@
 #   1. merges origin/master, aborting on a conflict;
 #   2. marks the branch's open PR ready, waits for the runs that starts on the
 #      old head, then pushes (with no PR, it pushes and opens one ready; with
-#      nothing to push, it marks the PR ready again, which starts the runs);
+#      nothing to push, or an old head that conflicts with master and so gets
+#      no run, it pushes first and then marks the PR ready);
 #   3. waits for both runs and every required check, and squash-merges;
 #   4. removes the worktree and the local branch. GitHub deletes the remote
 #      branch on merge.
@@ -113,6 +114,12 @@ ready_since() {
   done
 }
 
+# Whether <sha> merges into origin/master cleanly: GitHub starts no
+# pull_request run on a head that conflicts with its base.
+merges_cleanly() {
+  git merge-tree --write-tree --quiet origin/master "$1" >/dev/null 2>&1
+}
+
 # Waits until <workflow> has a run on <sha> created since <since>.
 await_started() {
   local workflow="$1" sha="$2" since="$3" runs
@@ -197,19 +204,7 @@ main() {
     [[ "$number" =~ ^[0-9]+$ ]] || die "cannot read the PR number from '$url'"
   fi
   trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
-  if [ -z "$url" ] && [ "$remote" != "$sha" ]; then
-    if [ "$draft" = true ]; then
-      events=$(ready_events "$number") || back_to_draft "Its events could not be read."
-      seen=$(grep -c . <<<"$events" || true)
-      gh_retry pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
-      ready_since "$number" "$seen" "$deadline" || back_to_draft 'Its ready event could not be read.'
-      await_started ci.yml "$remote" "$since" && await_started codeql.yml "$remote" "$since" \
-        || back_to_draft 'Its ready runs on the old head never started.'
-      since=''
-    fi
-    git push --quiet --set-upstream origin "$branch" || back_to_draft "Pushing $branch failed."
-    say "pushed $branch"
-  elif [ -z "$url" ]; then
+  make_ready() {
     events=$(ready_events "$number") || back_to_draft "Its events could not be read."
     seen=$(grep -c . <<<"$events" || true)
     if [ "$draft" != true ]; then
@@ -217,6 +212,21 @@ main() {
     fi
     gh_retry pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
     ready_since "$number" "$seen" "$deadline" || back_to_draft 'Its ready event could not be read.'
+  }
+
+  if [ -z "$url" ] && [ "$remote" != "$sha" ]; then
+    if [ "$draft" = true ] && merges_cleanly "$remote"; then
+      make_ready
+      await_started ci.yml "$remote" "$since" && await_started codeql.yml "$remote" "$since" \
+        || back_to_draft 'Its ready runs on the old head never started.'
+      since=''
+      draft=false
+    fi
+    git push --quiet --set-upstream origin "$branch" || back_to_draft "Pushing $branch failed."
+    say "pushed $branch"
+    [ "$draft" != true ] || make_ready
+  elif [ -z "$url" ]; then
+    make_ready
   fi
   say "PR #$number is ready at $sha; waiting for CI and CodeQL"
 

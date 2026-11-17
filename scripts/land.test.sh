@@ -209,6 +209,15 @@ touch "$work/state/no-runs-on-$head0"
 out=$(land); status=$?
 check 'ready runs that never start on the old head stop it before the push' "[ $status -eq 1 ] && [[ \"\$out\" == *'never started'* ]] && [ \"\$(git -C '$work/origin.git' rev-parse feature)\" = '$head0' ]" "exit $status: $out"
 
+setup '{"number":7,"state":"OPEN","isDraft":true}' success conflict
+git_as_mira -C "$work/wt" push -q origin feature 2>/dev/null
+git_as_mira -C "$work/wt" pull -q --no-rebase --no-edit origin master 2>/dev/null
+printf 'resolved\n' >"$work/wt/shared.txt"
+git_as_mira -C "$work/wt" commit -q -am 'resolve master'
+touch "$work/state/no-runs-on-$head0"
+out=$(land); status=$?
+check 'an old head that conflicts with master, which GitHub starts no run on, is pushed before the PR is marked ready' "[ $status -eq 0 ] && [ \"\$(cat '$work/state/pushed-at-ready')\" = \"branch at ready: \$(git -C '$work/origin.git' rev-parse feature)\" ] && [[ \"\$(calls)\" != *'--commit $head0'* ]] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
+
 setup '{"number":7,"state":"OPEN","isDraft":false}' success
 touch "$work/state/run-list-fails"
 out=$(land); status=$?

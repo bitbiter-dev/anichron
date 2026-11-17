@@ -5,7 +5,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 ## Where calls live
 
 - `src/api/client.ts`: `createApiClient(tabs)` composes the router context's `api`, the session plus one module per area. Only `src/api/` touches the network (ESLint).
-- `src/api/session.ts`: every call that issues, renews or ends a session (`restore`, `login`, `logout`), the timer, visibility and tab handling, and the signed-in state.
+- `src/api/session.ts`: every call that issues, renews or ends a session (`restore`, `login`, `logout`, `changePassword`), the timer, visibility and tab handling, and the signed-in state.
 - `src/api/<area>.ts`: data calls, one module per area, created by its first caller. A data call is never a session method.
 
 ## Data calls
@@ -14,7 +14,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 - A refresh that fails without signing out throws `SessionNotRenewed`, and the query retry predicate (`src/app/query-client.ts`) stops on it.
 - Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`, reused by `bursts.ts`).
 - An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more; a second error is a failure (`features/on-this-day/media.ts`). See "The refresh rules".
-- `src/api/media.ts` prefetches a picture: it fetches the proxy URL, then decodes it with `new Image()`, which reads the HTTP cache (proxy URLs are immutable). A refused or failed prefetch is dropped; the `<img>` that shows it later recovers as above. The story calls it for the memories ahead of the one showing (`features/on-this-day/prefetch.ts`, `story.ts`).
+- `src/api/media.ts` loads a picture: it fetches the proxy URL, then decodes it with `new Image()`, which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above. A story opens once its first memory has loaded (`loadStory` in `features/on-this-day/day.ts`), and prefetches the memories ahead (`prefetch.ts`).
 - `media.videos()` keeps a story's Live Photo videos in memory as object URLs: the ones around the memory showing, each fetched once, freed when they leave that window or the story closes. A refused fetch plays from the network instead (`features/on-this-day/prefetch.ts`, `use-story.ts`).
 
 ## The event stream
@@ -34,6 +34,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 - A call the server refuses or cannot answer throws `ProblemError`, carrying the UI's `Problem` (`src/api/problem.ts`).
 - `problemOf(error)` reads it, and anything else becomes the generic problem. A screen keys its messages by `ErrorCode`.
+- A screen whose data fails to load shows `shared/ui/Failed.tsx` with its own "failed" message, or the shared "unreachable" one (`failureMessage`, `src/shared/failure.ts`).
 
 ## The refresh rules
 

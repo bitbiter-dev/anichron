@@ -64,7 +64,7 @@ function Retry({ label, retry }: FailedDay) {
   return (
     <Button onPress={retry} aria-label={t('onThisDay.retryDay', { day: label })} className={item}>
       <span className={`${circle} bg-accent px-1 font-semibold text-on-accent`}>
-        {t('onThisDay.retry')}
+        {t('failure.retry')}
       </span>
       {label}
     </Button>
