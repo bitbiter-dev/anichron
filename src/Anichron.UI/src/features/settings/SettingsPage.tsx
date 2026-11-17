@@ -2,13 +2,13 @@ import { Link, useRouter, type LinkProps } from '@tanstack/react-router';
 import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themes } from '../../shared/theme';
-import { Button } from '../../shared/ui/Button';
+import { SignOutButton } from '../../shared/ui/SignOutButton';
 import { useUser } from '../../shared/use-user';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 
 export function SettingsPage() {
   const { t } = useTranslation();
-  const { api, theme } = useRouter().options.context;
+  const { theme } = useRouter().options.context;
   return (
     <main className="flex flex-col gap-6 p-4">
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
@@ -24,13 +24,7 @@ export function SettingsPage() {
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
         <h2 className="font-semibold">{t('settings.account')}</h2>
         <SettingsLink to="/settings/password">{t('settings.changePassword')}</SettingsLink>
-        <Button
-          variant="danger"
-          onPress={() => void api.session.logout()}
-          className="self-start px-0"
-        >
-          {t('settings.signOut')}
-        </Button>
+        <SignOutButton />
       </section>
     </main>
   );

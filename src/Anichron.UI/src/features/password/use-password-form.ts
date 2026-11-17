@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
 import { fieldCodes, problemOf, type ValidationCode } from '../../api/problem';
 import { useCountdown } from '../../shared/use-countdown';
-import { messageKey } from './messages';
+import { messageKey } from '../../shared/messages';
+import { passwordMessages } from './messages';
 
 function passwordSchema() {
   const required = z.minLength(1, { error: 'required' satisfies ValidationCode });
@@ -61,8 +62,9 @@ export function usePasswordForm() {
     control,
     onSubmit,
     changed,
-    formError: errors.root && messageKey(errors.root.message),
-    fieldError: (field: keyof PasswordFields) => errors[field] && messageKey(errors[field].message),
+    formError: errors.root && messageKey(errors.root.message, passwordMessages()),
+    fieldError: (field: keyof PasswordFields) =>
+      errors[field] && messageKey(errors[field].message, passwordMessages()),
     retryIn: countdown.remaining,
     blocked: isSubmitting || countdown.remaining > 0,
   };

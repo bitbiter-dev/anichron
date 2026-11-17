@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
 import { fieldCodes, problemOf, type ValidationCode } from '../../api/problem';
 import { useCountdown } from '../../shared/use-countdown';
-import { messageKey } from './messages';
+import { messageKey } from '../../shared/messages';
+import { loginMessages } from './messages';
 
 function loginSchema() {
   const required = z.minLength(1, { error: 'required' satisfies ValidationCode });
@@ -42,9 +43,9 @@ export function useLoginForm() {
   return {
     control,
     onSubmit,
-    formError: errors.root && messageKey(errors.root.message),
+    formError: errors.root && messageKey(errors.root.message, loginMessages()),
     fieldError: (field: (typeof fields)[number]) =>
-      errors[field] && messageKey(errors[field].message),
+      errors[field] && messageKey(errors[field].message, loginMessages()),
     retryIn: countdown.remaining,
     blocked: isSubmitting || countdown.remaining > 0,
   };
