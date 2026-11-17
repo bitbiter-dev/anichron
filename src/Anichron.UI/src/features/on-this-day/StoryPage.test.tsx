@@ -164,14 +164,29 @@ describe('opening a story', () => {
     await advance(5000);
 
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(tapped).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('link', { name: '3 years ago · 2023' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     expect(received).not.toContain(preview(ids.a2021));
     answerFirst(undefined);
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
     expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
   });
 
-  it('opens on its failed state when the first picture cannot be loaded', async () => {
+  it('loads the first picture only on opening, not again when the session renews', async () => {
+    const received: string[] = [];
+    server.use(proxyAnswers(received));
+    await openLanding();
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    await screen.findByRole('dialog', { name: storyName });
+
+    await advance(900_000);
+
+    expect(received.filter((url) => url === preview(ids.a2023))).toHaveLength(1);
+  });
+
+  it('opens when the first picture cannot be loaded', async () => {
     server.use(
       proxyAnswers([], (url) =>
         url === preview(ids.a2023) ? new HttpResponse(null, { status: 404 }) : undefined,
@@ -243,7 +258,7 @@ describe('opening a story', () => {
     expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
   });
 
-  it('opens a day already loaded without memories, waiting on no picture', async () => {
+  it('closes at once on a day already loaded without memories', async () => {
     years = [];
     const { router } = renderApp('/');
     await screen.findByText('Nothing from this day in earlier years');
@@ -3497,6 +3512,39 @@ describe('a burst', () => {
     await openDetails();
     return rendered;
   }
+
+  it('opens again on the frame now its cover, once that is loaded', async () => {
+    renderApp('/');
+    fireEvent.click(await screen.findByRole('link', { name: '1 year ago · 2025' }));
+    await screen.findByRole('dialog', { name: storyName });
+    await shown();
+    await openDetails();
+    await user().click(detailsButton('Hide'));
+    await user().keyboard('{Escape}');
+    fireEvent.click(button('Close'));
+    await advance(5000);
+    expect(screen.queryByRole('dialog', { name: storyName })).toBeNull();
+    let answerCover: (answer: undefined) => void = () => undefined;
+    const received: string[] = [];
+    server.use(
+      proxyAnswers(received, (url) =>
+        url === preview(frameIds[1] as string)
+          ? new Promise<undefined>((resolve) => {
+              answerCover = resolve;
+            })
+          : undefined,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    await vi.waitFor(() => {
+      expect(received).toContain(preview(frameIds[1] as string));
+    });
+
+    expect(screen.queryByRole('dialog', { name: storyName })).toBeNull();
+    answerCover(undefined);
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+  });
 
   it('moves a frame with the arrow keys, stops at either end, and scrolls to it', async () => {
     await opened3();

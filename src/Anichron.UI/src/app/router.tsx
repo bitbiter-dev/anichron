@@ -80,8 +80,16 @@ function routeTree() {
     beforeLoad: ({ params }) => {
       if (!isCalendarDate(params.date)) throw notFound({ routeId: rootRoute.id });
     },
-    loader: ({ context, params, location }) =>
-      loadStory(context.api, context.queryClient, params.date, storySearch(location.search).year),
+    loader: ({ cause, context, params, location }) =>
+      cause === 'enter'
+        ? loadStory(
+            context.api,
+            context.queryClient,
+            params.date,
+            storySearch(location.search).year,
+          )
+        : undefined,
+    gcTime: 0,
     onLeave: ({ context, params }) =>
       void context.queryClient.invalidateQueries({ queryKey: dayKey(params.date) }),
     component: lazyRouteComponent(() => import('../features/on-this-day/StoryPage'), 'StoryPage'),
