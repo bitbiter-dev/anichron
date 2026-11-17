@@ -217,6 +217,26 @@ it('offers nothing for a version that failed to install', async () => {
   expect(changed).not.toHaveBeenCalled();
 });
 
+it('offers a version the browser was already installing when the registration resolved', async () => {
+  const worker = new FakeWorker();
+  registration.installing = worker;
+  const updates = await registered();
+
+  registration.installed(worker);
+
+  expect(updates.waiting()).toBe(true);
+});
+
+it('offers nothing to a page no version controls, as nothing would take it over', async () => {
+  container.controller = null;
+  registration.waiting = new FakeWorker();
+
+  const updates = await registered();
+  registration.installed(registration.found());
+
+  expect(updates.waiting()).toBe(false);
+});
+
 it('tells no one once they stop listening', async () => {
   const updates = await registered();
   const changed = vi.fn();

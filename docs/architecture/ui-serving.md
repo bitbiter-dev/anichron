@@ -42,7 +42,7 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 - **Never routed:** every request under `/api`, navigation or not, and every file not precached. They go to the network, and the service worker caches none of them.
 - **No media cache.** Media relies on the browser's HTTP cache, where a current proxy URL is `immutable` (`media-reads.md`). The UI requests only the proxy URLs the API listed for the signed-in user, so the cache never shows one user's media to another, and cache limits and videos are not the service worker's concern.
 - With no network, the precached frame starts and the start-up refresh fails as unreachable (`StartFailed`).
-- **Updates:** `register-service-worker.ts` checks for a new version at start and when the page becomes visible, at most once an hour. It offers a version that installed while an older one is in charge, and returns the port the router context carries as `updates`.
+- **Updates:** `register-service-worker.ts` checks for a new version at start and when the page becomes visible, no more often than `checkMilliseconds`. It offers a version that installed while an older one controls the page, and returns the port the router context carries as `updates`.
 - A waiting version never activates by itself. The shell's `UpdateNotice` shows above the bottom bar, except while a story is open. Reload posts the take-over message (`take-over.ts`) and reloads once the new version controls the page.
 
 ## Security headers

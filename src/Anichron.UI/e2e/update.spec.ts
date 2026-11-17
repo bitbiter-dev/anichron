@@ -34,7 +34,9 @@ test('an open app offers a new build served behind the same origin, and reloads 
 
   await expect(page.getByText(notice)).toBeVisible();
   await expectAccessible(page);
+  await page.evaluate(() => Object.assign(window, { beforeReload: true }));
   await page.getByRole('button', { name: 'Reload' }).click();
+  await page.waitForFunction(() => !('beforeReload' in window));
   await expect(page.getByRole('heading', signedIn)).toBeVisible();
   await expect(page.getByText(notice)).toBeHidden();
 });
