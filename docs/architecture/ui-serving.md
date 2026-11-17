@@ -32,7 +32,7 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 - The PNGs are exported from the SVG once and committed through Git LFS, not built. A new icon means exporting all four again: Playwright's Chromium at device scale 1, the SVG in an `<img>` of N × N px, a screenshot of that clip.
 - One icon serves iOS and Android. It is opaque and full bleed, with the sun and its reflection inside the centred 80% circle a maskable crop keeps.
 - `index.html` links the manifest and the touch icon, with one `theme-color` per colour scheme (the two surface colours). The manifest takes the dark surface.
-- **Installing:** only Settings offers it, never a banner. `src/app/install.ts` keeps the browser's install prompt from start-up and decides the offer (iOS steps, Android steps, the prompt, or none when running standalone). The router context carries it as `install`.
+- **Installing:** only Settings offers it, never a banner. `src/app/install.ts` keeps the browser's install prompt from start-up and decides the offer. The router context carries it as `install`.
 
 ## Service worker
 

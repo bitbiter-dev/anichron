@@ -209,6 +209,15 @@ describe('the install section', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
+  it('explains the same steps on an iPad asking for the mobile site', async () => {
+    browsingOn(
+      'Mozilla/5.0 (iPad; CPU OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1',
+    );
+    await openSettings();
+
+    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+  });
+
   it('explains the same steps on an iPad, which Safari presents as a Mac', async () => {
     browsingOn(mac, 5);
     await openSettings();
@@ -328,5 +337,29 @@ describe('the install section', () => {
     expect(prompt.prompt).toHaveBeenCalledOnce();
     expect(section()).not.toHaveTextContent('To install Anichron');
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('asks the browser only once while its prompt is open', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    const prompt = offerPrompt('dismissed');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+
+    expect(prompt.prompt).toHaveBeenCalledOnce();
+    expect(await screen.findByText(/open the browser menu/)).toBeVisible();
+  });
+
+  it('disappears once the browser installs the app from its own menu', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    offerPrompt();
+
+    act(() => {
+      window.dispatchEvent(new Event('appinstalled'));
+    });
+
+    expect(section()).toBeNull();
   });
 });

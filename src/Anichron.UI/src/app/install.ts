@@ -19,36 +19,47 @@ function installed() {
   );
 }
 
-function on(platform: RegExp) {
+function userAgentHas(platform: RegExp) {
   return platform.test(navigator.userAgent);
 }
 
 function onIos() {
-  return on(/iPhone/) || (on(/Macintosh/) && navigator.maxTouchPoints > 0);
+  return userAgentHas(/iPhone|iPad/) || (userAgentHas(/Macintosh/) && navigator.maxTouchPoints > 0);
 }
 
 export function keepInstallPrompt() {
   const changes = new EventTarget();
   let button: InstallButton | undefined;
-  let accepted = false;
+  let installedHere = false;
   const offerButton = (offered: InstallButton | undefined) => {
     button = offered;
     changes.dispatchEvent(new Event('change'));
   };
   const answer = async (prompt: InstallPrompt) => {
     await prompt.prompt();
-    accepted = (await prompt.userChoice).outcome === 'accepted';
+    installedHere = (await prompt.userChoice).outcome === 'accepted';
     offerButton(undefined);
   };
   listen(window, 'beforeinstallprompt', (event) => {
     event.preventDefault();
-    offerButton({ install: () => void answer(event as InstallPrompt) });
+    let asked = false;
+    offerButton({
+      install: () => {
+        if (asked) return;
+        asked = true;
+        void answer(event as InstallPrompt);
+      },
+    });
+  });
+  listen(window, 'appinstalled', () => {
+    installedHere = true;
+    offerButton(undefined);
   });
   return {
     offer: (): InstallOffer => {
-      if (accepted || installed()) return 'none';
+      if (installedHere || installed()) return 'none';
       if (onIos()) return 'ios';
-      return button ?? (on(/Android/) ? 'android' : 'none');
+      return button ?? (userAgentHas(/Android/) ? 'android' : 'none');
     },
     subscribe: (listener: () => void) => listen(changes, 'change', listener),
   };
