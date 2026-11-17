@@ -13,16 +13,17 @@ import { createAppRouter } from './router';
 // The CSP forbids the eval that zod probes for.
 z.config({ jitless: true });
 
+const updates = registerServiceWorker(import.meta.env.PROD, () => {
+  location.reload();
+});
 const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
     <StrictMode>
       <App
-        router={createAppRouter(createApiClient(browserTabs()), createQueryClient())}
+        router={createAppRouter(createApiClient(browserTabs()), createQueryClient(), updates)}
         i18n={createI18n()}
       />
     </StrictMode>,
   );
 }
-
-registerServiceWorker(import.meta.env.PROD);
