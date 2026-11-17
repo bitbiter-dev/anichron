@@ -1,7 +1,9 @@
 import { listen } from './listen';
 
-export const themes = ['system', 'light', 'dark'] as const;
-export type Theme = (typeof themes)[number];
+export function themes() {
+  return ['system', 'light', 'dark'] as const;
+}
+export type Theme = ReturnType<typeof themes>[number];
 export type ThemeChoice = ReturnType<typeof createThemeChoice>;
 
 function storageKey() {
@@ -15,7 +17,7 @@ export function themeColour() {
 export function storedTheme(): Theme {
   try {
     const stored = localStorage.getItem(storageKey());
-    return themes.find((theme) => theme === stored) ?? 'system';
+    return themes().find((theme) => theme === stored) ?? 'system';
   } catch {
     return 'system';
   }

@@ -21,7 +21,8 @@ pnpm --dir src/Anichron.UI install
 
 ```bash
 dotnet build
-docker-compose -f src/docker-compose.yml up      # API + Worker + PostgreSQL
+docker-compose -f src/docker-compose.yml up      # PostgreSQL, the one-shot migrate, API + Worker
+dotnet run --project src/Anichron.API -- migrate # migrate and seed, before the hosts
 dotnet run --project src/Anichron.API            # http://localhost:5207
 dotnet run --project src/Anichron.Worker
 ```
@@ -150,7 +151,7 @@ Mutants that flip between runs:
 - **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exceptions: refresh rotation runs its own transaction (`EfRefreshTokenRepository.RotateAsync`, ADR 0017), and the Worker's `TokenCleanup` handler deletes expired refresh tokens.
 - **Work items** are inserted only through `IWorkQueue`. The API's only other write to them is an admin's cancel (`IWorkItemCanceller`). Handlers live only in the Worker (`work-queue.md`). Raw SQL naming the table is beyond the architecture rules and is for review.
 - **Proxy orphans** are written only by the Worker (`only-worker-writes-proxy-orphans`).
-- Both hosts migrate at startup under a PostgreSQL advisory lock.
+- The API's web host never touches the database at start-up (`WebHostStartTests`), and the Worker never migrates. The API image's `migrate` command (compose's one-shot `anichron-migrate`, which the hosts wait for) migrates under a PostgreSQL advisory lock, seeds the bootstrap admin and applies `ADMIN_RESET_PASSWORD`.
 
 ### Storage Layout
 

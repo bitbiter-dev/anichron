@@ -1,12 +1,14 @@
 {
+  "failure": {
+    "unreachable": "Can't reach Anichron. Check your connection.",
+    "retry": "Try again"
+  },
   "onThisDay": {
     "title": "On This Day",
     "yearsAgo_one": "{{count}} year ago · {{year}}",
     "yearsAgo_other": "{{count}} years ago · {{year}}",
     "nothing": "Nothing from this day in earlier years",
-    "unreachable": "Can't reach Anichron. Check your connection.",
     "failed": "Couldn't load this day.",
-    "retry": "Try again",
     "retryDay": "Try again, {{day}}",
     "recentDays": "Recent days",
     "yesterday": "Yesterday",
@@ -134,8 +136,6 @@
     "reconnecting": "Reconnecting…",
     "empty": "Nothing in the queue.",
     "failed": "Couldn't load the work queue.",
-    "unreachable": "Can't reach Anichron. Check your connection.",
-    "retry": "Try again",
     "pages": "Pages",
     "newer": "Newer",
     "older": "Older",

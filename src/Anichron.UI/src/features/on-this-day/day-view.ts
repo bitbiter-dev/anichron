@@ -1,24 +1,17 @@
 import type { UseQueryResult } from '@tanstack/react-query';
+import type { ParseKeys } from 'i18next';
 import type { Day, Memory, YearGroup } from '../../api/flashbacks';
-import { problemOf } from '../../api/problem';
+import { failureMessage } from '../../shared/failure';
 
 export interface DayView {
   years?: YearGroup[];
   empty?: true;
-  failure?: FailureKey;
-}
-
-type FailureKey = 'onThisDay.unreachable' | 'onThisDay.failed';
-
-function failureKey(error: unknown): FailureKey {
-  return problemOf(error).code === 'service_unavailable'
-    ? 'onThisDay.unreachable'
-    : 'onThisDay.failed';
+  failure?: ParseKeys;
 }
 
 export function dayView({ data, error }: UseQueryResult<Day>): DayView {
   if (data) return data.years.length > 0 ? { years: data.years } : { empty: true };
-  return error ? { failure: failureKey(error) } : {};
+  return error ? { failure: failureMessage(error, 'onThisDay.failed') } : {};
 }
 
 export function thumbnailOf(group: YearGroup) {

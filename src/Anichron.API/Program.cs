@@ -2,6 +2,12 @@ using Anichron.API;
 using Anichron.API.Infrastructure;
 using Microsoft.Extensions.Options;
 
+if (args is [DatabaseStartupExtensions.MigrateCommand, .. var migrateArgs])
+{
+    await DatabaseStartupExtensions.MigrateAndSeedAsync(migrateArgs);
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 builder.AddAppConfiguration();
 builder.Services.AddApiSurface(builder.Configuration);
@@ -24,5 +30,4 @@ app.UseAuthorization();
 app.MapApiEndpoints();
 
 app.Services.GetRequiredService<IStartupValidator>().Validate();
-await app.MigrateAndSeedDatabaseAsync(app.Lifetime.ApplicationStopping);
 await app.RunAsync();

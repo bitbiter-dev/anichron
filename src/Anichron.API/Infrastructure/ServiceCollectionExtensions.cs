@@ -102,14 +102,10 @@ public static class ServiceCollectionExtensions
                 .Bind(configuration.GetSection("Jwt"))
                 .ValidateOnStart();
             services.AddSingleton<IValidateOptions<JwtSettings>, JwtSettingsValidator>();
-            services.Configure<PasswordPolicy>(configuration.GetSection("PasswordPolicy"));
-            services.Configure<UsernamePolicy>(configuration.GetSection("UsernamePolicy"));
+            services.AddUserWrites(configuration);
             services.AddSingleton<IClock>(SystemClock.Instance);
             services.AddSingleton(DateTimeZoneProviders.Tzdb.GetSystemDefault());
-            services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
             services.AddSingleton<IJwtFactory, JwtFactory>();
-            services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
-            services.AddScoped<IUserRepository, EfUserRepository>();
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IInviteRepository, EfInviteRepository>();
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
@@ -118,9 +114,6 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAssetInteractionWriter, EfAssetInteractionWriter>();
             services.AddSingleton<IProxyStore, ProxyStore>();
             services.AddSingleton<IOriginalStore, OriginalStore>();
-            // AnichronDbContext is already scoped via AddDbContext; reuse the same instance for IUnitOfWork
-            services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
-            services.AddScoped<IRegistrationValidator, RegistrationValidator>();
             services.AddScoped<ILockoutService, LockoutService>();
             // Stryker disable once Statement
             services.AddSingleton(TimeProvider.System);
@@ -130,11 +123,9 @@ public static class ServiceCollectionExtensions
                     "Login:FailureFloorMilliseconds", AppDefaults.Login.FailureFloorMilliseconds))));
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IAuthService, AuthService>();
-            services.AddTransient<IBootstrapSeeder, BootstrapSeeder>();
             services.AddScoped<IAdminResetService, AdminResetService>();
             services.AddScoped<IAdminUserService, AdminUserService>();
             services.AddScoped<IAdminStorageConfigService, AdminStorageConfigService>();
-            services.AddTransient<IBootstrapResetService, BootstrapResetService>();
 
             var sameSite = CorsOrigins.RefreshCookieSameSite(CorsOrigins.Read(configuration));
             services.AddSingleton(provider =>
@@ -148,6 +139,30 @@ public static class ServiceCollectionExtensions
                 };
             });
 
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+            services.AddJwtValidation(JwtBearerDefaults.AuthenticationScheme);
+
+            return services;
+        }
+
+        public IServiceCollection AddBootstrapAdmin(IConfiguration configuration)
+        {
+            services.AddUserWrites(configuration);
+            services.AddTransient<IBootstrapSeeder, BootstrapSeeder>();
+            services.AddTransient<IBootstrapResetService, BootstrapResetService>();
+            return services;
+        }
+
+        private void AddUserWrites(IConfiguration configuration)
+        {
+            services.Configure<PasswordPolicy>(configuration.GetSection("PasswordPolicy"));
+            services.Configure<UsernamePolicy>(configuration.GetSection("UsernamePolicy"));
+            services.AddSingleton<IGuidFactory, TimeOrderedGuidFactory>();
+            services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
+            services.AddScoped<IUserRepository, EfUserRepository>();
+            services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
+            services.AddScoped<IRegistrationValidator, RegistrationValidator>();
+
             services.AddHttpClient<IPwnedPasswordClient, PwnedPasswordClient>(client =>
             {
                 client.BaseAddress = new Uri(AppDefaults.Pwned.Url);
@@ -158,11 +173,6 @@ public static class ServiceCollectionExtensions
                 options.TotalRequestTimeout.Timeout = timeout;
                 options.AttemptTimeout.Timeout = timeout;
             });
-
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
-            services.AddJwtValidation(JwtBearerDefaults.AuthenticationScheme);
-
-            return services;
         }
 
         internal IServiceCollection AddJwtValidation(string scheme)

@@ -1,6 +1,6 @@
 import type { ParseKeys } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../../shared/ui/Button';
+import { Button } from './Button';
 
 interface FailedProps {
   message: ParseKeys;
@@ -12,7 +12,7 @@ export function Failed({ message, onRetry }: FailedProps) {
   return (
     <div className="flex flex-col items-start gap-3">
       <p>{t(message)}</p>
-      <Button onPress={onRetry}>{t('workItems.retry')}</Button>
+      <Button onPress={onRetry}>{t('failure.retry')}</Button>
     </div>
   );
 }
