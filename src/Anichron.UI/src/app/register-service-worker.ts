@@ -43,11 +43,6 @@ export function registerServiceWorker(production: boolean, reload: () => void): 
   const changes = new EventTarget();
   let registration: ServiceWorkerRegistration | undefined;
   let offered = false;
-  const offer = () => {
-    if (!registration?.waiting || !navigator.serviceWorker.controller) return;
-    offered = true;
-    changes.dispatchEvent(new Event('change'));
-  };
   const updates: Updates = {
     waiting: () => offered,
     subscribe: (listener) => listen(changes, 'change', listener),
@@ -66,6 +61,11 @@ export function registerServiceWorker(production: boolean, reload: () => void): 
     .register(scriptUrl())
     .then((registered) => {
       registration = registered;
+      const offer = () => {
+        if (!registered.waiting || !navigator.serviceWorker.controller) return;
+        offered = true;
+        changes.dispatchEvent(new Event('change'));
+      };
       const watchInstalling = () => {
         registered.installing?.addEventListener('statechange', offer);
       };
