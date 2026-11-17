@@ -109,13 +109,7 @@ public sealed class ApiServiceRegistrationTests
     [Fact]
     public void AddBootstrapAdmin_ResolvesTheSeederAndTheResetFromTheDatabaseAlone()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["POSTGRES_CONNECTION:HOST"] = "localhost",
-            ["POSTGRES_CONNECTION:DBNAME"] = "anichron",
-            ["POSTGRES_CONNECTION:USER"] = "anichron",
-            ["POSTGRES_CONNECTION:PASSWORD"] = "anichron",
-        }).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(DatabaseValues()).Build();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);

@@ -151,7 +151,7 @@ Mutants that flip between runs:
 - **The API owns identity, auth and admin writes**, through its services and `IUnitOfWork.SaveChangesAsync`. The exceptions: refresh rotation runs its own transaction (`EfRefreshTokenRepository.RotateAsync`, ADR 0017), and the Worker's `TokenCleanup` handler deletes expired refresh tokens.
 - **Work items** are inserted only through `IWorkQueue`. The API's only other write to them is an admin's cancel (`IWorkItemCanceller`). Handlers live only in the Worker (`work-queue.md`). Raw SQL naming the table is beyond the architecture rules and is for review.
 - **Proxy orphans** are written only by the Worker (`only-worker-writes-proxy-orphans`).
-- Neither host touches the database at start-up (`WebHostStartTests`). The API image's `migrate` command (compose's one-shot `anichron-migrate`, which the hosts wait for) migrates under a PostgreSQL advisory lock, seeds the bootstrap admin and applies `ADMIN_RESET_PASSWORD`.
+- The API's web host never touches the database at start-up (`WebHostStartTests`), and the Worker never migrates. The API image's `migrate` command (compose's one-shot `anichron-migrate`, which the hosts wait for) migrates under a PostgreSQL advisory lock, seeds the bootstrap admin and applies `ADMIN_RESET_PASSWORD`.
 
 ### Storage Layout
 
