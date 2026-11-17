@@ -3,6 +3,7 @@ import { Alert } from '../shared/ui/Alert';
 import { Button, buttonStyles } from '../shared/ui/Button';
 import { themes as themeNames, type Theme as ThemeName } from '../shared/theme';
 import { SegmentedControl, segmentStyles } from '../shared/ui/SegmentedControl';
+import { Modal } from '../shared/ui/Modal';
 import { inputStyles, TextField } from '../shared/ui/TextField';
 import { toastActionStyles, toastStyles } from '../shared/ui/Toast';
 import { contrastRatio, themeColours, type Theme, type ThemeColours } from './contrast';
@@ -144,6 +145,9 @@ function Components({ theme }: { theme: Theme }) {
         <State name="disabled">
           <Button isDisabled>Sign in</Button>
         </State>
+        <State name="secondary">
+          <Button variant="secondary">Later</Button>
+        </State>
         <State name="danger">
           <Button variant="danger">Sign out</Button>
         </State>
@@ -186,6 +190,11 @@ function Components({ theme }: { theme: Theme }) {
           <Alert message="login.errors.invalidCredentials" />
         </State>
       </States>
+      <States title="Modal">
+        <State name="open">
+          <ModalDemo />
+        </State>
+      </States>
       <States title="Toast">
         <State name="message">
           <span className={toastStyles()}>
@@ -205,6 +214,41 @@ function Components({ theme }: { theme: Theme }) {
         </State>
       </States>
     </div>
+  );
+}
+
+function ModalDemo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        onPress={() => {
+          setOpen(true);
+        }}
+      >
+        Open
+      </Button>
+      {open && (
+        <Modal
+          title="A new version is available"
+          onClose={() => {
+            setOpen(false);
+          }}
+        >
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onPress={() => {
+                setOpen(false);
+              }}
+            >
+              Later
+            </Button>
+            <Button>Reload</Button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 

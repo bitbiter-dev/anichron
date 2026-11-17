@@ -6,6 +6,7 @@ export const buttonStyles = tv({
   variants: {
     variant: {
       primary: 'bg-accent text-on-accent lift-accent',
+      secondary: 'text-accent',
       danger: 'text-danger',
     },
     isHovered: { true: 'opacity-90' },
@@ -17,7 +18,7 @@ export const buttonStyles = tv({
 });
 
 interface ButtonProps extends Omit<AriaButtonProps, 'className'> {
-  variant?: 'primary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger';
   className?: string;
 }
 

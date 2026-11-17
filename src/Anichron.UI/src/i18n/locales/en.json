@@ -63,7 +63,8 @@
     "settings": "Settings",
     "back": "Back",
     "newVersion": "A new version is available",
-    "reload": "Reload"
+    "reload": "Reload",
+    "later": "Later"
   },
   "settings": {
     "title": "Settings",

@@ -1,13 +1,26 @@
 import { fireEvent, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../test/axe';
 import { refreshSucceeds } from '../test/handlers/auth';
 import { everyoneHasMemories } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
+import { becomes } from '../test/visibility';
 
 const notice = 'A new version is available';
 const storyName = 'Memories of November 11, 2026';
+const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+const noticeDialog = () => screen.getByRole('dialog', { name: notice });
+const button = (name: string) => within(noticeDialog()).getByRole('button', { name });
+
+async function waiting() {
+  const rendered = await openHome();
+  rendered.updates.arrive();
+  await act(() => vi.advanceTimersToNextFrame());
+  return rendered;
+}
 
 async function openHome() {
   const rendered = renderApp('/');
@@ -22,6 +35,17 @@ async function openStory() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({
+    toFake: [
+      'setTimeout',
+      'clearTimeout',
+      'setInterval',
+      'clearInterval',
+      'Date',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+    ],
+  });
   vi.setSystemTime(new Date(2026, 10, 11, 8));
   server.use(refreshSucceeds(), everyoneHasMemories());
 });
@@ -33,27 +57,75 @@ describe('the new-version notice', () => {
     expect(screen.queryByText(notice)).not.toBeInTheDocument();
   });
 
-  it('offers a reload once a new version is waiting, with the bottom bar still there', async () => {
-    const { container, updates } = await openHome();
+  it('opens a dialog offering Reload or Later once a new version is waiting', async () => {
+    const { container } = await waiting();
 
-    updates.arrive();
-
-    const status = screen.getByRole('status');
-    expect(within(status).getByText(notice)).toBeVisible();
-    expect(within(status).getByRole('button', { name: 'Reload' })).toBeVisible();
+    expect(noticeDialog()).toBeVisible();
     expect(
-      within(screen.getByRole('navigation')).getByRole('link', { name: 'Today' }),
-    ).toBeVisible();
+      within(noticeDialog())
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Later', 'Reload']);
+    expect(noticeDialog()).toContainElement(document.activeElement as HTMLElement);
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('applies the new version on Reload', async () => {
-    const { updates } = await openHome();
-    updates.arrive();
+  it('keeps focus inside the dialog', async () => {
+    await waiting();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
+    await user().tab();
+    await user().tab();
+    await user().tab();
+
+    expect(noticeDialog()).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it('applies the new version on Reload', async () => {
+    const { updates } = await waiting();
+
+    await user().click(button('Reload'));
 
     expect(updates.apply).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['Later', () => user().click(button('Later'))],
+    ['Escape', () => user().keyboard('{Escape}')],
+    ['a tap outside', () => user().click(document.body)],
+  ])('closes on %s without reloading', async (_, close) => {
+    const { updates } = await waiting();
+    expect(noticeDialog()).toBeVisible();
+
+    await close();
+
+    expect(screen.queryByRole('dialog', { name: notice })).not.toBeInTheDocument();
+    expect(updates.apply).not.toHaveBeenCalled();
+  });
+
+  it('stays closed while the app stays open', async () => {
+    const { updates } = await waiting();
+    await user().click(button('Later'));
+
+    updates.arrive();
+    fireEvent.click(within(screen.getByRole('navigation')).getByRole('link', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+
+    expect(screen.queryByRole('dialog', { name: notice })).not.toBeInTheDocument();
+  });
+
+  it('comes back when the app is opened again from the background', async () => {
+    await waiting();
+    await user().click(button('Later'));
+
+    act(() => {
+      becomes('hidden');
+    });
+    expect(screen.queryByRole('dialog', { name: notice })).not.toBeInTheDocument();
+    act(() => {
+      becomes('visible');
+    });
+
+    expect(noticeDialog()).toBeVisible();
   });
 
   it('waits while a story is open, and shows once it closes', async () => {
@@ -68,7 +140,7 @@ describe('the new-version notice', () => {
       }),
     );
 
-    expect(await screen.findByText(notice)).toBeVisible();
+    expect(await screen.findByRole('dialog', { name: notice })).toBeVisible();
     expect(updates.apply).not.toHaveBeenCalled();
   });
 
@@ -78,6 +150,6 @@ describe('the new-version notice', () => {
 
     updates.arrive();
 
-    expect(screen.getByText(notice)).toBeVisible();
+    expect(noticeDialog()).toBeVisible();
   });
 });
