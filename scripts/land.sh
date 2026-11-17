@@ -17,17 +17,21 @@
 # timeout, a signal, or master moving during CI stops it, with the reason.
 # LAND_POLL_SECONDS is the wait between checks (default 30), LAND_TIMEOUT_MINUTES
 # the longest wait for CI and the required checks, outages included (default
-# 120), and LAND_MERGE_SECONDS how long a merge GitHub refuses while it still
-# reports the PR BLOCKED or UNKNOWN is tried again (default 300).
+# 120), LAND_MERGE_SECONDS how long a merge GitHub refuses while it still
+# reports the PR BLOCKED or UNKNOWN is tried again (default 300), and
+# LAND_MERGE_CALL_SECONDS how long one merge call may take (default 120). After
+# a merge call fails or times out, the PR's state decides: a merged PR is
+# cleaned up, a closed one stops it.
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
-# a draft again if it had been marked ready; 2 usage; 3 merged, but cleaning up
-# failed.
+# a draft again if it had been marked ready and is still open; 2 usage; 3
+# merged, but cleaning up failed or was stopped.
 set -euo pipefail
 
 poll="${LAND_POLL_SECONDS:-30}"
 timeout_minutes="${LAND_TIMEOUT_MINUTES:-120}"
 merge_seconds="${LAND_MERGE_SECONDS:-300}"
+merge_call_seconds="${LAND_MERGE_CALL_SECONDS:-120}"
 
 say() { printf 'land: %s\n' "$*" >&2; }
 die() { say "$1"; exit "${2:-1}"; }
@@ -131,13 +135,30 @@ await_started() {
   done
 }
 
+# Runs one merge call of <number> at <sha> for at most merge_call_seconds.
+merge_once() {
+  local watchdog status
+  gh pr merge "$1" --squash --match-head-commit "$2" >/dev/null &
+  merging=$!
+  (sleep "$merge_call_seconds" && kill "$merging") >/dev/null 2>&1 &
+  watchdog=$!
+  wait "$merging" && status=0 || status=$?
+  kill "$watchdog" 2>/dev/null || true
+  merging=''
+  [ "$status" -ne 143 ] || say "gh pr merge did not return within ${merge_call_seconds}s"
+  return "$status"
+}
+
 # Squash-merges <number> at <sha>. A refusal while GitHub reports the PR
 # BLOCKED or UNKNOWN is tried again for up to merge_seconds; any other merge
-# state stops it. Sets `state` to the last merge state read.
+# state stops it, and a PR GitHub reports merged counts as merged. Sets `state`
+# to the last merge state read.
 merge_pr() {
-  local number="$1" sha="$2" deadline=$(($(date +%s) + merge_seconds)) refused=''
-  until gh pr merge "$number" --squash --match-head-commit "$sha" >/dev/null; do
-    state=$(gh_retry pr view "$number" --json mergeStateStatus | jq -r .mergeStateStatus) || return 1
+  local number="$1" sha="$2" deadline=$(($(date +%s) + merge_seconds)) refused='' view
+  until merge_once "$number" "$sha"; do
+    view=$(gh_retry pr view "$number" --json state,mergeStateStatus) || return 1
+    [ "$(jq -r .state <<<"$view")" != MERGED ] || return 0
+    state=$(jq -r .mergeStateStatus <<<"$view")
     case "$state" in BLOCKED | UNKNOWN) ;; *) return 1 ;; esac
     [ "$(date +%s)" -lt "$deadline" ] || return 1
     [ -n "$refused" ] || say "GitHub refused the merge of a $state PR; trying again every ${poll}s"
@@ -188,9 +209,15 @@ main() {
   number=$(jq -r '.[0].number // empty' <<<"$pr")
   draft=$(jq -r '.[0].isDraft // false' <<<"$pr")
 
+  merging=''
   back_to_draft() {
     trap - TERM HUP INT
+    [ -z "$merging" ] || kill "$merging" 2>/dev/null || true
     deadline=$(($(date +%s) + 600))
+    case "$(gh_retry pr view "$number" --json state | jq -r .state)" in
+      MERGED) die "PR #$number is merged; not making it a draft, and not cleaned up. $1" 3 ;;
+      CLOSED) die "PR #$number is closed; not making it a draft. $1" ;;
+    esac
     gh_retry pr ready "$number" --undo >/dev/null || say "PR #$number could not be made a draft again"
     die "not merged, PR #$number is a draft again. $1"
   }
