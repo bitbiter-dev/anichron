@@ -1,8 +1,9 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
+import { everyoneHasMemories } from '../../test/handlers/flashbacks';
 import { themeColourTags } from '../../test/index-head';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
@@ -161,5 +162,171 @@ describe('the account section', () => {
     expect(router.state.location.pathname).toBe('/login');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(logouts).toBe(1);
+  });
+});
+
+describe('the install section', () => {
+  const iPhone =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
+
+  const pixel =
+    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36';
+  const desktop =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
+
+  const mac =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15';
+
+  const browsingOn = (userAgent: string, touchPoints = 0) => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent);
+    Object.defineProperty(navigator, 'maxTouchPoints', { value: touchPoints, configurable: true });
+  };
+
+  const offerPrompt = (outcome: 'accepted' | 'dismissed' = 'accepted') => {
+    const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: vi.fn(() => Promise.resolve()),
+      userChoice: Promise.resolve({ outcome, platform: 'web' }),
+    });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+    return event;
+  };
+
+  const section = () => screen.queryByRole('region', { name: 'Install the app' });
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'standalone');
+    Reflect.deleteProperty(navigator, 'maxTouchPoints');
+  });
+
+  it('explains Share, then Add to Home Screen, on an iPhone', async () => {
+    browsingOn(iPhone);
+    const { container } = await openSettings();
+
+    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('explains the same steps on an iPad, which Safari presents as a Mac', async () => {
+    browsingOn(mac, 5);
+    await openSettings();
+
+    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+  });
+
+  it('is hidden in Safari on a Mac', async () => {
+    browsingOn(mac);
+    await openSettings();
+
+    expect(section()).toBeNull();
+  });
+
+  it('is hidden in the installed app', async () => {
+    browsingOn(iPhone);
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (media) => ({ matches: media === '(display-mode: standalone)' }) as MediaQueryList,
+    );
+    const { container } = await openSettings();
+
+    expect(section()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('is hidden in the app installed from Safari on an iPhone', async () => {
+    browsingOn(iPhone);
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+    await openSettings();
+
+    expect(section()).toBeNull();
+  });
+
+  it('explains the browser menu on Android when the browser offers no prompt', async () => {
+    browsingOn(pixel);
+    const { container } = await openSettings();
+
+    expect(section()).toHaveTextContent(
+      'To install Anichron, open the browser menu, then tap Add to Home screen or Install app.',
+    );
+    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('is hidden on another browser that offers no prompt', async () => {
+    browsingOn(desktop);
+    const { container } = await openSettings();
+
+    expect(section()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('offers the browser prompt on Android, in place of the banner', async () => {
+    browsingOn(pixel);
+    const { container } = await openSettings();
+
+    const prompt = offerPrompt();
+
+    expect(prompt.defaultPrevented).toBe(true);
+    expect(
+      within(screen.getByRole('region', { name: 'Install the app' })).getByRole('button', {
+        name: 'Install',
+      }),
+    ).toBeVisible();
+    expect(section()).not.toHaveTextContent('browser menu');
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('fires the kept prompt on Install', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    const prompt = offerPrompt();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+
+    expect(prompt.prompt).toHaveBeenCalledOnce();
+  });
+
+  it('disappears once the prompt is accepted', async () => {
+    browsingOn(pixel);
+    const { container } = await openSettings();
+    offerPrompt('accepted');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+
+    await waitFor(() => {
+      expect(section()).toBeNull();
+    });
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('goes back to the Android steps once the prompt is dismissed, since it fires only once', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    offerPrompt('dismissed');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+
+    expect(
+      await screen.findByText(
+        'To install Anichron, open the browser menu, then tap Add to Home screen or Install app.',
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
+  });
+
+  it('keeps a prompt that came before Settings opened, on another browser', async () => {
+    browsingOn(desktop);
+    server.use(refreshSucceeds(), everyoneHasMemories());
+    const { container, router } = renderApp('/');
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
+    const prompt = offerPrompt();
+
+    await act(() => router.navigate({ to: '/settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
+
+    expect(prompt.prompt).toHaveBeenCalledOnce();
+    expect(section()).not.toHaveTextContent('To install Anichron');
+    expect(await axeResults(container)).toHaveNoViolations();
   });
 });

@@ -76,6 +76,14 @@
       "light": "Light",
       "dark": "Dark"
     },
+    "install": {
+      "title": "Install the app",
+      "steps": {
+        "ios": "To install Anichron, tap Share, then Add to Home Screen.",
+        "android": "To install Anichron, open the browser menu, then tap Add to Home screen or Install app."
+      },
+      "button": "Install"
+    },
     "account": "Account",
     "signOut": "Sign out",
     "administration": "Administration",
