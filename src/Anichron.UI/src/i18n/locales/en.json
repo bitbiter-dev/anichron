@@ -63,7 +63,9 @@
   "shell": {
     "today": "Today",
     "settings": "Settings",
-    "back": "Back"
+    "back": "Back",
+    "newVersion": "A new version is available",
+    "reload": "Reload"
   },
   "settings": {
     "title": "Settings",

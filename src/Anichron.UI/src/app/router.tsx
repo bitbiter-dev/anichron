@@ -18,6 +18,7 @@ import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
 import { NotFound } from './NotFound';
+import type { Updates } from './register-service-worker';
 import { returnPath } from './return-path';
 import { Shell } from './Shell';
 import { SignedIn } from './SignedIn';
@@ -29,6 +30,7 @@ interface RouterContext {
   queryClient: QueryClient;
   back: Back;
   theme: ThemeChoice;
+  updates: Updates;
 }
 
 function routeTree() {
@@ -158,6 +160,7 @@ function routeTree() {
 export function createAppRouter(
   api: ApiClient,
   queryClient: QueryClient,
+  updates: Updates,
   history: RouterHistory = createBrowserHistory(),
 ) {
   const router = createRouter({
@@ -165,7 +168,13 @@ export function createAppRouter(
     history,
     scrollRestoration: true,
     defaultNotFoundComponent: NotFound,
-    context: { api, queryClient, back: createBack(history), theme: createThemeChoice() },
+    context: {
+      api,
+      queryClient,
+      back: createBack(history),
+      theme: createThemeChoice(),
+      updates,
+    },
   });
   let userId: string | undefined;
   api.session.onChange(() => {

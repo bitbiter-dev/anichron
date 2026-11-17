@@ -63,10 +63,12 @@ class FetchEvent extends ExtendableEvent {
 
 function serviceWorker() {
   const listeners = new Map<string, (event: never) => void>();
+  const skipWaiting = vi.fn(() => Promise.resolve());
   const scope: WorkerScope = {
     addEventListener(type: string, listener: (event: never) => void) {
       listeners.set(type, listener);
     },
+    skipWaiting,
   };
   const dispatch = async (event: ExtendableEvent) => {
     listeners.get(event.type)?.(event as never);
@@ -74,6 +76,8 @@ function serviceWorker() {
   };
   return {
     scope,
+    skipWaiting,
+    message: (data: unknown) => dispatch(Object.assign(new ExtendableEvent('message'), { data })),
     lifecycle: (type: 'install' | 'activate') => dispatch(new ExtendableEvent(type)),
     async served(request: Request) {
       const event = new FetchEvent(request);
@@ -182,3 +186,28 @@ it('drops the files an earlier version precached once it activates', async () =>
 
   expect(await cachedPaths()).not.toContain('/assets/index-old456.js');
 });
+
+it('waits after installing, with the previous version still in charge', async () => {
+  const worker = await installed();
+
+  expect(worker.skipWaiting).not.toHaveBeenCalled();
+});
+
+it('takes over when a page asks it to', async () => {
+  const worker = await installed();
+
+  await worker.message({ type: 'SKIP_WAITING' });
+
+  expect(worker.skipWaiting).toHaveBeenCalledOnce();
+});
+
+it.each([undefined, null, 'SKIP_WAITING', { type: 'skip_waiting' }, {}])(
+  'keeps waiting on any other message (%o)',
+  async (data) => {
+    const worker = await installed();
+
+    await worker.message(data);
+
+    expect(worker.skipWaiting).not.toHaveBeenCalled();
+  },
+);
