@@ -8,16 +8,25 @@ function upcomingOf({ load, upcoming }: StoryState, memoryAt: MemoryAt) {
   return load === 'loading' ? [] : upcoming.map(memoryAt);
 }
 
-export function createPrefetch(memoryAt: MemoryAt, prefetchPicture: (url: string) => void) {
+export function createPrefetch(
+  memoryAt: MemoryAt,
+  prefetchPicture: (url: string) => Promise<boolean>,
+) {
   const fetched = new Set<string>();
-  return (state: StoryState) => {
-    for (const { proxies } of upcomingOf(state, memoryAt)) {
-      const url = proxies.preview;
-      if (url && !fetched.has(url)) {
-        fetched.add(url);
-        prefetchPicture(url);
+  const decoded = new Set<string>();
+  return {
+    fetchAhead(state: StoryState) {
+      for (const { proxies } of upcomingOf(state, memoryAt)) {
+        const url = proxies.preview;
+        if (url && !fetched.has(url)) {
+          fetched.add(url);
+          void prefetchPicture(url).then((done) => {
+            if (done) decoded.add(url);
+          });
+        }
       }
-    }
+    },
+    decoded: (url: string | null) => url !== null && decoded.has(url),
   };
 }
 

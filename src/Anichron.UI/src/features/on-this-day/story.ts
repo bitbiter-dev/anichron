@@ -98,6 +98,7 @@ export function createStory(
   kinds: readonly (readonly Kind[])[],
   group: number,
   close: () => void,
+  decoded: (place: Place) => boolean = () => false,
 ): Story {
   const memories = (group: number) => kinds[group] as readonly Kind[];
   const hidden = new Set<string>();
@@ -105,12 +106,9 @@ export function createStory(
   const shown = (group: number) =>
     [...memories(group).keys()].filter((memory) => !hidden.has(keyOf({ group, memory })));
   const groupsShown = () => [...kinds.keys()].filter((group) => shown(group).length > 0);
-  const firstLoad: Record<Kind, Load> = {
-    none: 'shown',
-    picture: 'loading',
-    video: 'loading',
-    live: 'loading',
-    burst: 'loading',
+  const firstLoad = (kind: Kind, place: Place): Load => {
+    if (kind === 'none') return 'shown';
+    return kind !== 'video' && decoded(place) ? 'shown' : 'loading';
   };
   let visits = 0;
   const at = (group: number, memory: number): StoryPosition => {
@@ -122,7 +120,7 @@ export function createStory(
       memory,
       visit,
       kind,
-      load: firstLoad[kind],
+      load: firstLoad(kind, { group, memory }),
       shown: shown(group),
       playId: visit,
       livePlay: false,
