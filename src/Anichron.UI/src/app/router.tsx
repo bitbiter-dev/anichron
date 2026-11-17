@@ -12,7 +12,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
 import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
-import { dayKey, isCalendarDate, storySearch } from '../features/on-this-day/day';
+import { dayKey, isCalendarDate, loadStory, storySearch } from '../features/on-this-day/day';
 import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
@@ -80,6 +80,9 @@ function routeTree() {
     beforeLoad: ({ params }) => {
       if (!isCalendarDate(params.date)) throw notFound({ routeId: rootRoute.id });
     },
+    loader: ({ context, params, location }) =>
+      loadStory(context.api, context.queryClient, params.date, storySearch(location.search).year),
+    shouldReload: false,
     onLeave: ({ context, params }) =>
       void context.queryClient.invalidateQueries({ queryKey: dayKey(params.date) }),
     component: lazyRouteComponent(() => import('../features/on-this-day/StoryPage'), 'StoryPage'),

@@ -5,7 +5,7 @@ export interface Videos {
 }
 
 export interface Media {
-  prefetchPicture(url: string): void;
+  loadPicture(url: string): Promise<void>;
   videos(): Videos;
 }
 
@@ -57,9 +57,7 @@ function createVideos(): Videos {
 
 export function createMedia(): Media {
   return {
-    prefetchPicture(url) {
-      fetchAndDecode(url).catch(() => undefined);
-    },
+    loadPicture: (url) => fetchAndDecode(url).catch(() => undefined),
     videos: createVideos,
   };
 }

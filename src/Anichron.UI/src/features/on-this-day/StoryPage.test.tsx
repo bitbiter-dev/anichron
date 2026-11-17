@@ -141,6 +141,48 @@ describe('opening a story', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
+  it('keeps the tapped year busy until its first picture is loaded, then opens on it', async () => {
+    let answerFirst: (answer: undefined) => void = () => undefined;
+    const received: string[] = [];
+    server.use(
+      proxyAnswers(received, (url) =>
+        url === preview(ids.a2023)
+          ? new Promise<undefined>((resolve) => {
+              answerFirst = resolve;
+            })
+          : undefined,
+      ),
+    );
+    await openLanding();
+    const tapped = screen.getByRole('link', { name: '3 years ago · 2023' });
+
+    fireEvent.click(tapped);
+    await vi.waitFor(() => {
+      expect(received).toContain(preview(ids.a2023));
+    });
+    await advance(5000);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(tapped).toHaveAttribute('aria-busy', 'true');
+    expect(received).not.toContain(preview(ids.a2021));
+    answerFirst(undefined);
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+    expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
+  });
+
+  it('opens on its failed state when the first picture cannot be loaded', async () => {
+    server.use(
+      proxyAnswers([], (url) =>
+        url === preview(ids.a2023) ? new HttpResponse(null, { status: 404 }) : undefined,
+      ),
+    );
+    await openLanding();
+
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+  });
+
   it('opens a reload at the year group in the address, from its first memory', async () => {
     await openStory('/day/2026-11-11?year=2021');
 

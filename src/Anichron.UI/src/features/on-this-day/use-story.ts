@@ -26,7 +26,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       (url) => videos.sourceOf(url),
     );
     const prefetch = createPrefetch(memoryAt, (url) => {
-      media.prefetchPicture(url);
+      void media.loadPicture(url);
     });
     const keepLiveVideos = createKeepLiveVideos(memoryAt, (urls) => {
       videos.keep(urls);

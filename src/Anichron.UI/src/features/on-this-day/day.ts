@@ -104,6 +104,17 @@ export function startGroup(years: readonly YearGroup[], year: number | undefined
   );
 }
 
+export async function loadStory(
+  api: ApiClient,
+  queryClient: QueryClient,
+  date: string,
+  year: number,
+) {
+  const day = queryClient.getQueryData<Day>(dayKey(date));
+  const first = day?.years[startGroup(day.years, year)]?.memories[0]?.proxies.preview;
+  if (first) await api.media.loadPicture(first);
+}
+
 // Stryker disable next-line BlockStatement
 export function storySearch(search: Record<string, unknown>) {
   // Stryker disable next-line ObjectLiteral
