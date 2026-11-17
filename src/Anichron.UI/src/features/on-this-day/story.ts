@@ -63,8 +63,8 @@ function stillLive() {
 
 export type SegmentState = 'seen' | 'playing' | 'next';
 
-export function segmentState(index: number, current: number): SegmentState {
-  if (index < current) return 'seen';
+export function segmentState(index: number, current: number, ended: boolean): SegmentState {
+  if (index < current || (ended && index === current)) return 'seen';
   return index === current ? 'playing' : 'next';
 }
 

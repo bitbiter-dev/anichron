@@ -386,7 +386,7 @@ describe('a story playing', () => {
     ]);
     await advance(60_000);
     expect(showing()).toBe(preview(ids.b2021));
-    expect(segment(1)).toHaveStyle({ animationPlayState: 'paused' });
+    expect(segment(1).getAttribute('data-state')).toBe('seen');
 
     await user().click(button('Next'));
     await advance(0);
@@ -419,7 +419,26 @@ describe('a story playing', () => {
     await advance(60_000);
 
     expect(showing()).toBe(preview(ids.b2021));
-    expect(segment(1)).toHaveStyle({ animationPlayState: 'paused' });
+    expect(segment(1).getAttribute('data-state')).toBe('seen');
+  });
+
+  it('rests with the one segment of a year group of one memory full', async () => {
+    years = [yearGroup(2023, memory(ids.a2023, 2023))];
+    await openStory('/day/2026-11-11?year=2023');
+    await shown();
+    await advance(5000);
+
+    expect(showing()).toBe(preview(ids.a2023));
+    expect(segment(0).getAttribute('data-state')).toBe('seen');
+  });
+
+  it('keeps a paused segment where it stopped', async () => {
+    await openStory('/day/2026-11-11?year=2021');
+    await shown();
+    await user().click(button('Pause'));
+
+    expect(segment(0).getAttribute('data-state')).toBe('playing');
+    expect(segment(0)).toHaveStyle({ animationPlayState: 'paused' });
   });
 
   it('plays again from the last memory when going back', async () => {
