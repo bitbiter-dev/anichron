@@ -26,7 +26,7 @@ Exclusions are listed **one by one, by path**, never by wildcard. A wiring file 
 | `Anichron.Worker/Program.cs` | 2 | Host composition |
 | `Anichron.Core/Data/AnichronDbContextFactory.cs` | 2 | EF design-time tools only |
 | `Anichron.Worker/Ingestion/Proxy/SystemProcessLauncher.cs` | 3 | `IProcessLauncher` over `System.Diagnostics.Process` |
-| `Anichron.API/Infrastructure/DatabaseStartupExtensions.cs` | 2 | Sequencing; the retry is `DatabaseStartupRetry`, in scope |
+| `Anichron.API/Infrastructure/DatabaseStartupExtensions.cs` | 2 | The `migrate` command's host and sequencing; the retry is `DatabaseStartupRetry`, in scope |
 | `Anichron.API/Infrastructure/WebApplicationBuilderExtensions.cs` | 2 | Loads `app.ini`; defaults are `ApiIniDefaults`, in scope |
 | `Anichron.Worker/Infrastructure/HostApplicationBuilderExtensions.cs` | 2 | As above, with `WorkerIniDefaults` |
 | `Anichron.Testing/**` | 4 | Also sets `IsMutationTarget` to `false` (ADR 0010) |

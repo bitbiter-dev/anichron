@@ -52,7 +52,6 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IBurstRepository, EfBurstRepository>();
             services.AddScoped<IProxyOrphanStore, EfProxyOrphanStore>();
             services.AddScoped<ActiveStorageConfigs>();
-            services.AddScoped<IDatabaseMigrator, EfDatabaseMigrator>();
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IWorkQueue, EfWorkQueue>();
             services.AddSingleton<IWorkItemStore, EfWorkItemStore>();
@@ -140,7 +139,6 @@ internal static class WorkerServiceCollectionExtensions
 
         internal IServiceCollection AddWorkerHostedServices()
         {
-            services.AddHostedService<DatabaseMigratorService>();
             services.AddHostedService<WorkerInitializer>();
             services.AddHostedService<WorkScheduler>();
             services.AddHostedService<WorkExecutor>();
