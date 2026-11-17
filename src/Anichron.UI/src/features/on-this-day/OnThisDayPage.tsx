@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, yearsAgo } from './day';
 import { dayView, thumbnailOf } from './day-view';
-import { Failed } from './Failed';
+import { Failed } from '../../shared/ui/Failed';
 import { ProxyImage } from './ProxyImage';
 import { RecentDays } from './RecentDays';
 import { Ring } from './Ring';

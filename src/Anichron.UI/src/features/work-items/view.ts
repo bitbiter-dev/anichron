@@ -1,16 +1,10 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
-import { problemOf } from '../../api/problem';
 import type { WorkItem, WorkItemPage } from '../../api/work-items';
+import { failureMessage } from '../../shared/failure';
 
-type Failure = 'workItems.unreachable' | 'workItems.failed';
-
-export function failureOf({ error }: UseQueryResult): Failure | undefined {
-  return error
-    ? problemOf(error).code === 'service_unavailable'
-      ? 'workItems.unreachable'
-      : 'workItems.failed'
-    : undefined;
+export function failureOf({ error }: UseQueryResult) {
+  return error ? failureMessage(error, 'workItems.failed') : undefined;
 }
 
 function cancelling(item: WorkItem) {

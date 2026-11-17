@@ -34,6 +34,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 - A call the server refuses or cannot answer throws `ProblemError`, carrying the UI's `Problem` (`src/api/problem.ts`).
 - `problemOf(error)` reads it, and anything else becomes the generic problem. A screen keys its messages by `ErrorCode`.
+- A screen whose data fails to load shows `shared/ui/Failed.tsx` with its own "failed" message, or the shared "unreachable" one (`failureMessage`, `src/shared/failure.ts`).
 
 ## The refresh rules
 

@@ -208,7 +208,7 @@ function Components({ theme }: { theme: Theme }) {
   );
 }
 
-const themeOptions = themeNames.map((value) => ({ value, label: value }));
+const themeOptions = themeNames().map((value) => ({ value, label: value }));
 
 function ThemeDemo() {
   const [value, setValue] = useState<ThemeName>('system');

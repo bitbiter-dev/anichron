@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Memory } from '../../api/flashbacks';
 import { Blurhash } from './BlurhashCanvas';
 import { CloseButton } from './CloseButton';
-import { Failed } from './Failed';
+import { Failed } from '../../shared/ui/Failed';
 import { MemoryActions } from './MemoryActions';
 import { ProxyImage } from './ProxyImage';
 import { useBurstDetails, useFrameBlurhash } from './use-burst-details';

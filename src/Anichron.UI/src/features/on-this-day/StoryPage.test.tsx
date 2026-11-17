@@ -2748,7 +2748,7 @@ describe('a story for a screen reader', () => {
   const named = (name: string) => within(story()).getByRole('img', { name });
 
   it('names each memory by its kind, year and place in its year group', async () => {
-    const withVideo = (id: string, mediaType: string) =>
+    const withVideo = (id: string, mediaType: 'Video' | 'LivePhoto') =>
       memory(id, 2021, {
         mediaType,
         proxies: {

@@ -42,15 +42,22 @@ const notMutated = stryker.mutate
   .map((glob) => glob.slice(1));
 const moduleScope =
   ':matches(Program, ExportNamedDeclaration) > VariableDeclaration > VariableDeclarator';
+const typed = ':matches(TSAsExpression, TSSatisfiesExpression)';
 const importTime = [
-  `${moduleScope} > :function`,
-  `${moduleScope} > :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], Literal[value=true], Literal[value=false])`,
-  `${moduleScope} > :matches(CallExpression, NewExpression) :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], :function)`,
-].map((selector) => ({
-  selector,
-  message:
-    'Module scope runs at import, so its mutants are static and run every test (docs/mutation-testing.md). Use a function declaration, or build the value in a function.',
-}));
+  moduleScope,
+  `${moduleScope} > ${typed}`,
+  `${moduleScope} > ${typed} > ${typed}`,
+]
+  .flatMap((value) => [
+    `${value} > :function`,
+    `${value} > :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], Literal[value=true], Literal[value=false])`,
+    `${value} > :matches(CallExpression, NewExpression) :matches(ObjectExpression, ArrayExpression, TemplateLiteral, Literal[raw=/^['"]/], :function)`,
+  ])
+  .map((selector) => ({
+    selector,
+    message:
+      'Module scope runs at import, so its mutants are static and run every test (docs/mutation-testing.md). Use a function declaration, or build the value in a function.',
+  }));
 
 export default defineConfig([
   globalIgnores([
