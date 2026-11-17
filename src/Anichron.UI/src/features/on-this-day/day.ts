@@ -2,6 +2,7 @@ import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
 import type { Day, Memory, YearGroup } from '../../api/flashbacks';
+import { cardOf } from './burst';
 
 function twoDigits(value: number) {
   return String(value).padStart(2, '0');
@@ -104,6 +105,21 @@ export function startGroup(years: readonly YearGroup[], year: number | undefined
     0,
     years.findIndex((group) => group.year === year),
   );
+}
+
+export async function loadStory(
+  api: ApiClient,
+  queryClient: QueryClient,
+  date: string,
+  year: number,
+) {
+  const day = queryClient.getQueryData<Day>(dayKey(date));
+  const group = day?.years[startGroup(day.years, year)];
+  if (!group) return;
+  const memory = group.memories[0] as Memory;
+  const frames = queryClient.getQueryData(burstQuery(api, String(memory.burst?.burstId)).queryKey);
+  const first = cardOf(memory, frames).proxies.preview;
+  if (first) await api.media.loadPicture(first);
 }
 
 // Stryker disable next-line BlockStatement

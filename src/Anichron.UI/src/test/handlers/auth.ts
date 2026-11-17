@@ -99,3 +99,36 @@ export function logoutRespondsWith(respond: () => Response | Promise<Response>) 
     response.untyped(await respond()),
   );
 }
+
+export const forcedSession: Schemas['SessionResponse'] = {
+  ...miraSession,
+  user: { ...miraSession.user, mustChangePassword: true },
+};
+
+export function passwordChangeSucceeds(
+  onRequest: (request: Schemas['ChangePasswordRequest'], bearer: string | null) => void = () =>
+    undefined,
+) {
+  return http.post('/api/v1/users/me/password', async ({ request, response }) => {
+    onRequest(await request.json(), request.headers.get('Authorization'));
+    return response(200).json({ ...miraSession, accessToken: 'header.changed.signature' });
+  });
+}
+
+export function passwordChangeFails(
+  status: number,
+  body: object,
+  headers: Record<string, string> = {},
+) {
+  return http.post('/api/v1/users/me/password', ({ response }) =>
+    response.untyped(Response.json(body, { status, headers: { ...problemHeaders, ...headers } })),
+  );
+}
+
+export function passwordChangeRespondsWith(
+  respond: (bearer: string | null) => Response | Promise<Response>,
+) {
+  return http.post('/api/v1/users/me/password', async ({ request, response }) =>
+    response.untyped(await respond(request.headers.get('Authorization'))),
+  );
+}
