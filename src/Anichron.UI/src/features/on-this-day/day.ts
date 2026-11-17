@@ -44,11 +44,13 @@ export function dayQuery(api: ApiClient, date: string) {
   });
 }
 
-const burstsKey = ['burst'] as const;
+function burstsKey() {
+  return ['burst'] as const;
+}
 
 export function burstQuery(api: ApiClient, id: string) {
   return queryOptions({
-    queryKey: [...burstsKey, id],
+    queryKey: [...burstsKey(), id],
     queryFn: () => api.bursts.frames(id),
     gcTime: Infinity,
   });
@@ -70,7 +72,7 @@ function apply(queryClient: QueryClient, date: string, { id, change }: Interacti
   queryClient.setQueryData<Day>(dayKey(date), {
     years: day.years.map((group) => ({ ...group, memories: group.memories.map(changed) })),
   });
-  queryClient.setQueriesData<Memory[]>({ queryKey: burstsKey }, (frames) => frames?.map(changed));
+  queryClient.setQueriesData<Memory[]>({ queryKey: burstsKey() }, (frames) => frames?.map(changed));
 }
 
 export function interactionMutation(api: ApiClient, queryClient: QueryClient, date: string) {

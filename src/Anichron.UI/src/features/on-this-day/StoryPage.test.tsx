@@ -4,6 +4,7 @@ import { encode } from 'blurhash';
 import { http, HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
+import type { Memory } from '../../api/flashbacks';
 import { axeResults } from '../../test/axe';
 import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
@@ -2802,7 +2803,7 @@ describe('a story for a screen reader', () => {
   const named = (name: string) => within(story()).getByRole('img', { name });
 
   it('names each memory by its kind, year and place in its year group', async () => {
-    const withVideo = (id: string, mediaType: string) =>
+    const withVideo = (id: string, mediaType: Exclude<Memory['mediaType'], 'Image'>) =>
       memory(id, 2021, {
         mediaType,
         proxies: {

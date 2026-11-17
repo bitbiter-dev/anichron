@@ -12,7 +12,7 @@ import { otherFrames } from './burst';
 import { CloseButton, roundButton } from './CloseButton';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
-import { Failed } from './Failed';
+import { Failed } from '../../shared/ui/Failed';
 import { LivePhotoIcon } from './LivePhotoIcon';
 import { focusOnMount } from './focus';
 import { MemoryActions } from './MemoryActions';

@@ -15,7 +15,7 @@ export function SettingsPage() {
         <h2 className="font-semibold">{t('settings.appearance')}</h2>
         <SegmentedControl
           label={t('settings.theme')}
-          options={themes.map((value) => ({ value, label: t(`settings.themes.${value}`) }))}
+          options={themes().map((value) => ({ value, label: t(`settings.themes.${value}`) }))}
           value={useSyncExternalStore(theme.subscribe, theme.get)}
           onChange={theme.choose}
         />

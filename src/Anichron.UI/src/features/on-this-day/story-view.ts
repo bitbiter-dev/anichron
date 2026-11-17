@@ -27,7 +27,8 @@ function liveOf({ livePlay, liveShown, playsMedia }: StoryState): LiveState {
 }
 
 export function storyView(state: StoryState, group: YearGroup) {
-  const kinds: Partial<Record<string, 'story.video' | 'story.livePhoto'>> = {
+  const kinds: Record<Memory['mediaType'], 'story.photo' | 'story.video' | 'story.livePhoto'> = {
+    Image: 'story.photo',
     Video: 'story.video',
     LivePhoto: 'story.livePhoto',
   };
@@ -38,7 +39,7 @@ export function storyView(state: StoryState, group: YearGroup) {
     memory,
     segments,
     name: {
-      kind: burst ?? kinds[memory.mediaType] ?? 'story.photo',
+      kind: burst ?? kinds[memory.mediaType],
       year: group.year,
       place: segments.current + 1,
       count: segments.count,
