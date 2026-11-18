@@ -7,7 +7,7 @@ export function kindOf({ proxies, livePhotoVideoUrl, burst }: Memory): Kind {
   if (!proxies.preview) return 'none';
   if (burst) return 'burst';
   if (livePhotoVideoUrl) return 'live';
-  // Stryker disable once StringLiteral
+  // Stryker disable next-line StringLiteral
   return 'picture';
 }
 

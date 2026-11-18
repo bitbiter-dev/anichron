@@ -993,6 +993,9 @@ describe('a video', () => {
     expect(load).toHaveBeenCalledOnce();
     expect(video().hasAttribute('src')).toBe(false);
     await shown();
+    await user().click(button('Pause'));
+    await user().click(button('Play'));
+    expect(load).toHaveBeenCalledOnce();
     await advance(5000);
 
     expect(video()).toBe(shared);

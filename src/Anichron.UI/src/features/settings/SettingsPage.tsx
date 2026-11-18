@@ -21,7 +21,7 @@ export function SettingsPage() {
         <h2 id="settings-account" className="sr-only">
           {t('settings.account')}
         </h2>
-        {account && <Account {...account} />}
+        <Account {...account} />
         <div className={divider}>
           <RowLink to="/settings/password">{t('settings.changePassword')}</RowLink>
         </div>
@@ -36,7 +36,7 @@ export function SettingsPage() {
         />
       </section>
       <InstallSection />
-      {account?.isAdmin && <Administration />}
+      {account.isAdmin && <Administration />}
       <div className={card}>
         <SignOutButton row />
       </div>

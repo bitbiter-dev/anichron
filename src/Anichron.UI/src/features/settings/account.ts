@@ -1,11 +1,7 @@
+import type { User } from '../../api/session';
 import { useUser } from '../../shared/use-user';
 
 export function useAccount() {
-  const user = useUser();
-  if (!user) return undefined;
-  return {
-    name: user.username,
-    initial: user.username.charAt(0).toUpperCase(),
-    isAdmin: user.isAdmin,
-  };
+  const { username, isAdmin } = useUser() as User;
+  return { name: username, initial: username.charAt(0).toUpperCase(), isAdmin };
 }
