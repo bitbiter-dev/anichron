@@ -1,12 +1,14 @@
 {
+  "failure": {
+    "unreachable": "Can't reach Anichron. Check your connection.",
+    "retry": "Try again"
+  },
   "onThisDay": {
     "title": "On This Day",
     "yearsAgo_one": "{{count}} year ago · {{year}}",
     "yearsAgo_other": "{{count}} years ago · {{year}}",
     "nothing": "Nothing from this day in earlier years",
-    "unreachable": "Can't reach Anichron. Check your connection.",
     "failed": "Couldn't load this day.",
-    "retry": "Try again",
     "retryDay": "Try again, {{day}}",
     "recentDays": "Recent days",
     "yesterday": "Yesterday",
@@ -51,19 +53,18 @@
     "password": "Password",
     "submit": "Sign in",
     "errors": {
-      "required": "Fill in this field.",
       "invalidCredentials": "The username, email or password is wrong.",
       "accountDisabled": "This account is disabled. Ask your administrator to enable it.",
-      "accountLocked": "Too many failed attempts. This account is locked for now.",
-      "rateLimited": "Too many attempts from this device.",
-      "serviceUnavailable": "Anichron is temporarily unavailable. Try again shortly.",
-      "generic": "Something went wrong. Try again."
+      "accountLocked": "Too many failed attempts. This account is locked for now."
     }
   },
   "shell": {
     "today": "Today",
     "settings": "Settings",
-    "back": "Back"
+    "back": "Back",
+    "newVersion": "A new version is available",
+    "reload": "Reload",
+    "later": "Later"
   },
   "settings": {
     "title": "Settings",
@@ -74,10 +75,41 @@
       "light": "Light",
       "dark": "Dark"
     },
+    "install": {
+      "title": "Install the app",
+      "steps": {
+        "android": "To install Anichron, open the browser menu, then tap Add to Home screen or Install app."
+      },
+      "ios": {
+        "share": "Tap Share",
+        "viewMore": "Tap View More",
+        "more": "Tap More",
+        "add": "Tap Add to Home Screen"
+      },
+      "close": "Close"
+    },
     "account": "Account",
-    "signOut": "Sign out",
     "administration": "Administration",
-    "workItems": "Work queue"
+    "workItems": "Work queue",
+    "changePassword": "Change password",
+    "admin": "Admin"
+  },
+  "password": {
+    "title": "Change password",
+    "forcedTitle": "Choose a new password",
+    "forcedBody": "You need a new password before you continue.",
+    "current": "Current password",
+    "new": "New password",
+    "confirm": "Confirm new password",
+    "submit": "Change password",
+    "changed": "Your password is changed. Your other devices will need to sign in again.",
+    "errors": {
+      "mismatch": "The new passwords don't match.",
+      "currentWrong": "The current password is wrong.",
+      "tooShort": "This password is too short.",
+      "tooLong": "This password is too long.",
+      "pwned": "This password has appeared in a data breach. Choose another."
+    }
   },
   "startFailed": {
     "unreachable": {
@@ -92,6 +124,13 @@
   },
   "retryIn_one": "You can try again in {{count}} second.",
   "retryIn_other": "You can try again in {{count}} seconds.",
+  "signOut": "Sign out",
+  "errors": {
+    "required": "Fill in this field.",
+    "rateLimited": "Too many attempts from this device.",
+    "serviceUnavailable": "Anichron is temporarily unavailable. Try again shortly.",
+    "generic": "Something went wrong. Try again."
+  },
   "notFound": {
     "title": "Page not found",
     "body": "There is nothing at this address.",
@@ -124,8 +163,6 @@
     "reconnecting": "Reconnecting…",
     "empty": "Nothing in the queue.",
     "failed": "Couldn't load the work queue.",
-    "unreachable": "Can't reach Anichron. Check your connection.",
-    "retry": "Try again",
     "pages": "Pages",
     "newer": "Newer",
     "older": "Older",

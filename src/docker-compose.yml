@@ -19,6 +19,11 @@
 #   config (e.g. /data/originals/alice) through the admin API.
 # Add one API mount line per user either way.
 #
+# anichron-migrate runs once before the API and the workers:
+# it migrates the database and creates the first admin. To
+# reset an admin's password, run it again on its own:
+#   docker compose run --rm -e ADMIN_RESET_PASSWORD=... anichron-migrate
+#
 # TZ is the library's time zone (e.g. Pacific/Auckland): "today"
 # for On This Day, and the zone a video recorded only in UTC is
 # read in when it has no position. The API and every worker take
@@ -42,6 +47,27 @@ services:
       timeout: 5s
       retries: 5
 
+  anichron-migrate:
+    image: ${DOCKERHUB_USERNAME}/anichron-api:latest
+    container_name: anichron-migrate
+    restart: "no"
+    command: ["migrate"]
+    environment:
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_admin
+      - POSTGRES_CONNECTION__PASSWORD=${DB_PW}
+      # First admin's password; needed only while no user exists:
+      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD}
+      # A forgotten admin password: set it here, or pass it with -e (see the header).
+      # The username is needed only when several admins exist:
+      # - ADMIN_RESET_PASSWORD=
+      # - ADMIN_RESET_USERNAME=
+    depends_on:
+      anichron-db:
+        condition: service_healthy
+
   anichron-api:
     image: ${DOCKERHUB_USERNAME}/anichron-api:latest
     container_name: anichron-api
@@ -59,8 +85,6 @@ services:
       - Jwt__Secret=${JWT_SECRET}
       - Jwt__Issuer=anichron
       - Jwt__Audience=anichron
-      # First admin's password; needed only while no user exists:
-      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD}
       # Uncomment and set to your UI's origin(s) if not using a reverse proxy (comma-separated):
       # - CORS__ALLOWEDORIGINS=http://localhost:3000
       # Behind a reverse proxy: trust its address so X-Forwarded-For is honoured (comma-separated):
@@ -77,8 +101,8 @@ services:
       retries: 3
       start_period: 30s
     depends_on:
-      anichron-db:
-        condition: service_healthy
+      anichron-migrate:
+        condition: service_completed_successfully
 
   # One worker per user.
   # - Set WORKER__USER to the email or username of the user.
@@ -112,8 +136,8 @@ services:
       - /path/to/alice/photos:/data/originals/alice:ro  # ← this user's NAS folder only
       - ${BASE_PATH}/anichron/proxy_cache:/data/proxies:rw
     depends_on:
-      anichron-db:
-        condition: service_healthy
+      anichron-migrate:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:

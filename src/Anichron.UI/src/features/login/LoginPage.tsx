@@ -1,10 +1,8 @@
-import { Controller, type Control } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { Alert } from '../../shared/ui/Alert';
 import { Button } from '../../shared/ui/Button';
-import { TextField } from '../../shared/ui/TextField';
-import type { MessageKey } from './messages';
-import { useLoginForm, type LoginFields } from './use-login-form';
+import { FormField } from '../../shared/ui/FormField';
+import { useLoginForm } from './use-login-form';
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -18,14 +16,14 @@ export function LoginPage() {
           {retryIn > 0 && (
             <p className="text-small text-fg-muted">{t('retryIn', { count: retryIn })}</p>
           )}
-          <LoginField
+          <FormField
             control={control}
             name="usernameOrEmail"
             label={t('login.usernameOrEmail')}
             autoComplete="username"
             error={fieldError('usernameOrEmail')}
           />
-          <LoginField
+          <FormField
             control={control}
             name="password"
             label={t('login.password')}
@@ -39,33 +37,5 @@ export function LoginPage() {
         </form>
       </div>
     </main>
-  );
-}
-
-interface LoginFieldProps {
-  control: Control<LoginFields>;
-  name: keyof LoginFields;
-  label: string;
-  type?: string;
-  autoComplete: string;
-  error: MessageKey | undefined;
-}
-
-function LoginField({ control, name, ...props }: LoginFieldProps) {
-  return (
-    <Controller
-      control={control}
-      name={name}
-      render={({ field }) => (
-        <TextField
-          {...props}
-          name={field.name}
-          value={field.value}
-          onChange={field.onChange}
-          onBlur={field.onBlur}
-          inputRef={field.ref}
-        />
-      )}
-    />
   );
 }

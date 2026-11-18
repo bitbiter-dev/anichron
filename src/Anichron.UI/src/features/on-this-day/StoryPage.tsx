@@ -12,7 +12,7 @@ import { otherFrames } from './burst';
 import { CloseButton, roundButton } from './CloseButton';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import { type DayView, dayView } from './day-view';
-import { Failed } from './Failed';
+import { Failed } from '../../shared/ui/Failed';
 import { LivePhotoIcon } from './LivePhotoIcon';
 import { focusOnMount } from './focus';
 import { MemoryActions } from './MemoryActions';
@@ -193,6 +193,7 @@ function Player({ date, year, day, close }: PlayerProps) {
               key={state.visit}
               count={segments.count}
               current={segments.current}
+              ended={state.ended}
               duration={duration}
               running={state.running}
             />
@@ -343,11 +344,12 @@ function Middle({ gestures, move }: PressZoneProps) {
 interface SegmentsProps {
   count: number;
   current: number;
+  ended: boolean;
   duration: number;
   running: boolean;
 }
 
-function Segments({ count, current, duration, running }: SegmentsProps) {
+function Segments({ count, current, ended, duration, running }: SegmentsProps) {
   return (
     <ol aria-hidden className="flex gap-1">
       {Array.from({ length: count }, (_, index) => (
@@ -357,7 +359,7 @@ function Segments({ count, current, duration, running }: SegmentsProps) {
               animationDuration: `${String(duration)}ms`,
               animationPlayState: running ? 'running' : 'paused',
             }}
-            data-state={segmentState(index, current)}
+            data-state={segmentState(index, current, ended)}
             className="block h-full origin-left bg-on-player data-[state=next]:scale-x-0 data-[state=playing]:animate-story-fill data-[state=seen]:scale-x-100"
           />
         </li>

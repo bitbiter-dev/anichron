@@ -3,8 +3,12 @@
 #
 # The API image built from this checkout, and PostgreSQL on
 # tmpfs so every run starts from an empty database. No Worker
-# runs until a flow needs media. Caddy serves it over HTTPS
-# on https://localhost:8443 with its own internal certificate.
+# runs until a flow needs media. anichron-migrate migrates and
+# creates the bootstrap admin before the API starts; `--wait`
+# accepts it exiting 0, as it does anichron-next-build. Caddy
+# serves it over HTTPS on https://localhost:8443 with its own
+# internal certificate, and a next build's sw.js to a browser
+# with the cookie anichron-e2e-build=next (e2e/update.spec.ts).
 #
 #   docker build -f src/Anichron.API/Dockerfile -t anichron-api:e2e src
 #   docker compose -f src/docker-compose.e2e.yml up --detach --wait
@@ -30,6 +34,20 @@ services:
       interval: 2s
       retries: 30
 
+  anichron-migrate:
+    extends:
+      file: docker-compose.yml
+      service: anichron-migrate
+    image: ${E2E_API_IMAGE:-anichron-api:e2e}
+    container_name: !reset null
+    environment: !override
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_e2e
+      - POSTGRES_CONNECTION__PASSWORD=anichron_e2e
+      - BOOTSTRAP_ADMIN_PASSWORD=end-to-end bootstrap passphrase
+
   anichron-api:
     extends:
       file: docker-compose.yml
@@ -48,7 +66,6 @@ services:
       - Jwt__Secret=end-to-end-only-secret-at-least-32-bytes-long
       - Jwt__Issuer=anichron
       - Jwt__Audience=anichron
-      - BOOTSTRAP_ADMIN_PASSWORD=end-to-end bootstrap passphrase
       - RateLimit__SensitivePermitLimit=10000
       - RateLimit__RefreshPermitLimit=10000
     volumes: !reset []
@@ -57,9 +74,20 @@ services:
       retries: 30
       start_period: !reset null
 
+  anichron-next-build:
+    image: ${E2E_API_IMAGE:-anichron-api:e2e}
+    user: root
+    entrypoint: ["sh", "-c", "cp /app/wwwroot/sw.js /next/sw.js && echo '// next build' >> /next/sw.js"]
+    volumes:
+      - next-build:/next
+
   anichron-tls:
     image: caddy:2.10-alpine
-    command: caddy reverse-proxy --from https://localhost:8443 --to anichron-api:8080 --internal-certs --disable-redirects
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - next-build:/srv/next:ro
     ports:
       - "${E2E_PORT:-8443}:8443"
     healthcheck:
@@ -70,3 +98,30 @@ services:
     depends_on:
       anichron-api:
         condition: service_healthy
+      anichron-next-build:
+        condition: service_completed_successfully
+
+configs:
+  caddyfile:
+    content: |
+      {
+        auto_https disable_redirects
+      }
+      https://localhost:8443 {
+        tls internal
+        @next {
+          path /sw.js
+          header Cookie *anichron-e2e-build=next*
+        }
+        handle @next {
+          root * /srv/next
+          header Cache-Control no-cache
+          file_server
+        }
+        handle {
+          reverse_proxy anichron-api:8080
+        }
+      }
+
+volumes:
+  next-build:

@@ -25,9 +25,10 @@
 # and open https://<laptop>.<tailnet>.ts.net on the phone
 # (`tailscale serve status` prints it).
 #
-# The first start creates the admin "admin" with the bootstrap
-# passphrase below, which must be changed before anything else.
-# The UI cannot do that yet, nor add a user or a storage
+# Every `up` runs anichron-migrate first. The first one creates
+# the admin "admin" with the bootstrap passphrase below, which
+# must be changed before anything else. The UI cannot do that
+# yet, nor add a user or a storage
 # config, so the first time, with
 # BASE=http://127.0.0.1:${DEVICE_PORT:-8090}:
 #   a. Sign in and change the admin's passphrase:
@@ -70,6 +71,20 @@ services:
       interval: 2s
       retries: 30
 
+  anichron-migrate:
+    extends:
+      file: docker-compose.yml
+      service: anichron-migrate
+    image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge
+    container_name: !reset null
+    environment: !override
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_device
+      - POSTGRES_CONNECTION__PASSWORD=anichron_device
+      - BOOTSTRAP_ADMIN_PASSWORD=device bootstrap passphrase
+
   anichron-api:
     extends:
       file: docker-compose.yml
@@ -84,7 +99,6 @@ services:
       - POSTGRES_CONNECTION__USER=anichron_device
       - POSTGRES_CONNECTION__PASSWORD=anichron_device
       - Jwt__Secret=${DEVICE_JWT_SECRET:?export DEVICE_JWT_SECRET, see the header}
-      - BOOTSTRAP_ADMIN_PASSWORD=device bootstrap passphrase
     volumes: !override
       - type: bind
         source: ${DEVICE_PHOTOS:?export DEVICE_PHOTOS, see the header}

@@ -3,7 +3,7 @@ import type { components } from './generated/v1';
 
 export type ErrorCode = components['schemas']['ErrorCode'];
 
-export type ValidationCode = 'required';
+export type ValidationCode = 'required' | 'mismatch';
 
 export interface Problem {
   code: string | undefined;

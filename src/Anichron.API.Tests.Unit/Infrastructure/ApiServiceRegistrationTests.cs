@@ -69,11 +69,9 @@ public sealed class ApiServiceRegistrationTests
         { typeof(ILockoutService), typeof(LockoutService), ServiceLifetime.Scoped },
         { typeof(ITokenService), typeof(TokenService), ServiceLifetime.Scoped },
         { typeof(IAuthService), typeof(AuthService), ServiceLifetime.Scoped },
-        { typeof(IBootstrapSeeder), typeof(BootstrapSeeder), ServiceLifetime.Transient },
         { typeof(IAdminResetService), typeof(AdminResetService), ServiceLifetime.Scoped },
         { typeof(IAdminUserService), typeof(AdminUserService), ServiceLifetime.Scoped },
         { typeof(IAdminStorageConfigService), typeof(AdminStorageConfigService), ServiceLifetime.Scoped },
-        { typeof(IBootstrapResetService), typeof(BootstrapResetService), ServiceLifetime.Transient },
     };
 
     [Theory]
@@ -103,6 +101,25 @@ public sealed class ApiServiceRegistrationTests
     public void AddAuthServices_UnitOfWorkIsTheScopedDbContext()
         => AuthServices().Should().ContainSingle(d => d.ServiceType == typeof(IUnitOfWork))
             .Which.Lifetime.Should().Be(ServiceLifetime.Scoped);
+
+    // ==========================================================================
+    // Bootstrap admin (the migrate command)
+    // ==========================================================================
+
+    [Fact]
+    public void AddBootstrapAdmin_ResolvesTheSeederAndTheResetFromTheDatabaseAlone()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(DatabaseValues()).Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddDatabase(configuration).AddBootstrapAdmin(configuration);
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<IBootstrapSeeder>().Should().BeOfType<BootstrapSeeder>();
+        scope.ServiceProvider.GetRequiredService<IBootstrapResetService>().Should().BeOfType<BootstrapResetService>();
+    }
 
     // ==========================================================================
     // Work items

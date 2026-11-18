@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, daysBefore, utcDay } from './day';
 import { dayView, thumbnailOf } from './day-view';
+import { useGroupsShown } from './use-groups-shown';
 
 const daysPerPage = 6;
 const nothingMilliseconds = 2000;
@@ -82,7 +83,16 @@ export function useRecentDays(today: string) {
       clearTimeout(timer);
     };
   }, [addedNothing]);
-  const recent = dates.flatMap((date, index): RecentDay[] => {
+  const shownPages = useGroupsShown(
+    Array.from({ length: pages }, (_, page) => {
+      const onPage = days.slice(page * daysPerPage, (page + 1) * daysPerPage);
+      return {
+        settled: onPage.every(({ isPending, failureCount }) => !isPending || failureCount > 0),
+        pictures: onPage.map(({ data }) => (data?.years[0] ? thumbnailOf(data.years[0]) : null)),
+      };
+    }),
+  );
+  const recent = dates.slice(0, shownPages * daysPerPage).flatMap((date, index): RecentDay[] => {
     const { data, error, refetch } = days[index] as (typeof days)[number];
     const dayLabel = label(t, date, index + 1);
     if (error) return [{ date, label: dayLabel, retry: () => void refetch() }];
@@ -93,7 +103,7 @@ export function useRecentDays(today: string) {
     days: recent,
     visible: recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
     earlierLabel: nothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
-    loadingEarlier: tapped && added.some(({ isPending }) => isPending),
+    loadingEarlier: tapped && shownPages < pages,
     showEarlier: () => {
       setPaging({ pages: pages + 1, tapped: true, wasNothing: nothing });
     },
