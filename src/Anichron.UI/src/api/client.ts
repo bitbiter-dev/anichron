@@ -25,7 +25,7 @@ export function createApiClient(tabs: Tabs): ApiClient {
     flashbacks: createFlashbacks(client, authorized),
     assets: createAssets(client, authorized),
     bursts: createBursts(client, authorized),
-    media: createMedia(),
+    media: createMedia(() => session.renewMedia()),
     workItems: createWorkItems(client, authorized),
   };
 }
