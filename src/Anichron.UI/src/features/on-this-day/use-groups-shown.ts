@@ -15,7 +15,7 @@ export function useGroupsShown(groups: readonly PictureGroup[]) {
   );
   const results = useQueries({ queries: wanted.map((url) => pictureQuery(api, url)) });
   const done = new Set(
-    results.flatMap(({ isSuccess }, index) => (isSuccess ? [wanted[index]] : [])),
+    wanted.filter((_, index) => (results[index] as (typeof results)[number]).isSuccess),
   );
   const [shown, setShown] = useState(0);
   const ready = groups.map(
