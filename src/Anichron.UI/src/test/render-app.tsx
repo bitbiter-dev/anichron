@@ -7,7 +7,7 @@ import { createQueryClient } from '../app/query-client';
 import { createAppRouter } from '../app/router';
 import { keepInstallPrompt } from '../app/install';
 import { createI18n } from '../i18n/i18n';
-import { track } from './query-clients';
+import { settled, track } from './query-clients';
 import { sharedTabs } from './tabs';
 import { fakeUpdates } from './updates';
 
@@ -15,8 +15,10 @@ import.meta.glob(['../features/*/*Page.tsx', '../api/event-stream.ts'], { eager:
 
 export function renderApp(path: string, tabs: Tabs = sharedTabs().tab()) {
   const updates = fakeUpdates();
+  const api = createApiClient(tabs);
+  const { media } = api;
   const router = createAppRouter(
-    createApiClient(tabs),
+    { ...api, media: { ...media, loadPicture: (url) => settled(media.loadPicture(url)) } },
     track(createQueryClient()),
     updates,
     keepInstallPrompt(),

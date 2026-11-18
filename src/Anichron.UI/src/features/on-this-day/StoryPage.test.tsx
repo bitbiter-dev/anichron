@@ -135,6 +135,10 @@ beforeEach(() => {
   );
 });
 
+function previewsNotPrefetched() {
+  server.use(proxyAnswers([], () => new HttpResponse(null, { status: 503 })));
+}
+
 describe('opening a story', () => {
   it('opens a dialog at the year group tapped', async () => {
     const { router, container } = await openLanding();
@@ -321,6 +325,7 @@ describe('a story playing', () => {
   });
 
   it('shows a memory without a preview for 5 s from the moment it is on screen', async () => {
+    previewsNotPrefetched();
     const bare = (id: string) =>
       memory(id, 2025, { proxies: { thumbnail: null, preview: null, video: null } });
     years = [
@@ -386,7 +391,7 @@ describe('a story playing', () => {
     ]);
     await advance(60_000);
     expect(showing()).toBe(preview(ids.b2021));
-    expect(segment(1)).toHaveStyle({ animationPlayState: 'paused' });
+    expect(segment(1).getAttribute('data-state')).toBe('seen');
 
     await user().click(button('Next'));
     await advance(0);
@@ -419,7 +424,26 @@ describe('a story playing', () => {
     await advance(60_000);
 
     expect(showing()).toBe(preview(ids.b2021));
-    expect(segment(1)).toHaveStyle({ animationPlayState: 'paused' });
+    expect(segment(1).getAttribute('data-state')).toBe('seen');
+  });
+
+  it('rests with the one segment of a year group of one memory full', async () => {
+    years = [yearGroup(2023, memory(ids.a2023, 2023))];
+    await openStory('/day/2026-11-11?year=2023');
+    await shown();
+    await advance(5000);
+
+    expect(showing()).toBe(preview(ids.a2023));
+    expect(segment(0).getAttribute('data-state')).toBe('seen');
+  });
+
+  it('keeps a paused segment where it stopped', async () => {
+    await openStory('/day/2026-11-11?year=2021');
+    await shown();
+    await user().click(button('Pause'));
+
+    expect(segment(0).getAttribute('data-state')).toBe('playing');
+    expect(segment(0)).toHaveStyle({ animationPlayState: 'paused' });
   });
 
   it('plays again from the last memory when going back', async () => {
@@ -438,6 +462,7 @@ describe('a story playing', () => {
   });
 
   it('holds the progress of a memory still until its picture is decoded', async () => {
+    previewsNotPrefetched();
     await openStory('/day/2026-11-11?year=2025');
 
     const states = () =>
@@ -502,6 +527,10 @@ describe('a story playing', () => {
 });
 
 describe('a memory loading', () => {
+  beforeEach(() => {
+    previewsNotPrefetched();
+  });
+
   async function loadingSecond() {
     const rendered = await openStory('/day/2026-11-11?year=2025');
     await shown();
@@ -878,6 +907,22 @@ describe('a video', () => {
     expect(showing()).toBe(preview(ids.b2025));
   });
 
+  it('shows its poster for 5 s when it breaks while playing and again after its reload', async () => {
+    await openVideo();
+    await fire('playing');
+
+    await fire('error');
+    await fire('error');
+
+    expect(video()).not.toBeVisible();
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segment(0).style.animationDuration).toBe('5000ms');
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
   it('plays after its reload', async () => {
     await openVideo();
 
@@ -948,6 +993,9 @@ describe('a video', () => {
     expect(load).toHaveBeenCalledOnce();
     expect(video().hasAttribute('src')).toBe(false);
     await shown();
+    await user().click(button('Pause'));
+    await user().click(button('Play'));
+    expect(load).toHaveBeenCalledOnce();
     await advance(5000);
 
     expect(video()).toBe(shared);
@@ -1455,6 +1503,7 @@ describe('a Live Photo', () => {
   });
 
   it('shows no Live Photo button on a photo, nor before its photo shows', async () => {
+    previewsNotPrefetched();
     years = [yearGroup(2025, memory(ids.b2025, 2025), live(ids.a2025, 2025))];
     await openStory('/day/2026-11-11?year=2025');
     await shown();
@@ -2061,6 +2110,130 @@ describe('a blurhash', () => {
     expect([canvas()?.width, canvas()?.height]).toEqual(size);
   });
 
+  describe('of a memory whose preview was fetched ahead', () => {
+    const live = {
+      livePhotoVideoUrl: 'proxies/0199a1b2-c3d4-7e5f-8a9b-00000000a0e1/video?v=fedcba9876543210',
+    };
+    const burst = { burst: { burstId: ids.c2025, isCover: true, count: 2 } };
+    let prefetched: string[];
+
+    function threeYears(overrides: Parameters<typeof memory>[2] = {}) {
+      years = [
+        yearGroup(2025, memory(ids.a2025, 2025, { blurhash: solid(plum) })),
+        yearGroup(2023, memory(ids.a2023, 2023, { blurhash: solid(plum), ...overrides })),
+        yearGroup(2021, memory(ids.a2021, 2021, { blurhash: solid(plum) })),
+      ];
+    }
+
+    async function openFetchingAhead() {
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      fireEvent.click(button('Pause'));
+      await vi.waitFor(() => {
+        expect(prefetched.toSorted()).toEqual([preview(ids.a2021), preview(ids.a2023)]);
+      });
+      await advance(0);
+      fireEvent.click(button('Play'));
+      painted = [];
+    }
+
+    beforeEach(() => {
+      prefetched = [];
+      vi.spyOn(HTMLImageElement.prototype, 'decode').mockImplementation(function (
+        this: HTMLImageElement,
+      ) {
+        if (!this.isConnected) prefetched.push(this.getAttribute('src') ?? '');
+        return Promise.resolve();
+      });
+    });
+
+    it('is never shown when the timer moves on to it, which then shows for 5 s', async () => {
+      threeYears();
+      await openFetchingAhead();
+
+      await advance(5000);
+      expect(showing()).toBe(preview(ids.a2023));
+      expect(canvas()).toBeNull();
+      expect(painted).toEqual([]);
+
+      await advance(4999);
+      expect(showing()).toBe(preview(ids.a2023));
+      await advance(1);
+      expect(showing()).toBe(preview(ids.a2021));
+      expect(painted).toEqual([]);
+    });
+
+    it.each([
+      ['a photo', {}],
+      ['a Live Photo', live],
+      ['a burst', burst],
+    ])('is never shown when a tap moves on to %s', async (_, overrides) => {
+      threeYears(overrides);
+      await openFetchingAhead();
+
+      fireEvent.click(button('Next'));
+      await advance(0);
+
+      expect(showing()).toBe(preview(ids.a2023));
+      expect(canvas()).toBeNull();
+      expect(painted).toEqual([]);
+    });
+
+    it.each([
+      ['refused', () => new HttpResponse(null, { status: 503 })],
+      ['not sent', () => HttpResponse.error()],
+      ['not decoded', () => undefined],
+    ])('is shown for a memory whose preview was %s ahead', async (how, answer) => {
+      server.use(proxyAnswers([], answer));
+      if (how === 'not decoded')
+        vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(new Error('broken'));
+      threeYears();
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await advance(0);
+
+      fireEvent.click(button('Next'));
+      await advance(0);
+
+      expect(showing()).toBe(preview(ids.a2023));
+      expect(canvas()).not.toBeNull();
+    });
+
+    it('still waits for a video to play', async () => {
+      threeYears({
+        mediaType: 'Video',
+        durationSeconds: 12,
+        proxies: {
+          thumbnail: `proxies/${ids.a2023}/thumbnail?v=0123456789abcdef`,
+          preview: `proxies/${ids.a2023}/preview?v=0123456789abcdef`,
+          video: `proxies/${ids.a2023}/video?v=0123456789abcdef`,
+        },
+      });
+      await openFetchingAhead();
+
+      fireEvent.click(button('Next'));
+      await advance(0);
+
+      expect(canvas()).not.toBeNull();
+      expect(segment(0).style.animationPlayState).toBe('paused');
+    });
+
+    it('fails a picture that breaks after its reload', async () => {
+      threeYears();
+      await openFetchingAhead();
+      fireEvent.click(button('Next'));
+      await advance(0);
+
+      fireEvent.error(picture());
+      await advance(0);
+      fireEvent.error(picture());
+      await advance(0);
+
+      expect(within(story()).getByText(failure)).toBeVisible();
+      expect(picture()).toBeNull();
+    });
+  });
+
   it("shows with a failed memory's message", async () => {
     withBlurhash();
     await openStory('/day/2026-11-11?year=2025');
@@ -2291,6 +2464,7 @@ describe('moving through a story', () => {
   });
 
   it('starts the next memory on its own clock, not the one it left', async () => {
+    previewsNotPrefetched();
     await openStory('/day/2026-11-11?year=2025');
     await shown();
     await advance(3000);
@@ -3216,6 +3390,7 @@ describe('starring, liking and hiding', () => {
   });
 
   it('gives the memory after a hidden one its own clock', async () => {
+    previewsNotPrefetched();
     await openStory('/day/2026-11-11?year=2025');
     await shown();
     await advance(4000);

@@ -5,17 +5,18 @@ export interface Videos {
 }
 
 export interface Media {
-  loadPicture(url: string): Promise<void>;
+  loadPicture(url: string): Promise<boolean>;
   videos(): Videos;
 }
 
 async function fetchAndDecode(url: string) {
   const response = await fetch(new URL(url, location.origin));
-  if (!response.ok) return;
+  if (!response.ok) return false;
   await response.blob();
   const image = new Image();
   image.src = url;
   await image.decode();
+  return true;
 }
 
 interface Kept {
@@ -57,7 +58,7 @@ function createVideos(): Videos {
 
 export function createMedia(): Media {
   return {
-    loadPicture: (url) => fetchAndDecode(url).catch(() => undefined),
+    loadPicture: (url) => fetchAndDecode(url).catch(() => false),
     videos: createVideos,
   };
 }

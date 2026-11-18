@@ -84,6 +84,7 @@
   --color-on-player: var(--neutral-0);
   --color-player-glass: var(--neutral-850);
   --color-player-accent: var(--accent-300);
+  --color-scrim: var(--black);
 
   --radius-*: initial;
   --radius-field: 0.75rem;

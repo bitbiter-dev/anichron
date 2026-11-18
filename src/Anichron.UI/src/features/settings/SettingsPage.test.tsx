@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
-import { logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
+import { adminSession, logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
 import { everyoneHasMemories } from '../../test/handlers/flashbacks';
 import { themeColourTags } from '../../test/index-head';
 import { renderApp } from '../../test/render-app';
@@ -121,6 +121,8 @@ describe('the theme choice', () => {
     const { theme } = await openSettings();
     const keyboard = user();
     await keyboard.tab();
+    expect(screen.getByRole('link', { name: 'Change password' })).toHaveFocus();
+    await keyboard.tab();
     expect(theme('System')).toHaveFocus();
 
     await keyboard.keyboard('{ArrowRight}');
@@ -149,6 +151,50 @@ describe('the theme choice', () => {
 });
 
 describe('the account section', () => {
+  const cards = () => [...screen.getByRole('main').children];
+
+  it('comes first, showing who is signed in with a row to change the password', async () => {
+    const { container } = await openSettings();
+
+    const account = cards()[0] as HTMLElement;
+    expect(within(account).getByRole('heading', { level: 2, name: 'Account' })).toBeInTheDocument();
+    expect(account).toHaveTextContent(/^AccountMmiraChange password$/);
+    expect(within(account).queryByText('Admin')).toBeNull();
+    const change = within(account).getByRole('link', { name: 'Change password' });
+    expect(change).toHaveAttribute('href', '/settings/password');
+    expect(change.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('says Admin for an admin, whose work queue is a row too', async () => {
+    server.use(refreshSucceeds(adminSession));
+    renderApp('/settings');
+
+    const account = await screen.findByRole('region', { name: 'Account' });
+    expect(within(account).getByText('alice')).toBeVisible();
+    expect(within(account).getByText('Admin')).toBeVisible();
+    const queue = screen.getByRole('link', { name: 'Work queue' });
+    expect(queue).toHaveAttribute('href', '/admin/work-items');
+    expect(queue.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it.each(['light', 'dark'] as const)(
+    'ends with Sign out in a card of its own, readable in the %s theme',
+    async (name) => {
+      const { container, theme } = await openSettings();
+      fireEvent.click(theme(name === 'light' ? 'Light' : 'Dark'));
+
+      const last = cards().at(-1) as HTMLElement;
+      expect(
+        within(last)
+          .getAllByRole('button')
+          .map((b) => b.textContent),
+      ).toEqual(['Sign out']);
+      expect(last).toHaveTextContent(/^Sign out$/);
+      expect(await axeResults(container)).toHaveNoViolations();
+    },
+  );
+
   it('signs out at once, without asking first', async () => {
     let logouts = 0;
     server.use(logoutSucceeds(() => logouts++));
@@ -200,29 +246,102 @@ describe('the install section', () => {
     Reflect.deleteProperty(navigator, 'maxTouchPoints');
   });
 
-  it('explains Share, then Add to Home Screen, on an iPhone', async () => {
-    browsingOn(iPhone);
-    const { container } = await openSettings();
+  const iconName = (icon: SVGElement) => /lucide-([a-z-]+)$/.exec(icon.classList[1] ?? '')?.[1];
+  const shapeOf = (icon: SVGElement) =>
+    /rounded-(full|field)/.exec(icon.parentElement?.className ?? '')?.[1];
+  const safariSteps = ['Tap Share', 'Tap Show More', 'Tap Add to Home Screen'];
+  const showHow = () => screen.getByRole('button', { name: 'Show how to install' });
+  const stepsDialog = () => screen.getByRole('dialog', { name: 'Install the app' });
+  const steps = () =>
+    within(stepsDialog())
+      .getAllByRole('listitem')
+      .map((step) => step.textContent);
 
-    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+  async function openSteps() {
+    await user().click(showHow());
+  }
+
+  it('shows the steps for Safari on an iPhone in a dialog, each with its icon', async () => {
+    browsingOn(iPhone);
+    await openSettings();
+    expect(within(section() as HTMLElement).getByRole('button')).toBe(showHow());
     expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
-    expect(await axeResults(container)).toHaveNoViolations();
+
+    await openSteps();
+
+    expect(steps()).toEqual(safariSteps);
+    const icons = within(stepsDialog())
+      .getAllByRole('listitem')
+      .map((step) => step.querySelector('svg') as SVGElement);
+    for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(icons.map((icon) => [iconName(icon), shapeOf(icon)])).toEqual([
+      ['share', 'full'],
+      ['ellipsis', 'full'],
+      ['square-plus', 'field'],
+    ]);
+    expect(await axeResults(document.body)).toHaveNoViolations();
   });
 
-  it('explains the same steps on an iPad asking for the mobile site', async () => {
+  it.each([
+    [
+      'its close button',
+      () => user().click(within(stepsDialog()).getByRole('button', { name: 'Close' })),
+    ],
+    ['Escape', () => user().keyboard('{Escape}')],
+  ])('closes the steps with %s', async (_, close) => {
+    browsingOn(iPhone);
+    await openSettings();
+    await openSteps();
+
+    await close();
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(showHow()).toBeVisible();
+  });
+
+  it.each([
+    [
+      'Chrome',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.46 Mobile/15E148 Safari/604.1',
+      ['Tap More', 'Tap Share', 'Tap Add to Home Screen'],
+    ],
+    [
+      'Firefox',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/145.0 Mobile/15E148 Safari/605.1.15',
+      ['Tap Share', 'Tap Add to Home Screen'],
+    ],
+    [
+      'another browser',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/142.0.3595.53 Version/26.0 Mobile/15E148 Safari/604.1',
+      safariSteps,
+    ],
+  ])('shows the steps for %s on an iPhone', async (_, userAgent, expected) => {
+    browsingOn(userAgent);
+    await openSettings();
+
+    await openSteps();
+
+    expect(steps()).toEqual(expected);
+  });
+
+  it('shows the same steps on an iPad asking for the mobile site', async () => {
     browsingOn(
       'Mozilla/5.0 (iPad; CPU OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1',
     );
     await openSettings();
 
-    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+    await openSteps();
+
+    expect(steps()).toEqual(safariSteps);
   });
 
-  it('explains the same steps on an iPad, which Safari presents as a Mac', async () => {
+  it('shows the same steps on an iPad, which Safari presents as a Mac', async () => {
     browsingOn(mac, 5);
     await openSettings();
 
-    expect(section()).toHaveTextContent('To install Anichron, tap Share, then Add to Home Screen.');
+    await openSteps();
+
+    expect(steps()).toEqual(safariSteps);
   });
 
   it('is hidden in Safari on a Mac', async () => {

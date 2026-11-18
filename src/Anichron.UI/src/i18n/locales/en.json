@@ -63,7 +63,8 @@
     "settings": "Settings",
     "back": "Back",
     "newVersion": "A new version is available",
-    "reload": "Reload"
+    "reload": "Reload",
+    "later": "Later"
   },
   "settings": {
     "title": "Settings",
@@ -77,15 +78,23 @@
     "install": {
       "title": "Install the app",
       "steps": {
-        "ios": "To install Anichron, tap Share, then Add to Home Screen.",
         "android": "To install Anichron, open the browser menu, then tap Add to Home screen or Install app."
       },
-      "button": "Install"
+      "ios": {
+        "share": "Tap Share",
+        "showMore": "Tap Show More",
+        "more": "Tap More",
+        "add": "Tap Add to Home Screen"
+      },
+      "button": "Install",
+      "show": "Show how to install",
+      "close": "Close"
     },
     "account": "Account",
     "administration": "Administration",
     "workItems": "Work queue",
-    "changePassword": "Change password"
+    "changePassword": "Change password",
+    "admin": "Admin"
   },
   "password": {
     "title": "Change password",
