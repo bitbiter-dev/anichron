@@ -21,12 +21,13 @@ interface MediaEvents {
 function sourceOf(
   state: StoryState,
   { proxies, livePhotoVideoUrl }: Memory,
-  liveSource: (url: string) => string,
+  kept: (url: string) => string | null,
 ): Source | null {
-  const poster = proxies.preview ?? '';
+  const poster = (proxies.preview && kept(proxies.preview)) ?? '';
   if (state.kind === 'video' && state.load !== 'failed')
     return { src: proxies.video as string, poster };
-  if (state.livePlay) return { src: liveSource(livePhotoVideoUrl as string), poster };
+  const live = livePhotoVideoUrl as string;
+  if (state.livePlay) return { src: kept(live) ?? live, poster };
   return null;
 }
 
@@ -34,7 +35,7 @@ export function createVideoPlayer(
   story: StoryMedia,
   memoryOf: (state: StoryState) => Memory,
   renew: () => Promise<void>,
-  liveSource: (url: string) => string,
+  kept: (url: string) => string | null,
 ) {
   let element: HTMLVideoElement | null = null;
   let visit = 0;
@@ -45,7 +46,6 @@ export function createVideoPlayer(
   let playing: boolean;
 
   function load(video: HTMLVideoElement) {
-    video.poster = source.poster;
     video.src = source.src;
     playing = false;
   }
@@ -64,7 +64,7 @@ export function createVideoPlayer(
   function sync() {
     if (!element) return;
     const state = story.state();
-    const wanted = sourceOf(state, memoryOf(state), liveSource);
+    const wanted = sourceOf(state, memoryOf(state), kept);
     element.muted = state.muted || state.kind === 'live';
     if (!wanted) {
       element.pause();
@@ -82,6 +82,7 @@ export function createVideoPlayer(
       reloaded = false;
       load(element);
     }
+    element.poster = wanted.poster;
     playOrPause(element);
   }
 

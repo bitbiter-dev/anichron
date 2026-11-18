@@ -1,43 +1,47 @@
 import type { Memory } from '../../api/flashbacks';
+import type { Downloads, Wanted } from '../../api/media';
 import type { Place, StoryState } from './story';
 import { kindOf } from './story-view';
 
 type MemoryAt = (place: Place) => Memory;
+type PreviewAt = (place: Place) => string | null;
 
-export function createPrefetch(
-  previewAt: (place: Place) => string | null,
-  prefetchPicture: (url: string) => Promise<boolean>,
-) {
-  const fetched = new Set<string>();
-  const decoded = new Set<string | null>();
+export function wantedOf(state: StoryState, previewAt: PreviewAt, memoryAt: MemoryAt): Wanted {
   return {
-    fetchAhead({ load, upcoming }: StoryState) {
-      if (load === 'loading') return;
-      for (const url of upcoming.map(previewAt)) {
-        if (url && !fetched.has(url)) {
-          fetched.add(url);
-          void prefetchPicture(url).then((done) => {
-            if (done) decoded.add(url);
-          });
-        }
-      }
-    },
-    decoded: (place: Place) => decoded.has(previewAt(place)),
+    pictures: [state, ...state.upcoming].flatMap((place) => previewAt(place) ?? []),
+    videos: [state, ...state.upcoming.slice(0, 1)].flatMap(
+      (place) => memoryAt(place).livePhotoVideoUrl ?? [],
+    ),
   };
 }
 
-export function createKeepLiveVideos(memoryAt: MemoryAt, keep: (urls: string[]) => void) {
-  return (state: StoryState) => {
-    if (state.load === 'loading') return;
-    keep(
-      [state, ...state.upcoming, ...state.behind]
-        .map(memoryAt)
-        .flatMap(({ livePhotoVideoUrl }) => livePhotoVideoUrl ?? []),
-    );
+export function createPreviews(downloads: Downloads, previewAt: PreviewAt) {
+  let visit = 0;
+  return {
+    downloaded: (place: Place) => {
+      const url = previewAt(place);
+      return url !== null && downloads.sourceOf(url) !== null;
+    },
+    sync(state: StoryState, failed: (visit: number) => void) {
+      const url = previewAt(state);
+      if (url === null) return;
+      if (state.visit !== visit) downloads.retry(url);
+      visit = state.visit;
+      if (state.load === 'loading' && state.kind !== 'video' && downloads.failed(url))
+        failed(state.visit);
+    },
   };
 }
 
 export function nextVideo({ upcoming }: StoryState, memoryAt: MemoryAt) {
   const video = upcoming.map(memoryAt).find((memory) => kindOf(memory) === 'video');
   return video?.proxies.video ?? null;
+}
+
+export function createPreload() {
+  let preloading: string | null = null;
+  return (next: string | null, picturesSettled: boolean) => {
+    if (next !== preloading && picturesSettled) preloading = next;
+    return next === preloading ? next : null;
+  };
 }

@@ -1,25 +1,23 @@
-export interface Videos {
-  keep(urls: readonly string[]): void;
-  sourceOf(url: string): string;
-  clear(): void;
-}
-
 export interface Wanted {
   pictures: readonly string[];
   videos: readonly string[];
 }
 
+export interface Arrived {
+  sourceOf: (url: string) => string | null;
+  picturesSettled: boolean;
+}
+
 export interface Downloads {
-  keep(wanted: Wanted): void;
-  picture(url: string): Promise<boolean>;
-  sourceOf(url: string): string | null;
-  failed(url: string): boolean;
-  retry(url: string): void;
-  picturesSettled(): boolean;
-  version(): number;
-  subscribe(listener: () => void): () => void;
-  onProgress(listener: () => void): () => void;
-  clear(): void;
+  keep: (wanted: Wanted) => void;
+  picture: (url: string) => Promise<boolean>;
+  sourceOf: (url: string) => string | null;
+  failed: (url: string) => boolean;
+  retry: (url: string) => void;
+  snapshot: () => Arrived;
+  subscribe: (listener: () => void) => () => void;
+  onProgress: (listener: () => void) => () => void;
+  clear: () => void;
 }
 
 export interface ObjectUrls {
@@ -28,9 +26,7 @@ export interface ObjectUrls {
 }
 
 export interface Media {
-  loadPicture(url: string): Promise<boolean>;
   loadImage(url: string): Promise<boolean>;
-  videos(): Videos;
   downloads: Downloads;
 }
 
@@ -71,15 +67,31 @@ async function decodeSource(source: string) {
 
 function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Downloads {
   const kept = new Map<string, Download>();
+  const retained = new Map<string, Download>();
+  const limits = new Map([
+    [true, 60],
+    [false, 10],
+  ]);
   let wanted: Wanted = { pictures: [], videos: [] };
   let order: string[] = [];
   let active: Download | undefined;
-  let version = 0;
   const listeners = new Set<() => void>();
   const progressListeners = new Set<() => void>();
 
+  function arrived(): Arrived {
+    return {
+      sourceOf: (url) => kept.get(url)?.source ?? null,
+      picturesSettled: order.every((url) => {
+        const { picture, state } = kept.get(url) as Download;
+        return !picture || state === 'done' || state === 'failed';
+      }),
+    };
+  }
+
+  let snapshot = arrived();
+
   function changed() {
-    version += 1;
+    snapshot = arrived();
     for (const listener of listeners) listener();
   }
 
@@ -149,10 +161,24 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     );
   }
 
+  function evict() {
+    for (const [picture, limit] of limits) {
+      const old = [...retained.values()].filter((download) => download.picture === picture);
+      for (const { url, source } of old.slice(0, Math.max(0, old.length - limit))) {
+        retained.delete(url);
+        objectUrls.free(source as string);
+      }
+    }
+  }
+
   function drop(download: Download) {
     kept.delete(download.url);
+    if (download.state === 'done') {
+      retained.set(download.url, download);
+      evict();
+      return;
+    }
     download.controller?.abort();
-    if (download.source) objectUrls.free(download.source);
     download.settle(false);
     if (active === download) active = undefined;
   }
@@ -161,11 +187,16 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     const kinds = new Map<string, boolean>();
     for (const url of next.videos) kinds.set(url, false);
     for (const url of next.pictures) kinds.set(url, true);
-    for (const download of kept.values()) if (!kinds.has(download.url)) drop(download);
-    for (const [url, picture] of kinds)
-      if (!kept.has(url)) kept.set(url, newDownload(url, picture));
+    const dropped = [...kept.values()].filter(({ url }) => !kinds.has(url));
+    const added = [...kinds].filter(([url]) => !kept.has(url));
+    for (const download of dropped) drop(download);
+    for (const [url, picture] of added) {
+      kept.set(url, retained.get(url) ?? newDownload(url, picture));
+      retained.delete(url);
+    }
     wanted = next;
     order = [...new Set([...next.pictures, ...next.videos])];
+    if (dropped.length + added.length > 0) changed();
     pump();
   }
 
@@ -183,12 +214,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
       kept.set(url, newDownload(url, download.picture));
       pump();
     },
-    picturesSettled: () =>
-      order.every((url) => {
-        const { picture, state } = kept.get(url) as Download;
-        return !picture || state === 'done' || state === 'failed';
-      }),
-    version: () => version,
+    snapshot: () => snapshot,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -210,61 +236,12 @@ async function decodeImage(url: string) {
   return true;
 }
 
-async function fetchAndDecode(url: string) {
-  const response = await fetch(new URL(url, location.origin));
-  if (!response.ok) return false;
-  await response.blob();
-  const image = new Image();
-  image.src = url;
-  await image.decode();
-  return true;
-}
-
-interface Kept {
-  source?: string;
-}
-
-function createVideos(): Videos {
-  const kept = new Map<string, Kept>();
-  const notKept: Kept = {};
-
-  async function load(url: string, entry: Kept) {
-    const response = await fetch(new URL(url, location.origin));
-    if (!response.ok) return;
-    const blob = await response.blob();
-    if (kept.get(url) === entry) entry.source = URL.createObjectURL(blob);
-  }
-
-  function drop(url: string, { source }: Kept) {
-    kept.delete(url);
-    if (source) URL.revokeObjectURL(source);
-  }
-
-  return {
-    keep(urls) {
-      for (const [url, entry] of kept) if (!urls.includes(url)) drop(url, entry);
-      for (const url of urls) {
-        if (kept.has(url)) continue;
-        const entry: Kept = {};
-        kept.set(url, entry);
-        load(url, entry).catch(() => undefined);
-      }
-    },
-    sourceOf: (url) => (kept.get(url) ?? notKept).source ?? url,
-    clear() {
-      for (const [url, entry] of kept) drop(url, entry);
-    },
-  };
-}
-
 export function createMedia(
   renew: () => Promise<void>,
   objectUrls: ObjectUrls = browserObjectUrls(),
 ): Media {
   return {
-    loadPicture: (url) => fetchAndDecode(url).catch(() => false),
     loadImage: (url) => decodeImage(url).catch(() => false),
-    videos: createVideos,
     downloads: createDownloads(renew, objectUrls),
   };
 }

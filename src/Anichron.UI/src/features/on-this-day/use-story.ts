@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { previewOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
-import { createKeepLiveVideos, createPrefetch, nextVideo } from './prefetch';
+import { createPreload, createPreviews, nextVideo, wantedOf } from './prefetch';
 import { createStory, type Place } from './story';
 import { kindOf, storyView } from './story-view';
 import { createVideoPlayer } from './video';
@@ -11,42 +11,48 @@ import { createVideoPlayer } from './video';
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
   const { api, queryClient } = useRouter().options.context;
   const { session, media } = api;
-  const [{ snapshot, story, gestures, player, subscribe, memoryAt }] = useState(() => {
+  const { downloads } = media;
+  const [{ snapshot, story, gestures, player, subscribe, memoryAt, preload }] = useState(() => {
     const memoryAt = ({ group, memory }: Place) =>
       (years[group] as YearGroup).memories[memory] as Memory;
-    const prefetch = createPrefetch(
-      (place) => previewOf(api, queryClient, memoryAt(place)),
-      (url) => media.loadPicture(url),
-    );
+    const previewAt = (place: Place) => previewOf(api, queryClient, memoryAt(place));
+    const previews = createPreviews(downloads, previewAt);
     const story = createStory(
       years.map((group) => group.memories.map(kindOf)),
       startGroup(years, year),
       close,
-      (place) => prefetch.decoded(place),
+      previews.downloaded,
     );
-    const videos = media.videos();
     const player = createVideoPlayer(
       story,
       memoryAt,
       () => session.renewMedia(),
-      (url) => videos.sourceOf(url),
+      (url) => downloads.sourceOf(url),
     );
-    const keepLiveVideos = createKeepLiveVideos(memoryAt, (urls) => {
-      videos.keep(urls);
-    });
+    const sync = () => {
+      const state = story.state();
+      downloads.keep(wantedOf(state, previewAt, memoryAt));
+      previews.sync(state, story.mediaFailed);
+    };
     const subscribe = (listener: () => void) => {
       const stopInput = listenToInput(story);
-      prefetch.fetchAhead(story.state());
-      const stop = story.subscribe(() => {
-        keepLiveVideos(story.state());
+      sync();
+      const stopStory = story.subscribe(() => {
+        sync();
         player.sync();
-        prefetch.fetchAhead(story.state());
         listener();
       });
+      const stopDownloads = downloads.subscribe(() => {
+        sync();
+        player.sync();
+      });
+      const stopFrames = queryClient.getQueryCache().subscribe(sync);
       return () => {
-        stop();
+        stopStory();
+        stopDownloads();
+        stopFrames();
         stopInput();
-        videos.clear();
+        downloads.clear();
       };
     };
     return {
@@ -56,15 +62,18 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       player,
       subscribe,
       memoryAt,
+      preload: createPreload(),
     };
   });
   const state = useSyncExternalStore(subscribe, story.state);
+  const arrived = useSyncExternalStore(downloads.subscribe, downloads.snapshot);
   const group = snapshot[state.group] as YearGroup;
   return {
     state,
     group,
     ...storyView(state, group),
-    nextVideo: nextVideo(state, memoryAt),
+    nextVideo: preload(nextVideo(state, memoryAt), arrived.picturesSettled),
+    source: (url: string | null) => url && arrived.sourceOf(url),
     hide: (place?: Place) => story.hide(place),
     undo: (place: Place) => {
       story.undo(place);

@@ -17,6 +17,7 @@ import {
 } from '../../test/handlers/flashbacks';
 import { burstAnswers } from '../../test/handlers/bursts';
 import { proxyAnswers } from '../../test/handlers/proxies';
+import { freedSources, keptSource as fromMemoryOf } from '../../test/object-urls';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -50,7 +51,12 @@ const galleryOf = (name: string) =>
   screen.getByRole('link', { name }).closest('ul') as HTMLUListElement;
 const story = () => screen.getByRole('dialog', { name: storyName });
 const button = (name: string) => within(story()).getByRole('button', { name });
-const showing = () => picture().getAttribute('src');
+function fromMemory(source: string | null) {
+  const kept = source?.match(/^memory:(.*)$/)?.[1];
+  if (kept === undefined) throw new Error(`${String(source)} is not shown from memory`);
+  return kept;
+}
+const showing = () => fromMemory(picture().getAttribute('src'));
 async function drag(x: number, y: number, from = middle(), stepMilliseconds = 16) {
   const at = (step: number) => ({
     clientX: 200 + x * step,
@@ -81,10 +87,14 @@ const middle = () => button('Previous').nextElementSibling as HTMLElement;
 const picture = () => story().querySelector('img') as HTMLImageElement;
 
 async function shown() {
+  await vi.waitFor(() => {
+    if (!story().querySelector('img')) waiting.shift()?.();
+    expect(story().querySelector('img')).not.toBeNull();
+  });
   const image = picture();
   fireEvent.load(image);
   await advance(0);
-  return image.getAttribute('src');
+  return fromMemory(image.getAttribute('src'));
 }
 
 function reduceMotion() {
@@ -121,6 +131,7 @@ async function openStory(path: string) {
 }
 
 beforeEach(() => {
+  waiting = [];
   requested = [];
   years = threeYears();
   vi.setSystemTime(new Date(2026, 10, 11, 8));
@@ -135,8 +146,24 @@ beforeEach(() => {
   );
 });
 
+let waiting: (() => void)[] = [];
+
 function previewsNotPrefetched() {
-  server.use(proxyAnswers([], () => new HttpResponse(null, { status: 503 })));
+  let opened = false;
+  server.use(
+    proxyAnswers([], (url) => {
+      if (!url.includes('/preview?')) return undefined;
+      if (!opened) {
+        opened = true;
+        return undefined;
+      }
+      return new Promise<undefined>((resolve) => {
+        waiting.push(() => {
+          resolve(undefined);
+        });
+      });
+    }),
+  );
 }
 
 describe('opening a story', () => {
@@ -147,7 +174,7 @@ describe('opening a story', () => {
 
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
     expect(router.state.location.href).toBe('/day/2026-11-11?year=2023');
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
+    expect(showing()).toBe(preview(ids.a2023));
     expect(within(story()).getByText('3 years ago · 2023')).toBeVisible();
     expect(await axeResults(container)).toHaveNoViolations();
   });
@@ -181,7 +208,7 @@ describe('opening a story', () => {
     expect(received).not.toContain(preview(ids.a2021));
     answerFirst(undefined);
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
+    expect(showing()).toBe(preview(ids.a2023));
   });
 
   it('loads the first picture only on opening, not again when the session renews', async () => {
@@ -233,7 +260,7 @@ describe('opening a story', () => {
   it('opens a reload at the year group in the address, from its first memory', async () => {
     await openStory('/day/2026-11-11?year=2021');
 
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2021));
+    expect(showing()).toBe(preview(ids.a2021));
     expect(within(story()).getByText('5 years ago · 2021')).toBeVisible();
   });
 
@@ -242,7 +269,7 @@ describe('opening a story', () => {
     async (path) => {
       await openStory(path);
 
-      expect(picture().getAttribute('src')).toBe(preview(ids.a2025));
+      expect(showing()).toBe(preview(ids.a2025));
     },
   );
 
@@ -286,7 +313,7 @@ describe('opening a story', () => {
     failing = false;
     fireEvent.click(within(story()).getByRole('button', { name: 'Try again' }));
     await advance(0);
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
   });
 
   it('closes at once on a day already loaded without memories', async () => {
@@ -315,13 +342,11 @@ describe('a story playing', () => {
   it('shows each memory for 5 s from the moment its picture is decoded', async () => {
     await openStory('/day/2026-11-11?year=2025');
     await advance(9000);
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2025));
-
-    await shown();
+    expect(await shown()).toBe(preview(ids.a2025));
     await advance(4999);
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2025));
+    expect(showing()).toBe(preview(ids.a2025));
     await advance(1);
-    expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
+    expect(showing()).toBe(preview(ids.b2025));
   });
 
   it('shows a memory without a preview for 5 s from the moment it is on screen', async () => {
@@ -341,15 +366,14 @@ describe('a story playing', () => {
     expect(picture()).toBeNull();
 
     await advance(5000);
-    expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
-    await shown();
+    expect(await shown()).toBe(preview(ids.b2025));
     await advance(5000);
     expect(picture()).toBeNull();
     expect(within(story()).getByText('3 years ago · 2023')).toBeVisible();
     await advance(4999);
     expect(picture()).toBeNull();
     await advance(1);
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2021));
+    expect(await shown()).toBe(preview(ids.a2021));
   });
 
   it('counts a picture that loads but fails to decode as shown', async () => {
@@ -359,7 +383,7 @@ describe('a story playing', () => {
     await shown();
     await advance(5000);
 
-    expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
+    expect(showing()).toBe(preview(ids.b2025));
   });
 
   it('plays year group after year group, and rests on the last memory until moved on', async () => {
@@ -505,10 +529,9 @@ describe('a story playing', () => {
 
     await shown();
     await advance(5000);
-    expect(picture().getAttribute('src')).toBe(preview(ids.b2025));
-    await shown();
+    expect(await shown()).toBe(preview(ids.b2025));
     await advance(5000);
-    expect(picture().getAttribute('src')).toBe(preview(ids.a2023));
+    expect(showing()).toBe(preview(ids.a2023));
   });
 
   it('keeps its day across midnight', async () => {
@@ -557,11 +580,54 @@ describe('a memory loading', () => {
     expect(within(story()).getByText(failure)).toBeVisible();
     await advance(1);
     expect(within(story()).queryByText(failure)).toBeNull();
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
+  });
+
+  it('fails a picture the server refuses at once, and moves on 5 s later', async () => {
+    server.use(
+      proxyAnswers([], (url) =>
+        url === preview(ids.b2025) ? new HttpResponse(null, { status: 503 }) : undefined,
+      ),
+    );
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(button('Next'));
+    await advance(0);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(picture()).toBeNull();
+    await advance(4999);
+    expect(within(story()).getByText(failure)).toBeVisible();
+    await advance(1);
+    expect(await shown()).toBe(preview(ids.a2023));
+  });
+
+  it('downloads a failed picture again when the story comes back to it', async () => {
+    let refusing = true;
+    server.use(
+      proxyAnswers([], (url) =>
+        url === preview(ids.b2025) && refusing
+          ? new HttpResponse(null, { status: 503 })
+          : undefined,
+      ),
+    );
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(button('Next'));
+    await advance(0);
+    expect(within(story()).getByText(failure)).toBeVisible();
+
+    refusing = false;
+    await user().click(button('Previous'));
+    await user().click(button('Next'));
+
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(await shown()).toBe(preview(ids.b2025));
   });
 
   it('fails a picture that breaks again after its reload, and moves on 5 s later', async () => {
     await loadingSecond();
+    await shown();
 
     const broken = picture();
     fireEvent.error(broken);
@@ -576,40 +642,20 @@ describe('a memory loading', () => {
     await advance(4999);
     expect(within(story()).getByText(failure)).toBeVisible();
     await advance(1);
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
   });
 
-  it('plays a picture that loads after its reload', async () => {
+  it('stays failed when its picture arrives too late', async () => {
     await loadingSecond();
-
-    fireEvent.error(picture());
-    await advance(0);
-    await shown();
-    await advance(4999);
-
-    expect(within(story()).queryByText(failure)).toBeNull();
-    expect(showing()).toBe(preview(ids.b2025));
-    await advance(1);
-    expect(showing()).toBe(preview(ids.a2023));
-  });
-
-  it('stays failed when its picture decodes too late', async () => {
-    await loadingSecond();
-    let decode = () => undefined as unknown;
-    vi.spyOn(HTMLImageElement.prototype, 'decode').mockReturnValue(
-      new Promise((resolve) => {
-        decode = resolve;
-      }),
-    );
-    fireEvent.load(picture());
 
     await advance(10_000);
-    decode();
+    waiting.shift()?.();
     await advance(4999);
 
     expect(within(story()).getByText(failure)).toBeVisible();
+    expect(picture()).toBeNull();
     await advance(1);
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
   });
 
   it('gives each memory its own 10 s to arrive', async () => {
@@ -619,7 +665,8 @@ describe('a memory loading', () => {
     await advance(9999);
 
     expect(within(story()).queryByText(failure)).toBeNull();
-    expect(showing()).toBe(preview(ids.b2025));
+    await advance(1);
+    expect(within(story()).getByText(failure)).toBeVisible();
   });
 
   it('stops the 10 s to arrive while paused, and keeps the time left', async () => {
@@ -759,10 +806,12 @@ describe('a video', () => {
     expect(src).not.toHaveBeenCalled();
   });
 
-  it('shows its preview as its poster', async () => {
+  it('shows its preview from memory as its poster, once downloaded', async () => {
     await openVideo();
 
-    expect(video().getAttribute('poster')).toBe(preview(ids.a2025));
+    await vi.waitFor(() => {
+      expect(video().getAttribute('poster')).toBe(fromMemoryOf(preview(ids.a2025)));
+    });
   });
 
   it('has no poster without a preview', async () => {
@@ -955,6 +1004,7 @@ describe('a video', () => {
   });
 
   it('ignores a video that ends or breaks after the story moved on', async () => {
+    previewsNotPrefetched();
     await openVideo();
     const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
     await fire('error');
@@ -1239,7 +1289,7 @@ describe('a video', () => {
 
 describe('a Live Photo', () => {
   const movId = '0199a1b2-c3d4-7e5f-8a9b-0000000d2025';
-  const keptSource = 'blob:video';
+  const keptSource = `memory:/api/v1/proxies/${movId}/video?v=fedcba9876543210`;
   const video = () => story().querySelector('video') as HTMLVideoElement;
   const live = (id: string, year: number) =>
     memory(id, year, {
@@ -1687,6 +1737,7 @@ describe('a Live Photo', () => {
     });
 
     it('lets the next memory run on its own clock when the story moves on during a replay', async () => {
+      previewsNotPrefetched();
       years.push(yearGroup(2023, memory(ids.a2023, 2023)));
       await watched();
       await replay();
@@ -1699,7 +1750,7 @@ describe('a Live Photo', () => {
       await advance(4999);
       expect(showing()).toBe(preview(ids.b2025));
       await advance(1);
-      expect(showing()).not.toBe(preview(ids.b2025));
+      expect(await shown()).not.toBe(preview(ids.b2025));
     });
   });
 
@@ -1713,24 +1764,17 @@ describe('a Live Photo', () => {
       });
     let received: string[];
     let answer: (url: string) => Promise<Response | undefined> | undefined;
-    let create: MockInstance<typeof URL.createObjectURL>;
-    let revoke: MockInstance<typeof URL.revokeObjectURL>;
     const fetched = () => received.filter((url) => url.includes('mov'));
-    const created = () => create.mock.results.map(({ value }) => value as string);
-    const revoked = () => revoke.mock.calls.map(([url]) => url);
 
     beforeEach(() => {
       received = [];
       answer = () => undefined;
       server.use(proxyAnswers(received, (url) => answer(url)));
-      create = vi.spyOn(URL, 'createObjectURL');
-      create.mockImplementation(() => `blob:video-${String(create.mock.calls.length)}`);
-      revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     });
 
-    async function kept(count: number) {
+    async function fetchedVideos(...urls: string[]) {
       await vi.waitFor(() => {
-        expect(create).toHaveBeenCalledTimes(count);
+        expect(fetched()).toEqual(urls);
       });
     }
 
@@ -1738,7 +1782,7 @@ describe('a Live Photo', () => {
       years = [yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025))];
       await openStory('/day/2026-11-11?year=2025');
       await shown();
-      await kept(1);
+      await fetchedVideos(motionOf(ids.a2025));
 
       fireEvent.click(button('Next'));
       await shown();
@@ -1746,116 +1790,106 @@ describe('a Live Photo', () => {
       await shown();
       fireEvent.click(button('Play Live Photo'));
 
-      expect(video().getAttribute('src')).toBe('blob:video-1');
+      expect(video().getAttribute('src')).toBe(fromMemoryOf(motionOf(ids.a2025)));
       expect(fetched()).toEqual([motionOf(ids.a2025)]);
     });
 
-    it('fetches nothing while the picture showing still loads, even as the story changes', async () => {
-      years = [yearGroup(2025, liveAt(ids.a2025, 2025), liveAt(ids.b2025, 2025))];
-      await openStory('/day/2026-11-11?year=2025');
-      fireEvent.click(button('Pause'));
-      await advance(0);
-
-      expect(fetched()).toEqual([]);
-    });
-
-    it("fetches the next Live Photos' videos once a memory shows, and plays them from memory", async () => {
-      years = [
-        yearGroup(2025, memory(ids.a2025, 2025), liveAt(ids.b2025, 2025)),
-        yearGroup(2023, liveAt(ids.a2023, 2023)),
-      ];
-      const asked = vi.spyOn(globalThis, 'fetch');
-      await openStory('/day/2026-11-11?year=2025');
-      await advance(0);
-      expect(fetched()).toEqual([]);
-
-      await shown();
-      await kept(2);
-      expect(fetched()).toEqual([motionOf(ids.b2025), motionOf(ids.a2023)]);
-      expect(
-        asked.mock.calls
-          .flatMap(([url]) => (url instanceof URL ? [url.pathname + url.search] : []))
-          .filter((url) => !url.endsWith('/preview?v=0123456789abcdef')),
-      ).toEqual([motionOf(ids.b2025), motionOf(ids.a2023)]);
-      fireEvent.click(button('Next'));
-      await shown();
-      fireEvent.click(button('Play Live Photo'));
-
-      expect(video().getAttribute('src')).toBe('blob:video-1');
-    });
-
-    it('keeps the three before, frees older ones, and frees all when the story closes', async () => {
-      const order = [ids.a2025, ids.b2025, ids.c2025, ids.a2023, ids.a2021, ids.b2021];
-      years = [yearGroup(2025, ...order.map((id) => liveAt(id, 2025)))];
-      await openStory('/day/2026-11-11?year=2025');
-      await shown();
-      await kept(3);
-      for (const count of [4, 5, 6]) {
-        fireEvent.click(button('Next'));
-        await shown();
-        await kept(count);
-      }
-      expect(revoked()).toEqual([]);
-
-      fireEvent.click(button('Next'));
-      await shown();
-      expect(revoked()).toHaveLength(1);
-      for (let step = 0; step < 4; step++) {
-        fireEvent.click(button('Previous'));
-        await shown();
-      }
-      await kept(7);
-      expect(fetched().filter((url) => url === motionOf(ids.a2025))).toHaveLength(2);
-
-      fireEvent.click(button('Close'));
-      await advance(0);
-      expect(revoked().toSorted()).toEqual(created().toSorted());
-    });
-
-    it('plays from the network a video the server refuses, and asks for it once', async () => {
-      answer = (url) =>
-        Promise.resolve(url.includes('mov') ? problemResponse(401, 'unauthorized') : undefined);
-      years = [yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025))];
-      await openStory('/day/2026-11-11?year=2025');
-      await shown();
-      await vi.waitFor(() => {
-        expect(fetched()).toHaveLength(1);
-      });
-
-      fireEvent.click(button('Next'));
-      await shown();
-      fireEvent.click(button('Previous'));
-      await shown();
-      fireEvent.click(button('Play Live Photo'));
-
-      expect(video().getAttribute('src')).toBe(motionOf(ids.a2025));
-      expect(fetched()).toHaveLength(1);
-      expect(create).not.toHaveBeenCalled();
-    });
-
-    it('keeps nothing of a video that arrives after the story closed', async () => {
+    it('downloads no video before the previews of the memory showing and the next two', async () => {
       let arrive: () => void = () => undefined;
       answer = (url) =>
-        url.includes('mov')
+        url === preview(ids.b2025)
           ? new Promise((resolve) => {
               arrive = () => {
                 resolve(undefined);
               };
             })
           : undefined;
-      years = [yearGroup(2025, liveAt(ids.a2025, 2025))];
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), liveAt(ids.b2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      await advance(1000);
+      expect(fetched()).toEqual([]);
+
+      arrive();
+
+      await fetchedVideos(motionOf(ids.a2025), motionOf(ids.b2025));
+      expect(received.indexOf(motionOf(ids.a2025))).toBeGreaterThan(
+        received.indexOf(preview(ids.b2025)),
+      );
+    });
+
+    it('downloads the videos of the Live Photo showing and the next one, and plays them from memory', async () => {
+      years = [
+        yearGroup(2025, memory(ids.a2025, 2025), liveAt(ids.b2025, 2025)),
+        yearGroup(2023, liveAt(ids.a2023, 2023), liveAt(ids.a2021, 2023)),
+      ];
+      await openStory('/day/2026-11-11?year=2025');
+      await fetchedVideos(motionOf(ids.b2025));
+
+      fireEvent.click(button('Next'));
+      await shown();
+      await fetchedVideos(motionOf(ids.b2025), motionOf(ids.a2023));
+      fireEvent.click(button('Play Live Photo'));
+
+      expect(video().getAttribute('src')).toBe(fromMemoryOf(motionOf(ids.b2025)));
+    });
+
+    it('keeps every video it downloaded, even once the story closes', async () => {
+      const order = [ids.a2025, ids.b2025, ids.c2025, ids.a2023];
+      years = [yearGroup(2025, ...order.map((id) => liveAt(id, 2025)))];
       await openStory('/day/2026-11-11?year=2025');
       await shown();
-      await vi.waitFor(() => {
-        expect(fetched()).toHaveLength(1);
-      });
+      for (let step = 0; step < 3; step++) {
+        fireEvent.click(button('Next'));
+        await shown();
+      }
+      for (let step = 0; step < 3; step++) {
+        fireEvent.click(button('Previous'));
+        await shown();
+      }
+      await fetchedVideos(...order.map(motionOf));
 
       fireEvent.click(button('Close'));
-      arrive();
       await advance(0);
 
-      expect(create).not.toHaveBeenCalled();
-      expect(revoke).not.toHaveBeenCalled();
+      expect(freedSources()).toEqual([]);
+    });
+
+    it('aborts a video download the story moved past', async () => {
+      const aborted: string[] = [];
+      server.use(
+        http.get('/api/v1/proxies/:id/video', ({ request }) => {
+          received.push(new URL(request.url).pathname + new URL(request.url).search);
+          request.signal.addEventListener('abort', () => {
+            aborted.push(request.url);
+          });
+          return new Promise<Response>(() => undefined);
+        }),
+      );
+      years = [
+        yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025), memory(ids.c2025, 2025)),
+      ];
+      await openStory('/day/2026-11-11?year=2025');
+      await fetchedVideos(motionOf(ids.a2025));
+
+      fireEvent.click(button('Next'));
+      await advance(0);
+
+      expect(aborted).toHaveLength(1);
+    });
+
+    it('plays from the network a video the server refuses', async () => {
+      answer = (url) =>
+        Promise.resolve(url.includes('mov') ? problemResponse(404, 'not_found') : undefined);
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await fetchedVideos(motionOf(ids.a2025));
+      await advance(0);
+
+      fireEvent.click(button('Play Live Photo'));
+
+      expect(video().getAttribute('src')).toBe(motionOf(ids.a2025));
+      expect(fetched()).toHaveLength(1);
     });
   });
 });
@@ -1879,7 +1913,7 @@ describe('the next memories', () => {
   let received: string[];
   let decoded: string[];
   let decode: MockInstance<HTMLImageElement['decode']>;
-  let answer: (url: string) => Response | undefined;
+  let answer: (url: string) => Response | Promise<undefined> | undefined;
 
   async function arrived(...urls: string[]) {
     await vi.waitFor(() => {
@@ -1889,8 +1923,18 @@ describe('the next memories', () => {
   }
 
   function record(image: HTMLImageElement) {
-    const src = image.getAttribute('src') ?? '';
+    const src = (image.getAttribute('src') ?? '').replace(/^memory:/, '');
     if (!image.isConnected && received.includes(src)) decoded.push(src);
+  }
+
+  function holdOne(url: string) {
+    let release: () => void = () => undefined;
+    const until = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const before = answer;
+    answer = (asked) => (asked === url ? until.then(() => undefined) : before(asked));
+    return release;
   }
 
   beforeEach(() => {
@@ -1905,28 +1949,24 @@ describe('the next memories', () => {
     server.use(proxyAnswers(received, (url) => answer(url)));
   });
 
-  it("fetches and decodes the next two memories' previews once a memory shows, across a year group's end", async () => {
+  it("downloads the memory showing, then the next two memories' previews, across a year group's end", async () => {
     await openStory('/day/2026-11-11?year=2025');
-    await advance(0);
-    expect(received).toEqual([]);
 
-    await shown();
-    await arrived(preview(ids.b2025), preview(ids.a2023));
+    await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023));
     fireEvent.click(button('Next'));
     await shown();
 
-    await arrived(preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
+    await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
   });
 
-  it('fetches ahead of a later year group only the memories after it', async () => {
+  it('downloads ahead of a later year group only the memories after it', async () => {
     await openStory('/day/2026-11-11?year=2023');
-    await shown();
 
-    await arrived(preview(ids.a2021), preview(ids.b2021));
+    await arrived(preview(ids.a2023), preview(ids.a2021), preview(ids.b2021));
   });
 
-  it('fetches each preview once, however often the story passes it', async () => {
-    await openStory('/day/2026-11-11?year=2025');
+  it('downloads each preview once, however often the story passes it, and after it reopens', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2025');
     await shown();
     fireEvent.click(button('Next'));
     await shown();
@@ -1934,18 +1974,28 @@ describe('the next memories', () => {
     await shown();
     fireEvent.click(button('Next'));
     await shown();
+    await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
 
-    await arrived(preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
+    fireEvent.click(button('Close'));
+    await advance(0);
+    await router.navigate({
+      to: '/day/$date',
+      params: { date: '2026-11-11' },
+      search: { year: 2025 },
+    });
+    await shown();
+
+    await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
   });
 
-  it('fetches ahead of a failed memory too', async () => {
+  it('downloads ahead of a failed memory too', async () => {
     await openStory('/day/2026-11-11?year=2025');
     await advance(10_000);
 
-    await arrived(preview(ids.b2025), preview(ids.a2023));
+    await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023));
   });
 
-  it('fetches ahead of a memory without a preview at once, and skips one ahead', async () => {
+  it('downloads ahead of a memory without a preview at once, and skips one ahead', async () => {
     const bare = { thumbnail: null, preview: null, video: null };
     years = [
       yearGroup(2025, memory(ids.a2025, 2025, { proxies: bare })),
@@ -1963,10 +2013,16 @@ describe('the next memories', () => {
     fireEvent.click(button('Hide'));
     await shown();
 
-    await arrived(preview(ids.a2021), preview(ids.b2021));
+    await arrived(
+      preview(ids.a2025),
+      preview(ids.b2025),
+      preview(ids.a2023),
+      preview(ids.a2021),
+      preview(ids.b2021),
+    );
   });
 
-  it('decodes a preview only once all of it has arrived', async () => {
+  it('decodes a preview only once all of it has arrived, and downloads the next only then', async () => {
     let finish: () => void = () => undefined;
     answer = (url) => {
       if (url !== preview(ids.b2025)) return undefined;
@@ -1981,56 +2037,42 @@ describe('the next memories', () => {
       return new Response(body);
     };
     await openStory('/day/2026-11-11?year=2025');
-    await shown();
     await vi.waitFor(() => {
-      expect(decoded).toEqual([preview(ids.a2023)]);
+      expect(received).toEqual([preview(ids.a2025), preview(ids.b2025)]);
     });
+    await advance(0);
+    expect(decoded).toEqual([preview(ids.a2025)]);
 
     finish();
 
-    await vi.waitFor(() => {
-      expect(decoded).toEqual([preview(ids.a2023), preview(ids.b2025)]);
-    });
+    await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023));
   });
 
-  it('leaves a preview the server refuses or cannot send, or that cannot be decoded', async () => {
-    answer = (url) => {
-      if (url === preview(ids.b2025)) return problemResponse(401, 'unauthorized');
-      return url === preview(ids.a2021) ? HttpResponse.error() : undefined;
-    };
-    decode.mockImplementation(function (this: HTMLImageElement) {
-      record(this);
-      return Promise.reject(new Error('broken'));
-    });
-    await openStory('/day/2026-11-11?year=2025');
-    await shown();
-    fireEvent.click(button('Next'));
-    await shown();
-    await vi.waitFor(() => {
-      expect(received).toHaveLength(3);
-    });
-    await advance(0);
-
-    expect(decoded).toEqual([preview(ids.a2023)]);
-  });
-
-  it('preloads only the next video, within the next two memories, and keeps it while moving', async () => {
+  it('preloads only the next video, within the next two memories, once their previews arrived, and keeps it while moving', async () => {
     years = [
       yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025), memory(ids.c2025, 2025)),
       yearGroup(2023, film(ids.a2023, 2023), film(ids.a2021, 2023)),
     ];
+    const held = holdOne(preview(ids.a2023));
     await openStory('/day/2026-11-11?year=2025');
     expect(preloading()).toEqual([]);
     fireEvent.click(button('Next'));
+    await advance(0);
+    expect(preloading()).toEqual([]);
+
+    held();
+    await vi.waitFor(() => {
+      expect(preloading()).toEqual([clip(ids.a2023)]);
+    });
     const preloaded = story().querySelector('video[preload="auto"]');
-    expect(preloading()).toEqual([clip(ids.a2023)]);
     fireEvent.click(button('Next'));
+    await advance(0);
 
     expect(preloading()).toEqual([clip(ids.a2023)]);
     expect(story().querySelector('video[preload="auto"]')).toBe(preloaded);
   });
 
-  it('fetches only the cover of a burst ahead, not its frames', async () => {
+  it('downloads only the cover of a burst ahead, not its frames', async () => {
     const burstId = '0199a1b2-c3d4-7e5f-8a9b-0000000b0000';
     years = [
       yearGroup(
@@ -2042,9 +2084,8 @@ describe('the next memories', () => {
     const frames = vi.fn();
     server.use(http.get('/api/v1/bursts/:burstId/assets', frames));
     await openStory('/day/2026-11-11?year=2025');
-    await shown();
 
-    await arrived(preview(ids.b2025));
+    await arrived(preview(ids.a2025), preview(ids.b2025));
     expect(frames).not.toHaveBeenCalled();
   });
 });
@@ -2115,7 +2156,7 @@ describe('a blurhash', () => {
       livePhotoVideoUrl: 'proxies/0199a1b2-c3d4-7e5f-8a9b-00000000a0e1/video?v=fedcba9876543210',
     };
     const burst = { burst: { burstId: ids.c2025, isCover: true, count: 2 } };
-    let prefetched: string[];
+    let received: string[];
 
     function threeYears(overrides: Parameters<typeof memory>[2] = {}) {
       years = [
@@ -2130,7 +2171,11 @@ describe('a blurhash', () => {
       await shown();
       fireEvent.click(button('Pause'));
       await vi.waitFor(() => {
-        expect(prefetched.toSorted()).toEqual([preview(ids.a2021), preview(ids.a2023)]);
+        expect(received.filter((url) => url.includes('/preview?'))).toEqual([
+          preview(ids.a2025),
+          preview(ids.a2023),
+          preview(ids.a2021),
+        ]);
       });
       await advance(0);
       fireEvent.click(button('Play'));
@@ -2138,13 +2183,8 @@ describe('a blurhash', () => {
     }
 
     beforeEach(() => {
-      prefetched = [];
-      vi.spyOn(HTMLImageElement.prototype, 'decode').mockImplementation(function (
-        this: HTMLImageElement,
-      ) {
-        if (!this.isConnected) prefetched.push(this.getAttribute('src') ?? '');
-        return Promise.resolve();
-      });
+      received = [];
+      server.use(proxyAnswers(received));
     });
 
     it('is never shown when the timer moves on to it, which then shows for 5 s', async () => {
@@ -2182,11 +2222,15 @@ describe('a blurhash', () => {
     it.each([
       ['refused', () => new HttpResponse(null, { status: 503 })],
       ['not sent', () => HttpResponse.error()],
-      ['not decoded', () => undefined],
-    ])('is shown for a memory whose preview was %s ahead', async (how, answer) => {
-      server.use(proxyAnswers([], answer));
-      if (how === 'not decoded')
-        vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(new Error('broken'));
+    ])('is shown for a memory whose preview was %s ahead', async (_, answer) => {
+      let refusing = true;
+      server.use(
+        proxyAnswers([], (url) => {
+          if (url !== preview(ids.a2023) || !refusing) return undefined;
+          refusing = false;
+          return answer();
+        }),
+      );
       threeYears();
       await openStory('/day/2026-11-11?year=2025');
       await shown();
@@ -2195,8 +2239,8 @@ describe('a blurhash', () => {
       fireEvent.click(button('Next'));
       await advance(0);
 
-      expect(showing()).toBe(preview(ids.a2023));
       expect(canvas()).not.toBeNull();
+      expect(await shown()).toBe(preview(ids.a2023));
     });
 
     it('still waits for a video to play', async () => {
@@ -2402,9 +2446,9 @@ describe('moving through a story', () => {
 
     await user().click(button('Previous'));
 
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
     await user().click(button('Previous'));
-    expect(showing()).toBe(preview(ids.b2025));
+    expect(await shown()).toBe(preview(ids.b2025));
     expect(within(story()).getByText('1 year ago · 2025')).toBeVisible();
   });
 
@@ -2423,11 +2467,6 @@ describe('moving through a story', () => {
     await advance(3000);
 
     await user().click(button('Previous'));
-    expect(showing()).toBe(preview(ids.a2025));
-    await advance(9999);
-    expect(showing()).toBe(preview(ids.a2025));
-
-    await shown();
     await advance(4999);
     expect(showing()).toBe(preview(ids.a2025));
     await advance(1);
@@ -2471,20 +2510,21 @@ describe('moving through a story', () => {
 
     await user().click(button('Next'));
     await advance(2000);
-    expect(showing()).toBe(preview(ids.b2025));
-    await shown();
+    expect(await shown()).toBe(preview(ids.b2025));
     await advance(4999);
     expect(showing()).toBe(preview(ids.b2025));
   });
 
   it('starts no clock from a picture it moved away from before it decoded', async () => {
+    previewsNotPrefetched();
     await openStory('/day/2026-11-11?year=2025');
 
     fireEvent.load(picture());
     fireEvent.click(button('Next'));
     await advance(9999);
 
-    expect(showing()).toBe(preview(ids.b2025));
+    expect(within(story()).queryByText(failure)).toBeNull();
+    expect(segment(1)).toHaveStyle({ animationPlayState: 'paused' });
   });
 
   it('starts the progress of a memory over when returning to it', async () => {
@@ -2926,6 +2966,7 @@ describe('pausing a story', () => {
     ['the middle', middle],
     ['Previous', () => button('Previous')],
   ])('neither moves nor stays paused after a hold on %s', async (_, zone) => {
+    previewsNotPrefetched();
     await openStory('/day/2026-11-11?year=2025');
     await user().click(button('Next'));
     await shown();
@@ -2939,7 +2980,7 @@ describe('pausing a story', () => {
     await advance(4499);
     expect(showing()).toBe(preview(ids.b2025));
     await advance(1);
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
   });
 
   it('moves on a press shorter than a hold', async () => {
@@ -3352,7 +3393,7 @@ describe('starring, liking and hiding', () => {
     act(() => {
       becomes('visible');
     });
-    await advance(0);
+    await advance(1000);
 
     expect(requested).toHaveLength(2);
     expect(showing()).toBe(preview(ids.a2025));
@@ -3397,12 +3438,11 @@ describe('starring, liking and hiding', () => {
 
     fireEvent.click(button('Hide'));
     await advance(4000);
-    expect(showing()).toBe(preview(ids.b2025));
-    await shown();
+    expect(await shown()).toBe(preview(ids.b2025));
     await advance(4999);
     expect(showing()).toBe(preview(ids.b2025));
     await advance(1);
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
   });
 
   it('puts a hidden memory back where it was with Undo and shows it again', async () => {
@@ -3450,7 +3490,7 @@ describe('starring, liking and hiding', () => {
     expect(within(story()).getByText('5 years ago · 2021')).toBeVisible();
 
     fireEvent.click(button('Previous'));
-    expect(showing()).toBe(preview(ids.b2025));
+    expect(await shown()).toBe(preview(ids.b2025));
     await swipe(-60, 0);
     expect(showing()).toBe(preview(ids.a2021));
     await swipe(60, 0);
@@ -3521,6 +3561,7 @@ describe('starring, liking and hiding', () => {
   });
 
   it("drops a memory whose Undo couldn't be saved without moving on from where the story is", async () => {
+    previewsNotPrefetched();
     await openStory('/day/2026-11-11?year=2025');
     fireEvent.click(button('Hide'));
     await advance(0);
@@ -3539,7 +3580,7 @@ describe('starring, liking and hiding', () => {
     await advance(1999);
     expect(showing()).toBe(preview(ids.b2025));
     await advance(1);
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
   });
 
   it("drops a memory whose Undo couldn't be saved while another year group plays", async () => {
@@ -3965,7 +4006,7 @@ describe('a burst', () => {
         }),
       );
       await advance(0);
-      expect(showing()).toBe(preview(frameIds[2] as string));
+      expect(await shown()).toBe(preview(frameIds[2] as string));
       expect(within(story()).queryByText(/^\+/)).toBeNull();
       expect(sent).toHaveLength(4);
       expect(sent).toEqual(
@@ -3988,7 +4029,7 @@ describe('a burst', () => {
 
     expect(opened).toEqual([burstId]);
     expect(sent).toEqual([{ id: ids.a2025, body: { hidden: true } }]);
-    expect(showing()).toBe(preview(frameIds[1] as string));
+    expect(await shown()).toBe(preview(frameIds[1] as string));
     expect(within(story()).getByText('+1')).toBeVisible();
     await user().click(within(toast()).getByRole('button', { name: 'Undo' }));
     await advance(0);
@@ -4022,7 +4063,7 @@ describe('a burst', () => {
     await advance(60 * 60_000);
     await user().click(button('Previous'));
 
-    expect(showing()).toBe(preview(frameIds[1] as string));
+    expect(await shown()).toBe(preview(frameIds[1] as string));
     expect(within(story()).getByText('+1')).toBeVisible();
   });
 
