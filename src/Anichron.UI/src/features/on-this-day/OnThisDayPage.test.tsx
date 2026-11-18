@@ -9,7 +9,13 @@ import {
   refreshSucceeds,
   miraSession,
 } from '../../test/handlers/auth';
-import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
+import {
+  hold,
+  memory,
+  onThisDayAnswers,
+  todayAnd,
+  yearGroup,
+} from '../../test/handlers/flashbacks';
 import { proxyAnswers } from '../../test/handlers/proxies';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
@@ -54,16 +60,13 @@ describe('the landing screen', () => {
     ['loads', () => undefined],
     ['fails', () => new HttpResponse(null, { status: 503 })],
   ])('shows the year groups only once the last of their pictures %s', async (_, outcome) => {
-    let answer: () => void = () => undefined;
-    const answered = new Promise<void>((resolve) => {
-      answer = resolve;
-    });
+    const thumbnailHeld = hold();
     server.use(
       refreshSucceeds(),
       today(),
       proxyAnswers([], async (url) => {
         if (url !== thumbnail(ids.first2023)) return undefined;
-        await answered;
+        await thumbnailHeld.until;
         return outcome();
       }),
     );
@@ -74,7 +77,7 @@ describe('the landing screen', () => {
     await advance(1000);
 
     expect(screen.queryAllByRole('link', { name: /ago/ })).toEqual([]);
-    answer();
+    thumbnailHeld.release();
     expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
     expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
   });
@@ -88,6 +91,32 @@ describe('the landing screen', () => {
     ).toBeVisible();
     expect(router.state.location.pathname).toBe('/login');
     expect(requested).toEqual([]);
+  });
+
+  it('keeps the year groups shown when they come back with a picture still loading', async () => {
+    const thumbnailHeld = hold();
+    let years = [yearGroup(2025, memory(ids.first2025, 2025))];
+    server.use(
+      refreshSucceeds(),
+      onThisDayAnswers(todayAnd([], () => years)),
+      proxyAnswers([], async (url) => {
+        if (url === thumbnail(ids.first2023)) await thumbnailHeld.until;
+        return undefined;
+      }),
+    );
+    const { router } = renderApp('/');
+    expect(await screen.findByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+
+    years = [
+      yearGroup(2025, memory(ids.first2025, 2025)),
+      yearGroup(2023, memory(ids.first2023, 2023)),
+    ];
+    void router.options.context.queryClient.invalidateQueries({ queryKey: ['on-this-day'] });
+    await advance(1000);
+
+    expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
+    expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+    thumbnailHeld.release();
   });
 
   it("shows today's year groups, newest first, each with its first memory", async () => {

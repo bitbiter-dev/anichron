@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { dayQuery, daysBefore, utcDay } from './day';
 import { dayView, thumbnailOf } from './day-view';
-import { useLoadedPictures } from './use-pictures';
+import { useGroupsShown } from './use-groups-shown';
 
 const daysPerPage = 6;
 const nothingMilliseconds = 2000;
@@ -83,20 +83,15 @@ export function useRecentDays(today: string) {
       clearTimeout(timer);
     };
   }, [addedNothing]);
-  const thumbnails = days.map(({ data }) => (data?.years[0] ? thumbnailOf(data.years[0]) : null));
-  const loaded = useLoadedPictures(thumbnails);
-  const pageReady = (page: number) => {
-    const [from, to] = [page * daysPerPage, (page + 1) * daysPerPage];
-    return (
-      days.slice(from, to).every(({ isPending, failureCount }) => !isPending || failureCount > 0) &&
-      loaded(thumbnails.slice(from, to))
-    );
-  };
-  const ready = Array.from({ length: pages }, (_, page) => pageReady(page));
-  const [revealed, setRevealed] = useState(0);
-  const readyPages = ready.includes(false) ? ready.indexOf(false) : pages;
-  if (readyPages > revealed) setRevealed(readyPages);
-  const shownPages = Math.max(readyPages, revealed);
+  const shownPages = useGroupsShown(
+    Array.from({ length: pages }, (_, page) => {
+      const onPage = days.slice(page * daysPerPage, (page + 1) * daysPerPage);
+      return {
+        settled: onPage.every(({ isPending, failureCount }) => !isPending || failureCount > 0),
+        pictures: onPage.map(({ data }) => (data?.years[0] ? thumbnailOf(data.years[0]) : null)),
+      };
+    }),
+  );
   const recent = dates.slice(0, shownPages * daysPerPage).flatMap((date, index): RecentDay[] => {
     const { data, error, refetch } = days[index] as (typeof days)[number];
     const dayLabel = label(t, date, index + 1);

@@ -2,7 +2,8 @@ import { Link, Outlet } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { yearsAgo } from './day';
-import { thumbnailOf, useDayView } from './day-view';
+import { thumbnailOf } from './day-view';
+import { useDayView } from './use-day-view';
 import { Failed } from '../../shared/ui/Failed';
 import { ProxyImage } from './ProxyImage';
 import { RecentDays } from './RecentDays';
@@ -17,7 +18,7 @@ export function OnThisDayPage() {
     <>
       <main className="flex flex-col gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
         <h1 className="text-title font-semibold">{t('onThisDay.title')}</h1>
-        <Today date={today} />
+        <Today key={today} date={today} />
         <RecentDays key={today} today={today} />
       </main>
       <Outlet />
