@@ -35,7 +35,7 @@ export function SettingsPage() {
           onChange={theme.choose}
         />
       </section>
-      <InstallSection />
+      <InstallSection className={card} />
       {account.isAdmin && <Administration />}
       <div className={card}>
         <SignOutButton row />

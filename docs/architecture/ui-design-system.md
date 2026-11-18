@@ -61,7 +61,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - A caller's `className` goes on the outer element.
 - Toasts: the screen that shows them owns a queue (`src/shared/toasts.ts`) and renders its region (`Toast.tsx`). A toast is announced politely and lasts a few seconds.
 - Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out.
-- Rows (`Row.tsx`): a full-width entry in a card, a link with a chevron or a red button.
+- Rows (`Row.tsx`): a full-width entry in a card: a link with a chevron, a button with an icon and a chevron, or a red button.
 - Each component ships with its first caller.
 
 ## Checks
