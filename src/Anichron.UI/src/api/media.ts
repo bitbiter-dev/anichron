@@ -5,17 +5,26 @@ export interface Videos {
 }
 
 export interface Media {
-  prefetchPicture(url: string): void;
+  loadPicture(url: string): Promise<boolean>;
+  loadImage(url: string): Promise<boolean>;
   videos(): Videos;
+}
+
+async function decodeImage(url: string) {
+  const image = new Image();
+  image.src = url;
+  await image.decode();
+  return true;
 }
 
 async function fetchAndDecode(url: string) {
   const response = await fetch(new URL(url, location.origin));
-  if (!response.ok) return;
+  if (!response.ok) return false;
   await response.blob();
   const image = new Image();
   image.src = url;
   await image.decode();
+  return true;
 }
 
 interface Kept {
@@ -57,9 +66,8 @@ function createVideos(): Videos {
 
 export function createMedia(): Media {
   return {
-    prefetchPicture(url) {
-      fetchAndDecode(url).catch(() => undefined);
-    },
+    loadPicture: (url) => fetchAndDecode(url).catch(() => false),
+    loadImage: (url) => decodeImage(url).catch(() => false),
     videos: createVideos,
   };
 }

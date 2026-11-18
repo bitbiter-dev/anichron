@@ -57,12 +57,14 @@ export type Story = Record<
   undo: (place: Place) => void;
 };
 
-const stillLive = { livePlay: false, liveShown: false, heldPlay: false } as const;
+function stillLive() {
+  return { livePlay: false, liveShown: false, heldPlay: false } as const;
+}
 
 export type SegmentState = 'seen' | 'playing' | 'next';
 
-export function segmentState(index: number, current: number): SegmentState {
-  if (index < current) return 'seen';
+export function segmentState(index: number, current: number, ended: boolean): SegmentState {
+  if (index < current || ended) return 'seen';
   return index === current ? 'playing' : 'next';
 }
 
@@ -96,6 +98,7 @@ export function createStory(
   kinds: readonly (readonly Kind[])[],
   group: number,
   close: () => void,
+  decoded: (place: Place) => boolean,
 ): Story {
   const memories = (group: number) => kinds[group] as readonly Kind[];
   const hidden = new Set<string>();
@@ -103,12 +106,9 @@ export function createStory(
   const shown = (group: number) =>
     [...memories(group).keys()].filter((memory) => !hidden.has(keyOf({ group, memory })));
   const groupsShown = () => [...kinds.keys()].filter((group) => shown(group).length > 0);
-  const firstLoad: Record<Kind, Load> = {
-    none: 'shown',
-    picture: 'loading',
-    video: 'loading',
-    live: 'loading',
-    burst: 'loading',
+  const firstLoad = (kind: Kind, place: Place): Load => {
+    if (kind === 'none') return 'shown';
+    return kind !== 'video' && decoded(place) ? 'shown' : 'loading';
   };
   let visits = 0;
   const at = (group: number, memory: number): StoryPosition => {
@@ -120,7 +120,7 @@ export function createStory(
       memory,
       visit,
       kind,
-      load: firstLoad[kind],
+      load: firstLoad(kind, { group, memory }),
       shown: shown(group),
       playId: visit,
       livePlay: false,
@@ -218,8 +218,8 @@ export function createStory(
     });
   }
 
-  function settle(visit: number, load: Load) {
-    if (visit === position.visit && position.load === 'loading')
+  function settle(visit: number, load: Load, from: readonly Load[] = ['loading']) {
+    if (visit === position.visit && from.includes(position.load))
       update(() => {
         position = { ...position, load };
         clock.set(lasting(position));
@@ -247,7 +247,7 @@ export function createStory(
   function rest() {
     update(() => {
       ended = true;
-      position = { ...position, ...stillLive };
+      position = { ...position, ...stillLive() };
     });
   }
 
@@ -290,7 +290,7 @@ export function createStory(
       if (visit === position.visit) next(rest);
     },
     mediaFailed(visit) {
-      settle(visit, 'failed');
+      settle(visit, 'failed', ['loading', 'shown']);
     },
     livePlaying() {
       update(() => {
@@ -299,7 +299,7 @@ export function createStory(
     },
     liveEnded() {
       update(() => {
-        position = { ...position, ...stillLive };
+        position = { ...position, ...stillLive() };
       });
     },
     replay() {
@@ -322,7 +322,7 @@ export function createStory(
     release() {
       update(() => {
         held = false;
-        if (position.heldPlay) position = { ...position, ...stillLive };
+        if (position.heldPlay) position = { ...position, ...stillLive() };
       });
     },
     toggleSound,

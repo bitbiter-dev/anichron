@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
 import { fieldCodes, problemOf, type ValidationCode } from '../../api/problem';
 import { useCountdown } from '../../shared/use-countdown';
-import { messageKey } from './messages';
+import { messageKey } from '../../shared/messages';
+import { loginMessages } from './messages';
 
 function loginSchema() {
   const required = z.minLength(1, { error: 'required' satisfies ValidationCode });
@@ -16,7 +17,9 @@ function loginSchema() {
 
 export type LoginFields = z.infer<ReturnType<typeof loginSchema>>;
 
-const fields = ['usernameOrEmail', 'password'] as const;
+function fields() {
+  return ['usernameOrEmail', 'password'] as const;
+}
 
 export function useLoginForm() {
   const router = useRouter();
@@ -34,7 +37,7 @@ export function useLoginForm() {
       return;
     }
     setError('root', { message: problem.code });
-    for (const [field, code] of fieldCodes(problem, fields)) setError(field, { message: code });
+    for (const [field, code] of fieldCodes(problem, fields())) setError(field, { message: code });
     countdown.start(problem.retryAfterSeconds);
   });
 
@@ -42,9 +45,9 @@ export function useLoginForm() {
   return {
     control,
     onSubmit,
-    formError: errors.root && messageKey(errors.root.message),
-    fieldError: (field: (typeof fields)[number]) =>
-      errors[field] && messageKey(errors[field].message),
+    formError: errors.root && messageKey(errors.root.message, loginMessages()),
+    fieldError: (field: ReturnType<typeof fields>[number]) =>
+      errors[field] && messageKey(errors[field].message, loginMessages()),
     retryIn: countdown.remaining,
     blocked: isSubmitting || countdown.remaining > 0,
   };

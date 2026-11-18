@@ -37,11 +37,11 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 
 ## The shell
 
-The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays outside it.
+The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the forced password change stay outside it.
 
 - **Every screen** has the bottom bar: a floating glass pill on `env(safe-area-inset-bottom)`, or just above the edge without one (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
 - **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.
-- **Every screen below Home** also has the top bar: its title, and a back control when it has a parent, from the route's `staticData.screen` (title key and parent path) in `router.tsx`. A bottom bar destination has no parent. Its glass is nearly solid (`--glass-bar-opacity`).
+- **Every screen below Home** also has the top bar: its title, and a back control when it has a parent, from the route's `staticData.screen` (title key and parent path) in `router.tsx`. A bottom bar destination has no parent. It is fixed, with its height kept in the flow, and its glass is nearly solid (`--glass-bar-opacity`).
 - **Back rule** (`back.ts`): when the previous history entry is the parent, back goes back in history; otherwise it replaces the current entry with the parent. So the back control, Android's back button and Safari's edge swipe agree.
 - On wide screens the same layout is centred at a readable width (`Shell.tsx`).
 
@@ -60,6 +60,8 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login stays out
 - States are `tv` variants named after React Aria's render props. A state that only interaction reaches gets an exported style function, so the design page can show it.
 - A caller's `className` goes on the outer element.
 - Toasts: the screen that shows them owns a queue (`src/shared/toasts.ts`) and renders its region (`Toast.tsx`). A toast is announced politely and lasts a few seconds.
+- Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out.
+- Rows (`Row.tsx`): a full-width entry in a card: a link with a chevron, a button with an icon and a chevron, or a red button.
 - Each component ships with its first caller.
 
 ## Checks

@@ -1,51 +1,83 @@
-import { Link, useRouter } from '@tanstack/react-router';
+import { useRouter } from '@tanstack/react-router';
 import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themes } from '../../shared/theme';
-import { Button } from '../../shared/ui/Button';
-import { useUser } from '../../shared/use-user';
+import { RowLink } from '../../shared/ui/Row';
+import { SignOutButton } from '../../shared/ui/SignOutButton';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
+import { useAccount } from './account';
+import { InstallRow } from './InstallRow';
+
+const card = 'flex flex-col overflow-hidden rounded-card glass-card';
+const divider = 'border-t border-border';
 
 export function SettingsPage() {
   const { t } = useTranslation();
-  const { api, theme } = useRouter().options.context;
+  const { theme } = useRouter().options.context;
+  const account = useAccount();
   return (
     <main className="flex flex-col gap-6 p-4">
+      <section aria-labelledby="settings-account" className={card}>
+        <h2 id="settings-account" className="sr-only">
+          {t('settings.account')}
+        </h2>
+        <Account {...account} />
+        <div className={divider}>
+          <RowLink to="/settings/password">{t('settings.changePassword')}</RowLink>
+        </div>
+      </section>
       <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
         <h2 className="font-semibold">{t('settings.appearance')}</h2>
         <SegmentedControl
           label={t('settings.theme')}
-          options={themes.map((value) => ({ value, label: t(`settings.themes.${value}`) }))}
+          options={themes().map((value) => ({ value, label: t(`settings.themes.${value}`) }))}
           value={useSyncExternalStore(theme.subscribe, theme.get)}
           onChange={theme.choose}
         />
       </section>
-      {useUser()?.isAdmin && <Administration />}
-      <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
-        <h2 className="font-semibold">{t('settings.account')}</h2>
-        <Button
-          variant="danger"
-          onPress={() => void api.session.logout()}
-          className="self-start px-0"
-        >
-          {t('settings.signOut')}
-        </Button>
-      </section>
+      <InstallRow className={card} />
+      {account.isAdmin && <Administration />}
+      <div className={card}>
+        <SignOutButton row />
+      </div>
     </main>
+  );
+}
+
+interface AccountProps {
+  name: string;
+  initial: string;
+  isAdmin: boolean;
+}
+
+function Account({ name, initial, isAdmin }: AccountProps) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-3 p-4">
+      <span
+        aria-hidden
+        className="flex size-11 items-center justify-center rounded-full bg-accent font-semibold text-on-accent"
+      >
+        {initial}
+      </span>
+      <div className="flex flex-col">
+        <span className="font-semibold">{name}</span>
+        {isAdmin && <span className="text-small text-fg-muted">{t('settings.admin')}</span>}
+      </div>
+    </div>
   );
 }
 
 function Administration() {
   const { t } = useTranslation();
   return (
-    <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
-      <h2 className="font-semibold">{t('settings.administration')}</h2>
-      <Link
-        to="/admin/work-items"
-        className="self-start font-semibold text-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-      >
-        {t('settings.workItems')}
-      </Link>
+    <section aria-labelledby="settings-administration" className={card}>
+      <h2 id="settings-administration" className="p-4 font-semibold">
+        {t('settings.administration')}
+      </h2>
+      <div className={divider}>
+        <RowLink to="/admin/work-items">{t('settings.workItems')}</RowLink>
+      </div>
     </section>
   );
 }

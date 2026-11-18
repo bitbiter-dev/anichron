@@ -17,5 +17,6 @@ it('serves the app shell from the worker scope', async () => {
     'install',
     'activate',
     'fetch',
+    'message',
   ]);
 });

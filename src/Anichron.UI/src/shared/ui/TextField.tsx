@@ -22,7 +22,7 @@ export const inputStyles = tv({
 
 const fieldStyles = tv({ base: 'flex flex-col gap-1.5' });
 
-interface TextFieldProps extends Omit<
+export interface TextFieldProps extends Omit<
   AriaTextFieldProps,
   'className' | 'children' | 'isInvalid' | 'validationBehavior' | 'validate'
 > {

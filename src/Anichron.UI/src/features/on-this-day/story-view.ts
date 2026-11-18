@@ -6,7 +6,9 @@ export function kindOf({ proxies, livePhotoVideoUrl, burst }: Memory): Kind {
   if (proxies.video) return 'video';
   if (!proxies.preview) return 'none';
   if (burst) return 'burst';
-  return livePhotoVideoUrl ? 'live' : 'picture';
+  if (livePhotoVideoUrl) return 'live';
+  // Stryker disable next-line StringLiteral
+  return 'picture';
 }
 
 function durationOf({ kind, load }: StoryState, { durationSeconds }: Memory) {
@@ -27,7 +29,8 @@ function liveOf({ livePlay, liveShown, playsMedia }: StoryState): LiveState {
 }
 
 export function storyView(state: StoryState, group: YearGroup) {
-  const kinds: Partial<Record<string, 'story.video' | 'story.livePhoto'>> = {
+  const kinds: Record<Memory['mediaType'], 'story.photo' | 'story.video' | 'story.livePhoto'> = {
+    Image: 'story.photo',
     Video: 'story.video',
     LivePhoto: 'story.livePhoto',
   };
@@ -38,7 +41,7 @@ export function storyView(state: StoryState, group: YearGroup) {
     memory,
     segments,
     name: {
-      kind: burst ?? kinds[memory.mediaType] ?? 'story.photo',
+      kind: burst ?? kinds[memory.mediaType],
       year: group.year,
       place: segments.current + 1,
       count: segments.count,

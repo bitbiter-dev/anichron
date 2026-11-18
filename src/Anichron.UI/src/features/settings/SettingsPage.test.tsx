@@ -1,8 +1,9 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
-import { logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
+import { adminSession, logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
+import { everyoneHasMemories } from '../../test/handlers/flashbacks';
 import { themeColourTags } from '../../test/index-head';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
@@ -120,6 +121,8 @@ describe('the theme choice', () => {
     const { theme } = await openSettings();
     const keyboard = user();
     await keyboard.tab();
+    expect(screen.getByRole('link', { name: 'Change password' })).toHaveFocus();
+    await keyboard.tab();
     expect(theme('System')).toHaveFocus();
 
     await keyboard.keyboard('{ArrowRight}');
@@ -148,6 +151,50 @@ describe('the theme choice', () => {
 });
 
 describe('the account section', () => {
+  const cards = () => [...screen.getByRole('main').children];
+
+  it('comes first, showing who is signed in with a row to change the password', async () => {
+    const { container } = await openSettings();
+
+    const account = cards()[0] as HTMLElement;
+    expect(within(account).getByRole('heading', { level: 2, name: 'Account' })).toBeInTheDocument();
+    expect(account).toHaveTextContent(/^AccountMmiraChange password$/);
+    expect(within(account).queryByText('Admin')).toBeNull();
+    const change = within(account).getByRole('link', { name: 'Change password' });
+    expect(change).toHaveAttribute('href', '/settings/password');
+    expect(change.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('says Admin for an admin, whose work queue is a row too', async () => {
+    server.use(refreshSucceeds(adminSession));
+    renderApp('/settings');
+
+    const account = await screen.findByRole('region', { name: 'Account' });
+    expect(within(account).getByText('alice')).toBeVisible();
+    expect(within(account).getByText('Admin')).toBeVisible();
+    const queue = screen.getByRole('link', { name: 'Work queue' });
+    expect(queue).toHaveAttribute('href', '/admin/work-items');
+    expect(queue.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it.each(['light', 'dark'] as const)(
+    'ends with Sign out in a card of its own, readable in the %s theme',
+    async (name) => {
+      const { container, theme } = await openSettings();
+      fireEvent.click(theme(name === 'light' ? 'Light' : 'Dark'));
+
+      const last = cards().at(-1) as HTMLElement;
+      expect(
+        within(last)
+          .getAllByRole('button')
+          .map((b) => b.textContent),
+      ).toEqual(['Sign out']);
+      expect(last).toHaveTextContent(/^Sign out$/);
+      expect(await axeResults(container)).toHaveNoViolations();
+    },
+  );
+
   it('signs out at once, without asking first', async () => {
     let logouts = 0;
     server.use(logoutSucceeds(() => logouts++));
@@ -161,5 +208,282 @@ describe('the account section', () => {
     expect(router.state.location.pathname).toBe('/login');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(logouts).toBe(1);
+  });
+});
+
+describe('the install row', () => {
+  const iPhone =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
+
+  const pixel =
+    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36';
+  const desktop =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36';
+
+  const mac =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15';
+
+  const browsingOn = (userAgent: string, touchPoints = 0) => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(userAgent);
+    Object.defineProperty(navigator, 'maxTouchPoints', { value: touchPoints, configurable: true });
+  };
+
+  const offerPrompt = (outcome: 'accepted' | 'dismissed' = 'accepted') => {
+    const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: vi.fn(() => Promise.resolve()),
+      userChoice: Promise.resolve({ outcome, platform: 'web' }),
+    });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+    return event;
+  };
+
+  const row = () => screen.queryByRole('button', { name: 'Install the app' });
+  const tapRow = () => user().click(getRow());
+  const dialog = () => screen.queryByRole('dialog', { name: 'Install the app' });
+  const getDialog = () => screen.getByRole('dialog', { name: 'Install the app' });
+  const getRow = () => screen.getByRole('button', { name: 'Install the app' });
+  const androidText =
+    'To install Anichron, open the browser menu, then tap Add to Home screen or Install app.';
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'standalone');
+    Reflect.deleteProperty(navigator, 'maxTouchPoints');
+  });
+
+  const iconName = (icon: SVGElement) => /lucide-([a-z-]+)$/.exec(icon.classList[1] ?? '')?.[1];
+  const shapeOf = (icon: SVGElement) =>
+    /rounded-(full|field)/.exec(icon.parentElement?.className ?? '')?.[1];
+  const safariSteps = ['Tap Share', 'Tap View More', 'Tap Add to Home Screen'];
+  const safariIcons = ['share', 'ellipsis', 'square-plus'];
+  const steps = () =>
+    within(getDialog())
+      .getAllByRole('listitem')
+      .map((step) => step.textContent);
+  const stepIcons = () =>
+    within(getDialog())
+      .getAllByRole('listitem')
+      .map((step) => iconName(step.querySelector('svg') as SVGElement));
+
+  it('is one row with an icon and a chevron', async () => {
+    browsingOn(iPhone);
+    await openSettings();
+
+    const icons = [...getRow().querySelectorAll('svg')];
+    expect(icons.map(iconName)).toEqual(['square-plus', 'chevron-right']);
+    for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('heading', { name: 'Install the app' })).toBeNull();
+  });
+
+  it('shows the steps for Safari on an iPhone in a dialog, each with its icon', async () => {
+    browsingOn(iPhone);
+    await openSettings();
+
+    await tapRow();
+
+    expect(steps()).toEqual(safariSteps);
+    const icons = within(getDialog())
+      .getAllByRole('listitem')
+      .map((step) => step.querySelector('svg') as SVGElement);
+    for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(icons.map((icon) => [iconName(icon), shapeOf(icon)])).toEqual([
+      ['share', 'full'],
+      ['ellipsis', 'full'],
+      ['square-plus', 'field'],
+    ]);
+    expect(await axeResults(document.body)).toHaveNoViolations();
+  });
+
+  it.each([
+    [
+      'its close button',
+      () => user().click(within(getDialog()).getByRole('button', { name: 'Close' })),
+    ],
+    ['Escape', () => user().keyboard('{Escape}')],
+  ])('closes the steps with %s', async (_, close) => {
+    browsingOn(iPhone);
+    await openSettings();
+    await tapRow();
+
+    await close();
+
+    expect(dialog()).toBeNull();
+    expect(row()).toBeVisible();
+  });
+
+  it.each([
+    [
+      'Chrome',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.46 Mobile/15E148 Safari/604.1',
+      ['Tap More', 'Tap Share', 'Tap Add to Home Screen'],
+      ['ellipsis', 'share', 'square-plus'],
+    ],
+    [
+      'Firefox',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/145.0 Mobile/15E148 Safari/605.1.15',
+      safariSteps,
+      safariIcons,
+    ],
+    [
+      'another browser',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/142.0.3595.53 Version/26.0 Mobile/15E148 Safari/604.1',
+      safariSteps,
+      safariIcons,
+    ],
+  ])('shows the steps for %s on an iPhone', async (_, userAgent, expected, icons) => {
+    browsingOn(userAgent);
+    await openSettings();
+
+    await tapRow();
+
+    expect(steps()).toEqual(expected);
+    expect(stepIcons()).toEqual(icons);
+  });
+
+  it('shows the same steps on an iPad asking for the mobile site', async () => {
+    browsingOn(
+      'Mozilla/5.0 (iPad; CPU OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1',
+    );
+    await openSettings();
+
+    await tapRow();
+
+    expect(steps()).toEqual(safariSteps);
+  });
+
+  it('shows the same steps on an iPad, which Safari presents as a Mac', async () => {
+    browsingOn(mac, 5);
+    await openSettings();
+
+    await tapRow();
+
+    expect(steps()).toEqual(safariSteps);
+  });
+
+  it('is hidden in Safari on a Mac', async () => {
+    browsingOn(mac);
+    await openSettings();
+
+    expect(row()).toBeNull();
+  });
+
+  it('is hidden in the installed app', async () => {
+    browsingOn(iPhone);
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (media) => ({ matches: media === '(display-mode: standalone)' }) as MediaQueryList,
+    );
+    const { container } = await openSettings();
+
+    expect(row()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('is hidden in the app installed from Safari on an iPhone', async () => {
+    browsingOn(iPhone);
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+    await openSettings();
+
+    expect(row()).toBeNull();
+  });
+
+  it('explains the browser menu in a dialog on Android when the browser offers no prompt', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    expect(screen.queryByText(androidText)).toBeNull();
+
+    await tapRow();
+
+    expect(within(getDialog()).getByText(androidText)).toBeVisible();
+    expect(within(getDialog()).queryByRole('list')).toBeNull();
+    expect(await axeResults(document.body)).toHaveNoViolations();
+  });
+
+  it('is hidden on another browser that offers no prompt', async () => {
+    browsingOn(desktop);
+    const { container } = await openSettings();
+
+    expect(row()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('fires the browser prompt on Android in place of the dialog', async () => {
+    browsingOn(pixel);
+    const { container } = await openSettings();
+    const prompt = offerPrompt();
+    expect(prompt.defaultPrevented).toBe(true);
+
+    fireEvent.click(getRow());
+
+    expect(prompt.prompt).toHaveBeenCalledOnce();
+    expect(dialog()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('disappears once the prompt is accepted', async () => {
+    browsingOn(pixel);
+    const { container } = await openSettings();
+    offerPrompt('accepted');
+
+    fireEvent.click(getRow());
+
+    await waitFor(() => {
+      expect(row()).toBeNull();
+    });
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('goes back to the browser menu once the prompt is dismissed, since it fires only once', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    const prompt = offerPrompt('dismissed');
+    fireEvent.click(getRow());
+    await waitFor(() => {
+      expect(prompt.prompt).toHaveBeenCalledOnce();
+    });
+    await act(() => prompt.userChoice);
+
+    await tapRow();
+
+    expect(within(getDialog()).getByText(androidText)).toBeVisible();
+    expect(prompt.prompt).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a prompt that came before Settings opened, on another browser', async () => {
+    browsingOn(desktop);
+    server.use(refreshSucceeds(), everyoneHasMemories());
+    const { container, router } = renderApp('/');
+    expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
+    const prompt = offerPrompt();
+
+    await act(() => router.navigate({ to: '/settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Install the app' }));
+
+    expect(prompt.prompt).toHaveBeenCalledOnce();
+    expect(dialog()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('asks the browser only once while its prompt is open', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    const prompt = offerPrompt('dismissed');
+
+    fireEvent.click(getRow());
+    fireEvent.click(getRow());
+
+    expect(prompt.prompt).toHaveBeenCalledOnce();
+  });
+
+  it('disappears once the browser installs the app from its own menu', async () => {
+    browsingOn(pixel);
+    await openSettings();
+    offerPrompt();
+
+    act(() => {
+      window.dispatchEvent(new Event('appinstalled'));
+    });
+
+    expect(row()).toBeNull();
   });
 });

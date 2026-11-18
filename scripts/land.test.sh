@@ -45,8 +45,17 @@ case "$1 $2" in
   'pr checks') cat "$GH_STATE/checks" ;;
   'pr view')
     if [ -f "$GH_STATE/merge-state.later" ] && [ -f "$GH_STATE/viewed" ]; then state=$(cat "$GH_STATE/merge-state.later"); else touch "$GH_STATE/viewed"; state=$(cat "$GH_STATE/merge-state"); fi
-    printf '{"mergeStateStatus":"%s"}\n' "$state" ;;
+    printf '{"mergeStateStatus":"%s","state":"%s"}\n' "$state" "$(jq -r .state "$GH_STATE/pr")" ;;
   'pr merge')
+    if [ -f "$GH_STATE/merge-closes" ]; then
+      jq -c '.state = "CLOSED"' "$GH_STATE/pr" >"$GH_STATE/pr.new" && mv "$GH_STATE/pr.new" "$GH_STATE/pr"
+      exit 1
+    fi
+    if [ -f "$GH_STATE/merge-hangs" ]; then
+      jq -c '.state = "MERGED"' "$GH_STATE/pr" >"$GH_STATE/pr.new" && mv "$GH_STATE/pr.new" "$GH_STATE/pr"
+      [ ! -f "$GH_STATE/merge-signals" ] || kill -TERM "$PPID"
+      exec sleep 600
+    fi
     [ ! -f "$GH_STATE/merge-refused" ] || exit 1
     if [ -f "$GH_STATE/merge-refusals" ]; then
       left=$(cat "$GH_STATE/merge-refusals")
@@ -105,7 +114,7 @@ pushed_already() {
 }
 
 land() {
-  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" LAND_MERGE_SECONDS="${3:-0}" WITH_LOCK_POLL_SECONDS=0 \
+  (cd "${1:-$work/wt}" && GH_STATE="$work/state" PATH="$work/bin:$PATH" LAND_POLL_SECONDS=0 LAND_TIMEOUT_MINUTES="${2:-0}" LAND_MERGE_SECONDS="${3:-0}" LAND_MERGE_CALL_SECONDS=1 WITH_LOCK_POLL_SECONDS=0 \
     GIT_AUTHOR_NAME=mira GIT_AUTHOR_EMAIL=mira@example.org GIT_COMMITTER_NAME=mira GIT_COMMITTER_EMAIL=mira@example.org \
     "$script" 2>&1)
 }
@@ -173,6 +182,22 @@ echo DIRTY >"$work/state/merge-state.later"
 out=$(land "$work/wt" 0 60); status=$?
 check 'a refusal in any other merge state stops at once and names it' "[ $status -eq 1 ] && [ \"\$(grep -c '^pr merge 7' '$work/state/calls')\" -eq 1 ] && [[ \"\$out\" == *'merge state DIRTY'* ]]" "exit $status: $out"
 
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/merge-hangs"
+out=$(land); status=$?
+check 'a merge call that hangs after GitHub merged is landed and cleaned up' "[ $status -eq 0 ] && [[ \"\$out\" == *'land: merged PR #7'* ]] && [ ! -d '$work/wt' ]" "exit $status: $out"
+check 'the hung call is named' "[[ \"\$out\" == *'gh pr merge did not return within 1s'* ]]" "$out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/merge-closes"
+out=$(land); status=$?
+check 'a PR closed when it is merged is not made a draft' "[ $status -eq 1 ] && [[ \"\$out\" == *'PR #7 is closed; not making it a draft'* ]] && [[ \"\$(calls)\" != *'pr ready 7 --undo'* ]]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success
+touch "$work/state/merge-hangs" "$work/state/merge-signals"
+out=$(land); status=$?
+check 'a stop after the merge makes no draft of the merged PR' "[ $status -eq 3 ] && [[ \"\$out\" == *'PR #7 is merged; not making it a draft'* ]] && [[ \"\$(calls)\" != *'pr ready 7 --undo'* ]]" "exit $status: $out"
+
 setup '{"number":7,"state":"OPEN","isDraft":true}' success conflict
 before=$(git -C "$work/wt" rev-parse HEAD)
 out=$(land); status=$?
@@ -208,6 +233,15 @@ setup '{"number":7,"state":"OPEN","isDraft":true}' success
 touch "$work/state/no-runs-on-$head0"
 out=$(land); status=$?
 check 'ready runs that never start on the old head stop it before the push' "[ $status -eq 1 ] && [[ \"\$out\" == *'never started'* ]] && [ \"\$(git -C '$work/origin.git' rev-parse feature)\" = '$head0' ]" "exit $status: $out"
+
+setup '{"number":7,"state":"OPEN","isDraft":true}' success conflict
+git_as_mira -C "$work/wt" push -q origin feature 2>/dev/null
+git_as_mira -C "$work/wt" pull -q --no-rebase --no-edit origin master 2>/dev/null
+printf 'resolved\n' >"$work/wt/shared.txt"
+git_as_mira -C "$work/wt" commit -q -am 'resolve master'
+touch "$work/state/no-runs-on-$head0"
+out=$(land); status=$?
+check 'an old head that conflicts with master, which GitHub starts no run on, is pushed before the PR is marked ready' "[ $status -eq 0 ] && [ \"\$(cat '$work/state/pushed-at-ready')\" = \"branch at ready: \$(git -C '$work/origin.git' rev-parse feature)\" ] && [[ \"\$(calls)\" != *'--commit $head0'* ]] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
 
 setup '{"number":7,"state":"OPEN","isDraft":false}' success
 touch "$work/state/run-list-fails"
