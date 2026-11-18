@@ -47,10 +47,15 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
         player.sync();
       });
       const stopFrames = queryClient.getQueryCache().subscribe(sync);
+      const stopProgress = downloads.onProgress((url) => {
+        const state = story.state();
+        if (state.kind !== 'video' && url === previewAt(state)) story.mediaProgressed(state.visit);
+      });
       return () => {
         stopStory();
         stopDownloads();
         stopFrames();
+        stopProgress();
         stopInput();
         downloads.clear();
       };

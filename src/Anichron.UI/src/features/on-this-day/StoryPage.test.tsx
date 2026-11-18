@@ -658,6 +658,70 @@ describe('a memory loading', () => {
     expect(await shown()).toBe(preview(ids.a2023));
   });
 
+  function trickling(url: string) {
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        stream = controller;
+      },
+    });
+    server.use(
+      http.get('/api/v1/proxies/:id/:type', ({ request }) => {
+        const { pathname, search } = new URL(request.url);
+        return pathname + search === url ? new HttpResponse(body) : undefined;
+      }),
+    );
+    return {
+      async piece() {
+        stream?.enqueue(new Uint8Array([1]));
+        await advance(0);
+      },
+      async end() {
+        stream?.close();
+        await advance(0);
+      },
+    };
+  }
+
+  it('waits for a picture as long as more of it keeps arriving', async () => {
+    const download = trickling(preview(ids.b2025));
+    await loadingSecond();
+
+    for (let piece = 0; piece < 5; piece++) {
+      await advance(9000);
+      await download.piece();
+    }
+    expect(within(story()).queryByText(failure)).toBeNull();
+    await download.end();
+
+    expect(await shown()).toBe(preview(ids.b2025));
+  });
+
+  it('fails a picture 10 s after the last of it arrived', async () => {
+    const download = trickling(preview(ids.b2025));
+    await loadingSecond();
+    await advance(9000);
+    await download.piece();
+
+    await advance(9999);
+    expect(within(story()).queryByText(failure)).toBeNull();
+    await advance(1);
+    expect(within(story()).getByText(failure)).toBeVisible();
+  });
+
+  it('fails a picture waiting behind another download that keeps arriving', async () => {
+    const download = trickling(preview(ids.a2021));
+    await openStory('/day/2026-11-11?year=2023');
+    await shown();
+    await user().click(button('Previous'));
+
+    await advance(9000);
+    await download.piece();
+    await advance(1000);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+  });
+
   it('gives each memory its own 10 s to arrive', async () => {
     await openStory('/day/2026-11-11?year=2025');
 
@@ -812,6 +876,31 @@ describe('a video', () => {
     await vi.waitFor(() => {
       expect(video().getAttribute('poster')).toBe(fromMemoryOf(preview(ids.a2025)));
     });
+  });
+
+  it('stops waiting for it 10 s after it started, however much of its poster arrives', async () => {
+    let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+    server.use(
+      http.get('/api/v1/proxies/:id/:type', ({ request }) => {
+        const { pathname, search } = new URL(request.url);
+        if (pathname + search !== preview(ids.a2025)) return undefined;
+        return new HttpResponse(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              stream = controller;
+            },
+          }),
+        );
+      }),
+    );
+    await openVideo();
+
+    await advance(9000);
+    stream?.enqueue(new Uint8Array([1]));
+    await advance(1000);
+
+    expect(video()).not.toBeVisible();
+    expect(segment(0).style.animationDuration).toBe('5000ms');
   });
 
   it('has no poster without a preview', async () => {

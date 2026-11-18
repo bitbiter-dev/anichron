@@ -16,7 +16,7 @@ export interface Downloads {
   retry: (url: string) => void;
   snapshot: () => Arrived;
   subscribe: (listener: () => void) => () => void;
-  onProgress: (listener: () => void) => () => void;
+  onProgress: (listener: (url: string) => void) => () => void;
   clear: () => void;
 }
 
@@ -76,7 +76,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
   let order: string[] = [];
   let active: Download | undefined;
   const listeners = new Set<() => void>();
-  const progressListeners = new Set<() => void>();
+  const progressListeners = new Set<(url: string) => void>();
 
   function arrived(): Arrived {
     return {
@@ -95,8 +95,8 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     for (const listener of listeners) listener();
   }
 
-  function progressed() {
-    for (const listener of progressListeners) listener();
+  function progressed(url: string) {
+    for (const listener of progressListeners) listener(url);
   }
 
   async function body(url: string, signal: AbortSignal) {
@@ -111,7 +111,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     const reader = response.body.getReader();
     for (let read = await reader.read(); !read.done; read = await reader.read()) {
       chunks.push(read.value);
-      progressed();
+      progressed(url);
     }
     return new Blob(chunks, { type: response.headers.get('Content-Type') ?? '' });
   }

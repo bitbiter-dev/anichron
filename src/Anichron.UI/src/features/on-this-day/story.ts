@@ -49,6 +49,7 @@ export type Story = Record<
   state: () => StoryState;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
+  mediaProgressed: (visit: number) => void;
   mediaEnded: (visit: number) => void;
   mediaFailed: (visit: number) => void;
   livePlaying: () => void;
@@ -285,6 +286,12 @@ export function createStory(
     },
     mediaReady(visit) {
       settle(visit, 'shown');
+    },
+    mediaProgressed(visit) {
+      if (visit !== position.visit || position.load !== 'loading') return;
+      stop();
+      clock.set(loadMilliseconds);
+      start();
     },
     mediaEnded(visit) {
       if (visit === position.visit) next(rest);

@@ -288,7 +288,7 @@ describe('downloading media', () => {
     );
 
     await store.picture(at('first'));
-    expect(progress).toHaveBeenCalledTimes(2);
+    expect(progress.mock.calls).toEqual([[at('first')], [at('first')]]);
 
     stop();
     store.retry(at('first'));
