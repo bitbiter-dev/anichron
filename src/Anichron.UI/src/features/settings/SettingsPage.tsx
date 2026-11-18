@@ -6,7 +6,7 @@ import { RowLink } from '../../shared/ui/Row';
 import { SignOutButton } from '../../shared/ui/SignOutButton';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 import { useAccount } from './account';
-import { InstallSection } from './InstallSection';
+import { InstallRow } from './InstallRow';
 
 const card = 'flex flex-col overflow-hidden rounded-card glass-card';
 const divider = 'border-t border-border';
@@ -35,7 +35,7 @@ export function SettingsPage() {
           onChange={theme.choose}
         />
       </section>
-      <InstallSection />
+      <InstallRow className={card} />
       {account.isAdmin && <Administration />}
       <div className={card}>
         <SignOutButton row />

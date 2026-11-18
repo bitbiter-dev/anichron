@@ -9,7 +9,7 @@ interface InstallButton {
   install: () => void;
 }
 
-export type IosOffer = 'ios-safari' | 'ios-chrome' | 'ios-firefox';
+export type IosOffer = 'ios-safari' | 'ios-chrome';
 export type InstallOffer = 'none' | IosOffer | 'android' | InstallButton;
 export type Install = ReturnType<typeof keepInstallPrompt>;
 
@@ -29,8 +29,7 @@ function onIos() {
 }
 
 function iosBrowser(): IosOffer {
-  if (userAgentHas(/CriOS\//)) return 'ios-chrome';
-  return userAgentHas(/FxiOS\//) ? 'ios-firefox' : 'ios-safari';
+  return userAgentHas(/CriOS\//) ? 'ios-chrome' : 'ios-safari';
 }
 
 export function keepInstallPrompt() {

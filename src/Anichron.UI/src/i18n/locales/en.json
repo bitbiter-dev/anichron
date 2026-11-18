@@ -82,12 +82,10 @@
       },
       "ios": {
         "share": "Tap Share",
-        "showMore": "Tap Show More",
+        "viewMore": "Tap View More",
         "more": "Tap More",
         "add": "Tap Add to Home Screen"
       },
-      "button": "Install",
-      "show": "Show how to install",
       "close": "Close"
     },
     "account": "Account",
