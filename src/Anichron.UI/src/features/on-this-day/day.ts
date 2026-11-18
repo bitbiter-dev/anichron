@@ -59,7 +59,7 @@ export function burstQuery(api: ApiClient, id: string) {
 
 export function pictureQuery(api: ApiClient, url: string) {
   return queryOptions({
-    queryKey: ['picture', url],
+    queryKey: [url],
     queryFn: () => api.media.loadImage(url),
     staleTime: Infinity,
     gcTime: Infinity,

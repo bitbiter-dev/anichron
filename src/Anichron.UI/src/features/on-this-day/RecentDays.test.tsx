@@ -122,6 +122,26 @@ describe('the recent days', () => {
     expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sat 31 Oct']);
   });
 
+  it('adds six more days without waiting for a picture still loading in the days above', async () => {
+    days = {
+      '2026-11-10': [onDay('2026-11-10', 2024)],
+      '2026-10-31': [onDay('2026-10-31', 2023)],
+    };
+    const { router } = renderApp('/');
+    await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
+      name: 'Yesterday',
+    });
+    const thumbnailHeld = holdPicture(thumbnail(id('2026-11-10', 5)));
+    days['2026-11-10'] = [onDay('2026-11-10', 2024, 5)];
+    void router.options.context.queryClient.invalidateQueries({ queryKey: ['on-this-day'] });
+    await advance(1000);
+
+    fireEvent.click(within(tray()).getByRole('button', { name: 'Earlier days' }));
+
+    expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
+    thumbnailHeld.load();
+  });
+
   it('keeps the days shown while it adds six more whose pictures still load', async () => {
     const thumbnailHeld = holdPicture(thumbnail(id('2026-10-31')));
     days = {

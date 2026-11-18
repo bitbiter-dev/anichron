@@ -10,7 +10,7 @@ import {
   miraSession,
 } from '../../test/handlers/auth';
 import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
-import { holdPicture } from '../../test/pictures';
+import { askedPictures, holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -67,6 +67,22 @@ describe('the landing screen', () => {
       expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
     },
   );
+
+  it('shows a year group whose first memory has no picture, asking for no picture for it', async () => {
+    const noPicture = { proxies: { thumbnail: null, preview: null, video: null } };
+    server.use(
+      refreshSucceeds(),
+      today([
+        yearGroup(2025, memory(ids.first2025, 2025, noPicture)),
+        yearGroup(2023, memory(ids.first2023, 2023)),
+      ]),
+    );
+    renderApp('/');
+
+    expect(await screen.findByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+    expect(screen.getByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
+    expect(askedPictures()).toEqual([thumbnail(ids.first2023)]);
+  });
 
   it('sends a visitor without a session to the login screen', async () => {
     server.use(today());

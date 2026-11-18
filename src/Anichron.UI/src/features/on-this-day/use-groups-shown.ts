@@ -14,12 +14,15 @@ export function useGroupsShown(groups: readonly PictureGroup[]) {
     (url) => url !== null,
   );
   const results = useQueries({ queries: wanted.map((url) => pictureQuery(api, url)) });
-  const done = new Set(wanted.filter((_, index) => results[index]?.isSuccess));
+  const done = new Set(
+    results.flatMap(({ isSuccess }, index) => (isSuccess ? [wanted[index]] : [])),
+  );
+  const [shown, setShown] = useState(0);
   const ready = groups.map(
-    ({ settled, pictures }) => settled && pictures.every((url) => url === null || done.has(url)),
+    ({ settled, pictures }, index) =>
+      index < shown || (settled && pictures.every((url) => url === null || done.has(url))),
   );
   const readyNow = ready.includes(false) ? ready.indexOf(false) : groups.length;
-  const [shown, setShown] = useState(0);
   if (readyNow > shown) setShown(readyNow);
-  return Math.max(readyNow, shown);
+  return readyNow;
 }
