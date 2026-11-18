@@ -211,7 +211,7 @@ describe('the account section', () => {
   });
 });
 
-describe('the install section', () => {
+describe('the install row', () => {
   const iPhone =
     'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
 
@@ -240,8 +240,10 @@ describe('the install section', () => {
   };
 
   const row = () => screen.queryByRole('button', { name: 'Install the app' });
-  const tapRow = () => user().click(row() as HTMLElement);
+  const tapRow = () => user().click(getRow());
   const dialog = () => screen.queryByRole('dialog', { name: 'Install the app' });
+  const getDialog = () => screen.getByRole('dialog', { name: 'Install the app' });
+  const getRow = () => screen.getByRole('button', { name: 'Install the app' });
   const androidText =
     'To install Anichron, open the browser menu, then tap Add to Home screen or Install app.';
 
@@ -254,16 +256,21 @@ describe('the install section', () => {
   const shapeOf = (icon: SVGElement) =>
     /rounded-(full|field)/.exec(icon.parentElement?.className ?? '')?.[1];
   const safariSteps = ['Tap Share', 'Tap View More', 'Tap Add to Home Screen'];
+  const safariIcons = ['share', 'ellipsis', 'square-plus'];
   const steps = () =>
-    within(dialog() as HTMLElement)
+    within(getDialog())
       .getAllByRole('listitem')
       .map((step) => step.textContent);
+  const stepIcons = () =>
+    within(getDialog())
+      .getAllByRole('listitem')
+      .map((step) => iconName(step.querySelector('svg') as SVGElement));
 
   it('is one row with an icon and a chevron', async () => {
     browsingOn(iPhone);
     await openSettings();
 
-    const icons = [...(row() as HTMLElement).querySelectorAll('svg')];
+    const icons = [...getRow().querySelectorAll('svg')];
     expect(icons.map(iconName)).toEqual(['square-plus', 'chevron-right']);
     for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
     expect(screen.queryByRole('heading', { name: 'Install the app' })).toBeNull();
@@ -276,7 +283,7 @@ describe('the install section', () => {
     await tapRow();
 
     expect(steps()).toEqual(safariSteps);
-    const icons = within(dialog() as HTMLElement)
+    const icons = within(getDialog())
       .getAllByRole('listitem')
       .map((step) => step.querySelector('svg') as SVGElement);
     for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
@@ -291,7 +298,7 @@ describe('the install section', () => {
   it.each([
     [
       'its close button',
-      () => user().click(within(dialog() as HTMLElement).getByRole('button', { name: 'Close' })),
+      () => user().click(within(getDialog()).getByRole('button', { name: 'Close' })),
     ],
     ['Escape', () => user().keyboard('{Escape}')],
   ])('closes the steps with %s', async (_, close) => {
@@ -310,24 +317,28 @@ describe('the install section', () => {
       'Chrome',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.46 Mobile/15E148 Safari/604.1',
       ['Tap More', 'Tap Share', 'Tap Add to Home Screen'],
+      ['ellipsis', 'share', 'square-plus'],
     ],
     [
       'Firefox',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/145.0 Mobile/15E148 Safari/605.1.15',
       safariSteps,
+      safariIcons,
     ],
     [
       'another browser',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/142.0.3595.53 Version/26.0 Mobile/15E148 Safari/604.1',
       safariSteps,
+      safariIcons,
     ],
-  ])('shows the steps for %s on an iPhone', async (_, userAgent, expected) => {
+  ])('shows the steps for %s on an iPhone', async (_, userAgent, expected, icons) => {
     browsingOn(userAgent);
     await openSettings();
 
     await tapRow();
 
     expect(steps()).toEqual(expected);
+    expect(stepIcons()).toEqual(icons);
   });
 
   it('shows the same steps on an iPad asking for the mobile site', async () => {
@@ -383,8 +394,8 @@ describe('the install section', () => {
 
     await tapRow();
 
-    expect(within(dialog() as HTMLElement).getByText(androidText)).toBeVisible();
-    expect(within(dialog() as HTMLElement).queryByRole('list')).toBeNull();
+    expect(within(getDialog()).getByText(androidText)).toBeVisible();
+    expect(within(getDialog()).queryByRole('list')).toBeNull();
     expect(await axeResults(document.body)).toHaveNoViolations();
   });
 
@@ -402,7 +413,7 @@ describe('the install section', () => {
     const prompt = offerPrompt();
     expect(prompt.defaultPrevented).toBe(true);
 
-    fireEvent.click(row() as HTMLElement);
+    fireEvent.click(getRow());
 
     expect(prompt.prompt).toHaveBeenCalledOnce();
     expect(dialog()).toBeNull();
@@ -414,7 +425,7 @@ describe('the install section', () => {
     const { container } = await openSettings();
     offerPrompt('accepted');
 
-    fireEvent.click(row() as HTMLElement);
+    fireEvent.click(getRow());
 
     await waitFor(() => {
       expect(row()).toBeNull();
@@ -426,7 +437,7 @@ describe('the install section', () => {
     browsingOn(pixel);
     await openSettings();
     const prompt = offerPrompt('dismissed');
-    fireEvent.click(row() as HTMLElement);
+    fireEvent.click(getRow());
     await waitFor(() => {
       expect(prompt.prompt).toHaveBeenCalledOnce();
     });
@@ -434,7 +445,7 @@ describe('the install section', () => {
 
     await tapRow();
 
-    expect(within(dialog() as HTMLElement).getByText(androidText)).toBeVisible();
+    expect(within(getDialog()).getByText(androidText)).toBeVisible();
     expect(prompt.prompt).toHaveBeenCalledOnce();
   });
 
@@ -458,8 +469,8 @@ describe('the install section', () => {
     await openSettings();
     const prompt = offerPrompt('dismissed');
 
-    fireEvent.click(row() as HTMLElement);
-    fireEvent.click(row() as HTMLElement);
+    fireEvent.click(getRow());
+    fireEvent.click(getRow());
 
     expect(prompt.prompt).toHaveBeenCalledOnce();
   });

@@ -24,16 +24,13 @@ function shownStep(step: InstallStep) {
 
 export type ShownStep = ReturnType<typeof shownStep>;
 
-export function useInstallSection() {
+export function useInstallRow() {
   const { install } = useRouter().options.context;
   const offer = useSyncExternalStore(install.subscribe, install.offer);
   const [open, setOpen] = useState(false);
   if (offer === 'none') return undefined;
   const dialog = {
     open,
-    show: () => {
-      setOpen(true);
-    },
     close: () => {
       setOpen(false);
     },
@@ -41,7 +38,9 @@ export function useInstallSection() {
   if (typeof offer !== 'string') return { ...dialog, press: offer.install, steps: undefined };
   return {
     ...dialog,
-    press: dialog.show,
+    press: () => {
+      setOpen(true);
+    },
     steps: offer === 'android' ? undefined : iosSteps(offer).map(shownStep),
   };
 }

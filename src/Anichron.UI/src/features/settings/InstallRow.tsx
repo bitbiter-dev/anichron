@@ -3,18 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '../../shared/ui/Button';
 import { Modal } from '../../shared/ui/Modal';
 import { RowAction } from '../../shared/ui/Row';
-import { type ShownStep, useInstallSection } from './install-section';
+import { type ShownStep, useInstallRow } from './install-row';
 
-export function InstallSection({ className }: { className: string }) {
+export function InstallRow({ className }: { className: string }) {
   const { t } = useTranslation();
-  const section = useInstallSection();
-  if (!section) return null;
+  const row = useInstallRow();
+  if (!row) return null;
   return (
     <div className={className}>
-      <RowAction icon={SquarePlus} onPress={section.press}>
+      <RowAction icon={SquarePlus} onPress={row.press}>
         {t('settings.install.title')}
       </RowAction>
-      {section.open && <HowToInstall steps={section.steps} close={section.close} />}
+      {row.open && <HowToInstall steps={row.steps} close={row.close} />}
     </div>
   );
 }
