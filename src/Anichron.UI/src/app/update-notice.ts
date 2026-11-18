@@ -7,12 +7,10 @@ export function useUpdateNotice() {
   const waiting = useSyncExternalStore(updates.subscribe, updates.waiting);
   const story = useMatch({ from: '/signed-in/shell/on-this-day/day/$date', shouldThrow: false });
   const [later, setLater] = useState(false);
-  useEffect(
-    () =>
-      listen(document, 'visibilitychange', () => {
-        if (document.visibilityState === 'visible') setLater(false);
-      }),
-    [],
+  useEffect(() =>
+    listen(document, 'visibilitychange', () => {
+      if (document.visibilityState === 'visible') setLater(false);
+    }),
   );
   if (!waiting || story || later) return undefined;
   return {

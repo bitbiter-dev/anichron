@@ -7,7 +7,7 @@ it.each([
   [799.9, 0],
 ])('closes on a flick down at %f px/s or faster', (speed, closes) => {
   const close = vi.fn();
-  const gestures = createGestures(createStory([['none']], 0, close));
+  const gestures = createGestures(createStory([['none']], 0, close, () => false));
 
   gestures.dragEnd({ x: 0, y: 60 }, { x: 0, y: speed }, 768);
 

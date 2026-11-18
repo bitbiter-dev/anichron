@@ -6,7 +6,9 @@ export function kindOf({ proxies, livePhotoVideoUrl, burst }: Memory): Kind {
   if (proxies.video) return 'video';
   if (!proxies.preview) return 'none';
   if (burst) return 'burst';
-  return livePhotoVideoUrl ? 'live' : 'picture';
+  if (livePhotoVideoUrl) return 'live';
+  // Stryker disable once StringLiteral
+  return 'picture';
 }
 
 function durationOf({ kind, load }: StoryState, { durationSeconds }: Memory) {

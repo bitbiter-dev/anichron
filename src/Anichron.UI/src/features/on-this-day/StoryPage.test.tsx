@@ -907,6 +907,22 @@ describe('a video', () => {
     expect(showing()).toBe(preview(ids.b2025));
   });
 
+  it('shows its poster for 5 s when it breaks while playing and again after its reload', async () => {
+    await openVideo();
+    await fire('playing');
+
+    await fire('error');
+    await fire('error');
+
+    expect(video()).not.toBeVisible();
+    expect(showing()).toBe(preview(ids.a2025));
+    expect(segment(0).style.animationDuration).toBe('5000ms');
+    await advance(4999);
+    expect(showing()).toBe(preview(ids.a2025));
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
   it('plays after its reload', async () => {
     await openVideo();
 

@@ -5,9 +5,13 @@ import type { IosOffer } from '../../app/install';
 
 export type InstallStep = 'share' | 'showMore' | 'more' | 'add';
 
-function iosSteps(offer: IosOffer): readonly InstallStep[] {
-  if (offer === 'ios-chrome') return ['more', 'share', 'add'];
-  return offer === 'ios-firefox' ? ['share', 'add'] : ['share', 'showMore', 'add'];
+function iosSteps(offer: IosOffer) {
+  const steps: Record<IosOffer, readonly InstallStep[]> = {
+    'ios-safari': ['share', 'showMore', 'add'],
+    'ios-chrome': ['more', 'share', 'add'],
+    'ios-firefox': ['share', 'add'],
+  };
+  return steps[offer];
 }
 
 function iconOf(step: InstallStep): LucideIcon {

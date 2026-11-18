@@ -64,7 +64,7 @@ function stillLive() {
 export type SegmentState = 'seen' | 'playing' | 'next';
 
 export function segmentState(index: number, current: number, ended: boolean): SegmentState {
-  if (index < current || (ended && index === current)) return 'seen';
+  if (index < current || ended) return 'seen';
   return index === current ? 'playing' : 'next';
 }
 
@@ -98,7 +98,7 @@ export function createStory(
   kinds: readonly (readonly Kind[])[],
   group: number,
   close: () => void,
-  decoded: (place: Place) => boolean = () => false,
+  decoded: (place: Place) => boolean,
 ): Story {
   const memories = (group: number) => kinds[group] as readonly Kind[];
   const hidden = new Set<string>();
@@ -290,7 +290,7 @@ export function createStory(
       if (visit === position.visit) next(rest);
     },
     mediaFailed(visit) {
-      settle(visit, 'failed', position.kind === 'video' ? ['loading'] : ['loading', 'shown']);
+      settle(visit, 'failed', ['loading', 'shown']);
     },
     livePlaying() {
       update(() => {
