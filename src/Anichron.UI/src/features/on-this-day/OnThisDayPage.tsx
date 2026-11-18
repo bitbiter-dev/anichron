@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
-import { Link, Outlet, useRouter } from '@tanstack/react-router';
+import { Link, Outlet } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
-import { dayQuery, yearsAgo } from './day';
-import { dayView, thumbnailOf } from './day-view';
+import { yearsAgo } from './day';
+import { thumbnailOf } from './day-view';
+import { useDayView } from './use-day-view';
 import { Failed } from '../../shared/ui/Failed';
 import { ProxyImage } from './ProxyImage';
 import { RecentDays } from './RecentDays';
@@ -18,7 +18,7 @@ export function OnThisDayPage() {
     <>
       <main className="flex flex-col gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
         <h1 className="text-title font-semibold">{t('onThisDay.title')}</h1>
-        <Today date={today} />
+        <Today key={today} date={today} />
         <RecentDays key={today} today={today} />
       </main>
       <Outlet />
@@ -28,14 +28,12 @@ export function OnThisDayPage() {
 
 function Today({ date }: { date: string }) {
   const { t } = useTranslation();
-  const { api } = useRouter().options.context;
-  const day = useQuery(dayQuery(api, date));
-  const state = dayView(day);
+  const { view: state, retry } = useDayView(date);
   return (
     <div className="flex min-h-[calc(var(--spacing)*32*4/3+var(--spacing)*4+var(--text-small--line-height))] flex-col justify-center">
       {state.years && <Gallery date={date} years={state.years} />}
       {state.empty && <p className="text-fg-muted">{t('onThisDay.nothing')}</p>}
-      {state.failure && <Failed message={state.failure} onRetry={() => void day.refetch()} />}
+      {state.failure && <Failed message={state.failure} onRetry={retry} />}
     </div>
   );
 }

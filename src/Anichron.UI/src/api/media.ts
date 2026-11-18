@@ -6,7 +6,15 @@ export interface Videos {
 
 export interface Media {
   loadPicture(url: string): Promise<boolean>;
+  loadImage(url: string): Promise<boolean>;
   videos(): Videos;
+}
+
+async function decodeImage(url: string) {
+  const image = new Image();
+  image.src = url;
+  await image.decode();
+  return true;
 }
 
 async function fetchAndDecode(url: string) {
@@ -59,6 +67,7 @@ function createVideos(): Videos {
 export function createMedia(): Media {
   return {
     loadPicture: (url) => fetchAndDecode(url).catch(() => false),
+    loadImage: (url) => decodeImage(url).catch(() => false),
     videos: createVideos,
   };
 }

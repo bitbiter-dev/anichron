@@ -57,6 +57,15 @@ export function burstQuery(api: ApiClient, id: string) {
   });
 }
 
+export function pictureQuery(api: ApiClient, url: string) {
+  return queryOptions({
+    queryKey: [url],
+    queryFn: () => api.media.loadImage(url),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+
 export interface Interaction {
   id: string;
   change: Change;

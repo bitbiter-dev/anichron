@@ -4,7 +4,8 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
-import { memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { hold, memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -78,6 +79,89 @@ describe('the recent days', () => {
       '2026-11-11',
     ]);
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it.each(['load', 'fail'] as const)(
+    'shows the six days only once the last of their pictures %ss',
+    async (outcome) => {
+      const thumbnailHeld = holdPicture(thumbnail(id('2026-11-08')));
+      days = {
+        '2026-11-11': [onDay('2026-11-11', 2025)],
+        '2026-11-10': [onDay('2026-11-10', 2024)],
+        '2026-11-08': [onDay('2026-11-08', 2022)],
+      };
+      renderApp('/');
+      await screen.findByRole('list', { name: 'Recent days' });
+      await advance(1000);
+
+      expect(circles()).toEqual([]);
+      thumbnailHeld[outcome]();
+      expect(await within(tray()).findByRole('link', { name: 'Sun 8 Nov' })).toBeVisible();
+      expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sun 8 Nov']);
+    },
+  );
+
+  it('never shows six days it added before the six before them', async () => {
+    const thumbnailHeld = holdPicture(thumbnail(id('2026-11-10')));
+    days = {
+      '2026-11-11': [onDay('2026-11-11', 2025)],
+      '2026-11-10': [onDay('2026-11-10', 2024)],
+      '2026-10-31': [onDay('2026-10-31', 2023)],
+    };
+    renderApp('/');
+    fireEvent.click(
+      await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('button', {
+        name: 'Earlier days',
+      }),
+    );
+    await advance(1000);
+
+    expect(circles()).toEqual([]);
+    thumbnailHeld.load();
+    expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
+    expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sat 31 Oct']);
+  });
+
+  it('adds six more days without waiting for a picture still loading in the days above', async () => {
+    days = {
+      '2026-11-10': [onDay('2026-11-10', 2024)],
+      '2026-10-31': [onDay('2026-10-31', 2023)],
+    };
+    const { router } = renderApp('/');
+    await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
+      name: 'Yesterday',
+    });
+    const thumbnailHeld = holdPicture(thumbnail(id('2026-11-10', 5)));
+    days['2026-11-10'] = [onDay('2026-11-10', 2024, 5)];
+    void router.options.context.queryClient.invalidateQueries({ queryKey: ['on-this-day'] });
+    await advance(1000);
+
+    fireEvent.click(within(tray()).getByRole('button', { name: 'Earlier days' }));
+
+    expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
+    thumbnailHeld.load();
+  });
+
+  it('keeps the days shown while it adds six more whose pictures still load', async () => {
+    const thumbnailHeld = holdPicture(thumbnail(id('2026-10-31')));
+    days = {
+      '2026-11-10': [onDay('2026-11-10', 2024)],
+      '2026-10-31': [onDay('2026-10-31', 2023)],
+    };
+    renderApp('/');
+    await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
+      name: 'Yesterday',
+    });
+
+    const earlier = within(tray()).getByRole('button', { name: 'Earlier days' });
+    fireEvent.click(earlier);
+    await advance(1000);
+
+    expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday']);
+    expect(earlier).toHaveAttribute('data-pending', 'true');
+    thumbnailHeld.load();
+    expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
+    expect(earlier).not.toHaveAttribute('data-pending');
   });
 
   it('shows Try again in the place of a day that failed, and Try again loads it', async () => {
@@ -257,12 +341,9 @@ describe('earlier days', () => {
   });
 
   it('shows it is loading until the days it added arrive', async () => {
-    let answer: () => void = () => undefined;
-    const answered = new Promise<void>((resolve) => {
-      answer = resolve;
-    });
+    const dayHeld = hold();
     days['2026-10-31'] = async () => {
-      await answered;
+      await dayHeld.until;
       return HttpResponse.json({ date: '2026-10-31', years: [onDay('2026-10-31', 2023)] });
     };
     const { container } = await openLanding();
@@ -276,22 +357,28 @@ describe('earlier days', () => {
     expect(earlier()).toHaveAttribute('data-pending', 'true');
     expect(earlier()).toHaveAttribute('aria-disabled', 'true');
     expect(await axeResults(container)).toHaveNoViolations();
-    answer();
+    dayHeld.release();
     expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
     expect(earlier()).not.toHaveAttribute('data-pending');
   });
 
-  it('says Earlier days while the first six days still load', async () => {
+  it('holds the first six days back, saying Earlier days, until the last of them arrives', async () => {
     days['2026-11-11'] = [onDay('2026-11-11', 2025)];
+    days['2026-11-10'] = [onDay('2026-11-10', 2024)];
     days['2026-11-09'] = () =>
       new Promise((resolve) =>
         setTimeout(() => {
           resolve(Response.json({ date: '2026-11-09', years: [] }));
         }, 3000),
       );
-    await openLanding();
+    renderApp('/');
+    await screen.findByRole('list', { name: 'Recent days' });
+    await advance(2900);
 
+    expect(circles()).toEqual([]);
     expect(earlier()).toHaveAccessibleName('Earlier days');
+    await advance(100);
+    expect(await within(tray()).findByRole('link', { name: 'Yesterday' })).toBeVisible();
   });
 
   it('says nothing when a retried day of the first six turns out empty', async () => {
