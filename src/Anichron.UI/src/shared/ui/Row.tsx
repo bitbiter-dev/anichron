@@ -1,5 +1,5 @@
 import { Link, type LinkProps } from '@tanstack/react-router';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { Button } from 'react-aria-components';
 
 export const rowStyles =
@@ -22,6 +22,22 @@ export function RowLink({ to, children }: RowLinkProps) {
       {children}
       <RowChevron />
     </Link>
+  );
+}
+
+interface RowActionProps {
+  icon: LucideIcon;
+  onPress: () => void;
+  children: string;
+}
+
+export function RowAction({ icon: Icon, onPress, children }: RowActionProps) {
+  return (
+    <Button onPress={onPress} className={rowLinkStyles}>
+      <Icon aria-hidden className="size-5 text-accent" />
+      <span className="flex-1 text-left">{children}</span>
+      <RowChevron />
+    </Button>
   );
 }
 
