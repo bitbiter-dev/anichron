@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
 import { memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { proxyAnswers } from '../../test/handlers/proxies';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -78,6 +79,68 @@ describe('the recent days', () => {
       '2026-11-11',
     ]);
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it.each([
+    ['loads', () => undefined],
+    ['fails', () => new HttpResponse(null, { status: 503 })],
+  ])('shows the six days only once the last of their pictures %s', async (_, outcome) => {
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    days = {
+      '2026-11-11': [onDay('2026-11-11', 2025)],
+      '2026-11-10': [onDay('2026-11-10', 2024)],
+      '2026-11-08': [onDay('2026-11-08', 2022)],
+    };
+    server.use(
+      proxyAnswers([], async (url) => {
+        if (url !== thumbnail(id('2026-11-08'))) return undefined;
+        await answered;
+        return outcome();
+      }),
+    );
+    renderApp('/');
+    await screen.findByRole('list', { name: 'Recent days' });
+    await advance(1000);
+
+    expect(circles()).toEqual([]);
+    answer();
+    expect(await within(tray()).findByRole('link', { name: 'Sun 8 Nov' })).toBeVisible();
+    expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sun 8 Nov']);
+  });
+
+  it('keeps the days shown while it adds six more whose pictures still load', async () => {
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    days = {
+      '2026-11-10': [onDay('2026-11-10', 2024)],
+      '2026-10-31': [onDay('2026-10-31', 2023)],
+    };
+    server.use(
+      proxyAnswers([], async (url) => {
+        if (url !== thumbnail(id('2026-10-31'))) return undefined;
+        await answered;
+        return undefined;
+      }),
+    );
+    renderApp('/');
+    await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
+      name: 'Yesterday',
+    });
+
+    const earlier = within(tray()).getByRole('button', { name: 'Earlier days' });
+    fireEvent.click(earlier);
+    await advance(1000);
+
+    expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday']);
+    expect(earlier).toHaveAttribute('data-pending', 'true');
+    answer();
+    expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
+    expect(earlier).not.toHaveAttribute('data-pending');
   });
 
   it('shows Try again in the place of a day that failed, and Try again loads it', async () => {
@@ -281,17 +344,23 @@ describe('earlier days', () => {
     expect(earlier()).not.toHaveAttribute('data-pending');
   });
 
-  it('says Earlier days while the first six days still load', async () => {
+  it('holds the first six days back, saying Earlier days, until the last of them arrives', async () => {
     days['2026-11-11'] = [onDay('2026-11-11', 2025)];
+    days['2026-11-10'] = [onDay('2026-11-10', 2024)];
     days['2026-11-09'] = () =>
       new Promise((resolve) =>
         setTimeout(() => {
           resolve(Response.json({ date: '2026-11-09', years: [] }));
         }, 3000),
       );
-    await openLanding();
+    renderApp('/');
+    await screen.findByRole('list', { name: 'Recent days' });
+    await advance(2900);
 
+    expect(circles()).toEqual([]);
     expect(earlier()).toHaveAccessibleName('Earlier days');
+    await advance(100);
+    expect(await within(tray()).findByRole('link', { name: 'Yesterday' })).toBeVisible();
   });
 
   it('says nothing when a retried day of the first six turns out empty', async () => {

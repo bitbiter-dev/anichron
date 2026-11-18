@@ -10,6 +10,7 @@ import {
   miraSession,
 } from '../../test/handlers/auth';
 import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
+import { proxyAnswers } from '../../test/handlers/proxies';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -49,6 +50,35 @@ beforeEach(() => {
 });
 
 describe('the landing screen', () => {
+  it.each([
+    ['loads', () => undefined],
+    ['fails', () => new HttpResponse(null, { status: 503 })],
+  ])('shows the year groups only once the last of their pictures %s', async (_, outcome) => {
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    server.use(
+      refreshSucceeds(),
+      today(),
+      proxyAnswers([], async (url) => {
+        if (url !== thumbnail(ids.first2023)) return undefined;
+        await answered;
+        return outcome();
+      }),
+    );
+    renderApp('/');
+    await vi.waitFor(() => {
+      expect(requested).toEqual(['2026-11-11']);
+    });
+    await advance(1000);
+
+    expect(screen.queryAllByRole('link', { name: /ago/ })).toEqual([]);
+    answer();
+    expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
+    expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+  });
+
   it('sends a visitor without a session to the login screen', async () => {
     server.use(today());
     const { router } = renderApp('/');
