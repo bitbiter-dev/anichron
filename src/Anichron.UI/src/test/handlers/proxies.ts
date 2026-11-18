@@ -19,11 +19,3 @@ export function proxyAnswers(
     );
   });
 }
-
-export function thumbnailsLoad() {
-  return http.get('/api/v1/proxies/{assetId}/{type}', ({ params, response }) =>
-    params.type === 'thumbnail'
-      ? response.untyped(new HttpResponse(new Uint8Array([1]), { status: 200 }))
-      : undefined,
-  );
-}

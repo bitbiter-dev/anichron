@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
 import { hold, memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
-import { proxyAnswers } from '../../test/handlers/proxies';
+import { holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -81,46 +81,33 @@ describe('the recent days', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it.each([
-    ['loads', () => undefined],
-    ['fails', () => new HttpResponse(null, { status: 503 })],
-  ])('shows the six days only once the last of their pictures %s', async (_, outcome) => {
-    const thumbnailHeld = hold();
-    days = {
-      '2026-11-11': [onDay('2026-11-11', 2025)],
-      '2026-11-10': [onDay('2026-11-10', 2024)],
-      '2026-11-08': [onDay('2026-11-08', 2022)],
-    };
-    server.use(
-      proxyAnswers([], async (url) => {
-        if (url !== thumbnail(id('2026-11-08'))) return undefined;
-        await thumbnailHeld.until;
-        return outcome();
-      }),
-    );
-    renderApp('/');
-    await screen.findByRole('list', { name: 'Recent days' });
-    await advance(1000);
+  it.each(['load', 'fail'] as const)(
+    'shows the six days only once the last of their pictures %ss',
+    async (outcome) => {
+      const thumbnailHeld = holdPicture(thumbnail(id('2026-11-08')));
+      days = {
+        '2026-11-11': [onDay('2026-11-11', 2025)],
+        '2026-11-10': [onDay('2026-11-10', 2024)],
+        '2026-11-08': [onDay('2026-11-08', 2022)],
+      };
+      renderApp('/');
+      await screen.findByRole('list', { name: 'Recent days' });
+      await advance(1000);
 
-    expect(circles()).toEqual([]);
-    thumbnailHeld.release();
-    expect(await within(tray()).findByRole('link', { name: 'Sun 8 Nov' })).toBeVisible();
-    expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sun 8 Nov']);
-  });
+      expect(circles()).toEqual([]);
+      thumbnailHeld[outcome]();
+      expect(await within(tray()).findByRole('link', { name: 'Sun 8 Nov' })).toBeVisible();
+      expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sun 8 Nov']);
+    },
+  );
 
   it('never shows six days it added before the six before them', async () => {
-    const thumbnailHeld = hold();
+    const thumbnailHeld = holdPicture(thumbnail(id('2026-11-10')));
     days = {
       '2026-11-11': [onDay('2026-11-11', 2025)],
       '2026-11-10': [onDay('2026-11-10', 2024)],
       '2026-10-31': [onDay('2026-10-31', 2023)],
     };
-    server.use(
-      proxyAnswers([], async (url) => {
-        if (url === thumbnail(id('2026-11-10'))) await thumbnailHeld.until;
-        return undefined;
-      }),
-    );
     renderApp('/');
     fireEvent.click(
       await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('button', {
@@ -130,24 +117,17 @@ describe('the recent days', () => {
     await advance(1000);
 
     expect(circles()).toEqual([]);
-    thumbnailHeld.release();
+    thumbnailHeld.load();
     expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
     expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sat 31 Oct']);
   });
 
   it('keeps the days shown while it adds six more whose pictures still load', async () => {
-    const thumbnailHeld = hold();
+    const thumbnailHeld = holdPicture(thumbnail(id('2026-10-31')));
     days = {
       '2026-11-10': [onDay('2026-11-10', 2024)],
       '2026-10-31': [onDay('2026-10-31', 2023)],
     };
-    server.use(
-      proxyAnswers([], async (url) => {
-        if (url !== thumbnail(id('2026-10-31'))) return undefined;
-        await thumbnailHeld.until;
-        return undefined;
-      }),
-    );
     renderApp('/');
     await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
       name: 'Yesterday',
@@ -159,7 +139,7 @@ describe('the recent days', () => {
 
     expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday']);
     expect(earlier).toHaveAttribute('data-pending', 'true');
-    thumbnailHeld.release();
+    thumbnailHeld.load();
     expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
     expect(earlier).not.toHaveAttribute('data-pending');
   });

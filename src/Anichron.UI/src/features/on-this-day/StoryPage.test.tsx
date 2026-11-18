@@ -16,7 +16,7 @@ import {
   yearGroup,
 } from '../../test/handlers/flashbacks';
 import { burstAnswers } from '../../test/handlers/bursts';
-import { proxyAnswers, thumbnailsLoad } from '../../test/handlers/proxies';
+import { proxyAnswers } from '../../test/handlers/proxies';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -136,10 +136,7 @@ beforeEach(() => {
 });
 
 function previewsNotPrefetched() {
-  server.use(
-    thumbnailsLoad(),
-    proxyAnswers([], () => new HttpResponse(null, { status: 503 })),
-  );
+  server.use(proxyAnswers([], () => new HttpResponse(null, { status: 503 })));
 }
 
 describe('opening a story', () => {
@@ -159,7 +156,6 @@ describe('opening a story', () => {
     let answerFirst: (answer: undefined) => void = () => undefined;
     const received: string[] = [];
     server.use(
-      thumbnailsLoad(),
       proxyAnswers(received, (url) =>
         url === preview(ids.a2023)
           ? new Promise<undefined>((resolve) => {
@@ -190,7 +186,7 @@ describe('opening a story', () => {
 
   it('loads the first picture only on opening, not again when the session renews', async () => {
     const received: string[] = [];
-    server.use(thumbnailsLoad(), proxyAnswers(received));
+    server.use(proxyAnswers(received));
     await openLanding();
     fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
     await screen.findByRole('dialog', { name: storyName });
@@ -223,7 +219,6 @@ describe('opening a story', () => {
 
   it('opens when the first picture cannot be loaded', async () => {
     server.use(
-      thumbnailsLoad(),
       proxyAnswers([], (url) =>
         url === preview(ids.a2023) ? new HttpResponse(null, { status: 404 }) : undefined,
       ),
@@ -1727,10 +1722,7 @@ describe('a Live Photo', () => {
     beforeEach(() => {
       received = [];
       answer = () => undefined;
-      server.use(
-        thumbnailsLoad(),
-        proxyAnswers(received, (url) => answer(url)),
-      );
+      server.use(proxyAnswers(received, (url) => answer(url)));
       create = vi.spyOn(URL, 'createObjectURL');
       create.mockImplementation(() => `blob:video-${String(create.mock.calls.length)}`);
       revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
@@ -1783,7 +1775,7 @@ describe('a Live Photo', () => {
       expect(
         asked.mock.calls
           .flatMap(([url]) => (url instanceof URL ? [url.pathname + url.search] : []))
-          .filter((url) => !/\/(preview|thumbnail)\?/.test(url)),
+          .filter((url) => !url.endsWith('/preview?v=0123456789abcdef')),
       ).toEqual([motionOf(ids.b2025), motionOf(ids.a2023)]);
       fireEvent.click(button('Next'));
       await shown();
@@ -1910,10 +1902,7 @@ describe('the next memories', () => {
       record(this);
       return Promise.resolve();
     });
-    server.use(
-      thumbnailsLoad(),
-      proxyAnswers(received, (url) => answer(url)),
-    );
+    server.use(proxyAnswers(received, (url) => answer(url)));
   });
 
   it("fetches and decodes the next two memories' previews once a memory shows, across a year group's end", async () => {
@@ -2153,8 +2142,7 @@ describe('a blurhash', () => {
       vi.spyOn(HTMLImageElement.prototype, 'decode').mockImplementation(function (
         this: HTMLImageElement,
       ) {
-        const src = this.getAttribute('src') ?? '';
-        if (!this.isConnected && src.includes('/preview?')) prefetched.push(src);
+        if (!this.isConnected) prefetched.push(this.getAttribute('src') ?? '');
         return Promise.resolve();
       });
     });
@@ -2196,7 +2184,7 @@ describe('a blurhash', () => {
       ['not sent', () => HttpResponse.error()],
       ['not decoded', () => undefined],
     ])('is shown for a memory whose preview was %s ahead', async (how, answer) => {
-      server.use(thumbnailsLoad(), proxyAnswers([], answer));
+      server.use(proxyAnswers([], answer));
       if (how === 'not decoded')
         vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(new Error('broken'));
       threeYears();
@@ -2305,7 +2293,7 @@ describe('closing a story', () => {
 
   it('stops playing once closed, so it fetches nothing more ahead', async () => {
     const received: string[] = [];
-    server.use(thumbnailsLoad(), proxyAnswers(received));
+    server.use(proxyAnswers(received));
     await openStory('/day/2026-11-11?year=2025');
     await shown();
     fireEvent.click(button('Close'));
@@ -3741,7 +3729,6 @@ describe('a burst', () => {
     let answerCover: (answer: undefined) => void = () => undefined;
     const received: string[] = [];
     server.use(
-      thumbnailsLoad(),
       proxyAnswers(received, (url) =>
         url === preview(frameIds[1] as string)
           ? new Promise<undefined>((resolve) => {

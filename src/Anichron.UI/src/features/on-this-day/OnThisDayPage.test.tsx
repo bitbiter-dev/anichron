@@ -9,14 +9,8 @@ import {
   refreshSucceeds,
   miraSession,
 } from '../../test/handlers/auth';
-import {
-  hold,
-  memory,
-  onThisDayAnswers,
-  todayAnd,
-  yearGroup,
-} from '../../test/handlers/flashbacks';
-import { proxyAnswers } from '../../test/handlers/proxies';
+import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
+import { holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -56,31 +50,23 @@ beforeEach(() => {
 });
 
 describe('the landing screen', () => {
-  it.each([
-    ['loads', () => undefined],
-    ['fails', () => new HttpResponse(null, { status: 503 })],
-  ])('shows the year groups only once the last of their pictures %s', async (_, outcome) => {
-    const thumbnailHeld = hold();
-    server.use(
-      refreshSucceeds(),
-      today(),
-      proxyAnswers([], async (url) => {
-        if (url !== thumbnail(ids.first2023)) return undefined;
-        await thumbnailHeld.until;
-        return outcome();
-      }),
-    );
-    renderApp('/');
-    await vi.waitFor(() => {
-      expect(requested).toEqual(['2026-11-11']);
-    });
-    await advance(1000);
+  it.each(['load', 'fail'] as const)(
+    'shows the year groups only once the last of their pictures %ss',
+    async (outcome) => {
+      const thumbnailHeld = holdPicture(thumbnail(ids.first2023));
+      server.use(refreshSucceeds(), today());
+      renderApp('/');
+      await vi.waitFor(() => {
+        expect(requested).toEqual(['2026-11-11']);
+      });
+      await advance(1000);
 
-    expect(screen.queryAllByRole('link', { name: /ago/ })).toEqual([]);
-    thumbnailHeld.release();
-    expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
-    expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
-  });
+      expect(screen.queryAllByRole('link', { name: /ago/ })).toEqual([]);
+      thumbnailHeld[outcome]();
+      expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
+      expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+    },
+  );
 
   it('sends a visitor without a session to the login screen', async () => {
     server.use(today());
@@ -94,16 +80,9 @@ describe('the landing screen', () => {
   });
 
   it('keeps the year groups shown when they come back with a picture still loading', async () => {
-    const thumbnailHeld = hold();
+    const thumbnailHeld = holdPicture(thumbnail(ids.first2023));
     let years = [yearGroup(2025, memory(ids.first2025, 2025))];
-    server.use(
-      refreshSucceeds(),
-      onThisDayAnswers(todayAnd([], () => years)),
-      proxyAnswers([], async (url) => {
-        if (url === thumbnail(ids.first2023)) await thumbnailHeld.until;
-        return undefined;
-      }),
-    );
+    server.use(refreshSucceeds(), onThisDayAnswers(todayAnd([], () => years)));
     const { router } = renderApp('/');
     expect(await screen.findByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
 
@@ -116,7 +95,7 @@ describe('the landing screen', () => {
 
     expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
     expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
-    thumbnailHeld.release();
+    thumbnailHeld.load();
   });
 
   it("shows today's year groups, newest first, each with its first memory", async () => {
