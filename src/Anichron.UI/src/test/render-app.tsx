@@ -7,6 +7,7 @@ import { createQueryClient } from '../app/query-client';
 import { createAppRouter } from '../app/router';
 import { keepInstallPrompt } from '../app/install';
 import { createI18n } from '../i18n/i18n';
+import { inAct } from './act';
 import { memoryUrls } from './object-urls';
 import { loadImage } from './pictures';
 import { settled, track } from './query-clients';
@@ -24,7 +25,14 @@ export function renderApp(path: string, tabs: Tabs = sharedTabs().tab()) {
       ...api,
       media: {
         loadImage: (url) => settled(loadImage(url)),
-        downloads: { ...downloads, picture: (url) => settled(downloads.picture(url)) },
+        downloads: {
+          ...downloads,
+          picture: (url) => settled(downloads.picture(url)),
+          subscribe: (listener) =>
+            downloads.subscribe(() => {
+              inAct(listener);
+            }),
+        },
       },
     },
     track(createQueryClient()),
