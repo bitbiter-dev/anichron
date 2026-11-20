@@ -15,7 +15,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 - Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`, reused by `bursts.ts`).
 - An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more; a second error is a failure (`features/on-this-day/media.ts`). See "The refresh rules".
 - `src/api/media.ts` decodes a thumbnail with `new Image()` (`loadImage`), which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above.
-- `media.downloads` is the app's one download store: one download at a time, in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL. A `401` renews the media session and retries once. What arrived stays for the session, within the limits in `createDownloads`.
+- `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once. What arrived stays for the session, within the limits in `createDownloads`.
 - A story opens once its first picture has arrived (`loadStory` in `features/on-this-day/day.ts`) and renders only pictures from the store. A picture fails only once none of it has arrived for `loadMilliseconds` (`mediaProgressed` in `story.ts`). A Live Photo video the server refuses plays from the network instead.
 
 ## The event stream
