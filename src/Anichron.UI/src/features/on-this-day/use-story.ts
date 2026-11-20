@@ -61,8 +61,8 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     },
   );
   const state = useSyncExternalStore(subscribe, story.state);
-  useEffect(sync);
   const arrived = useSyncExternalStore(downloads.subscribe, downloads.snapshot);
+  useEffect(sync);
   const group = snapshot[state.group] as YearGroup;
   return {
     state,

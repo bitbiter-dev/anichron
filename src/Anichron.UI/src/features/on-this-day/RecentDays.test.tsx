@@ -406,6 +406,7 @@ describe('earlier days', () => {
     act(() => {
       becomes('visible');
     });
+    await advance(0);
 
     expect(await within(tray()).findByRole('link', { name: 'Tue 10 Nov' })).toBeVisible();
     expect(

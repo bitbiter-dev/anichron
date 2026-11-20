@@ -2185,11 +2185,13 @@ describe('the next memories', () => {
 
     fireEvent.click(button('Close'));
     await advance(0);
-    await router.navigate({
-      to: '/day/$date',
-      params: { date: '2026-11-11' },
-      search: { year: 2025 },
-    });
+    await act(() =>
+      router.navigate({
+        to: '/day/$date',
+        params: { date: '2026-11-11' },
+        search: { year: 2025 },
+      }),
+    );
     await shown();
 
     await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
