@@ -5,7 +5,7 @@ WORKDIR /app
 EXPOSE 8080
 
 # 2. UI Stage
-FROM --platform=$BUILDPLATFORM node:26.13.0-alpine AS ui
+FROM --platform=$BUILDPLATFORM node:26.13.1-alpine AS ui
 WORKDIR /ui
 RUN npm install --global pnpm@12.16.1
 COPY ["Anichron.UI/package.json", "Anichron.UI/pnpm-lock.yaml", "Anichron.UI/pnpm-workspace.yaml", "./"]
