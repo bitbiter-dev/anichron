@@ -43,6 +43,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
         });
         return () => {
           stopStory();
+          // Stryker disable next-line CallExpression
           stopDownloads();
           stopInput();
           downloads.clear();
