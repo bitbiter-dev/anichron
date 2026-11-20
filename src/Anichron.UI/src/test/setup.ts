@@ -14,6 +14,9 @@ expect.extend(matchers);
 // Testing Library advances fake timers only when it finds a `jest` global.
 Object.assign(globalThis, { jest: { advanceTimersByTime: vi.advanceTimersByTime.bind(vi) } });
 
+// Testing Library turns the act environment on only when it finds a `beforeAll` global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 beforeAll(() => {
   server.listen({ onUnhandledFrame: 'error' });
 });
