@@ -125,6 +125,82 @@ describe('downloading media', () => {
     expect(asked).toEqual([at('first'), at('second')]);
   });
 
+  it('downloads only the picture asked for, and nothing once cleared', async () => {
+    const fetching = vi.spyOn(globalThis, 'fetch');
+    const store = downloads();
+
+    await store.picture(at('first'));
+    store.clear();
+
+    expect(store.snapshot().picturesSettled).toBe(true);
+    await settle();
+    expect(fetching).toHaveBeenCalledOnce();
+  });
+
+  it('has its pictures settled while a video still downloads, and decodes no video', async () => {
+    const store = downloads();
+    const decode = vi.spyOn(HTMLImageElement.prototype, 'decode');
+    held('video');
+
+    store.keep(wants([at('first')], [at('video')]));
+    await settle();
+
+    expect(asked).toEqual([at('first'), at('video')]);
+    expect(store.snapshot().picturesSettled).toBe(true);
+    expect(decode).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['its type', { 'Content-Type': 'image/webp' }, 'image/webp'],
+    ['no type', {}, ''],
+  ])('keeps all of a download, with %s', async (_, headers, type) => {
+    const blobs: Blob[] = [];
+    const store = createMedia(renewNothing, {
+      create: (blob) => {
+        blobs.push(blob);
+        return 'kept';
+      },
+      free: () => undefined,
+    }).downloads;
+    answers.set(at('first'), () => {
+      const response = new HttpResponse(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1]));
+            controller.enqueue(new Uint8Array([2]));
+            controller.close();
+          },
+        }),
+        { headers },
+      );
+      return response;
+    });
+    vi.spyOn(HTMLImageElement.prototype, 'decode').mockResolvedValue();
+
+    await store.picture(at('first'));
+
+    expect(blobs).toHaveLength(1);
+    expect((blobs[0] as Blob).type).toBe(type);
+    expect([...new Uint8Array(await (blobs[0] as Blob).arrayBuffer())]).toEqual([1, 2]);
+  });
+
+  it('serves a picture wanted again from the cache, and never frees it while wanted', async () => {
+    const store = downloads();
+    store.keep(wants([at('first')]));
+    await settle();
+    store.clear();
+    store.keep(wants([at('first')]));
+
+    for (let index = 0; index < 61; index++) {
+      store.keep(wants([at('first'), at(`later-${String(index)}`)]));
+      await settle();
+    }
+    store.keep(wants([at('first')]));
+
+    expect(freedSources()).toEqual([keptSource(at('later-0'))]);
+    expect(store.sourceOf(at('first'))).toBe(keptSource(at('first')));
+  });
+
   it('has no source and its pictures unsettled until they arrive', async () => {
     const store = downloads();
     const release = held('first');
@@ -244,6 +320,7 @@ describe('downloading media', () => {
     await settle();
 
     expect(aborted).toEqual([at('second')]);
+    expect(freedSources()).toEqual([]);
     expect(await dropped).toBe(false);
     expect(store.sourceOf(at('second'))).toBeNull();
     expect(store.sourceOf(at('third'))).toBe(keptSource(at('third')));
@@ -297,10 +374,9 @@ describe('downloading media', () => {
     expect(store.sourceOf(at('first'))).toBeNull();
   });
 
-  it('tells about every piece that arrives, until told to stop', async () => {
+  it('tells its listeners of every piece that arrives, with the same snapshot', async () => {
     const store = downloads();
-    const progress = vi.fn();
-    const stop = store.onProgress(progress);
+    const changes = vi.fn();
     answers.set(
       at('first'),
       () =>
@@ -309,23 +385,20 @@ describe('downloading media', () => {
             start(controller) {
               controller.enqueue(new Uint8Array([1]));
               controller.enqueue(new Uint8Array([2]));
-              controller.close();
             },
           }),
         ),
     );
+    store.keep(wants([at('first')]));
+    const before = store.snapshot();
+    store.subscribe(changes);
+    await settle();
 
-    await store.picture(at('first'));
-    expect(progress.mock.calls).toEqual([[at('first')], [at('first')]]);
-
-    stop();
-    store.retry(at('first'));
-    store.clear();
-    await store.picture(at('second'));
-    expect(progress).toHaveBeenCalledTimes(2);
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(store.snapshot()).toBe(before);
   });
 
-  it('tells of what it keeps and what arrives, with a new snapshot, until told to stop', async () => {
+  it('tells of what it keeps and what arrives, with a new snapshot each time, until told to stop', async () => {
     const store = downloads();
     const changes = vi.fn();
     const stop = store.subscribe(changes);
@@ -337,15 +410,16 @@ describe('downloading media', () => {
     expect(kept).not.toBe(before);
     expect(kept.sourceOf(at('first'))).toBeNull();
     await settle();
-    expect(changes).toHaveBeenCalledTimes(2);
+    expect(changes).toHaveBeenCalledTimes(3);
     expect(store.snapshot()).not.toBe(kept);
     expect(store.snapshot().sourceOf(at('first'))).toBe(keptSource(at('first')));
+    expect(kept.sourceOf(at('first'))).toBeNull();
 
     store.keep(wants([at('first')]));
-    expect(changes).toHaveBeenCalledTimes(2);
+    expect(changes).toHaveBeenCalledTimes(3);
     stop();
     store.clear();
-    expect(changes).toHaveBeenCalledTimes(2);
+    expect(changes).toHaveBeenCalledTimes(3);
   });
 
   it('makes object urls in the browser and revokes them', async () => {

@@ -26,7 +26,7 @@ function sourceOf(
   { proxies, livePhotoVideoUrl }: Memory,
   downloads: InMemory,
 ): Source | null {
-  const poster = (proxies.preview && downloads.sourceOf(proxies.preview)) ?? '';
+  const poster = downloads.sourceOf(proxies.preview) ?? '';
   if (state.kind === 'video' && state.load !== 'failed')
     return { src: proxies.video as string, poster };
   const live = livePhotoVideoUrl as string;

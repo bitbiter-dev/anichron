@@ -3,7 +3,6 @@ const loadMilliseconds = 10_000;
 export const videoMilliseconds = 60_000;
 const hintMilliseconds = 1000;
 const upcomingCount = 2;
-const behindCount = 3;
 
 export type Load = 'loading' | 'shown' | 'failed';
 
@@ -35,7 +34,6 @@ export interface StoryState extends StoryPosition {
   hint: boolean;
   playsMedia: boolean;
   upcoming: readonly Place[];
-  behind: readonly Place[];
 }
 
 export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
@@ -49,7 +47,7 @@ export type Story = Record<
   state: () => StoryState;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
-  mediaProgressed: (visit: number) => void;
+  mediaProgressed: () => void;
   mediaEnded: (visit: number) => void;
   mediaFailed: (visit: number) => void;
   livePlaying: () => void;
@@ -89,6 +87,7 @@ function createClock(end: () => void) {
       remaining -= Date.now() - startedAt;
     },
     start() {
+      if (timer !== undefined) return;
       startedAt = Date.now();
       timer = setTimeout(end, remaining);
     },
@@ -139,10 +138,6 @@ export function createStory(
     places()
       .filter((place) => isAfter(place, from))
       .slice(0, upcomingCount);
-  const behind = (from: Place) =>
-    places()
-      .filter((place) => isAfter(from, place))
-      .slice(-behindCount);
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
@@ -181,7 +176,6 @@ export function createStory(
       hint,
       playsMedia,
       upcoming: upcoming(position),
-      behind: behind(position),
     };
   }
 
@@ -287,8 +281,8 @@ export function createStory(
     mediaReady(visit) {
       settle(visit, 'shown');
     },
-    mediaProgressed(visit) {
-      if (visit !== position.visit || position.load !== 'loading') return;
+    mediaProgressed() {
+      if (position.load !== 'loading' || position.kind === 'video') return;
       stop();
       clock.set(loadMilliseconds);
       start();

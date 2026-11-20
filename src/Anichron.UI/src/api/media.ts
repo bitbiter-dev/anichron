@@ -3,19 +3,18 @@ export type MediaKind = 'picture' | 'video';
 export type Wanted = readonly { url: string; kind: MediaKind }[];
 
 export interface Downloaded {
-  sourceOf: (url: string) => string | null;
+  sourceOf: (url: string | null) => string | null;
   picturesSettled: boolean;
 }
 
 export interface Downloads {
   keep: (wanted: Wanted) => void;
   picture: (url: string) => Promise<boolean>;
-  sourceOf: (url: string) => string | null;
-  failed: (url: string) => boolean;
-  retry: (url: string) => void;
+  sourceOf: (url: string | null) => string | null;
+  failed: (url: string | null) => boolean;
+  retry: (url: string | null) => void;
   snapshot: () => Downloaded;
   subscribe: (listener: () => void) => () => void;
-  onProgress: (listener: (url: string) => void) => () => void;
   clear: () => void;
 }
 
@@ -38,13 +37,11 @@ function browserObjectUrls(): ObjectUrls {
   };
 }
 
-type DownloadState = 'waiting' | 'loading' | 'done' | 'failed';
-
 interface Download {
   url: string;
   kind: MediaKind;
-  state: DownloadState;
-  source?: string;
+  source: string | null;
+  failed: boolean;
   controller?: AbortController;
   settled: Promise<boolean>;
   settle: (done: boolean) => void;
@@ -55,7 +52,7 @@ function newDownload(url: string, kind: MediaKind): Download {
   const settled = new Promise<boolean>((resolve) => {
     settle = resolve;
   });
-  return { url, kind, state: 'waiting', settled, settle };
+  return { url, kind, source: null, failed: false, settled, settle };
 }
 
 async function decodeSource(source: string) {
@@ -66,18 +63,18 @@ async function decodeSource(source: string) {
 
 function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Downloads {
   const cacheLimits: Record<MediaKind, number> = { picture: 60, video: 10 };
-  const wanted = new Map<string, Download>();
+  const wanted = new Map<string | null, Download>();
   const cached = new Map<string, Download>();
   let order: Wanted = [];
   let active: Download | undefined;
   const listeners = new Set<() => void>();
-  const progressListeners = new Set<(url: string) => void>();
-  const sourceOf = (url: string) => wanted.get(url)?.source ?? null;
-  const settled = ({ state }: Download) => state === 'done' || state === 'failed';
+  const sourceOf = (url: string | null) => wanted.get(url)?.source ?? null;
+  const settled = ({ source, failed }: Download) => source !== null || failed;
 
   function downloaded(): Downloaded {
+    const sources = new Map([...wanted].map(([url, { source }]) => [url, source]));
     return {
-      sourceOf,
+      sourceOf: (url) => sources.get(url) ?? null,
       picturesSettled: [...wanted.values()].every(
         (download) => download.kind === 'video' || settled(download),
       ),
@@ -86,13 +83,13 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
 
   let snapshot = downloaded();
 
-  function changed() {
-    snapshot = downloaded();
+  function notify() {
     for (const listener of listeners) listener();
   }
 
-  function progressed(url: string) {
-    for (const listener of progressListeners) listener(url);
+  function changed() {
+    snapshot = downloaded();
+    notify();
   }
 
   async function body(url: string, signal: AbortSignal) {
@@ -107,7 +104,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     const reader = response.body.getReader();
     for (let read = await reader.read(); !read.done; read = await reader.read()) {
       chunks.push(read.value);
-      progressed(url);
+      notify();
     }
     return new Blob(chunks, { type: response.headers.get('Content-Type') ?? '' });
   }
@@ -130,8 +127,8 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
       return;
     }
     active = undefined;
-    download.state = source ? 'done' : 'failed';
-    if (source) download.source = source;
+    download.source = source;
+    download.failed = !source;
     download.settle(Boolean(source));
     changed();
     startNext();
@@ -140,7 +137,6 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
   function stop(download: Download) {
     download.controller?.abort();
     download.controller = undefined;
-    if (active === download) active = undefined;
   }
 
   function startNext() {
@@ -148,13 +144,9 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
       .map(({ url }) => wanted.get(url) as Download)
       .find((download) => !settled(download));
     if (!next || next === active) return;
-    if (active) {
-      active.state = 'waiting';
-      stop(active);
-    }
+    if (active) stop(active);
     const controller = new AbortController();
     active = next;
-    next.state = 'loading';
     next.controller = controller;
     load(next, controller.signal).then(
       (source) => {
@@ -178,7 +170,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
 
   function drop(download: Download) {
     wanted.delete(download.url);
-    if (download.state === 'done') {
+    if (download.source) {
       cached.set(download.url, download);
       evict();
       return;
@@ -188,8 +180,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
   }
 
   function keep(next: Wanted) {
-    const kinds = new Map<string, MediaKind>();
-    for (const { url, kind } of next) if (!kinds.has(url)) kinds.set(url, kind);
+    const kinds = new Map(next.map(({ url, kind }) => [url, kind]));
     const dropped = [...wanted.values()].filter(({ url }) => !kinds.has(url));
     const added = [...kinds].filter(([url]) => !wanted.has(url));
     for (const download of dropped) drop(download);
@@ -209,11 +200,11 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
       return (wanted.get(url) as Download).settled;
     },
     sourceOf,
-    failed: (url) => wanted.get(url)?.state === 'failed',
+    failed: (url) => wanted.get(url)?.failed === true,
     retry(url) {
       const download = wanted.get(url);
-      if (download?.state !== 'failed') return;
-      wanted.set(url, newDownload(url, download.kind));
+      if (!download?.failed) return;
+      wanted.set(download.url, newDownload(download.url, download.kind));
       changed();
       startNext();
     },
@@ -221,10 +212,6 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
-    },
-    onProgress(listener) {
-      progressListeners.add(listener);
-      return () => progressListeners.delete(listener);
     },
     clear() {
       keep([]);

@@ -26,13 +26,9 @@ export function wantedOf(state: StoryState, previewAt: PreviewAt, memoryAt: Memo
 export function createPreviews(downloads: Downloads, previewAt: PreviewAt) {
   let visit = 0;
   return {
-    downloaded: (place: Place) => {
-      const url = previewAt(place);
-      return url !== null && downloads.sourceOf(url) !== null;
-    },
+    downloaded: (place: Place) => downloads.sourceOf(previewAt(place)) !== null,
     sync(state: StoryState, failed: (visit: number) => void) {
       const url = previewAt(state);
-      if (url === null) return;
       if (state.visit !== visit) downloads.retry(url);
       visit = state.visit;
       if (state.load === 'loading' && state.kind !== 'video' && downloads.failed(url))
@@ -49,7 +45,7 @@ export function nextVideo({ upcoming }: StoryState, memoryAt: MemoryAt) {
 export function createPreload() {
   let preloading: string | null = null;
   return (next: string | null, picturesSettled: boolean) => {
-    if (next !== preloading && picturesSettled) preloading = next;
+    if (picturesSettled) preloading = next;
     return next === preloading ? next : null;
   };
 }

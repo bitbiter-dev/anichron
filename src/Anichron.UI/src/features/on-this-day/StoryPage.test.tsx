@@ -7,7 +7,12 @@ import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import type { Memory } from '../../api/flashbacks';
 import { axeResults } from '../../test/axe';
 import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
-import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
+import {
+  miraSession,
+  problemResponse,
+  refreshRespondsWith,
+  refreshSucceeds,
+} from '../../test/handlers/auth';
 import {
   hold,
   memory,
@@ -721,6 +726,38 @@ describe('a memory loading', () => {
     expect(await shown()).toBe(preview(ids.b2025));
   });
 
+  it('renews the session once on a preview refused past its renewal, and downloads it again', async () => {
+    let refreshes = 0;
+    let answeredAt = 0;
+    let release: () => void = () => undefined;
+    const refusing = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let asked = 0;
+    server.use(
+      refreshRespondsWith(() => {
+        refreshes++;
+        answeredAt = Date.now();
+        return HttpResponse.json(miraSession);
+      }),
+      proxyAnswers([], async (url) => {
+        if (url !== preview(ids.b2025) || ++asked > 1) return undefined;
+        await refusing;
+        return problemResponse(401, 'unauthorized');
+      }),
+    );
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    vi.setSystemTime(answeredAt + miraSession.expiresIn * 800 + 1);
+
+    release();
+    await user().click(button('Next'));
+
+    expect(await shown()).toBe(preview(ids.b2025));
+    expect(refreshes).toBe(2);
+    expect(asked).toBe(2);
+  });
+
   it('gives each memory its own 10 s to arrive', async () => {
     await openStory('/day/2026-11-11?year=2025');
 
@@ -1070,13 +1107,15 @@ describe('a video', () => {
     expect(video()).toBeVisible();
   });
 
-  it('reloads the same video once', async () => {
+  it('reloads the same video once, and plays it', async () => {
     await openVideo();
     const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
 
     await fire('error');
 
     expect(src.mock.calls).toEqual([[clip(ids.a2025)]]);
+    expect(play).toHaveBeenCalledOnce();
   });
 
   it('shows its poster when it has not played after 10 s', async () => {

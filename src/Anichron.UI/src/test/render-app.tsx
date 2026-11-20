@@ -1,7 +1,6 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { render } from '@testing-library/react';
 import { createApiClient } from '../api/client';
-import { createMedia } from '../api/media';
 import type { Tabs } from '../api/tabs';
 import { App } from '../app/App';
 import { createQueryClient } from '../app/query-client';
@@ -18,8 +17,8 @@ import.meta.glob(['../features/*/*Page.tsx', '../api/event-stream.ts'], { eager:
 
 export function renderApp(path: string, tabs: Tabs = sharedTabs().tab()) {
   const updates = fakeUpdates();
-  const api = createApiClient(tabs);
-  const downloads = createMedia(() => api.session.renewMedia(), memoryUrls()).downloads;
+  const api = createApiClient(tabs, memoryUrls());
+  const { downloads } = api.media;
   const router = createAppRouter(
     {
       ...api,
