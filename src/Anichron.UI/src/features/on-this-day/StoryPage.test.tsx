@@ -1657,6 +1657,8 @@ describe('a Live Photo', () => {
   describe('its Live Photo button', () => {
     async function replay() {
       await user().click(button('Play Live Photo'));
+      for (let tries = 0; tries < 20 && !video().hasAttribute('src'); tries++) await advance(0);
+      expect(video().hasAttribute('src')).toBe(true);
     }
 
     async function watched() {
