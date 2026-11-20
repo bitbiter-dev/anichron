@@ -31,8 +31,7 @@ export function createPreviews(downloads: Downloads, previewAt: PreviewAt) {
       const url = previewAt(state);
       if (state.visit !== visit) downloads.retry(url);
       visit = state.visit;
-      if (state.load === 'loading' && state.kind !== 'video' && downloads.failed(url))
-        failed(state.visit);
+      if (state.kind !== 'video' && downloads.failed(url)) failed(state.visit);
     },
   };
 }

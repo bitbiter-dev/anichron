@@ -939,6 +939,22 @@ describe('a video', () => {
     expect(segment(0).style.animationDuration).toBe('5000ms');
   });
 
+  it('plays when its poster cannot be downloaded', async () => {
+    server.use(
+      proxyAnswers([], (url) =>
+        url === preview(ids.a2025) ? new HttpResponse(null, { status: 404 }) : undefined,
+      ),
+    );
+    await openVideo();
+    await advance(1000);
+
+    await fire('playing');
+
+    expect(video()).toBeVisible();
+    expect(video().getAttribute('poster')).toBe('');
+    expect(within(story()).queryByText(failure)).toBeNull();
+  });
+
   it('has no poster without a preview', async () => {
     years = [
       yearGroup(
@@ -1109,6 +1125,7 @@ describe('a video', () => {
 
   it('reloads the same video once, and plays it', async () => {
     await openVideo();
+    await advance(1000);
     const src = vi.spyOn(HTMLMediaElement.prototype, 'src', 'set');
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
 

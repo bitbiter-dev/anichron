@@ -137,9 +137,8 @@ describe('downloading media', () => {
     expect(fetching).toHaveBeenCalledOnce();
   });
 
-  it('has its pictures settled while a video still downloads, and decodes no video', async () => {
+  it('has its pictures settled while a video still downloads', async () => {
     const store = downloads();
-    const decode = vi.spyOn(HTMLImageElement.prototype, 'decode');
     held('video');
 
     store.keep(wants([at('first')], [at('video')]));
@@ -147,6 +146,16 @@ describe('downloading media', () => {
 
     expect(asked).toEqual([at('first'), at('video')]);
     expect(store.snapshot().picturesSettled).toBe(true);
+  });
+
+  it('decodes only pictures', async () => {
+    const store = downloads();
+    const decode = vi.spyOn(HTMLImageElement.prototype, 'decode');
+
+    store.keep(wants([at('first')], [at('video')]));
+    await settle();
+
+    expect(store.sourceOf(at('video'))).toBe(keptSource(at('video')));
     expect(decode).toHaveBeenCalledOnce();
   });
 
