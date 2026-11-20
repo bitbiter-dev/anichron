@@ -23,12 +23,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       close,
       previews.downloaded,
     );
-    const player = createVideoPlayer(
-      story,
-      memoryAt,
-      () => session.renewMedia(),
-      (url) => downloads.sourceOf(url),
-    );
+    const player = createVideoPlayer(story, memoryAt, () => session.renewMedia(), downloads);
     const sync = () => {
       const state = story.state();
       downloads.keep(wantedOf(state, previewAt, memoryAt));

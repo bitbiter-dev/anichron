@@ -1,9 +1,8 @@
-export interface Wanted {
-  pictures: readonly string[];
-  videos: readonly string[];
-}
+export type MediaKind = 'picture' | 'video';
 
-export interface Arrived {
+export type Wanted = readonly { url: string; kind: MediaKind }[];
+
+export interface Downloaded {
   sourceOf: (url: string) => string | null;
   picturesSettled: boolean;
 }
@@ -14,7 +13,7 @@ export interface Downloads {
   sourceOf: (url: string) => string | null;
   failed: (url: string) => boolean;
   retry: (url: string) => void;
-  snapshot: () => Arrived;
+  snapshot: () => Downloaded;
   subscribe: (listener: () => void) => () => void;
   onProgress: (listener: (url: string) => void) => () => void;
   clear: () => void;
@@ -43,7 +42,7 @@ type DownloadState = 'waiting' | 'loading' | 'done' | 'failed';
 
 interface Download {
   url: string;
-  picture: boolean;
+  kind: MediaKind;
   state: DownloadState;
   source?: string;
   controller?: AbortController;
@@ -51,12 +50,12 @@ interface Download {
   settle: (done: boolean) => void;
 }
 
-function newDownload(url: string, picture: boolean): Download {
+function newDownload(url: string, kind: MediaKind): Download {
   let settle: (done: boolean) => void = () => undefined;
   const settled = new Promise<boolean>((resolve) => {
     settle = resolve;
   });
-  return { url, picture, state: 'waiting', settled, settle };
+  return { url, kind, state: 'waiting', settled, settle };
 }
 
 async function decodeSource(source: string) {
@@ -66,32 +65,29 @@ async function decodeSource(source: string) {
 }
 
 function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Downloads {
-  const kept = new Map<string, Download>();
-  const retained = new Map<string, Download>();
-  const limits = new Map([
-    [true, 60],
-    [false, 10],
-  ]);
-  let wanted: Wanted = { pictures: [], videos: [] };
-  let order: string[] = [];
+  const cacheLimits: Record<MediaKind, number> = { picture: 60, video: 10 };
+  const wanted = new Map<string, Download>();
+  const cached = new Map<string, Download>();
+  let order: Wanted = [];
   let active: Download | undefined;
   const listeners = new Set<() => void>();
   const progressListeners = new Set<(url: string) => void>();
+  const sourceOf = (url: string) => wanted.get(url)?.source ?? null;
+  const settled = ({ state }: Download) => state === 'done' || state === 'failed';
 
-  function arrived(): Arrived {
+  function downloaded(): Downloaded {
     return {
-      sourceOf: (url) => kept.get(url)?.source ?? null,
-      picturesSettled: order.every((url) => {
-        const { picture, state } = kept.get(url) as Download;
-        return !picture || state === 'done' || state === 'failed';
-      }),
+      sourceOf,
+      picturesSettled: [...wanted.values()].every(
+        (download) => download.kind === 'video' || settled(download),
+      ),
     };
   }
 
-  let snapshot = arrived();
+  let snapshot = downloaded();
 
   function changed() {
-    snapshot = arrived();
+    snapshot = downloaded();
     for (const listener of listeners) listener();
   }
 
@@ -120,7 +116,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     const blob = await body(download.url, signal);
     if (!blob) return null;
     const source = objectUrls.create(blob, download.url);
-    if (download.picture)
+    if (download.kind === 'picture')
       await decodeSource(source).catch((error: unknown) => {
         objectUrls.free(source);
         throw error;
@@ -128,91 +124,98 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     return source;
   }
 
-  function finish(download: Download, source: string | null) {
-    if (active === download) active = undefined;
-    if (kept.get(download.url) !== download) {
+  function finish(download: Download, controller: AbortController, source: string | null) {
+    if (download.controller !== controller) {
       if (source) objectUrls.free(source);
       return;
     }
+    active = undefined;
     download.state = source ? 'done' : 'failed';
     if (source) download.source = source;
     download.settle(Boolean(source));
     changed();
-    pump();
+    startNext();
   }
 
-  function pump() {
-    if (active) return;
+  function stop(download: Download) {
+    download.controller?.abort();
+    download.controller = undefined;
+    if (active === download) active = undefined;
+  }
+
+  function startNext() {
     const next = order
-      .map((url) => kept.get(url) as Download)
-      .find(({ state }) => state === 'waiting');
-    if (!next) return;
+      .map(({ url }) => wanted.get(url) as Download)
+      .find((download) => !settled(download));
+    if (!next || next === active) return;
+    if (active) {
+      active.state = 'waiting';
+      stop(active);
+    }
     const controller = new AbortController();
     active = next;
     next.state = 'loading';
     next.controller = controller;
     load(next, controller.signal).then(
       (source) => {
-        finish(next, source);
+        finish(next, controller, source);
       },
       () => {
-        finish(next, null);
+        finish(next, controller, null);
       },
     );
   }
 
   function evict() {
-    for (const [picture, limit] of limits) {
-      const old = [...retained.values()].filter((download) => download.picture === picture);
+    for (const [kind, limit] of Object.entries(cacheLimits)) {
+      const old = [...cached.values()].filter((download) => download.kind === kind);
       for (const { url, source } of old.slice(0, Math.max(0, old.length - limit))) {
-        retained.delete(url);
+        cached.delete(url);
         objectUrls.free(source as string);
       }
     }
   }
 
   function drop(download: Download) {
-    kept.delete(download.url);
+    wanted.delete(download.url);
     if (download.state === 'done') {
-      retained.set(download.url, download);
+      cached.set(download.url, download);
       evict();
       return;
     }
-    download.controller?.abort();
+    stop(download);
     download.settle(false);
-    if (active === download) active = undefined;
   }
 
   function keep(next: Wanted) {
-    const kinds = new Map<string, boolean>();
-    for (const url of next.videos) kinds.set(url, false);
-    for (const url of next.pictures) kinds.set(url, true);
-    const dropped = [...kept.values()].filter(({ url }) => !kinds.has(url));
-    const added = [...kinds].filter(([url]) => !kept.has(url));
+    const kinds = new Map<string, MediaKind>();
+    for (const { url, kind } of next) if (!kinds.has(url)) kinds.set(url, kind);
+    const dropped = [...wanted.values()].filter(({ url }) => !kinds.has(url));
+    const added = [...kinds].filter(([url]) => !wanted.has(url));
     for (const download of dropped) drop(download);
-    for (const [url, picture] of added) {
-      kept.set(url, retained.get(url) ?? newDownload(url, picture));
-      retained.delete(url);
+    for (const [url, kind] of added) {
+      wanted.set(url, cached.get(url) ?? newDownload(url, kind));
+      cached.delete(url);
     }
-    wanted = next;
-    order = [...new Set([...next.pictures, ...next.videos])];
+    order = next;
     if (dropped.length + added.length > 0) changed();
-    pump();
+    startNext();
   }
 
   return {
     keep,
     picture(url) {
-      keep({ pictures: [url, ...wanted.pictures], videos: wanted.videos });
-      return (kept.get(url) as Download).settled;
+      keep([{ url, kind: 'picture' }, ...order]);
+      return (wanted.get(url) as Download).settled;
     },
-    sourceOf: (url) => kept.get(url)?.source ?? null,
-    failed: (url) => kept.get(url)?.state === 'failed',
+    sourceOf,
+    failed: (url) => wanted.get(url)?.state === 'failed',
     retry(url) {
-      const download = kept.get(url);
+      const download = wanted.get(url);
       if (download?.state !== 'failed') return;
-      kept.set(url, newDownload(url, download.picture));
-      pump();
+      wanted.set(url, newDownload(url, download.kind));
+      changed();
+      startNext();
     },
     snapshot: () => snapshot,
     subscribe(listener) {
@@ -224,7 +227,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
       return () => progressListeners.delete(listener);
     },
     clear() {
-      keep({ pictures: [], videos: [] });
+      keep([]);
     },
   };
 }

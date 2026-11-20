@@ -1,7 +1,8 @@
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { freedSources, keptSource, memoryUrls } from '../test/object-urls';
 import { server } from '../test/server';
-import { createMedia } from './media';
+import { createMedia, type Wanted } from './media';
 
 const renewNothing = () => Promise.resolve();
 
@@ -31,19 +32,18 @@ describe('loading an image', () => {
 describe('downloading media', () => {
   const at = (name: string) => `/api/v1/proxies/${name}`;
   let asked: string[];
-  let freed: string[];
   let answers: Map<string, () => Response | Promise<Response>>;
   let aborted: string[];
 
-  const memoryUrls = {
-    create: (_: Blob, url: string) => `memory:${url}`,
-    free: (source: string) => {
-      freed.push(source);
-    },
-  };
+  function wants(pictures: readonly string[], videos: readonly string[] = []): Wanted {
+    return [
+      ...pictures.map((url) => ({ url, kind: 'picture' as const })),
+      ...videos.map((url) => ({ url, kind: 'video' as const })),
+    ];
+  }
 
   function downloads(renew = () => Promise.resolve()) {
-    return createMedia(renew, memoryUrls).downloads;
+    return createMedia(renew, memoryUrls()).downloads;
   }
 
   async function settle() {
@@ -52,7 +52,6 @@ describe('downloading media', () => {
 
   beforeEach(() => {
     asked = [];
-    freed = [];
     aborted = [];
     answers = new Map();
     server.use(
@@ -85,23 +84,52 @@ describe('downloading media', () => {
     const store = downloads();
     const releaseFirst = held('first');
 
-    store.keep({ pictures: [at('first'), at('second')], videos: [at('video')] });
+    store.keep(wants([at('first'), at('second')], [at('video')]));
     await settle();
     expect(asked).toEqual([at('first')]);
 
     releaseFirst();
     await settle();
     expect(asked).toEqual([at('first'), at('second'), at('video')]);
-    expect(store.sourceOf(at('first'))).toBe(`memory:${at('first')}`);
-    expect(store.sourceOf(at('video'))).toBe(`memory:${at('video')}`);
+    expect(store.sourceOf(at('first'))).toBe(keptSource(at('first')));
+    expect(store.sourceOf(at('video'))).toBe(keptSource(at('video')));
     expect(store.snapshot().picturesSettled).toBe(true);
+  });
+
+  it('stops a later download for an earlier one that is not there yet, and downloads it again after', async () => {
+    const store = downloads();
+    held('video');
+    store.keep(wants([at('first')], [at('video')]));
+    await settle();
+    expect(asked).toEqual([at('first'), at('video')]);
+
+    store.keep(wants([at('first'), at('second')], [at('video')]));
+    await settle();
+
+    expect(aborted).toEqual([at('video')]);
+    expect(store.sourceOf(at('second'))).toBe(keptSource(at('second')));
+    expect(asked).toEqual([at('first'), at('video'), at('second'), at('video')]);
+    expect(store.failed(at('video'))).toBe(false);
+  });
+
+  it('keeps the download running when nothing earlier is missing', async () => {
+    const store = downloads();
+    held('second');
+    store.keep(wants([at('first'), at('second')]));
+    await settle();
+
+    store.keep(wants([at('first'), at('second'), at('third')]));
+    await settle();
+
+    expect(aborted).toEqual([]);
+    expect(asked).toEqual([at('first'), at('second')]);
   });
 
   it('has no source and its pictures unsettled until they arrive', async () => {
     const store = downloads();
     const release = held('first');
 
-    store.keep({ pictures: [at('first')], videos: [] });
+    store.keep(wants([at('first')]));
     await settle();
 
     expect(store.sourceOf(at('first'))).toBeNull();
@@ -111,7 +139,7 @@ describe('downloading media', () => {
     expect(store.snapshot().picturesSettled).toBe(true);
   });
 
-  it('answers a picture once downloaded and decoded, keeping it first', async () => {
+  it('answers a picture once downloaded and decoded, ahead of the rest', async () => {
     const store = downloads();
     const decoded: string[] = [];
     vi.spyOn(HTMLImageElement.prototype, 'decode').mockImplementation(function (
@@ -120,15 +148,15 @@ describe('downloading media', () => {
       decoded.push(this.getAttribute('src') ?? '');
       return Promise.resolve();
     });
-    store.keep({ pictures: [at('second')], videos: [] });
+    store.keep(wants([at('second')]));
 
     const loaded = store.picture(at('first'));
     await settle();
 
     expect(await loaded).toBe(true);
-    expect(asked.slice(0, 1)).toEqual([at('second')]);
-    expect(decoded).toContain(`memory:${at('first')}`);
-    expect(store.sourceOf(at('first'))).toBe(`memory:${at('first')}`);
+    expect(asked).toEqual([at('first'), at('second')]);
+    expect(decoded).toContain(keptSource(at('first')));
+    expect(store.sourceOf(at('first'))).toBe(keptSource(at('first')));
   });
 
   it.each([
@@ -150,16 +178,19 @@ describe('downloading media', () => {
     expect(changes).toHaveBeenCalled();
 
     answers.delete(at('first'));
+    changes.mockClear();
     store.retry(at('first'));
+    expect(changes).toHaveBeenCalledOnce();
+    expect(store.snapshot().picturesSettled).toBe(false);
     await settle();
     expect(store.failed(at('first'))).toBe(false);
-    expect(store.sourceOf(at('first'))).toBe(`memory:${at('first')}`);
+    expect(store.sourceOf(at('first'))).toBe(keptSource(at('first')));
     expect(asked).toEqual([at('first'), at('first')]);
   });
 
   it('tries nothing again for a download that has not failed', async () => {
     const store = downloads();
-    store.keep({ pictures: [at('first')], videos: [] });
+    store.keep(wants([at('first')]));
     await settle();
 
     store.retry(at('first'));
@@ -175,7 +206,7 @@ describe('downloading media', () => {
 
     expect(await store.picture(at('first'))).toBe(false);
     expect(store.failed(at('first'))).toBe(true);
-    expect(freed).toEqual([`memory:${at('first')}`]);
+    expect(freedSources()).toEqual([keptSource(at('first'))]);
   });
 
   it('renews the media session once on a 401 and downloads again', async () => {
@@ -205,34 +236,34 @@ describe('downloading media', () => {
   it('aborts a download no longer kept, and moves on', async () => {
     const store = downloads();
     held('second');
-    store.keep({ pictures: [at('second'), at('third')], videos: [] });
+    store.keep(wants([at('second'), at('third')]));
     await settle();
     const dropped = store.picture(at('second'));
 
-    store.keep({ pictures: [at('third')], videos: [] });
+    store.keep(wants([at('third')]));
     await settle();
 
     expect(aborted).toEqual([at('second')]);
     expect(await dropped).toBe(false);
     expect(store.sourceOf(at('second'))).toBeNull();
-    expect(store.sourceOf(at('third'))).toBe(`memory:${at('third')}`);
+    expect(store.sourceOf(at('third'))).toBe(keptSource(at('third')));
   });
 
   it('keeps what arrived once no longer wanted, and serves it again without downloading', async () => {
     const store = downloads();
-    store.keep({ pictures: [at('first')], videos: [at('video')] });
+    store.keep(wants([at('first')], [at('video')]));
     await settle();
 
     store.clear();
     expect(store.sourceOf(at('first'))).toBeNull();
     expect(await store.picture(at('first'))).toBe(true);
-    store.keep({ pictures: [at('first')], videos: [at('video')] });
+    store.keep(wants([at('first')], [at('video')]));
     await settle();
 
-    expect(store.sourceOf(at('first'))).toBe(`memory:${at('first')}`);
-    expect(store.sourceOf(at('video'))).toBe(`memory:${at('video')}`);
+    expect(store.sourceOf(at('first'))).toBe(keptSource(at('first')));
+    expect(store.sourceOf(at('video'))).toBe(keptSource(at('video')));
     expect(asked).toEqual([at('first'), at('video')]);
-    expect(freed).toEqual([]);
+    expect(freedSources()).toEqual([]);
   });
 
   it('frees the oldest beyond 60 pictures and 10 videos no longer wanted', async () => {
@@ -242,30 +273,27 @@ describe('downloading media', () => {
     const pictures = names('picture', 61);
     const videos = names('video', 11);
     for (const [index, url] of pictures.entries()) {
-      store.keep({
-        pictures: [url],
-        videos: index < videos.length ? [videos[index] as string] : [],
-      });
+      store.keep(wants([url], index < videos.length ? [videos[index] as string] : []));
       await settle();
     }
     store.clear();
     await settle();
 
-    expect(freed).toEqual([`memory:${at('video-0')}`, `memory:${at('picture-0')}`]);
+    expect(freedSources()).toEqual([keptSource(at('video-0')), keptSource(at('picture-0'))]);
   });
 
   it('frees a download that arrives after it was dropped', async () => {
     const store = downloads();
     const release = held('first');
     vi.spyOn(AbortController.prototype, 'abort').mockImplementation(() => undefined);
-    store.keep({ pictures: [at('first')], videos: [] });
+    store.keep(wants([at('first')]));
     await settle();
 
     store.clear();
     release();
     await settle();
 
-    expect(freed).toEqual([`memory:${at('first')}`]);
+    expect(freedSources()).toEqual([keptSource(at('first'))]);
     expect(store.sourceOf(at('first'))).toBeNull();
   });
 
@@ -303,7 +331,7 @@ describe('downloading media', () => {
     const stop = store.subscribe(changes);
     const before = store.snapshot();
 
-    store.keep({ pictures: [at('first')], videos: [] });
+    store.keep(wants([at('first')]));
     expect(changes).toHaveBeenCalledOnce();
     const kept = store.snapshot();
     expect(kept).not.toBe(before);
@@ -311,9 +339,9 @@ describe('downloading media', () => {
     await settle();
     expect(changes).toHaveBeenCalledTimes(2);
     expect(store.snapshot()).not.toBe(kept);
-    expect(store.snapshot().sourceOf(at('first'))).toBe(`memory:${at('first')}`);
+    expect(store.snapshot().sourceOf(at('first'))).toBe(keptSource(at('first')));
 
-    store.keep({ pictures: [at('first')], videos: [] });
+    store.keep(wants([at('first')]));
     expect(changes).toHaveBeenCalledTimes(2);
     stop();
     store.clear();

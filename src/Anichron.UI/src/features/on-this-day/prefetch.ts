@@ -7,12 +7,20 @@ type MemoryAt = (place: Place) => Memory;
 type PreviewAt = (place: Place) => string | null;
 
 export function wantedOf(state: StoryState, previewAt: PreviewAt, memoryAt: MemoryAt): Wanted {
-  return {
-    pictures: [state, ...state.upcoming].flatMap((place) => previewAt(place) ?? []),
-    videos: [state, ...state.upcoming.slice(0, 1)].flatMap(
-      (place) => memoryAt(place).livePhotoVideoUrl ?? [],
-    ),
-  };
+  const pictures = (places: readonly Place[]) =>
+    places
+      .flatMap((place) => previewAt(place) ?? [])
+      .map((url) => ({ url, kind: 'picture' as const }));
+  const videoOf = (place: Place) => memoryAt(place).livePhotoVideoUrl;
+  const videos = (urls: readonly (string | null)[]) =>
+    urls.flatMap((url) => (url ? [{ url, kind: 'video' as const }] : []));
+  const current = videoOf(state);
+  return [
+    ...pictures([state]),
+    ...videos(state.livePlay ? [current] : []),
+    ...pictures(state.upcoming),
+    ...videos([current, state.upcoming.map(videoOf).find(Boolean) ?? null]),
+  ];
 }
 
 export function createPreviews(downloads: Downloads, previewAt: PreviewAt) {

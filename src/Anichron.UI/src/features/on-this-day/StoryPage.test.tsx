@@ -660,15 +660,17 @@ describe('a memory loading', () => {
 
   function trickling(url: string) {
     let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        stream = controller;
-      },
-    });
     server.use(
       http.get('/api/v1/proxies/:id/:type', ({ request }) => {
         const { pathname, search } = new URL(request.url);
-        return pathname + search === url ? new HttpResponse(body) : undefined;
+        if (pathname + search !== url) return undefined;
+        return new HttpResponse(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              stream = controller;
+            },
+          }),
+        );
       }),
     );
     return {
@@ -709,17 +711,14 @@ describe('a memory loading', () => {
     expect(within(story()).getByText(failure)).toBeVisible();
   });
 
-  it('fails a picture waiting behind another download that keeps arriving', async () => {
-    const download = trickling(preview(ids.a2021));
+  it('downloads the picture showing ahead of one still arriving', async () => {
+    trickling(preview(ids.a2021));
     await openStory('/day/2026-11-11?year=2023');
     await shown();
+
     await user().click(button('Previous'));
 
-    await advance(9000);
-    await download.piece();
-    await advance(1000);
-
-    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(await shown()).toBe(preview(ids.b2025));
   });
 
   it('gives each memory its own 10 s to arrive', async () => {
@@ -1922,6 +1921,16 @@ describe('a Live Photo', () => {
       expect(video().getAttribute('src')).toBe(fromMemoryOf(motionOf(ids.b2025)));
     });
 
+    it('downloads the next Live Photo video past a photo', async () => {
+      years = [
+        yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025)),
+        yearGroup(2023, liveAt(ids.a2023, 2023)),
+      ];
+      await openStory('/day/2026-11-11?year=2025');
+
+      await fetchedVideos(motionOf(ids.a2023));
+    });
+
     it('keeps every video it downloaded, even once the story closes', async () => {
       const order = [ids.a2025, ids.b2025, ids.c2025, ids.a2023];
       years = [yearGroup(2025, ...order.map((id) => liveAt(id, 2025)))];
@@ -1964,6 +1973,55 @@ describe('a Live Photo', () => {
       await advance(0);
 
       expect(aborted).toHaveLength(1);
+    });
+
+    it('plays a video asked for before it arrived from memory, without a second download', async () => {
+      let arrive: () => void = () => undefined;
+      answer = (url) =>
+        url.includes('mov')
+          ? new Promise((resolve) => {
+              arrive = () => {
+                resolve(undefined);
+              };
+            })
+          : undefined;
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+      await fetchedVideos(motionOf(ids.a2025));
+
+      fireEvent.click(button('Play Live Photo'));
+      await advance(0);
+      expect(video().hasAttribute('src')).toBe(false);
+      arrive();
+
+      await vi.waitFor(() => {
+        expect(video().getAttribute('src')).toBe(fromMemoryOf(motionOf(ids.a2025)));
+      });
+      expect(fetched()).toEqual([motionOf(ids.a2025)]);
+    });
+
+    it('downloads a video asked for ahead of the previews still to come', async () => {
+      let arrive: () => void = () => undefined;
+      answer = (url) =>
+        url === preview(ids.b2025)
+          ? new Promise((resolve) => {
+              arrive = () => {
+                resolve(undefined);
+              };
+            })
+          : undefined;
+      years = [yearGroup(2025, liveAt(ids.a2025, 2025), memory(ids.b2025, 2025))];
+      await openStory('/day/2026-11-11?year=2025');
+      await shown();
+
+      fireEvent.click(button('Play Live Photo'));
+
+      await fetchedVideos(motionOf(ids.a2025));
+      arrive();
+      await vi.waitFor(() => {
+        expect(received.filter((url) => url === preview(ids.b2025))).toHaveLength(2);
+      });
     });
 
     it('plays from the network a video the server refuses', async () => {

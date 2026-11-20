@@ -1,4 +1,5 @@
 import type { Memory } from '../../api/flashbacks';
+import type { Downloads } from '../../api/media';
 import { recover } from './media';
 import type { Story, StoryState } from './story';
 
@@ -6,6 +7,8 @@ type StoryMedia = Pick<
   Story,
   'state' | 'mediaReady' | 'mediaEnded' | 'mediaFailed' | 'livePlaying' | 'liveEnded'
 >;
+
+type InMemory = Pick<Downloads, 'sourceOf' | 'failed'>;
 
 interface Source {
   src: string;
@@ -21,21 +24,21 @@ interface MediaEvents {
 function sourceOf(
   state: StoryState,
   { proxies, livePhotoVideoUrl }: Memory,
-  kept: (url: string) => string | null,
+  downloads: InMemory,
 ): Source | null {
-  const poster = (proxies.preview && kept(proxies.preview)) ?? '';
+  const poster = (proxies.preview && downloads.sourceOf(proxies.preview)) ?? '';
   if (state.kind === 'video' && state.load !== 'failed')
     return { src: proxies.video as string, poster };
   const live = livePhotoVideoUrl as string;
-  if (state.livePlay) return { src: kept(live) ?? live, poster };
-  return null;
+  const src = downloads.sourceOf(live) ?? (downloads.failed(live) ? live : null);
+  return state.livePlay && src ? { src, poster } : null;
 }
 
 export function createVideoPlayer(
   story: StoryMedia,
   memoryOf: (state: StoryState) => Memory,
   renew: () => Promise<void>,
-  kept: (url: string) => string | null,
+  downloads: InMemory,
 ) {
   let element: HTMLVideoElement | null = null;
   let visit = 0;
@@ -64,7 +67,7 @@ export function createVideoPlayer(
   function sync() {
     if (!element) return;
     const state = story.state();
-    const wanted = sourceOf(state, memoryOf(state), kept);
+    const wanted = sourceOf(state, memoryOf(state), downloads);
     element.muted = state.muted || state.kind === 'live';
     if (!wanted) {
       element.pause();
