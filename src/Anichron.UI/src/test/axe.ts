@@ -1,3 +1,4 @@
+import { act } from 'react';
 import { vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
@@ -9,7 +10,7 @@ export async function axeResults(container: Element) {
   });
   for (let step = 0; !finished.done; step++) {
     if (step === 10_000) throw new Error('axe did not finish within 10 s of fake time.');
-    await vi.advanceTimersByTimeAsync(1);
+    await act(() => vi.advanceTimersByTimeAsync(1));
   }
   return results;
 }

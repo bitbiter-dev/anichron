@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within, waitFor } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -233,7 +233,7 @@ describe('the recent days', () => {
     const { container } = renderApp('/');
 
     expect(await screen.findByText('Nothing from this day in earlier years')).toBeVisible();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(requested).toHaveLength(7);
     });
     await advance(0);
@@ -352,7 +352,7 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(requested).toContain('2026-10-31');
     });
     expect(earlier()).toHaveAttribute('data-pending', 'true');
@@ -390,7 +390,7 @@ describe('earlier days', () => {
     days['2026-11-09'] = [];
     fireEvent.click(within(tray()).getByRole('button', { name: 'Try again, Mon 9 Nov' }));
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(within(tray()).queryByRole('button', { name: /Try again/ })).toBeNull();
     });
     expect(earlier()).toHaveAccessibleName('Earlier days');

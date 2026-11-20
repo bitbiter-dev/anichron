@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { encode } from 'blurhash';
 import { http, HttpResponse } from 'msw';
@@ -92,7 +92,7 @@ const middle = () => button('Previous').nextElementSibling as HTMLElement;
 const picture = () => story().querySelector('img') as HTMLImageElement;
 
 async function shown() {
-  await vi.waitFor(() => {
+  await waitFor(() => {
     if (!story().querySelector('img')) waiting.shift()?.();
     expect(story().querySelector('img')).not.toBeNull();
   });
@@ -129,7 +129,7 @@ async function openLanding2023() {
 async function openStory(path: string) {
   const rendered = renderApp(path);
   await screen.findByRole('dialog', { name: storyName });
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(picture()).not.toBeNull();
   });
   return rendered;
@@ -200,7 +200,7 @@ describe('opening a story', () => {
     const tapped = screen.getByRole('link', { name: '3 years ago · 2023' });
 
     fireEvent.click(tapped);
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(received).toContain(preview(ids.a2023));
     });
     await advance(5000);
@@ -365,7 +365,7 @@ describe('a story playing', () => {
     ];
     renderApp('/day/2026-11-11?year=2025');
     await screen.findByRole('dialog', { name: storyName });
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(story().querySelectorAll('ol > li')).toHaveLength(2);
     });
     expect(picture()).toBeNull();
@@ -840,7 +840,7 @@ describe('a video', () => {
   async function openVideo(path = '/day/2026-11-11?year=2025') {
     const rendered = renderApp(path);
     await screen.findByRole('dialog', { name: storyName });
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(story().querySelector('video')).not.toBeNull();
     });
     return rendered;
@@ -909,7 +909,7 @@ describe('a video', () => {
   it('shows its preview from memory as its poster, once downloaded', async () => {
     await openVideo();
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(video().getAttribute('poster')).toBe(fromMemoryOf(preview(ids.a2025)));
     });
   });
@@ -1391,7 +1391,7 @@ describe('a video', () => {
       await within(await screen.findByRole('dialog', { name: storyName })).findByRole('button', {
         name: 'Previous',
       });
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(picture()).not.toBeNull();
       });
       expect(hint()).toBeNull();
@@ -1409,7 +1409,7 @@ describe('a video', () => {
       await within(await screen.findByRole('dialog', { name: storyName })).findByRole('button', {
         name: 'Previous',
       });
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(picture()).not.toBeNull();
       });
       await user().click(button('Next'));
@@ -1789,7 +1789,9 @@ describe('a Live Photo', () => {
     it('keeps playing when a press ends anywhere else', async () => {
       await openStory('/day/2026-11-11?year=2025');
       await shown();
-      button('Play Live Photo').focus();
+      act(() => {
+        button('Play Live Photo').focus();
+      });
       await user().keyboard('{Enter}');
       expect(showing()).toBe(preview(ids.a2025));
       await fire('playing');
@@ -1919,7 +1921,7 @@ describe('a Live Photo', () => {
     });
 
     async function fetchedVideos(...urls: string[]) {
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(fetched()).toEqual(urls);
       });
     }
@@ -2053,7 +2055,7 @@ describe('a Live Photo', () => {
       expect(video().hasAttribute('src')).toBe(false);
       arrive();
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(video().getAttribute('src')).toBe(fromMemoryOf(motionOf(ids.a2025)));
       });
       expect(fetched()).toEqual([motionOf(ids.a2025)]);
@@ -2077,7 +2079,7 @@ describe('a Live Photo', () => {
 
       await fetchedVideos(motionOf(ids.a2025));
       arrive();
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(received.filter((url) => url === preview(ids.b2025))).toHaveLength(2);
       });
     });
@@ -2121,7 +2123,7 @@ describe('the next memories', () => {
   let answer: (url: string) => Response | Promise<undefined> | undefined;
 
   async function arrived(...urls: string[]) {
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(decoded).toEqual(urls);
     });
     expect(received).toEqual(urls);
@@ -2242,7 +2244,7 @@ describe('the next memories', () => {
       return new Response(body);
     };
     await openStory('/day/2026-11-11?year=2025');
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(received).toEqual([preview(ids.a2025), preview(ids.b2025)]);
     });
     await advance(0);
@@ -2266,7 +2268,7 @@ describe('the next memories', () => {
     expect(preloading()).toEqual([]);
 
     held();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(preloading()).toEqual([clip(ids.a2023)]);
     });
     const preloaded = story().querySelector('video[preload="auto"]');
@@ -2375,7 +2377,7 @@ describe('a blurhash', () => {
       await openStory('/day/2026-11-11?year=2025');
       await shown();
       fireEvent.click(button('Pause'));
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(received.filter((url) => url.includes('/preview?'))).toEqual([
           preview(ids.a2025),
           preview(ids.a2023),
@@ -2579,7 +2581,7 @@ describe('closing a story', () => {
 
     await advance(0);
     expect(requested).toEqual(['2026-11-11', '2026-11-11']);
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(screen.queryByRole('link', { name: '1 year ago · 2025' })).toBeNull();
     });
     expect(screen.getByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
@@ -2602,7 +2604,7 @@ describe('closing a story', () => {
   it('reloads only its own day', async () => {
     renderApp('/day/2024-11-11?year=2023');
     await screen.findByRole('dialog', { name: 'Memories of November 11, 2024' });
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(requested.toSorted()).toEqual(['2024-11-11', '2026-11-11']);
     });
 
@@ -2777,11 +2779,15 @@ describe('moving through a story', () => {
 
   it('moves when a zone is pressed with Enter or Space', async () => {
     await openStory('/day/2026-11-11?year=2025');
-    button('Next').focus();
+    act(() => {
+      button('Next').focus();
+    });
 
     await user().keyboard('{Enter}');
     expect(showing()).toBe(preview(ids.b2025));
-    button('Previous').focus();
+    act(() => {
+      button('Previous').focus();
+    });
     await user().keyboard(' ');
     expect(showing()).toBe(preview(ids.a2025));
   });
@@ -2801,7 +2807,9 @@ describe('moving through a story', () => {
 
   it('moves with the keys while a zone has focus, and closes with Escape', async () => {
     const { router } = await openStory('/day/2026-11-11?year=2025');
-    button('Next').focus();
+    act(() => {
+      button('Next').focus();
+    });
 
     await user().keyboard('{ArrowRight}');
     expect(showing()).toBe(preview(ids.b2025));
@@ -2875,7 +2883,9 @@ describe('swiping through a story', () => {
     await openStory('/day/2026-11-11?year=2025');
 
     await swipe(-60, 0);
-    button('Next').focus();
+    act(() => {
+      button('Next').focus();
+    });
     await user().keyboard('{Enter}');
 
     expect(showing()).toBe(preview(ids.a2021));
@@ -3095,7 +3105,9 @@ describe('pausing a story', () => {
   it('toggles with Space while no button has focus', async () => {
     await openStory('/day/2026-11-11?year=2025');
     await shown();
-    story().focus();
+    act(() => {
+      story().focus();
+    });
 
     await user().keyboard(' ');
     await advance(10_000);
@@ -3112,7 +3124,9 @@ describe('pausing a story', () => {
     async (keys) => {
       await openStory('/day/2026-11-11?year=2025');
       await shown();
-      story().focus();
+      act(() => {
+        story().focus();
+      });
 
       await user().keyboard(keys);
       await advance(5000);
@@ -3124,7 +3138,9 @@ describe('pausing a story', () => {
   it('goes back with Space on a focused Previous button and keeps playing', async () => {
     await openStory('/day/2026-11-11?year=2025');
     await user().click(button('Next'));
-    button('Previous').focus();
+    act(() => {
+      button('Previous').focus();
+    });
 
     await user().keyboard(' ');
     await shown();
@@ -3136,7 +3152,9 @@ describe('pausing a story', () => {
   it('toggles once while Space is held down', async () => {
     await openStory('/day/2026-11-11?year=2025');
     await shown();
-    story().focus();
+    act(() => {
+      story().focus();
+    });
 
     await user().keyboard('{ >2}');
     await advance(10_000);
@@ -3384,7 +3402,7 @@ describe('starring, liking and hiding', () => {
       }),
     );
     fireEvent.click(button('Star'));
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(reloads).toHaveLength(1);
     });
 
@@ -3503,7 +3521,7 @@ describe('starring, liking and hiding', () => {
 
   it('keeps a change through a reload of its day that was already on its way, and only that reload', async () => {
     const { router } = await openStory('/day/2026-11-11?year=2025');
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(router.options.context.queryClient.isFetching()).toBe(0);
     });
     const reloads = new Map<string, (response: Response) => void>();
@@ -3546,7 +3564,7 @@ describe('starring, liking and hiding', () => {
       'liked' in (interacted.body as object) ? held(interacted) : undefined;
     fireEvent.click(button('Star'));
     fireEvent.click(button('Like'));
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(saved.has(ids.a2025)).toBe(true);
     });
     await advance(1000);
@@ -3579,7 +3597,7 @@ describe('starring, liking and hiding', () => {
     respond();
     await advance(0);
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(first()).toContain(ids.b2021);
     });
   });
@@ -3702,7 +3720,7 @@ describe('starring, liking and hiding', () => {
     expect(showing()).toBe(preview(ids.a2025));
     fireEvent.click(within(toast()).getByRole('button', { name: 'Undo' }));
     expect(showing()).toBe(preview(ids.a2023));
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(requested).toHaveLength(3);
     });
     expect(sent).toEqual([
@@ -3985,7 +4003,7 @@ describe('a burst', () => {
     );
 
     fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(received).toContain(preview(frameIds[1] as string));
     });
 
@@ -4109,12 +4127,16 @@ describe('a burst', () => {
   it("opens on Enter, but not on Enter on one of the story's buttons", async () => {
     await openStory('/day/2026-11-11?year=2025');
     await shown();
-    button('Pause').focus();
+    act(() => {
+      button('Pause').focus();
+    });
 
     await user().keyboard('{Enter}');
     expect(button('Play')).toBeVisible();
     expect(screen.queryByRole('dialog', { name: 'Burst frames' })).toBeNull();
-    story().focus();
+    act(() => {
+      story().focus();
+    });
     await user().keyboard('{Enter}');
 
     expect(await screen.findByRole('dialog', { name: 'Burst frames' })).toBeVisible();
@@ -4124,7 +4146,9 @@ describe('a burst', () => {
     years = [yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025))];
     await openStory('/day/2026-11-11?year=2025');
     await shown();
-    story().focus();
+    act(() => {
+      story().focus();
+    });
 
     await user().keyboard('{Enter}');
 

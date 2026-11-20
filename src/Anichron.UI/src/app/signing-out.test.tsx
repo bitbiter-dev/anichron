@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -54,7 +54,7 @@ describe('signing out', () => {
     signOut();
 
     expect(await findLoginHeading()).toBeVisible();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(router.state.location.href).toBe('/login');
     });
     expect(bearers).toEqual([`Bearer ${miraSession.accessToken}`]);
