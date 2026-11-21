@@ -51,6 +51,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. The pull to close reads it itself (`reduced-motion.ts`) and only fades the backdrop. A Live Photo never plays by itself, only from its button or a hold.
 - A loading ring stops spinning (`motion-reduce:`).
 - The Live pill and the years-ago line stay visible through a hold that hides the other controls. The pill shows a turning `player-accent` arc while its video loads (`live-ring`), faded in after `--delay-live-ring` so a quick load shows none, and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
+- A skeleton (`skeleton` utility) fades in after `--delay-skeleton`, so a quick load shows none, then pulses through `--animate-skeleton`; under reduced motion it stands still.
 - Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
 
 ## Base components
@@ -62,6 +63,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - Toasts: the screen that shows them owns a queue (`src/shared/toasts.ts`) and renders its region (`Toast.tsx`). A toast is announced politely and lasts a few seconds.
 - Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out.
 - Rows (`Row.tsx`): a full-width entry in a card: a link with a chevron, a button with an icon and a chevron, or a red button.
+- Skeletons (`Skeleton.tsx`): an `aria-hidden` block in the `skeleton` colour. A screen composes its own skeleton beside the view it stands in for, and marks the region it fills `aria-busy`.
 - Each component ships with its first caller.
 
 ## Checks

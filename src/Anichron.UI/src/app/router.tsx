@@ -6,13 +6,20 @@ import {
   lazyRouteComponent,
   notFound,
   redirect,
+  retainSearchParams,
   type RouterHistory,
 } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
 import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
-import { dayKey, isCalendarDate, loadStory, storySearch } from '../features/on-this-day/day';
+import {
+  dayKey,
+  homeSearch,
+  isCalendarDate,
+  loadStory,
+  storySearch,
+} from '../features/on-this-day/day';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
@@ -69,6 +76,8 @@ function routeTree() {
   const onThisDayRoute = createRoute({
     getParentRoute: () => shellRoute,
     id: 'on-this-day',
+    validateSearch: homeSearch,
+    search: { middlewares: [retainSearchParams(['earlier'])] },
     component: Home,
   });
 

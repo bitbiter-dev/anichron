@@ -4,23 +4,47 @@ import { useTranslation } from 'react-i18next';
 import type { WorkItem } from '../../api/work-items';
 import { itemQuery } from './cache';
 import { Failed } from '../../shared/ui/Failed';
+import { Skeleton } from '../../shared/ui/Skeleton';
 import { Cancel, Progress } from './parts';
 import { at, cancellable, failureOf, resultFields, statusOf, timestamps } from './view';
 
 const detail = getRouteApi('/signed-in/shell/admin/admin/work-items/$id');
 
 export function WorkItemPage() {
-  const { t } = useTranslation();
   const { id } = detail.useParams();
   const { api } = useRouter().options.context;
   const query = useQuery(itemQuery(api, useQueryClient(), id));
   const failure = failureOf(query);
   return (
-    <>
-      {query.data && <Details item={query.data} />}
-      {query.data === null && <p>{t('workItems.notFound')}</p>}
+    <div aria-busy={query.isPending} className="flex flex-col gap-4">
+      {query.isPending && <DetailsSkeleton />}
+      {query.data !== undefined && <Found item={query.data} />}
       {failure && <Failed message={failure} onRetry={() => void query.refetch()} />}
-    </>
+    </div>
+  );
+}
+
+function Found({ item }: { item: WorkItem | null }) {
+  const { t } = useTranslation();
+  return item ? <Details item={item} /> : <p>{t('workItems.notFound')}</p>;
+}
+
+function DetailsSkeleton() {
+  return (
+    <div aria-hidden className="flex flex-col gap-4 rounded-card p-4 glass-card">
+      <div className="flex h-6 items-center">
+        <Skeleton className="h-4 w-32 rounded-full" />
+      </div>
+      <Skeleton className="h-1.5 w-full rounded-full" />
+      <div className="flex flex-col gap-2">
+        {[0, 1, 2, 3].map((row) => (
+          <div key={row} className="flex h-6 items-center gap-4">
+            <Skeleton className="h-3 w-20 rounded-full" />
+            <Skeleton className="h-3 w-36 rounded-full" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

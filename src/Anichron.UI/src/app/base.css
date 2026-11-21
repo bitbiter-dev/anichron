@@ -56,3 +56,21 @@
     opacity: 0.3;
   }
 }
+
+@utility skeleton {
+  animation:
+    var(--animate-skeleton),
+    skeleton-in var(--duration-fast) ease-out var(--delay-skeleton) backwards;
+}
+
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes skeleton-pulse {
+  to {
+    opacity: 0.5;
+  }
+}

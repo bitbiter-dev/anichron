@@ -4,6 +4,7 @@ import { Alert } from '../shared/ui/Alert';
 import { Button, buttonStyles } from '../shared/ui/Button';
 import { themes as themeNames, type Theme as ThemeName } from '../shared/theme';
 import { SegmentedControl, segmentStyles } from '../shared/ui/SegmentedControl';
+import { Skeleton } from '../shared/ui/Skeleton';
 import { Modal } from '../shared/ui/Modal';
 import { RowAction, RowButton, RowChevron, rowLinkStyles } from '../shared/ui/Row';
 import { inputStyles, TextField } from '../shared/ui/TextField';
@@ -217,6 +218,20 @@ function Components({ theme }: { theme: Theme }) {
       <States title="Modal">
         <State name="open">
           <ModalDemo />
+        </State>
+      </States>
+      <States title="Skeleton">
+        <State name="on surface">
+          <div className="flex w-full flex-col gap-2 rounded-card bg-surface p-3">
+            <Skeleton className="aspect-[3/4] w-16 rounded-card" />
+            <Skeleton className="h-3 w-20 rounded-full" />
+          </div>
+        </State>
+        <State name="on glass">
+          <div className="flex w-full flex-col gap-2 rounded-card p-3 glass-card">
+            <Skeleton className="h-4 w-24 rounded-full" />
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
         </State>
       </States>
       <States title="Toast">

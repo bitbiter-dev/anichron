@@ -40,6 +40,7 @@ A directive needs a row naming its file and the ADR 0005 proof: no input tells t
 | `src/features/on-this-day/story-view.ts` | `kindOf`'s `'picture'` (`StringLiteral`) | Every reader of a kind (`story.ts`, `story-view.ts`, `video.ts`) asks for `video`, `live`, `burst` or `none`, so a picture is whatever is none of those, under any name. Its value is the remaining case of the union, so every form of `kindOf` returns it. |
 | `src/features/on-this-day/story.ts` | `at`'s `++visits` (`UpdateOperator`) | A visit number is only a key, React's and the video player's, that must differ from the last one; counting down gives every visit a distinct number as counting up does, and any counter keeps the same mutant. |
 | `src/features/on-this-day/use-story.ts` | `subscribe`'s `stopDownloads()` (`CallExpression`) | Once the story is gone its listener does nothing: the story's clock starts only while the story has a listener, and the player syncs only while its video is mounted. A listener left behind only holds memory, and every form of the subscription ends in the same call. |
+| `src/features/on-this-day/use-today.ts` | the new day's `to: '.'` (`StringLiteral`) | TanStack Router reads an empty `to` as `'.'` (`router-core`'s `buildLocation`), so the mutant navigates to the same place. The navigation must keep the current screen, which only `'.'` names, and `to` is required by its type. |
 
 ## Consequences
 

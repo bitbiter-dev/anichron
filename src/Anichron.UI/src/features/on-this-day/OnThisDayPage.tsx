@@ -2,9 +2,10 @@ import { Link, Outlet } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { yearsAgo } from './day';
-import { thumbnailOf } from './day-view';
+import { type DayView, thumbnailOf } from './day-view';
 import { useDayView } from './use-day-view';
 import { Failed } from '../../shared/ui/Failed';
+import { Skeleton } from '../../shared/ui/Skeleton';
 import { ProxyImage } from './ProxyImage';
 import { RecentDays } from './RecentDays';
 import { Ring } from '../../shared/ui/Ring';
@@ -27,13 +28,40 @@ export function OnThisDayPage() {
 }
 
 function Today({ date }: { date: string }) {
-  const { t } = useTranslation();
-  const { view: state, retry } = useDayView(date);
+  const { view, loading, retry } = useDayView(date);
   return (
-    <div className="flex min-h-[calc(var(--spacing)*32*4/3+var(--spacing)*4+var(--text-small--line-height))] flex-col justify-center">
-      {state.years && <Gallery date={date} years={state.years} />}
-      {state.empty && <p className="text-fg-muted">{t('onThisDay.nothing')}</p>}
-      {state.failure && <Failed message={state.failure} onRetry={retry} />}
+    <div
+      aria-busy={loading}
+      className="flex min-h-[calc(var(--spacing)*32*4/3+var(--spacing)*4+var(--text-small--line-height))] flex-col justify-center"
+    >
+      {loading && <GallerySkeleton />}
+      <Day date={date} view={view} retry={retry} />
+    </div>
+  );
+}
+
+function Day({ date, view, retry }: { date: string; view: DayView; retry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {view.years && <Gallery date={date} years={view.years} />}
+      {view.empty && <p className="text-fg-muted">{t('onThisDay.nothing')}</p>}
+      {view.failure && <Failed message={view.failure} onRetry={retry} />}
+    </>
+  );
+}
+
+function GallerySkeleton() {
+  return (
+    <div aria-hidden className="-mx-4 flex gap-3 overflow-hidden px-4 pb-2">
+      {[0, 1, 2].map((card) => (
+        <div key={card} className="flex shrink-0 flex-col gap-2">
+          <Skeleton className="aspect-[3/4] w-32 rounded-card" />
+          <div className="flex h-5 items-center">
+            <Skeleton className="h-3 w-24 rounded-full" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
