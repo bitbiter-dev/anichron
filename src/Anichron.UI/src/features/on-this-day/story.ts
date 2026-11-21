@@ -2,7 +2,7 @@ import { type Kind, type Load, memoryKind } from './memory-kinds';
 
 const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
-const videoMilliseconds = 60_000;
+const videoMilliseconds = 120_000;
 const hintMilliseconds = 1000;
 const upcomingCount = 2;
 const behindCount = 3;
