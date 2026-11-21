@@ -19,7 +19,7 @@ import.meta.glob(['../features/*/*Page.tsx', '../api/event-stream.ts'], { eager:
 export function renderApp(path: string, tabs: Tabs = sharedTabs().tab()) {
   const updates = fakeUpdates();
   const api = createApiClient(tabs, memoryUrls());
-  const { downloads, renewal } = api.media;
+  const { downloads, renewOnce } = api.media;
   const router = createAppRouter(
     {
       ...api,
@@ -33,9 +33,9 @@ export function renderApp(path: string, tabs: Tabs = sharedTabs().tab()) {
               inAct(listener);
             }),
         },
-        renewal: () => {
-          const lapse = renewal();
-          return (source) => settled(lapse(source));
+        renewOnce: () => {
+          const renewal = renewOnce();
+          return (source) => settled(renewal(source));
         },
       },
     },

@@ -39,7 +39,7 @@ function sourceOf(
 export function createVideoPlayer(
   story: StoryMedia,
   memoryOf: (state: StoryState) => Memory,
-  renewal: () => Renewal,
+  renewOnce: () => Renewal,
   downloads: InMemory,
 ) {
   let element: HTMLVideoElement | null = null;
@@ -47,7 +47,7 @@ export function createVideoPlayer(
   let playId = 0;
   let events: MediaEvents;
   let source: Source;
-  let lapse: Renewal;
+  let renewal: Renewal;
   let playing: boolean;
 
   function load(video: HTMLVideoElement) {
@@ -84,7 +84,7 @@ export function createVideoPlayer(
       visit = state.visit;
       events = wanted.live ? liveEvents : videoEvents;
       source = wanted;
-      lapse = renewal();
+      renewal = renewOnce();
       load(element);
     }
     element.poster = wanted.poster;
@@ -93,7 +93,7 @@ export function createVideoPlayer(
 
   function failed() {
     const failing = visit;
-    void lapse(source.src).then((renewed) => {
+    void renewal(source.src).then((renewed) => {
       if (!renewed) story.mediaFailed(failing);
       else if (element && story.state().visit === failing) {
         load(element);

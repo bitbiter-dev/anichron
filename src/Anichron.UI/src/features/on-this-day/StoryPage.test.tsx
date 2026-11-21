@@ -632,14 +632,17 @@ describe('a memory loading', () => {
 
   it('fails a picture that breaks, without renewing the session, and moves on 5 s later', async () => {
     let refreshes = 0;
+    let answeredAt = 0;
     server.use(
       refreshRespondsWith(() => {
         refreshes++;
+        answeredAt = Date.now();
         return HttpResponse.json(miraSession);
       }),
     );
     await loadingSecond();
     await shown();
+    vi.setSystemTime(answeredAt + miraSession.expiresIn * 800 + 1);
 
     fireEvent.error(picture());
     await advance(0);

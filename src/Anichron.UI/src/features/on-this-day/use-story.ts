@@ -30,7 +30,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
         close,
         previews.downloaded,
       );
-      const player = createVideoPlayer(story, memoryAt, media.renewal, downloads);
+      const player = createVideoPlayer(story, memoryAt, media.renewOnce, downloads);
       const sync = () => {
         const state = story.state();
         downloads.keep(wantedOf(state, previewAt, memoryAt));

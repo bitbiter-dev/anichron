@@ -1,4 +1,5 @@
-import { decoded, useRecovering } from './media';
+import { decoded } from './media';
+import { useRecovering } from './use-recovering';
 
 interface ProxyImageProps {
   src: string | null;
