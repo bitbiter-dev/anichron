@@ -1,6 +1,6 @@
 import type { Memory } from '../../api/flashbacks';
-import type { Place, StoryState } from './story';
-import { kindOf } from './story-view';
+import { kindOf } from './memory-kinds';
+import { kindInStory, type Place, type StoryState } from './story';
 
 type MemoryAt = (place: Place) => Memory;
 
@@ -38,6 +38,6 @@ export function createKeepLiveVideos(memoryAt: MemoryAt, keep: (urls: string[]) 
 }
 
 export function nextVideo({ upcoming }: StoryState, memoryAt: MemoryAt) {
-  const video = upcoming.map(memoryAt).find((memory) => kindOf(memory) === 'video');
+  const video = upcoming.map(memoryAt).find((memory) => kindInStory(kindOf(memory)).warmsVideo);
   return video?.proxies.video ?? null;
 }

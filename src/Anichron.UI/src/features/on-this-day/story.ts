@@ -1,13 +1,61 @@
-export const memoryMilliseconds = 5000;
+import { type Kind, type Load, memoryKind } from './memory-kinds';
+
+const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
-export const videoMilliseconds = 60_000;
+const videoMilliseconds = 60_000;
 const hintMilliseconds = 1000;
 const upcomingCount = 2;
 const behindCount = 3;
 
-export type Load = 'loading' | 'shown' | 'failed';
+export type LivePlay = { state: 'still' } | { state: 'loading' | 'playing'; by: 'hold' | 'button' };
 
-export type Kind = 'none' | 'picture' | 'video' | 'live' | 'burst';
+export interface StoryMemory {
+  kind: Kind;
+  durationSeconds: number | null;
+}
+
+interface KindInStory {
+  length: (load: Load, durationSeconds: number | null) => number;
+  timeLimit: (load: Load) => number;
+  middle: 'sound' | 'details' | 'next';
+  holdPlays: boolean;
+  hint: boolean;
+  warmsVideo: boolean;
+}
+
+export function kindInStory(kind: Kind): KindInStory {
+  const picture: KindInStory = {
+    length: () => memoryMilliseconds,
+    timeLimit: () => memoryMilliseconds,
+    middle: 'next',
+    holdPlays: false,
+    hint: false,
+    warmsVideo: false,
+  };
+
+  const kinds: Record<Kind, KindInStory> = {
+    unready: picture,
+    picture,
+    video: {
+      ...picture,
+      length: (load, durationSeconds) =>
+        load === 'failed'
+          ? memoryMilliseconds
+          : Math.min((durationSeconds ?? Infinity) * 1000, videoMilliseconds),
+      timeLimit: (load) => (load === 'failed' ? memoryMilliseconds : videoMilliseconds),
+      middle: 'sound',
+      hint: true,
+      warmsVideo: true,
+    },
+    live: { ...picture, holdPlays: true },
+    burst: { ...picture, middle: 'details' },
+  };
+  return kinds[kind];
+}
+
+function still(): LivePlay {
+  return { state: 'still' };
+}
 
 export interface StoryPosition {
   group: number;
@@ -17,10 +65,7 @@ export interface StoryPosition {
   load: Load;
   shown: readonly number[];
   playId: number;
-  livePlay: boolean;
-  replaying: boolean;
-  liveShown: boolean;
-  heldPlay: boolean;
+  play: LivePlay;
 }
 
 export type Place = Pick<StoryPosition, 'group' | 'memory'>;
@@ -34,6 +79,7 @@ export interface StoryState extends StoryPosition {
   muted: boolean;
   hint: boolean;
   playsMedia: boolean;
+  length: number;
   upcoming: readonly Place[];
   behind: readonly Place[];
 }
@@ -57,10 +103,6 @@ export type Story = Record<
   undo: (place: Place) => void;
 };
 
-function stillLive() {
-  return { livePlay: false, liveShown: false, heldPlay: false } as const;
-}
-
 export type SegmentState = 'seen' | 'playing' | 'next';
 
 export function segmentState(index: number, current: number, ended: boolean): SegmentState {
@@ -68,9 +110,8 @@ export function segmentState(index: number, current: number, ended: boolean): Se
   return index === current ? 'playing' : 'next';
 }
 
-function lasting({ kind, load }: StoryPosition) {
-  if (load === 'loading') return loadMilliseconds;
-  return kind === 'video' && load === 'shown' ? videoMilliseconds : memoryMilliseconds;
+function timeLimitOf({ kind, load }: StoryPosition) {
+  return load === 'loading' ? loadMilliseconds : kindInStory(kind).timeLimit(load);
 }
 
 function createClock(end: () => void) {
@@ -95,24 +136,20 @@ function createClock(end: () => void) {
 }
 
 export function createStory(
-  kinds: readonly (readonly Kind[])[],
+  kinds: readonly (readonly StoryMemory[])[],
   group: number,
   close: () => void,
   decoded: (place: Place) => boolean,
 ): Story {
-  const memories = (group: number) => kinds[group] as readonly Kind[];
+  const memories = (group: number) => kinds[group] as readonly StoryMemory[];
   const hidden = new Set<string>();
   const keyOf = ({ group, memory }: Place) => `${String(group)}/${String(memory)}`;
   const shown = (group: number) =>
     [...memories(group).keys()].filter((memory) => !hidden.has(keyOf({ group, memory })));
   const groupsShown = () => [...kinds.keys()].filter((group) => shown(group).length > 0);
-  const firstLoad = (kind: Kind, place: Place): Load => {
-    if (kind === 'none') return 'shown';
-    return kind !== 'video' && decoded(place) ? 'shown' : 'loading';
-  };
   let visits = 0;
   const at = (group: number, memory: number): StoryPosition => {
-    const kind = memories(group)[memory] as Kind;
+    const { kind } = memories(group)[memory] as StoryMemory;
     // Stryker disable next-line UpdateOperator
     const visit = ++visits;
     return {
@@ -120,13 +157,10 @@ export function createStory(
       memory,
       visit,
       kind,
-      load: firstLoad(kind, { group, memory }),
+      load: memoryKind(kind).firstLoad(() => decoded({ group, memory })),
       shown: shown(group),
       playId: visit,
-      livePlay: false,
-      replaying: false,
-      liveShown: false,
-      heldPlay: false,
+      play: still(),
     };
   };
   const first = (group: number) => at(group, shown(group)[0] as number);
@@ -148,7 +182,7 @@ export function createStory(
   let details = false;
   let ended = false;
   let muted = true;
-  let hinted = position.kind === 'video';
+  let hinted = kindInStory(position.kind).hint;
   let hint = hinted;
   let state = stateOf();
   const clock = createClock(expire);
@@ -157,18 +191,24 @@ export function createStory(
       hint = false;
     });
   });
-  clock.set(lasting(position));
+  clock.set(timeLimitOf(position));
   hintClock.set(hintMilliseconds);
   let notify: (() => void) | undefined;
 
   function replayShown() {
-    return position.replaying && position.liveShown;
+    return position.play.state === 'playing' && position.play.by === 'button';
+  }
+
+  function playsBy(by: 'hold' | 'button') {
+    return position.play.state !== 'still' && position.play.by === by;
   }
 
   function stateOf(): StoryState {
     const running =
       position.load !== 'loading' && !paused && !held && !details && !ended && !replayShown();
-    const playsMedia = held ? position.heldPlay : !paused && (position.replaying || !ended);
+    const playsMedia = held ? playsBy('hold') : !paused && (playsBy('button') || !ended);
+    const { group, memory, kind, load } = position;
+    const { durationSeconds } = memories(group)[memory] as StoryMemory;
     return {
       ...position,
       paused,
@@ -179,6 +219,7 @@ export function createStory(
       muted,
       hint,
       playsMedia,
+      length: kindInStory(kind).length(load, durationSeconds),
       upcoming: upcoming(position),
       behind: behind(position),
     };
@@ -212,8 +253,8 @@ export function createStory(
     update(() => {
       position = to;
       ended = false;
-      clock.set(lasting(to));
-      hint = to.kind === 'video' && !hinted;
+      clock.set(timeLimitOf(to));
+      hint = kindInStory(to.kind).hint && !hinted;
       hinted ||= hint;
     });
   }
@@ -222,16 +263,17 @@ export function createStory(
     if (visit === position.visit && from.includes(position.load))
       update(() => {
         position = { ...position, load };
-        clock.set(lasting(position));
+        clock.set(timeLimitOf(position));
       });
   }
 
-  function play(change: Partial<StoryPosition>) {
-    position = { ...position, ...change, livePlay: true, liveShown: false, playId: ++visits };
+  function play(by: 'hold' | 'button') {
+    if (kindInStory(position.kind).holdPlays && position.load === 'shown')
+      position = { ...position, play: { state: 'loading', by }, playId: ++visits };
   }
 
   function toggleSound() {
-    if (position.kind === 'video')
+    if (kindInStory(position.kind).middle === 'sound')
       update(() => {
         muted = !muted;
         hint = false;
@@ -247,7 +289,7 @@ export function createStory(
   function rest() {
     update(() => {
       ended = true;
-      position = { ...position, ...stillLive() };
+      position = { ...position, play: still() };
     });
   }
 
@@ -273,6 +315,16 @@ export function createStory(
     else show(at(before, shown(before).at(-1) as number));
   }
 
+  const middles = {
+    sound: toggleSound,
+    details: () => {
+      setDetails(true);
+    },
+    next: () => {
+      next();
+    },
+  };
+
   return {
     state: () => state,
     subscribe(listener) {
@@ -293,19 +345,21 @@ export function createStory(
       settle(visit, 'failed', ['loading', 'shown']);
     },
     livePlaying() {
-      update(() => {
-        position = { ...position, liveShown: true };
-      });
+      const { play } = position;
+      if (play.state !== 'still')
+        update(() => {
+          position = { ...position, play: { ...play, state: 'playing' } };
+        });
     },
     liveEnded() {
       update(() => {
-        position = { ...position, ...stillLive() };
+        position = { ...position, play: still() };
       });
     },
     replay() {
       update(() => {
         paused = false;
-        play({ replaying: true });
+        play('button');
       });
     },
     togglePause() {
@@ -316,20 +370,18 @@ export function createStory(
     hold() {
       update(() => {
         held = true;
-        if (position.kind === 'live' && position.load === 'shown') play({ heldPlay: true });
+        play('hold');
       });
     },
     release() {
       update(() => {
         held = false;
-        if (position.heldPlay) position = { ...position, ...stillLive() };
+        if (playsBy('hold')) position = { ...position, play: still() };
       });
     },
     toggleSound,
     middle() {
-      if (position.kind === 'video') toggleSound();
-      else if (position.kind === 'burst') setDetails(true);
-      else next();
+      middles[kindInStory(position.kind).middle]();
     },
     closeDetails() {
       setDetails(false);

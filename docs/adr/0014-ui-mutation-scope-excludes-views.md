@@ -37,7 +37,6 @@ A directive needs a row naming its file and the ADR 0005 proof: no input tells t
 | File | Site | Proof |
 | --- | --- | --- |
 | `src/features/on-this-day/day.ts` | `storySearch` (`BlockStatement`, `ObjectLiteral`) | The router keeps the root's parsed search, so the story reads `year` whatever the validator returns, and `startGroup` opens any unknown year at the first group. TanStack types a route's search only through `validateSearch`, so every form of it keeps the same equivalent mutants. |
-| `src/features/on-this-day/story-view.ts` | `kindOf`'s `'picture'` (`StringLiteral`) | Every reader of a kind (`story.ts`, `story-view.ts`, `video.ts`) asks for `video`, `live`, `burst` or `none`, so a picture is whatever is none of those, under any name. Its value is the remaining case of the union, so every form of `kindOf` returns it. |
 | `src/features/on-this-day/story.ts` | `at`'s `++visits` (`UpdateOperator`) | A visit number is only a key, React's and the video player's, that must differ from the last one; counting down gives every visit a distinct number as counting up does, and any counter keeps the same mutant. |
 
 ## Consequences

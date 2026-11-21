@@ -4,8 +4,9 @@ import type { Memory, YearGroup } from '../../api/flashbacks';
 import { previewOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
 import { createKeepLiveVideos, createPrefetch, nextVideo } from './prefetch';
+import { kindOf } from './memory-kinds';
 import { createStory, type Place } from './story';
-import { kindOf, storyView } from './story-view';
+import { storyView } from './story-view';
 import { createVideoPlayer } from './video';
 
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
@@ -19,7 +20,12 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       (url) => media.loadPicture(url),
     );
     const story = createStory(
-      years.map((group) => group.memories.map(kindOf)),
+      years.map((group) =>
+        group.memories.map((memory) => ({
+          kind: kindOf(memory),
+          durationSeconds: memory.durationSeconds,
+        })),
+      ),
       startGroup(years, year),
       close,
       (place) => prefetch.decoded(place),

@@ -1,47 +1,29 @@
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { blurhashOf } from './blurhash';
-import { type Kind, memoryMilliseconds, type StoryState, videoMilliseconds } from './story';
+import { memoryKind } from './memory-kinds';
+import type { LivePlay, StoryState } from './story';
 
-export function kindOf({ proxies, livePhotoVideoUrl, burst }: Memory): Kind {
-  if (proxies.video) return 'video';
-  if (!proxies.preview) return 'none';
-  if (burst) return 'burst';
-  if (livePhotoVideoUrl) return 'live';
-  // Stryker disable next-line StringLiteral
-  return 'picture';
+export type LiveState = LivePlay['state'];
+
+function liveOf({ play, playsMedia }: StoryState): LiveState {
+  return playsMedia ? play.state : 'still';
 }
 
-function durationOf({ kind, load }: StoryState, { durationSeconds }: Memory) {
-  if (kind !== 'video' || load === 'failed') return memoryMilliseconds;
-  return Math.min((durationSeconds ?? Infinity) * 1000, videoMilliseconds);
-}
-
-function imageOf({ kind, load }: StoryState) {
-  if (kind === 'video') return load === 'failed' ? 'poster' : null;
-  return load === 'failed' ? null : 'picture';
-}
-
-export type LiveState = 'loading' | 'playing' | 'still';
-
-function liveOf({ livePlay, liveShown, playsMedia }: StoryState): LiveState {
-  if (!livePlay || !playsMedia) return 'still';
-  return liveShown ? 'playing' : 'loading';
+function videoShown({ kind, load, play }: StoryState, memory: Memory) {
+  const video = memoryKind(kind).video;
+  if (video?.live) return play.state === 'playing';
+  return video?.source(memory, load) != null;
 }
 
 export function storyView(state: StoryState, group: YearGroup) {
-  const kinds: Record<Memory['mediaType'], 'story.photo' | 'story.video' | 'story.livePhoto'> = {
-    Image: 'story.photo',
-    Video: 'story.video',
-    LivePhoto: 'story.livePhoto',
-  };
-  const burst = state.kind === 'burst' ? 'story.burst' : undefined;
+  const kind = memoryKind(state.kind);
   const memory = group.memories[state.memory] as Memory;
   const segments = { count: state.shown.length, current: state.shown.indexOf(state.memory) };
   return {
     memory,
     segments,
     name: {
-      kind: burst ?? kinds[memory.mediaType],
+      kind: kind.name(memory),
       year: group.year,
       place: segments.current + 1,
       count: segments.count,
@@ -49,14 +31,14 @@ export function storyView(state: StoryState, group: YearGroup) {
     pause: state.paused ? 'story.play' : 'story.pause',
     controls: state.held ? 'hidden' : 'visible',
     blurhash: state.load === 'shown' ? null : blurhashOf(memory),
-    failed: state.kind !== 'video' && state.load === 'failed',
-    image: imageOf(state),
-    video: (state.kind === 'video' && state.load !== 'failed') || state.liveShown,
-    liveButton: state.kind === 'live' && state.load === 'shown',
+    failed: kind.failure(state.load),
+    image: kind.image(state.load),
+    video: videoShown(state, memory),
+    liveButton: kind.liveButton(state.load),
     live: liveOf(state),
-    duration: durationOf(state, memory),
+    duration: state.length,
     sound: {
-      shown: state.kind === 'video',
+      shown: kind.sound,
       hint: state.hint,
       label: state.muted ? 'story.soundOn' : 'story.soundOff',
     },

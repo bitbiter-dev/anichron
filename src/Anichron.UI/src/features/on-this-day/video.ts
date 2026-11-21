@@ -1,5 +1,6 @@
 import type { Memory } from '../../api/flashbacks';
 import { recover } from './media';
+import { memoryKind } from './memory-kinds';
 import type { Story, StoryState } from './story';
 
 type StoryMedia = Pick<
@@ -10,6 +11,7 @@ type StoryMedia = Pick<
 interface Source {
   src: string;
   poster: string;
+  live: boolean;
 }
 
 interface MediaEvents {
@@ -19,15 +21,15 @@ interface MediaEvents {
 }
 
 function sourceOf(
-  state: StoryState,
-  { proxies, livePhotoVideoUrl }: Memory,
+  { kind, load, play }: StoryState,
+  memory: Memory,
   liveSource: (url: string) => string,
 ): Source | null {
-  const poster = proxies.preview ?? '';
-  if (state.kind === 'video' && state.load !== 'failed')
-    return { src: proxies.video as string, poster };
-  if (state.livePlay) return { src: liveSource(livePhotoVideoUrl as string), poster };
-  return null;
+  const video = memoryKind(kind).video;
+  const url = video?.source(memory, load);
+  if (!video || !url || (video.live && play.state === 'still')) return null;
+  const { live } = video;
+  return { src: live ? liveSource(url) : url, poster: memory.proxies.preview ?? '', live };
 }
 
 export function createVideoPlayer(
@@ -65,7 +67,7 @@ export function createVideoPlayer(
     if (!element) return;
     const state = story.state();
     const wanted = sourceOf(state, memoryOf(state), liveSource);
-    element.muted = state.muted || state.kind === 'live';
+    element.muted = state.muted || wanted?.live === true;
     if (!wanted) {
       element.pause();
       if (element.hasAttribute('src')) {
@@ -77,7 +79,7 @@ export function createVideoPlayer(
     if (state.playId !== playId) {
       playId = state.playId;
       visit = state.visit;
-      events = state.kind === 'live' ? liveEvents : videoEvents;
+      events = wanted.live ? liveEvents : videoEvents;
       source = wanted;
       reloaded = false;
       load(element);
