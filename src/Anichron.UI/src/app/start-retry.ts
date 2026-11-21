@@ -29,9 +29,9 @@ export function createStartRetry(
     wait = retryAfterSeconds ? 0 : waitSeconds(step++) * 1000;
   }
 
-  function retryIn(milliseconds: number) {
+  function schedule(milliseconds: number) {
     clearTimeout(timer);
-    if (!changed || !isVisible()) return;
+    if (!isVisible()) return;
     timer = setTimeout(attempt, Math.max(milliseconds, notBefore - Date.now()));
   }
 
@@ -44,11 +44,12 @@ export function createStartRetry(
     if (state.pending) return;
     set({ pending: true });
     restore().catch((error: unknown) => {
+      if (!changed) return;
       const problem = problemOf(error);
       set({ problem, pending: false });
       countdown(problem.retryAfterSeconds);
       after(problem);
-      retryIn(wait);
+      schedule(wait);
     });
   }
 
@@ -60,14 +61,14 @@ export function createStartRetry(
       changed = listener;
       const stopListening = [
         listen(window, 'online', () => {
-          retryIn(0);
+          schedule(0);
         }),
         listen(document, 'visibilitychange', () => {
           step = 0;
-          retryIn(0);
+          schedule(0);
         }),
       ];
-      retryIn(wait);
+      schedule(wait);
       return () => {
         changed = undefined;
         clearTimeout(timer);

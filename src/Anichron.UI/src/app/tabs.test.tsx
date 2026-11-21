@@ -20,6 +20,7 @@ import {
 } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
+import { becomes } from '../test/visibility';
 import { sharedTabs } from '../test/tabs';
 
 type UserProfile = components['schemas']['UserProfileResponse'];
@@ -224,7 +225,7 @@ describe('two tabs of one browser', () => {
     expect(second.queryByRole('heading', loginHeading)).toBeNull();
   });
 
-  it('leave a tab saying so when its fresh start cannot reach the server, until it retries by itself', async () => {
+  it('leave a tab saying so when its fresh start cannot reach the server, until it is visible again', async () => {
     server.use(refreshTakes(0, new Set([1]), new Set([3])), noorSignsIn());
     const [first, second] = openTabs('/login', '/');
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
@@ -235,9 +236,13 @@ describe('two tabs of one browser', () => {
     expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     expect(await second.findByRole('heading', unreachableHeading)).toBeVisible();
 
+    becomes('hidden');
+    await advance(60_000);
     expect(events).toEqual(['refresh 3 sent', 'refresh 3 answered']);
+    expect(second.getByRole('heading', unreachableHeading)).toBeVisible();
 
-    await advance(5000);
+    becomes('visible');
+    await advance(0);
     expect(await second.findByRole('link', memoriesOf('noor'))).toBeVisible();
     expect(events).toEqual([
       'refresh 3 sent',

@@ -19,7 +19,7 @@ export function useRetry(failure: Problem) {
   const { problem, pending } = useSyncExternalStore(retry.subscribe, retry.state);
   const [reloading, setReloading] = useState(false);
   return {
-    problem,
+    latest: problem,
     retryIn: countdown.remaining,
     blocked: countdown.remaining > 0,
     pending: pending || reloading,

@@ -219,6 +219,7 @@ describe('starting the app', () => {
     expect(retryButton()).not.toHaveAttribute('data-pending');
     expect(unreachableHeading()).toBeVisible();
     expect(refreshes()).toBe(2);
+    await retriesAfter(5, refreshes);
   });
 
   it('reloads the page when Retry is pressed, pending until it does', async () => {
@@ -247,7 +248,22 @@ describe('starting the app', () => {
     expect(where(router)).toBe('/login?redirect=%2F%3Ffrom%3Dlink');
   });
 
-  it('stops retrying once the screen is gone', async () => {
+  it('stops retrying once the screen is gone while it waits', async () => {
+    const refreshes = answers(() => HttpResponse.error());
+    const { unmount } = renderApp('/');
+    await findUnreachableHeading();
+
+    unmount();
+    await act(() => {
+      window.dispatchEvent(new Event('online'));
+      becomes('visible');
+      return vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+
+    expect(refreshes()).toBe(1);
+  });
+
+  it('stops retrying once the screen is gone during a retry', async () => {
     const refreshes = answers(async (n) => {
       if (n === 2) await delay(3000);
       return HttpResponse.error();

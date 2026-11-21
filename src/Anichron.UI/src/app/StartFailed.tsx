@@ -14,10 +14,10 @@ export function StartFailed({ error }: ErrorComponentProps) {
   );
 }
 
-function StartFailure({ problem: failure }: { problem: Problem }) {
+function StartFailure({ problem }: { problem: Problem }) {
   const { t } = useTranslation();
-  const { problem, retryIn, blocked, pending, reload } = useRetry(failure);
-  const copy = startFailureCopy(problem);
+  const { latest, retryIn, blocked, pending, reload } = useRetry(problem);
+  const copy = startFailureCopy(latest);
   return (
     <main className="grid min-h-dvh place-items-center p-4 glow-backdrop">
       <div className="flex w-full max-w-sm flex-col gap-4 rounded-card p-6 glass-card">
