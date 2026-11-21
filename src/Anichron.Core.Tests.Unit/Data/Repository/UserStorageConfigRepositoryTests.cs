@@ -1,6 +1,7 @@
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
 
@@ -132,6 +133,72 @@ public sealed class UserStorageConfigRepositoryTests
         var result = await repository.GetActiveByUserIdAsync(userId, ct);
 
         result.Should().BeEmpty();
+    }
+
+    // ==========================================================================
+    // AnyActiveByUserIdAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task AnyActiveByUserIdAsync_OneActiveConfig_ReturnsTrue()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = AnichronDbContexts.InMemory();
+        var userId = Guid.NewGuid();
+        db.StorageConfigs.Add(MakeConfig(userId, "/mine"));
+        await db.SaveChangesAsync(ct);
+
+        var result = await new EfUserStorageConfigRepository(db).AnyActiveByUserIdAsync(userId, ct);
+
+        result.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AnyActiveByUserIdAsync_NoConfig_ReturnsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = AnichronDbContexts.InMemory();
+
+        var result = await new EfUserStorageConfigRepository(db).AnyActiveByUserIdAsync(Guid.NewGuid(), ct);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AnyActiveByUserIdAsync_OnlyAnotherUsersConfig_ReturnsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = AnichronDbContexts.InMemory();
+        db.StorageConfigs.Add(MakeConfig(Guid.NewGuid(), "/theirs"));
+        await db.SaveChangesAsync(ct);
+
+        var result = await new EfUserStorageConfigRepository(db).AnyActiveByUserIdAsync(Guid.NewGuid(), ct);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AnyActiveByUserIdAsync_OnlyAnInactiveConfig_ReturnsFalse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = AnichronDbContexts.InMemory();
+        var userId = Guid.NewGuid();
+        db.StorageConfigs.Add(MakeConfig(userId, "/archive", isActive: false));
+        await db.SaveChangesAsync(ct);
+
+        var result = await new EfUserStorageConfigRepository(db).AnyActiveByUserIdAsync(userId, ct);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ActiveOf_FiltersOnTheUserAndTheActiveFlagInSql()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = new EfUserStorageConfigRepository(db).ActiveOf(Guid.NewGuid()).ToQueryString();
+
+        sql.Should().EndWith("WHERE s.\"UserId\" = @userId AND s.\"IsActive\"");
     }
 
     // ==========================================================================

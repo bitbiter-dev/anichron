@@ -64,7 +64,10 @@
     "back": "Back",
     "newVersion": "A new version is available",
     "reload": "Reload",
-    "later": "Later"
+    "later": "Later",
+    "noPhotos": "No photos are set up for you yet.",
+    "noPhotosHint": "An admin can add a storage folder for you.",
+    "ok": "OK"
   },
   "settings": {
     "title": "Settings",

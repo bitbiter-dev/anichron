@@ -14,7 +14,13 @@ export const miraSession: Schemas['SessionResponse'] = {
     email: 'mira@example.com',
     isAdmin: false,
     mustChangePassword: false,
+    hasStorageConfig: true,
   },
+};
+
+export const noPhotosSession: Schemas['SessionResponse'] = {
+  ...miraSession,
+  user: { ...miraSession.user, hasStorageConfig: false },
 };
 
 export const adminSession: Schemas['SessionResponse'] = {

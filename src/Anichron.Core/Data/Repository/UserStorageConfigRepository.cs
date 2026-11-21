@@ -10,6 +10,7 @@ public interface IUserStorageConfigRepository
     Task<string[]> GetAllRootPathsAsync(CancellationToken ct);
     Task<List<UserStorageConfig>> GetAllActiveAsync(CancellationToken ct);
     Task<List<UserStorageConfig>> GetActiveByUserIdAsync(Guid userId, CancellationToken ct);
+    Task<bool> AnyActiveByUserIdAsync(Guid userId, CancellationToken ct);
     Task<List<UserStorageConfig>> GetByUserIdAsync(Guid userId, CancellationToken ct);
     void Add(UserStorageConfig config);
     void Remove(UserStorageConfig config);
@@ -30,7 +31,13 @@ public sealed class EfUserStorageConfigRepository(AnichronDbContext db) : IUserS
         => db.StorageConfigs.Where(s => s.IsActive).ToListAsync(ct);
 
     public Task<List<UserStorageConfig>> GetActiveByUserIdAsync(Guid userId, CancellationToken ct)
-        => db.StorageConfigs.Where(s => s.UserId == userId && s.IsActive).ToListAsync(ct);
+        => ActiveOf(userId).ToListAsync(ct);
+
+    public Task<bool> AnyActiveByUserIdAsync(Guid userId, CancellationToken ct)
+        => ActiveOf(userId).AnyAsync(ct);
+
+    internal IQueryable<UserStorageConfig> ActiveOf(Guid userId)
+        => db.StorageConfigs.Where(s => s.UserId == userId && s.IsActive);
 
     public Task<List<UserStorageConfig>> GetByUserIdAsync(Guid userId, CancellationToken ct)
         => db.StorageConfigs.Where(s => s.UserId == userId).ToListAsync(ct);
