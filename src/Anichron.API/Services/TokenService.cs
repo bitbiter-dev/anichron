@@ -10,7 +10,7 @@ namespace Anichron.API.Services;
 
 public interface ITokenService
 {
-    AuthTokens Issue(User user);
+    Task<AuthTokens> IssueAsync(User user, CancellationToken ct);
     Task<ServiceResult<AuthTokens, IRefreshError>> RefreshAsync(string rawToken, CancellationToken ct);
     Task RevokeAsync(string rawToken, CancellationToken ct);
     Task MarkAllSessionsRevokedAsync(Guid userId, Instant revokedAt, CancellationToken ct);
@@ -18,6 +18,7 @@ public interface ITokenService
 
 public sealed class TokenService(
     IRefreshTokenRepository tokens,
+    IUserStorageConfigRepository storageConfigs,
     IUnitOfWork unitOfWork,
     IClock clock,
     IGuidFactory guidFactory,
@@ -28,9 +29,9 @@ public sealed class TokenService(
 
     private readonly JwtSettings settings = options.Value;
 
-    public AuthTokens Issue(User user)
+    public async Task<AuthTokens> IssueAsync(User user, CancellationToken ct)
     {
-        var (stored, issued) = NewSession(user);
+        var (stored, issued) = await NewSessionAsync(user, ct);
         tokens.Add(stored);
         return issued;
     }
@@ -61,7 +62,7 @@ public sealed class TokenService(
         if (stored.User.LockedUntil is { } lockedUntil && lockedUntil > now)
             return new AccountLocked(Math.Max(1, (int)Math.Ceiling((lockedUntil - now).TotalSeconds)));
 
-        var (successor, issued) = NewSession(stored.User);
+        var (successor, issued) = await NewSessionAsync(stored.User, ct);
         if (await tokens.RotateAsync(rotating.Id, successor, ct) == TokenRotation.Rotated)
             return issued;
 
@@ -80,7 +81,7 @@ public sealed class TokenService(
         return new RefreshTokenInvalid();
     }
 
-    private (RefreshToken Stored, AuthTokens Issued) NewSession(User user)
+    private async Task<(RefreshToken Stored, AuthTokens Issued)> NewSessionAsync(User user, CancellationToken ct)
     {
         var rawToken = GenerateRefreshToken();
         var now = clock.GetCurrentInstant();
@@ -94,7 +95,8 @@ public sealed class TokenService(
             ExpiresAt = now.Plus(Duration.FromDays(settings.RefreshTokenDays)),
         };
 
-        return (stored, new AuthTokens(jwtFactory.Create(user), rawToken, settings.AccessTokenLifetime, user));
+        var hasStorageConfig = await storageConfigs.AnyActiveByUserIdAsync(user.Id, ct);
+        return (stored, new AuthTokens(jwtFactory.Create(user), rawToken, settings.AccessTokenLifetime, user, hasStorageConfig));
     }
 
     public async Task RevokeAsync(string rawToken, CancellationToken ct)

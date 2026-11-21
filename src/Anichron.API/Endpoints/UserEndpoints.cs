@@ -27,15 +27,17 @@ public static class UserEndpoints
     internal static async Task<IResult> GetMeAsync(
         ClaimsPrincipal user,
         IUserRepository users,
+        IUserStorageConfigRepository storageConfigs,
         CancellationToken ct)
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Results.Unauthorized();
 
         var found = await users.FindByIdAsync(userId, ct);
-        return found is null
-            ? Results.NotFound()
-            : Results.Ok(UserProfileResponse.From(found));
+        if (found is null)
+            return Results.NotFound();
+
+        return Results.Ok(UserProfileResponse.From(found, await storageConfigs.AnyActiveByUserIdAsync(userId, ct)));
     }
 
     internal static async Task<IResult> ChangePasswordAsync(
@@ -55,8 +57,9 @@ public static class UserEndpoints
 }
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
-public sealed record UserProfileResponse(Guid Id, string Username, string Email, bool IsAdmin, bool MustChangePassword)
+public sealed record UserProfileResponse(
+    Guid Id, string Username, string Email, bool IsAdmin, bool MustChangePassword, bool HasStorageConfig)
 {
-    internal static UserProfileResponse From(User user)
-        => new(user.Id, user.Username, user.Email, user.IsAdmin, user.MustChangePassword);
+    internal static UserProfileResponse From(User user, bool hasStorageConfig)
+        => new(user.Id, user.Username, user.Email, user.IsAdmin, user.MustChangePassword, hasStorageConfig);
 }
