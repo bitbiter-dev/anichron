@@ -2,6 +2,7 @@ import { ErrorComponent, type ErrorComponentProps } from '@tanstack/react-router
 import { useTranslation } from 'react-i18next';
 import { ProblemError, type Problem } from '../api/problem';
 import { Button } from '../shared/ui/Button';
+import { Ring } from '../shared/ui/Ring';
 import { startFailureCopy } from './start-failure';
 import { useRetry } from './use-retry';
 
@@ -13,9 +14,9 @@ export function StartFailed({ error }: ErrorComponentProps) {
   );
 }
 
-function StartFailure({ problem }: { problem: Problem }) {
+function StartFailure({ problem: failure }: { problem: Problem }) {
   const { t } = useTranslation();
-  const { retry, retryIn, blocked } = useRetry(problem.retryAfterSeconds);
+  const { problem, retryIn, blocked, pending, reload } = useRetry(failure);
   const copy = startFailureCopy(problem);
   return (
     <main className="grid min-h-dvh place-items-center p-4 glow-backdrop">
@@ -25,8 +26,14 @@ function StartFailure({ problem }: { problem: Problem }) {
         {retryIn > 0 && (
           <p className="text-small text-fg-muted">{t('retryIn', { count: retryIn })}</p>
         )}
-        <Button onPress={retry} isDisabled={blocked} className="mt-2">
+        <Button
+          onPress={reload}
+          isDisabled={blocked}
+          isPending={pending}
+          className="group relative mt-2"
+        >
           {t('startFailed.retry')}
+          <Ring className="inset-y-0 right-4 my-auto hidden size-5 group-data-pending:block" />
         </Button>
       </div>
     </main>

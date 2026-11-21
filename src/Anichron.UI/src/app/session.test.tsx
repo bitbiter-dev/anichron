@@ -13,6 +13,7 @@ import {
 } from '../test/handlers/auth';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
+import { becomes } from '../test/visibility';
 
 const signedIn = { level: 1, name: 'On This Day' } as const;
 const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
@@ -32,6 +33,20 @@ function signIn() {
     target: { value: 'correct horse battery staple' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+}
+
+function answers(respond: (refresh: number) => Response | Promise<Response>) {
+  let refreshes = 0;
+  server.use(refreshRespondsWith(() => respond(++refreshes)));
+  return () => refreshes;
+}
+
+async function retriesAfter(seconds: number, refreshes: () => number) {
+  const before = refreshes();
+  await act(() => vi.advanceTimersByTimeAsync(seconds * 1000 - 1));
+  expect(refreshes()).toBe(before);
+  await act(() => vi.advanceTimersByTimeAsync(1));
+  expect(refreshes()).toBe(before + 1);
 }
 
 function where(router: ReturnType<typeof renderApp>['router']) {
@@ -95,64 +110,62 @@ describe('starting the app', () => {
   it.each([
     ['cannot be reached', () => HttpResponse.error()],
     ['is unavailable', () => problemResponse(503, 'service_unavailable')],
-  ])('says so when the server %s, and Retry lands on the requested page', async (_, failure) => {
-    let refreshes = 0;
-    server.use(
-      refreshRespondsWith(() => (++refreshes === 1 ? failure() : HttpResponse.json(miraSession))),
-    );
-    const { router, container } = renderApp('/?from=link');
+  ])(
+    'says so when the server %s, and a retry by itself lands on the requested page',
+    async (_, failure) => {
+      const refreshes = answers((n) => (n === 1 ? failure() : HttpResponse.json(miraSession)));
+      const { router } = renderApp('/?from=link');
 
-    expect(await findUnreachableHeading()).toBeVisible();
-    expect(screen.getByText(unreachableBody)).toBeVisible();
-    expect(loginHeading()).toBeNull();
-    expect(where(router)).toBe('/?from=link');
-    expect(await axeResults(container)).toHaveNoViolations();
+      expect(await findUnreachableHeading()).toBeVisible();
+      expect(screen.getByText(unreachableBody)).toBeVisible();
+      expect(screen.queryByText(/You can try again/)).toBeNull();
+      expect(loginHeading()).toBeNull();
+      expect(where(router)).toBe('/?from=link');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      await retriesAfter(5, refreshes);
 
-    expect(await screen.findByRole('heading', signedIn)).toBeVisible();
-    expect(unreachableHeading()).toBeNull();
-    expect(where(router)).toBe('/?from=link');
-    expect(refreshes).toBe(2);
-  });
+      expect(await screen.findByRole('heading', signedIn)).toBeVisible();
+      expect(unreachableHeading()).toBeNull();
+      expect(where(router)).toBe('/?from=link');
+      expect(refreshes()).toBe(2);
+    },
+  );
 
-  it('counts down a 503 from Retry-After before Retry can be pressed', async () => {
-    server.use(
-      refreshRespondsWith(() =>
-        problemResponse(503, 'service_unavailable', { 'Retry-After': '5' }),
-      ),
-    );
-    renderApp('/');
-
-    expect(await findUnreachableHeading()).toBeVisible();
-    expect(screen.getByText('You can try again in 5 seconds.')).toBeVisible();
-    expect(retryButton()).toBeDisabled();
-  });
-
-  it('keeps saying so while Retry still cannot reach the server', async () => {
-    let refreshes = 0;
-    server.use(
-      refreshRespondsWith(() => {
-        refreshes++;
-        return HttpResponse.error();
-      }),
-    );
+  it('retries by itself after 5, 10, 20, 40, then every 60 seconds', async () => {
+    const refreshes = answers(() => HttpResponse.error());
     renderApp('/');
     await findUnreachableHeading();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await act(() => vi.advanceTimersByTimeAsync(0));
+    for (const seconds of [5, 10, 20, 40, 60, 60]) await retriesAfter(seconds, refreshes);
 
-    expect(await findUnreachableHeading()).toBeVisible();
-    expect(refreshes).toBe(2);
+    expect(unreachableHeading()).toBeVisible();
+  });
+
+  it('retries nothing while the page is hidden, then at once when it is visible again, starting over at 5 seconds', async () => {
+    const refreshes = answers(() => HttpResponse.error());
+    renderApp('/');
+    await findUnreachableHeading();
+    await retriesAfter(5, refreshes);
+    await retriesAfter(10, refreshes);
+
+    becomes('hidden');
+    await act(() => {
+      window.dispatchEvent(new Event('online'));
+      return vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+    expect(refreshes()).toBe(3);
+
+    await act(() => {
+      becomes('visible');
+      return vi.advanceTimersByTimeAsync(0);
+    });
+    expect(refreshes()).toBe(4);
+    await retriesAfter(5, refreshes);
   });
 
   it('retries by itself when the browser comes back online', async () => {
-    let refreshes = 0;
-    server.use(
-      refreshRespondsWith(() =>
-        ++refreshes === 1 ? HttpResponse.error() : HttpResponse.json(miraSession),
-      ),
+    const refreshes = answers((n) =>
+      n === 1 ? HttpResponse.error() : HttpResponse.json(miraSession),
     );
     const { router } = renderApp('/settings?from=link');
     await findUnreachableHeading();
@@ -164,23 +177,89 @@ describe('starting the app', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
     expect(where(router)).toBe('/settings?from=link');
-    expect(refreshes).toBe(2);
+    expect(refreshes()).toBe(2);
   });
 
-  it('goes to the login screen when Retry is answered with an auth problem', async () => {
-    let refreshes = 0;
-    server.use(
-      refreshRespondsWith(() =>
-        ++refreshes === 1 ? HttpResponse.error() : problemResponse(401, 'refresh_token_invalid'),
-      ),
+  it('waits out Retry-After from a 503 before retrying by itself, then backs off from 5 seconds', async () => {
+    const refreshes = answers((n) =>
+      n === 1
+        ? problemResponse(503, 'service_unavailable', { 'Retry-After': '30' })
+        : HttpResponse.error(),
+    );
+    renderApp('/');
+
+    expect(await findUnreachableHeading()).toBeVisible();
+    expect(screen.getByText('You can try again in 30 seconds.')).toBeVisible();
+    expect(retryButton()).toBeDisabled();
+
+    await retriesAfter(30, refreshes);
+    await retriesAfter(5, refreshes);
+  });
+
+  it('shows the button pending while a retry runs, and starts no second one meanwhile', async () => {
+    const refreshes = answers(async (n) => {
+      if (n === 2) await delay(3000);
+      return HttpResponse.error();
+    });
+    renderApp('/');
+    await findUnreachableHeading();
+    expect(retryButton()).not.toHaveAttribute('data-pending');
+
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(retryButton()).toHaveAttribute('data-pending', 'true');
+    expect(retryButton()).toHaveAttribute('aria-disabled', 'true');
+    await act(() => {
+      window.dispatchEvent(new Event('online'));
+      becomes('visible');
+      return vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(refreshes()).toBe(2);
+
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(retryButton()).not.toHaveAttribute('data-pending');
+    expect(unreachableHeading()).toBeVisible();
+    expect(refreshes()).toBe(2);
+  });
+
+  it('reloads the page when Retry is pressed, pending until it does', async () => {
+    const refreshes = answers(() => HttpResponse.error());
+    const { updates, container } = renderApp('/');
+    await findUnreachableHeading();
+
+    fireEvent.click(retryButton());
+
+    expect(updates.reload).toHaveBeenCalledOnce();
+    expect(retryButton()).toHaveAttribute('data-pending', 'true');
+    expect(refreshes()).toBe(1);
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('goes to the login screen when a retry is answered with an auth problem', async () => {
+    const refreshes = answers((n) =>
+      n === 1 ? HttpResponse.error() : problemResponse(401, 'refresh_token_invalid'),
     );
     const { router } = renderApp('/?from=link');
     await findUnreachableHeading();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await retriesAfter(5, refreshes);
 
     expect(await screen.findByRole('heading', loginHeadingName)).toBeVisible();
     expect(where(router)).toBe('/login?redirect=%2F%3Ffrom%3Dlink');
+  });
+
+  it('stops retrying once the screen is gone', async () => {
+    const refreshes = answers(async (n) => {
+      if (n === 2) await delay(3000);
+      return HttpResponse.error();
+    });
+    const { unmount } = renderApp('/');
+    await findUnreachableHeading();
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+
+    unmount();
+    await act(() => vi.advanceTimersByTimeAsync(10 * 60_000));
+
+    expect(refreshes()).toBe(2);
   });
 
   it.each([
@@ -229,14 +308,11 @@ describe('starting the app', () => {
 });
 
 describe('starting the app while the server limits the rate', () => {
-  it('counts down from Retry-After, ignores coming online meanwhile, then Retry lands on the requested page', async () => {
-    let refreshes = 0;
-    server.use(
-      refreshRespondsWith(() =>
-        ++refreshes === 1
-          ? problemResponse(429, 'rate_limited', { 'Retry-After': '30' })
-          : HttpResponse.json(miraSession),
-      ),
+  it('counts down from Retry-After, ignores coming online or visible meanwhile, then retries by itself onto the requested page', async () => {
+    const refreshes = answers((n) =>
+      n === 1
+        ? problemResponse(429, 'rate_limited', { 'Retry-After': '30' })
+        : HttpResponse.json(miraSession),
     );
     const { router, container } = renderApp('/?from=link');
 
@@ -247,42 +323,40 @@ describe('starting the app while the server limits the rate', () => {
     expect(unreachableHeading()).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
 
-    await act(() => vi.advanceTimersByTimeAsync(29_000));
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    becomes('hidden');
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    await act(() => {
+      becomes('visible');
+      window.dispatchEvent(new Event('online'));
+      return vi.advanceTimersByTimeAsync(9000);
+    });
     expect(screen.getByText('You can try again in 1 second.')).toBeVisible();
     expect(retryButton()).toBeDisabled();
-    await act(() => {
-      window.dispatchEvent(new Event('online'));
-      return vi.advanceTimersByTimeAsync(0);
-    });
-    expect(refreshes).toBe(1);
+    expect(refreshes()).toBe(1);
 
     await act(() => vi.advanceTimersByTimeAsync(1000));
-    expect(screen.queryByText(/You can try again/)).toBeNull();
-    expect(retryButton()).toBeEnabled();
-
-    fireEvent.click(retryButton());
 
     expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe('/?from=link');
-    expect(refreshes).toBe(2);
+    expect(refreshes()).toBe(2);
   });
 
-  it('counts down again when Retry is limited again', async () => {
-    let refreshes = 0;
-    server.use(
-      refreshRespondsWith(() =>
-        problemResponse(429, 'rate_limited', { 'Retry-After': ++refreshes === 1 ? '1' : '10' }),
-      ),
+  it('says so and counts down again when a retry is limited', async () => {
+    const refreshes = answers((n) =>
+      n === 1
+        ? HttpResponse.error()
+        : problemResponse(429, 'rate_limited', { 'Retry-After': '10' }),
     );
     renderApp('/');
-    await screen.findByRole('heading', rateLimitedHeadingName);
-    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await findUnreachableHeading();
 
-    fireEvent.click(retryButton());
+    await retriesAfter(5, refreshes);
 
-    expect(await screen.findByText('You can try again in 10 seconds.')).toBeVisible();
+    expect(await screen.findByRole('heading', rateLimitedHeadingName)).toBeVisible();
+    expect(screen.getByText('You can try again in 10 seconds.')).toBeVisible();
     expect(retryButton()).toBeDisabled();
-    expect(refreshes).toBe(2);
+    await retriesAfter(10, refreshes);
   });
 
   it.each([

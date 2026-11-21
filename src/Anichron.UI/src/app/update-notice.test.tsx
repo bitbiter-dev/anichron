@@ -85,7 +85,7 @@ describe('the new-version notice', () => {
 
     await user().click(button('Reload'));
 
-    expect(updates.apply).toHaveBeenCalledOnce();
+    expect(updates.reload).toHaveBeenCalledOnce();
   });
 
   it.each([
@@ -99,7 +99,7 @@ describe('the new-version notice', () => {
     await close();
 
     expect(screen.queryByRole('dialog', { name: notice })).not.toBeInTheDocument();
-    expect(updates.apply).not.toHaveBeenCalled();
+    expect(updates.reload).not.toHaveBeenCalled();
   });
 
   it('stays closed while the app stays open', async () => {
@@ -141,7 +141,7 @@ describe('the new-version notice', () => {
     );
 
     expect(await screen.findByRole('dialog', { name: notice })).toBeVisible();
-    expect(updates.apply).not.toHaveBeenCalled();
+    expect(updates.reload).not.toHaveBeenCalled();
   });
 
   it('shows on Settings too', async () => {

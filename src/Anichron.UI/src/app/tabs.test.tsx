@@ -224,7 +224,7 @@ describe('two tabs of one browser', () => {
     expect(second.queryByRole('heading', loginHeading)).toBeNull();
   });
 
-  it('leave a tab saying so, without retrying, when its fresh start cannot reach the server', async () => {
+  it('leave a tab saying so when its fresh start cannot reach the server, until it retries by itself', async () => {
     server.use(refreshTakes(0, new Set([1]), new Set([3])), noorSignsIn());
     const [first, second] = openTabs('/login', '/');
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
@@ -235,9 +235,16 @@ describe('two tabs of one browser', () => {
     expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     expect(await second.findByRole('heading', unreachableHeading)).toBeVisible();
 
-    await advance(60_000);
     expect(events).toEqual(['refresh 3 sent', 'refresh 3 answered']);
-    expect(second.getByRole('heading', unreachableHeading)).toBeVisible();
+
+    await advance(5000);
+    expect(await second.findByRole('link', memoriesOf('noor'))).toBeVisible();
+    expect(events).toEqual([
+      'refresh 3 sent',
+      'refresh 3 answered',
+      'refresh 4 sent',
+      'refresh 4 answered',
+    ]);
   });
 
   it('leave a tab that was closed alone', async () => {

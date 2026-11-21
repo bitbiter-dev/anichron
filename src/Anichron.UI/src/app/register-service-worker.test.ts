@@ -123,10 +123,8 @@ it('starts the app as before in a browser without service workers', async () => 
   const updates = await registered();
 
   expect(updates.waiting()).toBe(false);
-  expect(() => {
-    updates.apply();
-  }).not.toThrow();
-  expect(reload).not.toHaveBeenCalled();
+  updates.reload();
+  expect(reload).toHaveBeenCalledOnce();
 });
 
 it('starts the app as before when the registration fails', async () => {
@@ -275,7 +273,7 @@ it('asks the waiting version to take over, and reloads once it has', async () =>
   const worker = registration.found();
   registration.installed(worker);
 
-  updates.apply();
+  updates.reload();
 
   expect(worker.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'SKIP_WAITING' });
   expect(reload).not.toHaveBeenCalled();
@@ -299,7 +297,27 @@ it('reloads at once when another tab already applied the new version', async () 
   registration.installed(worker);
   container.takenOverBy(worker);
 
-  updates.apply();
+  updates.reload();
+
+  expect(worker.postMessage).not.toHaveBeenCalled();
+  expect(reload).toHaveBeenCalledOnce();
+});
+
+it('reloads at once when no version is waiting', async () => {
+  const updates = await registered();
+
+  updates.reload();
+
+  expect(reload).toHaveBeenCalledOnce();
+});
+
+it('reloads at once a page no version controls, as nothing would take it over', async () => {
+  container.controller = null;
+  const worker = new FakeWorker();
+  registration.waiting = worker;
+  const updates = await registered();
+
+  updates.reload();
 
   expect(worker.postMessage).not.toHaveBeenCalled();
   expect(reload).toHaveBeenCalledOnce();
