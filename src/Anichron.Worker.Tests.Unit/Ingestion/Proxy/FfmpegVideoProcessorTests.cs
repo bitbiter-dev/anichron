@@ -68,19 +68,23 @@ public sealed class FfmpegVideoProcessorTests
     }
 
     [Fact]
-    public async Task TranscodeAsync_WhenAllGpuEncodersFail_FallsBackToLibx264Async()
+    public async Task TranscodeAsync_WhenAllGpuEncodersFail_ProbesQuickSyncThenNvencThenFallsBackToLibx264Async()
     {
         var fixture = new TestFixture();
+        var probed = new List<string>();
         fixture.Launcher
             .RunAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 var arguments = callInfo.ArgAt<IReadOnlyList<string>>(1);
+                if (IsProbeCall(arguments))
+                    probed.Add(arguments.SkipWhile(a => a != "-c:v").ElementAt(1));
                 return ProbeResultAsync(!IsProbeCall(arguments));
             });
 
         await fixture.Build().TranscodeAsync("/src/video.mp4", "/out/video.mp4", CancellationToken.None);
 
+        probed.Should().Equal("h264_qsv", "h264_nvenc", "libx264");
         await fixture.Launcher.Received(1).RunAsync(
             "ffmpeg",
             Arg.Is<IReadOnlyList<string>>(a => a.Contains(H264Encoder.Software) && !IsProbeCall(a)),
