@@ -1,5 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../test/axe';
 import { noPhotosSession, refreshSucceeds } from '../test/handlers/auth';
@@ -39,6 +40,8 @@ describe('the home screen without a storage config', () => {
     const { container } = renderApp('/');
 
     const dialog = await notice();
+    await act(() => vi.advanceTimersToNextFrame());
+
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     expect(await axeResults(container)).toHaveNoViolations();
   });

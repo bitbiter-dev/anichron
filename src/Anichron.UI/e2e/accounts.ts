@@ -49,6 +49,11 @@ export async function createAccount(request: APIRequestContext): Promise<Account
     id: string;
     temporaryPassword: string;
   };
+  const storage = await request.post(`/api/v1/users/${id}/storage-configs`, {
+    headers: bearer(adminToken),
+    data: { rootPath: `/data/originals/${username}` },
+  });
+  expect(storage.status(), await storage.text()).toBe(201);
   const password = `${username} passphrase`;
   const token = await signIn(request, username, temporaryPassword);
   await changePassword(request, token, temporaryPassword, password);
