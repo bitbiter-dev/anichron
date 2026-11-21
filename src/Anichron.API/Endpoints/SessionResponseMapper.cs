@@ -46,7 +46,7 @@ public sealed class SessionResponseMapper(
 
     private IResult BuildSessionResponse(AuthTokens tokens, HttpContext http, bool setCookie)
     {
-        var user = UserProfileResponse.From(tokens.User);
+        var user = UserProfileResponse.From(tokens.User, tokens.HasStorageConfig);
         var expiresIn = (int)tokens.AccessTokenLifetime.TotalSeconds;
         if (!setCookie)
             return Results.Ok(new SessionResponse(tokens.AccessToken, expiresIn, user, tokens.RefreshToken));

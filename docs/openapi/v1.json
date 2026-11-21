@@ -3119,7 +3119,8 @@
           "username",
           "email",
           "isAdmin",
-          "mustChangePassword"
+          "mustChangePassword",
+          "hasStorageConfig"
         ],
         "type": "object",
         "properties": {
@@ -3137,6 +3138,9 @@
             "type": "boolean"
           },
           "mustChangePassword": {
+            "type": "boolean"
+          },
+          "hasStorageConfig": {
             "type": "boolean"
           }
         }

@@ -15,7 +15,7 @@ namespace Anichron.API.Tests.Unit.Endpoints;
 public sealed class SessionResponseTests
 {
     private const string Session =
-        """{"accessToken":"the-access","expiresIn":900,"user":{"id":"11111111-1111-1111-1111-111111111111","username":"alice","email":"alice@example.com","isAdmin":true,"mustChangePassword":false}""";
+        """{"accessToken":"the-access","expiresIn":900,"user":{"id":"11111111-1111-1111-1111-111111111111","username":"alice","email":"alice@example.com","isAdmin":true,"mustChangePassword":false,"hasStorageConfig":true}""";
 
     private static AuthTokens Tokens => new(
         "the-access",
@@ -27,7 +27,8 @@ public sealed class SessionResponseTests
             Username = "alice",
             Email = "alice@example.com",
             IsAdmin = true,
-        });
+        },
+        true);
 
     private readonly IAuthService auth = Substitute.For<IAuthService>();
 

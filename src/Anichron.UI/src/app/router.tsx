@@ -13,11 +13,12 @@ import type { ParseKeys } from 'i18next';
 import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
 import { dayKey, isCalendarDate, loadStory, storySearch } from '../features/on-this-day/day';
-import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
+import { Home } from './Home';
 import type { Install } from './install';
+import { createNoPhotos, type NoPhotos } from './use-home';
 import { NotFound } from './NotFound';
 import type { Updates } from './register-service-worker';
 import { returnPath } from './return-path';
@@ -33,6 +34,7 @@ interface RouterContext {
   theme: ThemeChoice;
   updates: Updates;
   install: Install;
+  noPhotos: NoPhotos;
 }
 
 function routeTree() {
@@ -67,7 +69,7 @@ function routeTree() {
   const onThisDayRoute = createRoute({
     getParentRoute: () => shellRoute,
     id: 'on-this-day',
-    component: OnThisDayPage,
+    component: Home,
   });
 
   const homeRoute = createRoute({
@@ -79,7 +81,8 @@ function routeTree() {
     getParentRoute: () => onThisDayRoute,
     path: '/day/$date',
     validateSearch: storySearch,
-    beforeLoad: ({ params }) => {
+    beforeLoad: ({ context, params }) => {
+      if (!context.user.hasStorageConfig) throw redirect({ href: '/' });
       if (!isCalendarDate(params.date)) throw notFound({ routeId: rootRoute.id });
     },
     loader: ({ cause, context, params, location }) =>
@@ -212,6 +215,7 @@ export function createAppRouter(
       theme: createThemeChoice(),
       updates,
       install,
+      noPhotos: createNoPhotos(),
     },
   });
   let userId: string | undefined;
