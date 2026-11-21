@@ -8,9 +8,7 @@ function waitSeconds(step: number) {
   return Math.min(firstWaitSeconds * 2 ** step, longestWaitSeconds);
 }
 
-function idle() {
-  return undefined;
-}
+function idle() {}
 
 function isVisible() {
   return document.visibilityState === 'visible';
