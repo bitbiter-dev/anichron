@@ -1,5 +1,4 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { adminSession, logoutSucceeds, refreshSucceeds } from '../../test/handlers/auth';
@@ -7,12 +6,12 @@ import { everyoneHasMemories } from '../../test/handlers/flashbacks';
 import { themeColourTags } from '../../test/index-head';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
+import { user } from '../../test/time';
 
 const perScheme = [
   '(prefers-color-scheme: light): #f7f5f2',
   '(prefers-color-scheme: dark): #171513',
 ];
-const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
 
 async function openSettings() {
   server.use(refreshSucceeds());

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { axeResults } from '../test/axe';
 import {
   loginRespondsWith,
@@ -21,6 +21,8 @@ import {
 } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
+import { advance } from '../test/time';
+import { signIn } from '../test/session';
 
 const findLoginHeading = () =>
   screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
@@ -75,12 +77,10 @@ describe('signing out', () => {
     const { router } = await openSignedIn();
     signOut();
     expect(await findLoginHeading()).toBeVisible();
-    fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'mira' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    signIn('mira');
     expect(await screen.findByRole('link', memoriesOf('mira'))).toBeVisible();
 
-    await act(() => vi.advanceTimersByTimeAsync(miraSession.expiresIn * 1000));
+    await advance(miraSession.expiresIn * 1000);
 
     expect(await findLoginHeading()).toBeVisible();
     expect(router.state.location.href).toBe('/login?redirect=%2F');
@@ -149,7 +149,7 @@ describe('signing out', () => {
     signOut();
     expect(await findLoginHeading()).toBeVisible();
 
-    await act(() => vi.advanceTimersByTimeAsync(miraSession.expiresIn * 1000));
+    await advance(miraSession.expiresIn * 1000);
     expect(refreshes).toBe(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Sign in to Anichron' })).toBeVisible();
   });
@@ -186,11 +186,9 @@ describe('signing out', () => {
     expect(await findLoginHeading()).toBeVisible();
     answered.length = 0;
 
-    fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'noor' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    signIn('noor');
     expect(await screen.findByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
-    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await advance(1000);
 
     expect(screen.queryByRole('link', memoriesOf('mira'))).toBeNull();
     expect(container.innerHTML).not.toContain(assetIdOf('mira'));

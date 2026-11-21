@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import type { PanInfo } from 'motion/react';
-import { type UIEvent, useEffect, useState } from 'react';
+import { type UIEvent, useEffect, useState, useSyncExternalStore } from 'react';
 import { usePress } from 'react-aria/usePress';
 import type { Memory } from '../../api/flashbacks';
 import { listen } from '../../shared/listen';
 import { blurhashOf } from './blurhash';
-import { burstIdOf, clampFrame, createFrameScroll, framesShown } from './burst';
+import { clampFrame, createFrameScroll, framesShown } from './burst';
 import { burstQuery } from './day';
 import { closesOnSwipe } from './navigation';
 
@@ -25,10 +25,12 @@ export function useFrameBlurhash(frame: Memory) {
   };
 }
 
-export function useBurstDetails(card: Memory, close: () => void) {
+export function useBurstDetails(cover: Memory, close: () => void) {
   const { api } = useRouter().options.context;
-  const query = useQuery(burstQuery(api, burstIdOf(card)));
-  const frames = framesShown(query.data) ?? [card];
+  const { downloads } = api.media;
+  const arrived = useSyncExternalStore(downloads.subscribe, downloads.snapshot);
+  const query = useQuery(burstQuery(api, cover));
+  const frames = framesShown(query.data) ?? [cover];
   const [chosen, setChosen] = useState(0);
   const [scroll] = useState(createFrameScroll);
   const current = clampFrame(chosen, frames.length);
@@ -54,7 +56,11 @@ export function useBurstDetails(card: Memory, close: () => void) {
   });
 
   return {
-    frames: frames.map((memory, index) => ({ memory, place: index + 1 })),
+    frames: frames.map((memory, index) => {
+      const url = memory.proxies.preview;
+      const src = arrived.sourceOf(url) ?? (downloads.failed(url) ? url : null);
+      return { memory, place: index + 1, src };
+    }),
     count: frames.length,
     frame: frames[current] as Memory,
     place: current + 1,

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { freedSources, keptSource, memoryUrls } from '../test/object-urls';
 import { server } from '../test/server';
 import { createMedia, type Wanted } from './media';
+import { advance } from '../test/time';
 
 const renewNothing = () => Promise.resolve();
 
@@ -47,7 +48,7 @@ describe('downloading media', () => {
   }
 
   async function settle() {
-    await vi.advanceTimersByTimeAsync(10);
+    await advance(10);
   }
 
   beforeEach(() => {

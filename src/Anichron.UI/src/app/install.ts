@@ -1,4 +1,4 @@
-import { listen } from '../shared/listen';
+import { createChanges, listen } from '../shared/listen';
 
 interface InstallPrompt extends Event {
   prompt(): Promise<void>;
@@ -33,12 +33,12 @@ function iosBrowser(): IosOffer {
 }
 
 export function keepInstallPrompt() {
-  const changes = new EventTarget();
+  const changes = createChanges();
   let button: InstallButton | undefined;
   let installedHere = false;
   const offerButton = (offered: InstallButton | undefined) => {
     button = offered;
-    changes.dispatchEvent(new Event('change'));
+    changes.notify();
   };
   const answer = async (prompt: InstallPrompt) => {
     await prompt.prompt();
@@ -66,6 +66,6 @@ export function keepInstallPrompt() {
       if (onIos()) return iosBrowser();
       return button ?? (userAgentHas(/Android/) ? 'android' : 'none');
     },
-    subscribe: (listener: () => void) => listen(changes, 'change', listener),
+    subscribe: changes.subscribe,
   };
 }

@@ -7,17 +7,17 @@ import {
   UNSTABLE_ToastRegion as ToastRegion,
 } from 'react-aria-components';
 import type { ToastAction, Toasts as ToastQueue } from '../toasts';
-import { tv } from './tv';
+import { focusVariant, tv } from './tv';
 
 export const toastStyles = tv({
   base: 'flex min-h-11 items-center gap-4 rounded-field bg-surface-raised py-1 pr-1 pl-4 text-small text-fg shadow-(--shadow-glass)',
   variants: {
-    isFocusVisible: { true: 'outline-2 outline-offset-2 outline-focus', false: 'outline-none' },
+    ...focusVariant(),
   },
 });
 
 export const toastActionStyles =
-  'min-h-11 rounded-full px-4 font-semibold text-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+  'min-h-11 rounded-full px-4 font-semibold text-accent outline-none focus-visible:focus-ring';
 
 interface ToastsProps {
   toasts: ToastQueue;

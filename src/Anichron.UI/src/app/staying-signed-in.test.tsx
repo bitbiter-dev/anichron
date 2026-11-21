@@ -21,6 +21,8 @@ import {
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 import { becomes } from '../test/visibility';
+import { advance } from '../test/time';
+import { signIn } from '../test/session';
 
 const lifetime = miraSession.expiresIn;
 const renewal = lifetime * 800;
@@ -72,16 +74,6 @@ function dayAccepts(
   return dayRespondsWith((bearer) =>
     accepts(bearer?.replace('Bearer ', '') ?? '') ? miraDay() : unauthorized(),
   );
-}
-
-function signIn(username: string) {
-  fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: username } });
-  fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'hunter2' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-}
-
-async function advance(milliseconds: number) {
-  await act(() => vi.advanceTimersByTimeAsync(milliseconds));
 }
 
 async function untilAnswered(milliseconds: number) {

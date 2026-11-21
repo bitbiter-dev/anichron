@@ -1,7 +1,8 @@
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
-import { previewOf, startGroup } from './day';
+import { framesShown } from './burst';
+import { framesOf, previewOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
 import { kindOf } from './memory-kinds';
 import { createPreload, createPreviews, nextVideo, wantedOf } from './prefetch';
@@ -18,6 +19,8 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       const memoryAt = ({ group, memory }: Place) =>
         (years[group] as YearGroup).memories[memory] as Memory;
       const previewAt = (place: Place) => previewOf(api, queryClient, memoryAt(place));
+      const framesAt = (place: Place) =>
+        framesShown(framesOf(api, queryClient, memoryAt(place))) ?? [];
       const previews = createPreviews(downloads, previewAt);
       const story = createStory(
         years.map((group) =>
@@ -33,7 +36,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       const player = createVideoPlayer(story, memoryAt, () => session.renewMedia(), downloads);
       const sync = () => {
         const state = story.state();
-        downloads.keep(wantedOf(state, previewAt, memoryAt));
+        downloads.keep(wantedOf(state, previewAt, memoryAt, framesAt));
         previews.sync(state, story.mediaFailed);
       };
       const subscribe = (listener: () => void) => {

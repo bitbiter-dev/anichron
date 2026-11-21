@@ -1,4 +1,5 @@
 import type { Memory } from '../../api/flashbacks';
+import { createTapGuard } from './navigation';
 
 type Burst = NonNullable<Memory['burst']>;
 
@@ -14,7 +15,7 @@ export function framesShown(frames: readonly Memory[] | undefined) {
   return frames?.filter(({ interaction }) => !interaction.hidden);
 }
 
-export function cardOf(memory: Memory, frames: readonly Memory[] | undefined): Memory {
+export function coverOf(memory: Memory, frames: readonly Memory[] | undefined): Memory {
   const shown = framesShown(frames) ?? [];
   const cover = shown[0];
   if (!cover) return memory;
@@ -27,8 +28,8 @@ export function clampFrame(index: number, count: number) {
 
 export function createFrameScroll() {
   let list: HTMLElement | null = null;
-  let dragging: boolean | undefined;
   return {
+    ...createTapGuard(),
     attach: (element: HTMLElement | null) => {
       list = element;
     },
@@ -36,12 +37,5 @@ export function createFrameScroll() {
       const element = list as HTMLElement;
       element.scrollLeft = index * element.clientWidth;
     },
-    pressStart: () => {
-      dragging = false;
-    },
-    dragStart: () => {
-      dragging = true;
-    },
-    tapped: () => !dragging,
   };
 }

@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { Alert } from '../../shared/ui/Alert';
 import { Button } from '../../shared/ui/Button';
+import { Card } from '../../shared/ui/Card';
+import { CentredPage } from '../../shared/ui/CentredPage';
 import { FormField } from '../../shared/ui/FormField';
+import { FormStatus } from '../../shared/ui/FormStatus';
 import { SignOutButton } from '../../shared/ui/SignOutButton';
 import { usePasswordForm, type PasswordForm } from './use-password-form';
 
@@ -10,10 +12,10 @@ export function ChangePasswordPage() {
   const form = usePasswordForm();
   return (
     <main className="p-4">
-      <section className="flex max-w-sm flex-col gap-4 rounded-card p-4 glass-card">
+      <Card as="section" className="max-w-sm gap-4">
         <p role="status">{form.changed && t('password.changed')}</p>
         <PasswordFormFields form={form} />
-      </section>
+      </Card>
     </main>
   );
 }
@@ -21,14 +23,10 @@ export function ChangePasswordPage() {
 export function ForcedPasswordPage() {
   const { t } = useTranslation();
   return (
-    <main className="grid min-h-dvh place-items-center p-4 glow-backdrop">
-      <div className="flex w-full max-w-sm flex-col gap-4 rounded-card p-6 glass-card">
-        <h1 className="text-title font-semibold">{t('password.forcedTitle')}</h1>
-        <p className="text-fg-muted">{t('password.forcedBody')}</p>
-        <PasswordFormFields form={usePasswordForm()} />
-        <SignOutButton />
-      </div>
-    </main>
+    <CentredPage title={t('password.forcedTitle')} body={t('password.forcedBody')}>
+      <PasswordFormFields form={usePasswordForm()} />
+      <SignOutButton />
+    </CentredPage>
   );
 }
 
@@ -37,10 +35,7 @@ function PasswordFormFields({ form }: { form: PasswordForm }) {
   const { control, onSubmit, formError, fieldError, retryIn, blocked } = form;
   return (
     <form className="flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)} noValidate>
-      <Alert message={formError} />
-      {retryIn > 0 && (
-        <p className="text-small text-fg-muted">{t('retryIn', { count: retryIn })}</p>
-      )}
+      <FormStatus error={formError} retryIn={retryIn} />
       <FormField
         control={control}
         name="currentPassword"

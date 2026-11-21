@@ -1,15 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { listen } from '../../shared/listen';
+import { isVisible, onVisibilityChange } from '../../shared/listen';
 import { merge } from './cache';
-
-function onVisibilityChange(changed: () => void) {
-  return listen(document, 'visibilitychange', changed);
-}
-function isVisible() {
-  return document.visibilityState === 'visible';
-}
 
 export function useStream(cursor: string | undefined) {
   const { api } = useRouter().options.context;

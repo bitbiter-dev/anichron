@@ -13,6 +13,7 @@ import {
   hold,
   memory,
   onThisDayAnswers,
+  proxyUrl,
   todayAnd,
   yearGroup,
 } from '../../test/handlers/flashbacks';
@@ -20,13 +21,14 @@ import { askedPictures, holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
+import { advance } from '../../test/time';
 
 const ids = {
   first2025: '0199a1b2-c3d4-7e5f-8a9b-000000002025',
   second2025: '0199a1b2-c3d4-7e5f-8a9b-100000002025',
   first2023: '0199a1b2-c3d4-7e5f-8a9b-000000002023',
 };
-const thumbnail = (id: string) => `/api/v1/proxies/${id}/thumbnail?v=0123456789abcdef`;
+const thumbnail = (id: string) => proxyUrl(id, 'thumbnail');
 
 let requested: string[];
 
@@ -42,10 +44,6 @@ function today(
       return years;
     }),
   );
-}
-
-async function advance(milliseconds: number) {
-  await act(() => vi.advanceTimersByTimeAsync(milliseconds));
 }
 
 const pictureIn = (element: HTMLElement) => element.querySelector('img');

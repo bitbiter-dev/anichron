@@ -23,7 +23,7 @@ export function BottomBar() {
           search={search}
           activeOptions={{ exact: true }}
           onFocus={show}
-          className="flex min-h-11 min-w-16 flex-col items-center justify-center rounded-full px-4 py-1 text-small text-fg-muted outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus data-[status=active]:text-accent"
+          className="flex min-h-11 min-w-16 flex-col items-center justify-center rounded-full px-4 py-1 text-small text-fg-muted outline-none focus-visible:focus-ring data-[status=active]:text-accent"
         >
           <Icon aria-hidden className="size-6" />
           {t(label)}

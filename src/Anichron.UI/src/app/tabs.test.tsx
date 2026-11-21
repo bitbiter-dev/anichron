@@ -1,7 +1,6 @@
 import { fireEvent, within } from '@testing-library/react';
 import { delay, HttpResponse } from 'msw';
-import { act } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { components } from '../api/generated/v1';
 import {
   loginRespondsWith,
@@ -22,6 +21,8 @@ import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 import { becomes } from '../test/visibility';
 import { sharedTabs } from '../test/tabs';
+import { advance } from '../test/time';
+import { signIn } from '../test/session';
 
 type UserProfile = components['schemas']['UserProfileResponse'];
 
@@ -66,21 +67,11 @@ function refreshTakes(
   });
 }
 
-function signInAsNoor(tab: ReturnType<typeof openTabs>[number]) {
-  fireEvent.change(tab.getByLabelText('Username or email'), { target: { value: 'noor' } });
-  fireEvent.change(tab.getByLabelText('Password'), { target: { value: 'hunter2' } });
-  fireEvent.click(tab.getByRole('button', { name: 'Sign in' }));
-}
-
 const noorSignsIn = () =>
   loginRespondsWith(() => {
     signedIn = 'noor';
     return sessionOf('noor');
   });
-
-async function advance(milliseconds: number) {
-  await act(() => vi.advanceTimersByTimeAsync(milliseconds));
-}
 
 function openTabs(firstPath: string, secondPath: string) {
   const tabs = sharedTabs();
@@ -160,9 +151,7 @@ describe('two tabs of one browser', () => {
     expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
     events = [];
 
-    fireEvent.change(first.getByLabelText('Username or email'), { target: { value: 'noor' } });
-    fireEvent.change(first.getByLabelText('Password'), { target: { value: 'hunter2' } });
-    fireEvent.click(first.getByRole('button', { name: 'Sign in' }));
+    signIn('noor', first);
     expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     const noorsDay = hold();
     holds.set('noor', noorsDay.until);
@@ -218,7 +207,7 @@ describe('two tabs of one browser', () => {
     expect(await first.findByRole('heading', loginHeading)).toBeVisible();
     expect(await second.findByRole('heading', loginHeading)).toBeVisible();
 
-    signInAsNoor(first);
+    signIn('noor', first);
 
     expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     expect(await second.findByRole('link', memoriesOf('noor'))).toBeVisible();
@@ -232,7 +221,7 @@ describe('two tabs of one browser', () => {
     expect(await second.findByRole('link', memoriesOf('mira'))).toBeVisible();
     events = [];
 
-    signInAsNoor(first);
+    signIn('noor', first);
     expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     expect(await second.findByRole('heading', unreachableHeading)).toBeVisible();
 
@@ -266,9 +255,7 @@ describe('two tabs of one browser', () => {
     second.unmount();
     events = [];
 
-    fireEvent.change(first.getByLabelText('Username or email'), { target: { value: 'noor' } });
-    fireEvent.change(first.getByLabelText('Password'), { target: { value: 'hunter2' } });
-    fireEvent.click(first.getByRole('button', { name: 'Sign in' }));
+    signIn('noor', first);
     expect(await first.findByRole('link', memoriesOf('noor'))).toBeVisible();
     await advance(1000);
 

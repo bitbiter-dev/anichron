@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
-import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
+import type { ComponentProps } from 'react';
+import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { Day, YearGroup } from '../../api/flashbacks';
 import { Toasts } from '../../shared/ui/Toast';
-import { Blurhash } from './BlurhashCanvas';
 import { BurstDetails } from './BurstDetails';
 import { otherFrames } from './burst';
 import { CloseButton, roundButton } from './CloseButton';
@@ -16,11 +16,12 @@ import { Failed } from '../../shared/ui/Failed';
 import { LivePhotoIcon } from './LivePhotoIcon';
 import { focusOnMount } from './focus';
 import { MemoryActions } from './MemoryActions';
-import { ProxyImage } from './ProxyImage';
+import { MemoryImage } from './MemoryImage';
+import { PlayerDialog } from './PlayerDialog';
 import type { Gestures } from './navigation';
 import { type Move, segmentState, type Tap } from './story';
 import type { LiveState } from './story-view';
-import { useCard } from './use-card';
+import { useCover } from './use-cover';
 import { useInteractions } from './use-interactions';
 import { usePull } from './use-pull';
 import { useStory } from './use-story';
@@ -39,29 +40,20 @@ export function StoryPage() {
     back.to('/');
   };
   return (
-    <ModalOverlay isOpen onOpenChange={close} className="fixed inset-0 z-20">
-      <Modal className="size-full">
-        <Dialog
-          aria-label={t('story.title', {
-            date: utcDay(date),
-            formatParams: { date: { dateStyle: 'long', timeZone: 'UTC' } },
-          })}
-          className="relative size-full text-on-player outline-none"
-        >
-          {state.years ? (
-            <Player
-              date={date}
-              year={year}
-              years={state.years}
-              day={day.data as Day}
-              close={close}
-            />
-          ) : (
-            <Fallback state={state} close={close} retry={() => void day.refetch()} />
-          )}
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+    <PlayerDialog
+      label={t('story.title', {
+        date: utcDay(date),
+        formatParams: { date: { dateStyle: 'long', timeZone: 'UTC' } },
+      })}
+      layer="story"
+      close={close}
+    >
+      {state.years ? (
+        <Player date={date} year={year} years={state.years} day={day.data as Day} close={close} />
+      ) : (
+        <Fallback state={state} close={close} retry={() => void day.refetch()} />
+      )}
+    </PlayerDialog>
   );
 }
 
@@ -140,8 +132,8 @@ function Player({ date, year, years, day, close }: PlayerProps) {
     live,
     replay,
   } = story;
-  const card = useCard(memory);
-  const interactions = useInteractions(date, { ...story, memory: card });
+  const cover = useCover(memory);
+  const interactions = useInteractions(date, { ...story, memory: cover });
   const pull = usePull(gestures);
   return (
     <LazyMotion features={domMax} strict>
@@ -159,20 +151,15 @@ function Player({ date, year, years, day, close }: PlayerProps) {
           className="absolute inset-0 overflow-hidden select-none [-webkit-touch-callout:none]"
         >
           <m.div style={pull.fill} className="absolute inset-0 bg-player" />
-          <div
+          <Picture
             key={state.visit}
-            role="img"
-            aria-label={t('story.memory', { ...name, kind: t(name.kind) })}
-            className="absolute inset-0"
-          >
-            {blurhash && <Blurhash {...blurhash} />}
-            <Picture
-              image={image}
-              src={story.source(card.proxies.preview)}
-              onDecoded={mediaReady}
-              onFailed={mediaFailed}
-            />
-          </div>
+            label={t('story.memory', { ...name, kind: t(name.kind) })}
+            blurhash={blurhash}
+            image={image}
+            src={story.source(cover.proxies.preview)}
+            onDecoded={mediaReady}
+            onFailed={mediaFailed}
+          />
           <video
             {...videoEvents}
             hidden={!video}
@@ -184,7 +171,7 @@ function Player({ date, year, years, day, close }: PlayerProps) {
           {nextVideo && (
             <video key={nextVideo} src={nextVideo} preload="auto" hidden aria-hidden muted />
           )}
-          <OtherFrames count={otherFrames(card)} />
+          <OtherFrames count={otherFrames(cover)} />
           {failed && (
             <p className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center font-semibold">
               {t('story.failed')}
@@ -219,7 +206,7 @@ function Player({ date, year, years, day, close }: PlayerProps) {
           </div>
           <div style={{ visibility: controls }}>
             <MemoryActions
-              interaction={interactionOf(day, card)}
+              interaction={interactionOf(day, cover)}
               onToggle={interactions.toggle}
               onHide={interactions.hide}
             />
@@ -228,7 +215,7 @@ function Player({ date, year, years, day, close }: PlayerProps) {
         </m.div>
         <BurstDetails
           open={state.details}
-          card={card}
+          cover={cover}
           close={story.closeDetails}
           interactions={interactions}
         />
@@ -238,20 +225,21 @@ function Player({ date, year, years, day, close }: PlayerProps) {
   );
 }
 
-interface PictureProps {
+interface PictureProps extends Omit<ComponentProps<typeof MemoryImage>, 'className'> {
   image: 'picture' | 'poster' | null;
-  src: string | null;
-  onDecoded: () => void;
-  onFailed: () => void;
 }
 
-function Picture({ image, src, onDecoded, onFailed }: PictureProps) {
-  const className = 'relative size-full object-contain';
-  if (image === 'poster') return <ProxyImage src={src} className={className} />;
+function Picture({ image, src, onDecoded, onFailed, ...memory }: PictureProps) {
+  const className = 'absolute inset-0';
+  if (image === 'poster') return <MemoryImage {...memory} src={src} className={className} />;
   return (
-    image && (
-      <ProxyImage src={src} onDecoded={onDecoded} onFailed={onFailed} className={className} />
-    )
+    <MemoryImage
+      {...memory}
+      src={image && src}
+      onDecoded={onDecoded}
+      onFailed={onFailed}
+      className={className}
+    />
   );
 }
 
@@ -281,7 +269,7 @@ function LiveButton({ shown, live, play }: LiveButtonProps) {
       data-live={live}
       className="group pointer-events-auto flex h-11 items-center outline-none"
     >
-      <span className="relative flex items-center gap-1 rounded-full py-0.5 pr-2 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:outline-2 group-data-focus-visible:outline-offset-2 group-data-focus-visible:outline-focus">
+      <span className="relative flex items-center gap-1 rounded-full py-0.5 pr-2 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:focus-ring">
         <span
           aria-hidden
           className="pointer-events-none absolute -inset-px hidden live-ring rounded-full group-data-[live=loading]:block"
@@ -315,7 +303,7 @@ function Sound({ shown, hint, label, toggle }: SoundProps) {
       <Button
         aria-label={t(label)}
         onPress={toggle}
-        className="flex size-full items-center justify-center rounded-full bg-player/40 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        className="flex size-full items-center justify-center rounded-full bg-player/40 outline-none focus-visible:focus-ring"
       >
         <Icon aria-hidden className="size-1/2 group-data-[hint=true]:opacity-60" />
       </Button>
@@ -339,7 +327,7 @@ function Zone({ label, gestures, move }: ZoneProps) {
       type="button"
       aria-label={label}
       {...useZonePress(gestures, move)}
-      className="h-full flex-1 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+      className="h-full flex-1 outline-none focus-visible:focus-ring-inset"
     />
   );
 }

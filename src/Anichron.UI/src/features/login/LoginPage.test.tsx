@@ -1,8 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
 import { HttpResponse } from 'msw';
-import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { LoginRequest } from '../../api/session';
 import type { Tabs } from '../../api/tabs';
 import { axeResults } from '../../test/axe';
@@ -10,12 +8,11 @@ import { loginFails, loginRespondsWith, loginSucceeds, problem } from '../../tes
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { sharedTabs } from '../../test/tabs';
+import { advance, runAllTimers, user } from '../../test/time';
 
 const serverText = 'Server text that is never shown.';
 
 const submitButton = () => screen.getByRole('button', { name: 'Sign in' });
-
-const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
 
 async function openLogin() {
   const rendered = renderApp('/login');
@@ -162,7 +159,7 @@ describe('the login screen', () => {
     expect(submitButton()).toBeDisabled();
     expect(await axeResults(container)).toHaveNoViolations();
 
-    await act(() => vi.advanceTimersByTimeAsync(5000));
+    await advance(5000);
     expect(submitButton()).toBeEnabled();
     server.use(loginSucceeds());
     await user().click(submitButton());
@@ -207,7 +204,7 @@ describe('the login screen', () => {
     expect(submitButton()).toBeEnabled();
   });
 
-  it('shows a field error from the API on its field', async () => {
+  it('shows a field error from the API on its field, and no form-level error', async () => {
     server.use(
       loginFails(
         422,
@@ -227,6 +224,7 @@ describe('the login screen', () => {
     });
     expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText('Username or email')).not.toHaveAccessibleDescription();
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
   });
 
   it.each([
@@ -252,16 +250,16 @@ describe('the login screen', () => {
     expect(screen.getByText('You can try again in 3 seconds.')).toBeVisible();
     expect(submitButton()).toBeDisabled();
 
-    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await advance(1000);
     expect(screen.getByText('You can try again in 2 seconds.')).toBeVisible();
-    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await advance(1000);
     expect(screen.getByText('You can try again in 1 second.')).toBeVisible();
     expect(submitButton()).toBeDisabled();
-    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await advance(1000);
 
     expect(screen.queryByText(/You can try again/)).toBeNull();
     expect(submitButton()).toBeEnabled();
-    await act(() => vi.runAllTimersAsync());
+    await runAllTimers();
     expect(await axeResults(container)).toHaveNoViolations();
     server.use(loginSucceeds());
     await user().click(submitButton());
@@ -276,7 +274,7 @@ describe('the login screen', () => {
 
     await alertSays('Too many attempts from this device.');
     expect(screen.getByText('You can try again in 60 seconds.')).toBeVisible();
-    await act(() => vi.advanceTimersByTimeAsync(59_000));
+    await advance(59_000);
     expect(screen.getByText('You can try again in 1 second.')).toBeVisible();
   });
 

@@ -1,5 +1,4 @@
 import { fireEvent, screen, within, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { encode } from 'blurhash';
 import { http, HttpResponse } from 'msw';
 import { act } from 'react';
@@ -17,6 +16,8 @@ import {
   hold,
   memory,
   onThisDayAnswers,
+  proxyPath,
+  proxyUrl,
   todayAnd,
   yearGroup,
 } from '../../test/handlers/flashbacks';
@@ -26,6 +27,7 @@ import { freedSources, keptSource as fromMemoryOf } from '../../test/object-urls
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
+import { advance, user } from '../../test/time';
 
 const ids = {
   a2025: '0199a1b2-c3d4-7e5f-8a9b-0000000a2025',
@@ -35,7 +37,7 @@ const ids = {
   a2021: '0199a1b2-c3d4-7e5f-8a9b-0000000a2021',
   b2021: '0199a1b2-c3d4-7e5f-8a9b-0000000b2021',
 };
-const preview = (id: string) => `/api/v1/proxies/${id}/preview?v=0123456789abcdef`;
+const preview = (id: string) => proxyUrl(id, 'preview');
 const storyName = 'Memories of November 11, 2026';
 
 const threeYears = () => [
@@ -47,11 +49,6 @@ const threeYears = () => [
 let requested: string[];
 let years: ReturnType<typeof threeYears>;
 
-async function advance(milliseconds: number) {
-  await act(() => vi.advanceTimersByTimeAsync(milliseconds));
-}
-
-const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
 const galleryOf = (name: string) =>
   screen.getByRole('link', { name }).closest('ul') as HTMLUListElement;
 const story = () => screen.getByRole('dialog', { name: storyName });
@@ -823,16 +820,16 @@ describe('a memory loading', () => {
 });
 
 describe('a video', () => {
-  const clip = (id: string) => `/api/v1/proxies/${id}/video?v=0123456789abcdef`;
+  const clip = (id: string) => proxyUrl(id, 'video');
   const video = () => story().querySelector('video') as HTMLVideoElement;
   const film = (id: string, year: number, overrides: Parameters<typeof memory>[2] = {}) =>
     memory(id, year, {
       mediaType: 'Video',
       durationSeconds: 12,
       proxies: {
-        thumbnail: `proxies/${id}/thumbnail?v=0123456789abcdef`,
-        preview: `proxies/${id}/preview?v=0123456789abcdef`,
-        video: `proxies/${id}/video?v=0123456789abcdef`,
+        thumbnail: proxyPath(id, 'thumbnail'),
+        preview: proxyPath(id, 'preview'),
+        video: proxyPath(id, 'video'),
       },
       ...overrides,
     });
@@ -963,7 +960,7 @@ describe('a video', () => {
           proxies: {
             thumbnail: null,
             preview: null,
-            video: `proxies/${ids.a2025}/video?v=0123456789abcdef`,
+            video: proxyPath(ids.a2025, 'video'),
           },
         }),
       ),
@@ -1434,12 +1431,12 @@ describe('a video', () => {
 
 describe('a Live Photo', () => {
   const movId = '0199a1b2-c3d4-7e5f-8a9b-0000000d2025';
-  const keptSource = `memory:/api/v1/proxies/${movId}/video?v=fedcba9876543210`;
+  const keptSource = `memory:${proxyUrl(movId, 'video')}`;
   const video = () => story().querySelector('video') as HTMLVideoElement;
   const live = (id: string, year: number) =>
     memory(id, year, {
       mediaType: 'LivePhoto',
-      livePhotoVideoUrl: `proxies/${movId}/video?v=fedcba9876543210`,
+      livePhotoVideoUrl: proxyPath(movId, 'video'),
     });
 
   async function fire(event: 'playing' | 'ended' | 'error') {
@@ -1665,7 +1662,7 @@ describe('a Live Photo', () => {
         'burst',
         memory(ids.a2025, 2025, {
           burst: { burstId: ids.c2025, isCover: true, count: 2 },
-          livePhotoVideoUrl: `proxies/${movId}/video?v=fedcba9876543210`,
+          livePhotoVideoUrl: proxyPath(movId, 'video'),
         }),
       ],
     ])('shows no Live pill on a hold on a %s', async (_, held) => {
@@ -1922,11 +1919,11 @@ describe('a Live Photo', () => {
 
   describe('its video, kept loaded', () => {
     const movOf = (id: string) => id.replace('0000000', '0000mov');
-    const motionOf = (id: string) => `/api/v1/proxies/${movOf(id)}/video?v=fedcba9876543210`;
+    const motionOf = (id: string) => proxyUrl(movOf(id), 'video');
     const liveAt = (id: string, year: number) =>
       memory(id, year, {
         mediaType: 'LivePhoto',
-        livePhotoVideoUrl: `proxies/${movOf(id)}/video?v=fedcba9876543210`,
+        livePhotoVideoUrl: proxyPath(movOf(id), 'video'),
       });
     let received: string[];
     let answer: (url: string) => Promise<Response | undefined> | undefined;
@@ -2005,7 +2002,7 @@ describe('a Live Photo', () => {
           2025,
           memory(ids.a2025, 2025, {
             mediaType: 'LivePhoto',
-            livePhotoVideoUrl: `proxies/${movOf(ids.a2025)}/video?v=fedcba9876543210`,
+            livePhotoVideoUrl: proxyPath(movOf(ids.a2025), 'video'),
             burst: { burstId: ids.c2025, isCover: true, count: 2 },
           }),
           liveAt(ids.b2025, 2025),
@@ -2138,15 +2135,15 @@ describe('a Live Photo', () => {
 });
 
 describe('the next memories', () => {
-  const clip = (id: string) => `/api/v1/proxies/${id}/video?v=0123456789abcdef`;
+  const clip = (id: string) => proxyUrl(id, 'video');
   const film = (id: string, year: number) =>
     memory(id, year, {
       mediaType: 'Video',
       durationSeconds: 12,
       proxies: {
-        thumbnail: `proxies/${id}/thumbnail?v=0123456789abcdef`,
-        preview: `proxies/${id}/preview?v=0123456789abcdef`,
-        video: `proxies/${id}/video?v=0123456789abcdef`,
+        thumbnail: proxyPath(id, 'thumbnail'),
+        preview: proxyPath(id, 'preview'),
+        video: proxyPath(id, 'video'),
       },
     });
   const preloading = () =>
@@ -2398,7 +2395,7 @@ describe('a blurhash', () => {
 
   describe('of a memory whose preview was fetched ahead', () => {
     const live = {
-      livePhotoVideoUrl: 'proxies/0199a1b2-c3d4-7e5f-8a9b-00000000a0e1/video?v=fedcba9876543210',
+      livePhotoVideoUrl: proxyPath('0199a1b2-c3d4-7e5f-8a9b-00000000a0e1', 'video'),
     };
     const burst = { burst: { burstId: ids.c2025, isCover: true, count: 2 } };
     let received: string[];
@@ -2493,9 +2490,9 @@ describe('a blurhash', () => {
         mediaType: 'Video',
         durationSeconds: 12,
         proxies: {
-          thumbnail: `proxies/${ids.a2023}/thumbnail?v=0123456789abcdef`,
-          preview: `proxies/${ids.a2023}/preview?v=0123456789abcdef`,
-          video: `proxies/${ids.a2023}/video?v=0123456789abcdef`,
+          thumbnail: proxyPath(ids.a2023, 'thumbnail'),
+          preview: proxyPath(ids.a2023, 'preview'),
+          video: proxyPath(ids.a2023, 'video'),
         },
       });
       await openFetchingAhead();
@@ -3326,8 +3323,8 @@ describe('a story for a screen reader', () => {
         mediaType,
         proxies: {
           thumbnail: null,
-          preview: `proxies/${id}/preview?v=0123456789abcdef`,
-          video: `proxies/${id}/video?v=0123456789abcdef`,
+          preview: proxyPath(id, 'preview'),
+          video: proxyPath(id, 'video'),
         },
       });
     years = [
@@ -3958,6 +3955,16 @@ describe('a burst', () => {
     return await screen.findByRole('img', { name: 'Frame 1 of 3' });
   }
 
+  const frameSources = () =>
+    [...details().querySelectorAll('img')].map((image) => image.getAttribute('src'));
+
+  async function framesArrived() {
+    await waitFor(() => {
+      expect(frameSources()).toHaveLength(frameShown().length);
+    });
+    return frameSources().map(fromMemory);
+  }
+
   it('opens its frames from the cover on a middle tap, with the story paused', async () => {
     const { container } = await openStory('/day/2026-11-11?year=2025');
     await shown();
@@ -3968,9 +3975,7 @@ describe('a burst', () => {
     expect(opened).toEqual([burstId]);
     expect(counter()).toHaveTextContent('1 / 3');
     expect(frameShown()).toEqual(['Frame 1 of 3', 'Frame 2 of 3', 'Frame 3 of 3']);
-    expect(
-      [...details().querySelectorAll('img')].map((image) => image.getAttribute('src')),
-    ).toEqual(frameIds.map(preview));
+    expect(await framesArrived()).toEqual(frameIds.map(preview));
     expect(await axeResults(container)).toHaveNoViolations();
     await advance(30_000);
     expect(details()).toBeVisible();
@@ -4220,9 +4225,7 @@ describe('a burst', () => {
 
       expect(frameShown()).toEqual(['Frame 1 of 2', 'Frame 2 of 2']);
       expect(counter()).toHaveTextContent('2 / 2');
-      expect(details().querySelectorAll('img')[1]?.getAttribute('src')).toBe(
-        preview(frameIds[2] as string),
-      );
+      expect((await framesArrived())[1]).toBe(preview(frameIds[2] as string));
       expect(toast()).toHaveTextContent('Memory hidden');
       expect(await axeResults(container)).toHaveNoViolations();
       await user().click(within(toast()).getByRole('button', { name: 'Undo' }));
@@ -4334,6 +4337,52 @@ describe('a burst', () => {
     expect(within(story()).getByText('+1')).toBeVisible();
   });
 
+  it('keeps a burst query only for a memory that is a burst', async () => {
+    const { router } = await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await openDetails();
+    await user().keyboard('{Escape}');
+    fireEvent.click(button('Next'));
+    await shown();
+
+    const bursts = router.options.context.queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ['burst'] })
+      .map(({ queryKey }) => queryKey);
+    expect(bursts).toEqual([['burst', burstId]]);
+  });
+
+  it('downloads each frame preview once, and not the cover the story already holds', async () => {
+    const received: string[] = [];
+    server.use(proxyAnswers(received));
+    await opened3();
+    await framesArrived();
+    await user().keyboard('{Escape}');
+    await openDetails();
+    await framesArrived();
+
+    const framePreviews = frameIds.map(preview);
+    expect(received.filter((url) => framePreviews.includes(url))).toEqual(framePreviews);
+  });
+
+  it('shows a frame from the network when its download fails', async () => {
+    const failing = preview(frameIds[1] as string);
+    server.use(
+      proxyAnswers([], (url) =>
+        url === failing ? new HttpResponse(null, { status: 500 }) : undefined,
+      ),
+    );
+    await opened3();
+
+    await waitFor(() => {
+      expect(frameSources()).toEqual([
+        `memory:${preview(ids.a2025)}`,
+        failing,
+        `memory:${preview(frameIds[2] as string)}`,
+      ]);
+    });
+  });
+
   it("shows each frame's blurhash until its picture shows", async () => {
     const blurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -4348,6 +4397,7 @@ describe('a burst', () => {
       burstAnswers(() => frameIds.map((id, index) => ({ ...frame(id, index), blurhash }))),
     );
     await opened3();
+    await framesArrived();
     const canvases = () => details().querySelectorAll('canvas');
     expect(canvases()).toHaveLength(3);
 

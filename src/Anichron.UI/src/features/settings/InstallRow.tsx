@@ -1,21 +1,22 @@
 import { SquarePlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../shared/ui/Button';
+import { Card } from '../../shared/ui/Card';
 import { Modal } from '../../shared/ui/Modal';
 import { RowAction } from '../../shared/ui/Row';
 import { type ShownStep, useInstallRow } from './install-row';
 
-export function InstallRow({ className }: { className: string }) {
+export function InstallRow() {
   const { t } = useTranslation();
   const row = useInstallRow();
   if (!row) return null;
   return (
-    <div className={className}>
+    <Card padded={false}>
       <RowAction icon={SquarePlus} onPress={row.press}>
         {t('settings.install.title')}
       </RowAction>
       {row.open && <HowToInstall steps={row.steps} close={row.close} />}
-    </div>
+    </Card>
   );
 }
 

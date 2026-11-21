@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { WorkItem, WorkItemPage } from '../../api/work-items';
 import { buttonStyles } from '../../shared/ui/Button';
 import { pageQuery } from './cache';
+import { Card } from '../../shared/ui/Card';
 import { Failed } from '../../shared/ui/Failed';
 import { Skeleton } from '../../shared/ui/Skeleton';
 import { Cancel, Progress } from './parts';
@@ -33,7 +34,7 @@ function ItemsSkeleton() {
   return (
     <div aria-hidden className="flex flex-col gap-3">
       {[0, 1, 2].map((row) => (
-        <div key={row} className="flex flex-col gap-2 rounded-card p-4 glass-card">
+        <Card key={row} className="gap-2">
           <div className="flex h-6 items-center justify-between gap-3">
             <Skeleton className="h-4 w-28 rounded-full" />
             <Skeleton className="h-3 w-16 rounded-full" />
@@ -42,7 +43,7 @@ function ItemsSkeleton() {
           <div className="flex h-5 items-center">
             <Skeleton className="h-3 w-44 rounded-full" />
           </div>
-        </div>
+        </Card>
       ))}
     </div>
   );
@@ -66,12 +67,12 @@ function Items({ page }: { page: WorkItemPage }) {
 function Row({ item }: { item: WorkItem }) {
   const { t } = useTranslation();
   return (
-    <li className="flex flex-col gap-2 rounded-card p-4 glass-card">
+    <Card as="li" className="gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <Link
           to="/admin/work-items/$id"
           params={{ id: item.id }}
-          className="font-semibold text-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          className="font-semibold text-accent outline-none focus-visible:focus-ring"
         >
           {t(`workItems.kinds.${item.kind}`)}
         </Link>
@@ -80,7 +81,7 @@ function Row({ item }: { item: WorkItem }) {
       <Progress item={item} />
       <p className="text-small text-fg-muted">{t('workItems.requested', at(item.requestedAt))}</p>
       {cancellable(item) && <Cancel item={item} />}
-    </li>
+    </Card>
   );
 }
 

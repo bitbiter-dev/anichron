@@ -1,3 +1,4 @@
+import { createChanges } from '../shared/listen';
 export type MediaKind = 'picture' | 'video';
 
 export type Wanted = readonly { url: string; kind: MediaKind }[];
@@ -67,7 +68,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
   const cached = new Map<string, Download>();
   let order: Wanted = [];
   let active: Download | undefined;
-  const listeners = new Set<() => void>();
+  const changes = createChanges();
   const sourceOf = (url: string | null) => wanted.get(url)?.source ?? null;
   const settled = ({ source, failed }: Download) => source !== null || failed;
 
@@ -83,9 +84,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
 
   let snapshot = downloaded();
 
-  function notify() {
-    for (const listener of listeners) listener();
-  }
+  const notify = changes.notify;
 
   function changed() {
     snapshot = downloaded();
@@ -209,10 +208,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
       startNext();
     },
     snapshot: () => snapshot,
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    subscribe: changes.subscribe,
     clear() {
       keep([]);
     },

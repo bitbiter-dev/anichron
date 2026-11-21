@@ -1,15 +1,12 @@
 import { Label, RadioButton, RadioField, RadioGroup } from 'react-aria-components';
-import { tv } from './tv';
+import { focusVariant, tv } from './tv';
 
 export const segmentStyles = tv({
   base: 'flex min-h-11 flex-1 cursor-default items-center justify-center rounded-full px-3 text-small font-medium text-fg-muted transition-colors',
   variants: {
     isHovered: { true: 'text-fg' },
     isSelected: { true: 'bg-accent text-on-accent lift-accent' },
-    isFocusVisible: {
-      true: 'outline-2 outline-offset-2 outline-focus transition-none',
-      false: 'outline-none',
-    },
+    ...focusVariant('transition-none'),
   },
 });
 

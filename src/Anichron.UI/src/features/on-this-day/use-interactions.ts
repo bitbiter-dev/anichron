@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Change, Flag } from '../../api/assets';
 import type { Memory } from '../../api/flashbacks';
 import { createToasts } from '../../shared/toasts';
-import { burstIdOf, otherFrames } from './burst';
+import { otherFrames } from './burst';
 import { burstQuery, interactionMutation } from './day';
 import type { Place } from './story';
 
@@ -69,17 +69,15 @@ export function useInteractions(date: string, story: StoryControls) {
   }
 
   function hide(memory: Memory) {
-    const card = story.memory;
-    if (otherFrames(card) < 1) {
+    const cover = story.memory;
+    if (otherFrames(cover) < 1) {
       story.closeDetails();
       hideMemory(memory);
       return;
     }
-    void queryClient
-      .query({ ...burstQuery(api, burstIdOf(card)), staleTime: 'static' })
-      .then(() => {
-        hideFrame(memory);
-      }, notSaved);
+    void queryClient.query({ ...burstQuery(api, cover), staleTime: 'static' }).then(() => {
+      hideFrame(memory);
+    }, notSaved);
   }
 
   return {

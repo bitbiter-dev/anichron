@@ -242,8 +242,8 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      - name: Stryker reporter tests
-        run: pnpm exec node --test stryker/
+      - name: Stryker reporter and lint guard tests
+        run: pnpm exec node --test stryker/ lint/
 
       - name: Test UI helper scripts
         working-directory: .
