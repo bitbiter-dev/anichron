@@ -4,7 +4,7 @@ export type Load = 'loading' | 'shown' | 'failed';
 
 export type Kind = 'unready' | 'picture' | 'video' | 'live' | 'burst';
 
-export type Image = 'picture' | 'poster' | null;
+type ImageShown = 'picture' | 'poster' | null;
 
 type Name = 'story.photo' | 'story.video' | 'story.livePhoto' | 'story.burst';
 
@@ -15,7 +15,7 @@ interface Video {
 
 export interface MemoryKind {
   firstLoad: (decoded: () => boolean) => Load;
-  image: (load: Load) => Image;
+  image: (load: Load) => ImageShown;
   video: Video | null;
   failure: (load: Load) => boolean;
   liveButton: (load: Load) => boolean;

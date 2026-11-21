@@ -7,7 +7,9 @@ const hintMilliseconds = 1000;
 const upcomingCount = 2;
 const behindCount = 3;
 
-export type LivePlay = { state: 'still' } | { state: 'loading' | 'playing'; by: 'hold' | 'button' };
+type PlayedBy = 'hold' | 'button';
+
+export type LivePlay = { state: 'still' } | { state: 'loading' | 'playing'; by: PlayedBy };
 
 export interface StoryMemory {
   kind: Kind;
@@ -199,7 +201,7 @@ export function createStory(
     return position.play.state === 'playing' && position.play.by === 'button';
   }
 
-  function playsBy(by: 'hold' | 'button') {
+  function playsBy(by: PlayedBy) {
     return position.play.state !== 'still' && position.play.by === by;
   }
 
@@ -267,13 +269,13 @@ export function createStory(
       });
   }
 
-  function play(by: 'hold' | 'button') {
+  function play(by: PlayedBy) {
     if (kindInStory(position.kind).holdPlays && position.load === 'shown')
       position = { ...position, play: { state: 'loading', by }, playId: ++visits };
   }
 
   function toggleSound() {
-    if (kindInStory(position.kind).middle === 'sound')
+    if (memoryKind(position.kind).sound)
       update(() => {
         muted = !muted;
         hint = false;
