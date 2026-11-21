@@ -31,10 +31,10 @@ export function storyView(state: StoryState, group: YearGroup) {
     pause: state.paused ? 'story.play' : 'story.pause',
     controls: state.held ? 'hidden' : 'visible',
     blurhash: state.load === 'shown' ? null : blurhashOf(memory),
-    failed: kind.failure(state.load),
+    failed: kind.failure && state.load === 'failed',
     image: kind.image(state.load),
     video: videoShown(state, memory),
-    liveButton: kind.liveButton(state.load),
+    liveButton: kind.liveButton && state.load === 'shown',
     live: liveOf(state),
     duration: state.length,
     sound: {

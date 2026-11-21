@@ -9,7 +9,8 @@ const behindCount = 3;
 
 type PlayedBy = 'hold' | 'button';
 
-export type LivePlay = { state: 'still' } | { state: 'loading' | 'playing'; by: PlayedBy };
+export type LivePlay =
+  { state: 'still'; by?: undefined } | { state: 'loading' | 'playing'; by: PlayedBy };
 
 export interface StoryMemory {
   kind: Kind;
@@ -197,17 +198,17 @@ export function createStory(
   hintClock.set(hintMilliseconds);
   let notify: (() => void) | undefined;
 
-  function replayShown() {
-    return position.play.state === 'playing' && position.play.by === 'button';
+  function livePlaying() {
+    return position.play.state === 'playing';
   }
 
   function playsBy(by: PlayedBy) {
-    return position.play.state !== 'still' && position.play.by === by;
+    return position.play.by === by;
   }
 
   function stateOf(): StoryState {
     const running =
-      position.load !== 'loading' && !paused && !held && !details && !ended && !replayShown();
+      position.load !== 'loading' && !paused && !held && !details && !ended && !livePlaying();
     const playsMedia = held ? playsBy('hold') : !paused && (playsBy('button') || !ended);
     const { group, memory, kind, load } = position;
     const { durationSeconds } = memories(group)[memory] as StoryMemory;
@@ -233,7 +234,7 @@ export function createStory(
   }
 
   function start() {
-    if (!notify || paused || held || details || ended || replayShown()) return;
+    if (!notify || paused || held || details || ended || livePlaying()) return;
     clock.start();
     if (hint && position.load !== 'loading') hintClock.start();
   }

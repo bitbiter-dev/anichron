@@ -17,8 +17,8 @@ export interface MemoryKind {
   firstLoad: (decoded: () => boolean) => Load;
   image: (load: Load) => ImageShown;
   video: Video | null;
-  failure: (load: Load) => boolean;
-  liveButton: (load: Load) => boolean;
+  failure: boolean;
+  liveButton: boolean;
   sound: boolean;
   name: (memory: Memory) => Name;
 }
@@ -45,8 +45,8 @@ export function memoryKind(kind: Kind): MemoryKind {
     firstLoad: (decoded) => (decoded() ? 'shown' : 'loading'),
     image: (load) => (load === 'failed' ? null : 'picture'),
     video: null,
-    failure: (load) => load === 'failed',
-    liveButton: () => false,
+    failure: true,
+    liveButton: false,
     sound: false,
     name: nameOf,
   };
@@ -61,13 +61,13 @@ export function memoryKind(kind: Kind): MemoryKind {
         source: ({ proxies }, load) => (load === 'failed' ? null : proxies.video),
         live: false,
       },
-      failure: () => false,
+      failure: false,
       sound: true,
     },
     live: {
       ...picture,
       video: { source: ({ livePhotoVideoUrl }) => livePhotoVideoUrl, live: true },
-      liveButton: (load) => load === 'shown',
+      liveButton: true,
     },
     burst: { ...picture, name: () => 'story.burst' },
   };

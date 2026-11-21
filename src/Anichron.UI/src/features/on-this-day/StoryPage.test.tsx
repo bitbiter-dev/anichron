@@ -1550,6 +1550,23 @@ describe('a Live Photo', () => {
       expect(live()).toBe('still');
     });
 
+    it('stays still when its video reports playing after it ended', async () => {
+      const live = () => button('Play Live Photo').getAttribute('data-live');
+      await watched();
+      await replay();
+      await fire('playing');
+      await fire('ended');
+
+      await fire('playing');
+
+      expect(live()).toBe('still');
+      expect(video()).not.toBeVisible();
+      await advance(2999);
+      expect(showing()).toBe(preview(ids.a2025));
+      await advance(1);
+      expect(showing()).toBe(preview(ids.b2025));
+    });
+
     it('stays still while the story is paused', async () => {
       const live = () => button('Play Live Photo').getAttribute('data-live');
       await openStory('/day/2026-11-11?year=2025');
