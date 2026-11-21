@@ -3,13 +3,12 @@ import { Ellipsis, type LucideIcon, Share, SquarePlus } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import type { IosOffer } from '../../app/install';
 
-export type InstallStep = 'share' | 'showMore' | 'more' | 'add';
+export type InstallStep = 'share' | 'viewMore' | 'more' | 'add';
 
 function iosSteps(offer: IosOffer) {
   const steps: Record<IosOffer, readonly InstallStep[]> = {
-    'ios-safari': ['share', 'showMore', 'add'],
+    'ios-safari': ['share', 'viewMore', 'add'],
     'ios-chrome': ['more', 'share', 'add'],
-    'ios-firefox': ['share', 'add'],
   };
   return steps[offer];
 }
@@ -25,22 +24,23 @@ function shownStep(step: InstallStep) {
 
 export type ShownStep = ReturnType<typeof shownStep>;
 
-export function useInstallSection() {
+export function useInstallRow() {
   const { install } = useRouter().options.context;
   const offer = useSyncExternalStore(install.subscribe, install.offer);
   const [open, setOpen] = useState(false);
   if (offer === 'none') return undefined;
-  if (offer === 'android') return { kind: 'android' } as const;
-  if (typeof offer !== 'string') return { kind: 'prompt', install: offer.install } as const;
-  return {
-    kind: 'steps',
-    steps: iosSteps(offer).map(shownStep),
+  const dialog = {
     open,
-    show: () => {
-      setOpen(true);
-    },
     close: () => {
       setOpen(false);
     },
-  } as const;
+  };
+  if (typeof offer !== 'string') return { ...dialog, press: offer.install, steps: undefined };
+  return {
+    ...dialog,
+    press: () => {
+      setOpen(true);
+    },
+    steps: offer === 'android' ? undefined : iosSteps(offer).map(shownStep),
+  };
 }

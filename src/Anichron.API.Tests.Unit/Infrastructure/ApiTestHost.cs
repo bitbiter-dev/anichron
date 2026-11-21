@@ -21,6 +21,7 @@ internal static class ApiTestHost
         builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
         builder.Services.AddSingleton(Substitute.For<IAdminStorageConfigService>());
         builder.Services.AddSingleton(Substitute.For<IUserRepository>());
+        builder.Services.AddSingleton(Substitute.For<IUserStorageConfigRepository>());
         builder.Services.AddSingleton(Substitute.For<IMediaAssetReadRepository>());
         return builder;
     }

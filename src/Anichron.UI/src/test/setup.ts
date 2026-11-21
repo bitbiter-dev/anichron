@@ -1,9 +1,13 @@
+import { notifyManager } from '@tanstack/react-query';
 import { cleanup } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import * as matchers from 'vitest-axe/matchers';
+import { inAct } from './act';
 import { addThemeColourTags, removeThemeColourTags } from './index-head';
 import { resumeMotionFrames } from './motion';
+import { forgetSources } from './object-urls';
+import { forgetPictures } from './pictures';
 import { forgetQueryClients, settleRequests } from './query-clients';
 import { server } from './server';
 
@@ -11,6 +15,12 @@ expect.extend(matchers);
 
 // Testing Library advances fake timers only when it finds a `jest` global.
 Object.assign(globalThis, { jest: { advanceTimersByTime: vi.advanceTimersByTime.bind(vi) } });
+
+// Testing Library turns the act environment on only when it finds a `beforeAll` global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+// A query's result reaches React on a timer, outside the act() of the test that awaited it.
+notifyManager.setNotifyFunction(inAct);
 
 beforeAll(() => {
   server.listen({ onUnhandledFrame: 'error' });
@@ -27,6 +37,8 @@ afterEach(async () => {
   cleanup();
   await settleRequests();
   forgetQueryClients();
+  forgetPictures();
+  forgetSources();
   document.documentElement.removeAttribute('lang');
   document.documentElement.removeAttribute('data-theme');
   removeThemeColourTags();

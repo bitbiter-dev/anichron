@@ -58,7 +58,7 @@ How the API serves `Anichron.UI` on the same origin as `/api/v1` (ADR 0012). Cod
 ## Tests
 
 - **Seam 1** (`UiServingTests`, `SecurityHeadersTests`): the in-process host on a fixture web root.
-- **Seam 2** (`update-notice.test.tsx`): the notice, with `renderApp`'s fake `updates` in place of the registration. `SettingsPage.test.tsx` covers the install section on each platform, dispatching `beforeinstallprompt` itself.
+- **Seam 2** (`update-notice.test.tsx`): the notice, with `renderApp`'s fake `updates` in place of the registration. `SettingsPage.test.tsx` covers the install row on each platform, dispatching `beforeinstallprompt` itself.
 - **Seam 3** (`app-shell.test.ts`, `register-service-worker.test.ts`): the service worker's routes and take-over on an in-memory cache, and its registration and update check.
 - **Seam 4** (`src/Anichron.UI/e2e/`): Playwright against the built image (`src/docker-compose.e2e.yml`, Caddy on HTTPS because the cookies are `Secure`). It checks headers, caching, CSP and Trusted Types violations, other-origin requests and axe; `home-screen.spec.ts` checks the head tags, the manifest and its icons. Users are created only through the public API, and the compose file raises the rate limits.
 - The E2E stack's one-shot `anichron-migrate` migrates and creates the bootstrap admin before the API starts. `up --wait` accepts its exit `0`, as it does `anichron-next-build`'s.

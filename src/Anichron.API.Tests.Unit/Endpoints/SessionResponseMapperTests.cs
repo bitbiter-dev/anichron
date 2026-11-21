@@ -65,7 +65,7 @@ public sealed class SessionResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRegistrationResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()),
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false),
             http);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
@@ -91,7 +91,7 @@ public sealed class SessionResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetLoginResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: true);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http, setCookie: true);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
         var setCookie = http.Response.Headers.SetCookie.ToString();
@@ -112,7 +112,7 @@ public sealed class SessionResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetLoginResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: false);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -136,7 +136,7 @@ public sealed class SessionResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRefreshResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http);
         await result.ExecuteAsync(http);
 
         Assert.Multiple(() =>
@@ -153,7 +153,7 @@ public sealed class SessionResponseMapperTests
         var testee = new TestFixture().CreateTestee();
 
         var result = testee.GetRefreshResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http);
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -178,9 +178,10 @@ public sealed class SessionResponseMapperTests
         { "change-password", SameSiteMode.Strict, "strict" },
     };
 
-    private static IResult SignIn(SessionResponseMapper testee, string kind, bool setCookie, out HttpContext http)
+    private static IResult SignIn(
+        SessionResponseMapper testee, string kind, bool setCookie, out HttpContext http, bool hasStorageConfig = false)
     {
-        var tokens = new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User());
+        var tokens = new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), hasStorageConfig);
         http = NewHttp(withRefreshCookie: setCookie);
         return kind switch
         {
@@ -215,6 +216,34 @@ public sealed class SessionResponseMapperTests
         await SignIn(testee, kind, setCookie: false, out var http).ExecuteAsync(http);
 
         http.Response.Headers.SetCookie.Should().BeEmpty();
+    }
+
+    // ==========================================================================
+    // The user profile
+    // ==========================================================================
+
+    public static TheoryData<string, bool> SignInsWithAndWithoutAStorageConfig => new()
+    {
+        { "register", true },
+        { "register", false },
+        { "login", true },
+        { "login", false },
+        { "refresh", true },
+        { "refresh", false },
+        { "change-password", true },
+        { "change-password", false },
+    };
+
+    [Theory]
+    [MemberData(nameof(SignInsWithAndWithoutAStorageConfig))]
+    public async Task SignIn_SaysInTheUserProfileWhetherTheUserHasAStorageConfig(string kind, bool hasStorageConfig)
+    {
+        var testee = new TestFixture().CreateTestee();
+
+        await SignIn(testee, kind, setCookie: true, out var http, hasStorageConfig).ExecuteAsync(http);
+        var body = await ReadBodyAsync(http.Response);
+
+        body.Should().Contain($"\"hasStorageConfig\":{(hasStorageConfig ? "true" : "false")}");
     }
 
     // ==========================================================================

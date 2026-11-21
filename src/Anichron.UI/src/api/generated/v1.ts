@@ -2540,6 +2540,7 @@ export interface components {
             email: string;
             isAdmin: boolean;
             mustChangePassword: boolean;
+            hasStorageConfig: boolean;
         };
         WorkItemDto: {
             /** Format: uuid */

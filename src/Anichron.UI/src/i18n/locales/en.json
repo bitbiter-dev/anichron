@@ -64,7 +64,10 @@
     "back": "Back",
     "newVersion": "A new version is available",
     "reload": "Reload",
-    "later": "Later"
+    "later": "Later",
+    "noPhotos": "No photos are set up for you yet.",
+    "noPhotosHint": "An admin can add a storage folder for you.",
+    "ok": "OK"
   },
   "settings": {
     "title": "Settings",
@@ -82,12 +85,10 @@
       },
       "ios": {
         "share": "Tap Share",
-        "showMore": "Tap Show More",
+        "viewMore": "Tap View More",
         "more": "Tap More",
         "add": "Tap Add to Home Screen"
       },
-      "button": "Install",
-      "show": "Show how to install",
       "close": "Close"
     },
     "account": "Account",

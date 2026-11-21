@@ -211,7 +211,7 @@ describe('the account section', () => {
   });
 });
 
-describe('the install section', () => {
+describe('the install row', () => {
   const iPhone =
     'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
 
@@ -239,7 +239,13 @@ describe('the install section', () => {
     return event;
   };
 
-  const section = () => screen.queryByRole('region', { name: 'Install the app' });
+  const row = () => screen.queryByRole('button', { name: 'Install the app' });
+  const tapRow = () => user().click(getRow());
+  const dialog = () => screen.queryByRole('dialog', { name: 'Install the app' });
+  const getDialog = () => screen.getByRole('dialog', { name: 'Install the app' });
+  const getRow = () => screen.getByRole('button', { name: 'Install the app' });
+  const androidText =
+    'To install Anichron, open the browser menu, then tap Add to Home screen or Install app.';
 
   afterEach(() => {
     Reflect.deleteProperty(navigator, 'standalone');
@@ -249,28 +255,35 @@ describe('the install section', () => {
   const iconName = (icon: SVGElement) => /lucide-([a-z-]+)$/.exec(icon.classList[1] ?? '')?.[1];
   const shapeOf = (icon: SVGElement) =>
     /rounded-(full|field)/.exec(icon.parentElement?.className ?? '')?.[1];
-  const safariSteps = ['Tap Share', 'Tap Show More', 'Tap Add to Home Screen'];
-  const showHow = () => screen.getByRole('button', { name: 'Show how to install' });
-  const stepsDialog = () => screen.getByRole('dialog', { name: 'Install the app' });
+  const safariSteps = ['Tap Share', 'Tap View More', 'Tap Add to Home Screen'];
+  const safariIcons = ['share', 'ellipsis', 'square-plus'];
   const steps = () =>
-    within(stepsDialog())
+    within(getDialog())
       .getAllByRole('listitem')
       .map((step) => step.textContent);
+  const stepIcons = () =>
+    within(getDialog())
+      .getAllByRole('listitem')
+      .map((step) => iconName(step.querySelector('svg') as SVGElement));
 
-  async function openSteps() {
-    await user().click(showHow());
-  }
+  it('is one row with an icon and a chevron', async () => {
+    browsingOn(iPhone);
+    await openSettings();
+
+    const icons = [...getRow().querySelectorAll('svg')];
+    expect(icons.map(iconName)).toEqual(['square-plus', 'chevron-right']);
+    for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('heading', { name: 'Install the app' })).toBeNull();
+  });
 
   it('shows the steps for Safari on an iPhone in a dialog, each with its icon', async () => {
     browsingOn(iPhone);
     await openSettings();
-    expect(within(section() as HTMLElement).getByRole('button')).toBe(showHow());
-    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
 
-    await openSteps();
+    await tapRow();
 
     expect(steps()).toEqual(safariSteps);
-    const icons = within(stepsDialog())
+    const icons = within(getDialog())
       .getAllByRole('listitem')
       .map((step) => step.querySelector('svg') as SVGElement);
     for (const icon of icons) expect(icon).toHaveAttribute('aria-hidden', 'true');
@@ -285,18 +298,18 @@ describe('the install section', () => {
   it.each([
     [
       'its close button',
-      () => user().click(within(stepsDialog()).getByRole('button', { name: 'Close' })),
+      () => user().click(within(getDialog()).getByRole('button', { name: 'Close' })),
     ],
     ['Escape', () => user().keyboard('{Escape}')],
   ])('closes the steps with %s', async (_, close) => {
     browsingOn(iPhone);
     await openSettings();
-    await openSteps();
+    await tapRow();
 
     await close();
 
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(showHow()).toBeVisible();
+    expect(dialog()).toBeNull();
+    expect(row()).toBeVisible();
   });
 
   it.each([
@@ -304,24 +317,28 @@ describe('the install section', () => {
       'Chrome',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.46 Mobile/15E148 Safari/604.1',
       ['Tap More', 'Tap Share', 'Tap Add to Home Screen'],
+      ['ellipsis', 'share', 'square-plus'],
     ],
     [
       'Firefox',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/145.0 Mobile/15E148 Safari/605.1.15',
-      ['Tap Share', 'Tap Add to Home Screen'],
+      safariSteps,
+      safariIcons,
     ],
     [
       'another browser',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/142.0.3595.53 Version/26.0 Mobile/15E148 Safari/604.1',
       safariSteps,
+      safariIcons,
     ],
-  ])('shows the steps for %s on an iPhone', async (_, userAgent, expected) => {
+  ])('shows the steps for %s on an iPhone', async (_, userAgent, expected, icons) => {
     browsingOn(userAgent);
     await openSettings();
 
-    await openSteps();
+    await tapRow();
 
     expect(steps()).toEqual(expected);
+    expect(stepIcons()).toEqual(icons);
   });
 
   it('shows the same steps on an iPad asking for the mobile site', async () => {
@@ -330,7 +347,7 @@ describe('the install section', () => {
     );
     await openSettings();
 
-    await openSteps();
+    await tapRow();
 
     expect(steps()).toEqual(safariSteps);
   });
@@ -339,7 +356,7 @@ describe('the install section', () => {
     browsingOn(mac, 5);
     await openSettings();
 
-    await openSteps();
+    await tapRow();
 
     expect(steps()).toEqual(safariSteps);
   });
@@ -348,7 +365,7 @@ describe('the install section', () => {
     browsingOn(mac);
     await openSettings();
 
-    expect(section()).toBeNull();
+    expect(row()).toBeNull();
   });
 
   it('is hidden in the installed app', async () => {
@@ -358,7 +375,7 @@ describe('the install section', () => {
     );
     const { container } = await openSettings();
 
-    expect(section()).toBeNull();
+    expect(row()).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
@@ -367,52 +384,40 @@ describe('the install section', () => {
     Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
     await openSettings();
 
-    expect(section()).toBeNull();
+    expect(row()).toBeNull();
   });
 
-  it('explains the browser menu on Android when the browser offers no prompt', async () => {
+  it('explains the browser menu in a dialog on Android when the browser offers no prompt', async () => {
     browsingOn(pixel);
-    const { container } = await openSettings();
+    await openSettings();
+    expect(screen.queryByText(androidText)).toBeNull();
 
-    expect(section()).toHaveTextContent(
-      'To install Anichron, open the browser menu, then tap Add to Home screen or Install app.',
-    );
-    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
-    expect(await axeResults(container)).toHaveNoViolations();
+    await tapRow();
+
+    expect(within(getDialog()).getByText(androidText)).toBeVisible();
+    expect(within(getDialog()).queryByRole('list')).toBeNull();
+    expect(await axeResults(document.body)).toHaveNoViolations();
   });
 
   it('is hidden on another browser that offers no prompt', async () => {
     browsingOn(desktop);
     const { container } = await openSettings();
 
-    expect(section()).toBeNull();
+    expect(row()).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('offers the browser prompt on Android, in place of the banner', async () => {
+  it('fires the browser prompt on Android in place of the dialog', async () => {
     browsingOn(pixel);
     const { container } = await openSettings();
-
     const prompt = offerPrompt();
-
     expect(prompt.defaultPrevented).toBe(true);
-    expect(
-      within(screen.getByRole('region', { name: 'Install the app' })).getByRole('button', {
-        name: 'Install',
-      }),
-    ).toBeVisible();
-    expect(section()).not.toHaveTextContent('browser menu');
-    expect(await axeResults(container)).toHaveNoViolations();
-  });
 
-  it('fires the kept prompt on Install', async () => {
-    browsingOn(pixel);
-    await openSettings();
-    const prompt = offerPrompt();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(getRow());
 
     expect(prompt.prompt).toHaveBeenCalledOnce();
+    expect(dialog()).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
   });
 
   it('disappears once the prompt is accepted', async () => {
@@ -420,27 +425,28 @@ describe('the install section', () => {
     const { container } = await openSettings();
     offerPrompt('accepted');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(getRow());
 
     await waitFor(() => {
-      expect(section()).toBeNull();
+      expect(row()).toBeNull();
     });
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('goes back to the Android steps once the prompt is dismissed, since it fires only once', async () => {
+  it('goes back to the browser menu once the prompt is dismissed, since it fires only once', async () => {
     browsingOn(pixel);
     await openSettings();
-    offerPrompt('dismissed');
+    const prompt = offerPrompt('dismissed');
+    fireEvent.click(getRow());
+    await waitFor(() => {
+      expect(prompt.prompt).toHaveBeenCalledOnce();
+    });
+    await act(() => prompt.userChoice);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    await tapRow();
 
-    expect(
-      await screen.findByText(
-        'To install Anichron, open the browser menu, then tap Add to Home screen or Install app.',
-      ),
-    ).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull();
+    expect(within(getDialog()).getByText(androidText)).toBeVisible();
+    expect(prompt.prompt).toHaveBeenCalledOnce();
   });
 
   it('keeps a prompt that came before Settings opened, on another browser', async () => {
@@ -451,10 +457,10 @@ describe('the install section', () => {
     const prompt = offerPrompt();
 
     await act(() => router.navigate({ to: '/settings' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Install' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Install the app' }));
 
     expect(prompt.prompt).toHaveBeenCalledOnce();
-    expect(section()).not.toHaveTextContent('To install Anichron');
+    expect(dialog()).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
@@ -463,11 +469,10 @@ describe('the install section', () => {
     await openSettings();
     const prompt = offerPrompt('dismissed');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(getRow());
+    fireEvent.click(getRow());
 
     expect(prompt.prompt).toHaveBeenCalledOnce();
-    expect(await screen.findByText(/open the browser menu/)).toBeVisible();
   });
 
   it('disappears once the browser installs the app from its own menu', async () => {
@@ -479,6 +484,6 @@ describe('the install section', () => {
       window.dispatchEvent(new Event('appinstalled'));
     });
 
-    expect(section()).toBeNull();
+    expect(row()).toBeNull();
   });
 });

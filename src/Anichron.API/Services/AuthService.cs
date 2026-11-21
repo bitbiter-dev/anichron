@@ -10,7 +10,7 @@ using System.Text;
 
 namespace Anichron.API.Services;
 
-public sealed record AuthTokens(string AccessToken, string RefreshToken, TimeSpan AccessTokenLifetime, User User);
+public sealed record AuthTokens(string AccessToken, string RefreshToken, TimeSpan AccessTokenLifetime, User User, bool HasStorageConfig);
 public sealed record AdminCreatedUser(Guid Id, string Username, string Email, string TemporaryPassword);
 
 public interface IAuthService
@@ -73,7 +73,7 @@ public sealed class AuthService(
         invite.UsedAt = now;
         invite.UsedByUserId = user.Id;
 
-        var tokens = tokenService.Issue(user);
+        var tokens = await tokenService.IssueAsync(user, ct);
 
         try
         {
@@ -136,7 +136,7 @@ public sealed class AuthService(
         }
 
         lockout.PrepareReset(user);
-        var tokens = tokenService.Issue(user);
+        var tokens = await tokenService.IssueAsync(user, ct);
         await unitOfWork.SaveChangesAsync(ct);
 
         return tokens;
@@ -163,7 +163,7 @@ public sealed class AuthService(
 
         user.PasswordHash = passwordHasher.Hash(newPassword);
         user.MustChangePassword = false;
-        var tokens = tokenService.Issue(user);
+        var tokens = await tokenService.IssueAsync(user, ct);
         await unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             var now = clock.GetCurrentInstant();

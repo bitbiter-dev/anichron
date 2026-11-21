@@ -14,8 +14,9 @@ How the UI (`src/Anichron.UI`) calls the API.
 - A refresh that fails without signing out throws `SessionNotRenewed`, and the query retry predicate (`src/app/query-client.ts`) stops on it.
 - Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`, reused by `bursts.ts`).
 - An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more; a second error is a failure (`features/on-this-day/media.ts`). See "The refresh rules".
-- `src/api/media.ts` loads a picture: it fetches the proxy URL, then decodes it with `new Image()`, which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above. A story opens once its first memory has loaded (`loadStory` in `features/on-this-day/day.ts`), and prefetches the memories ahead (`prefetch.ts`).
-- `media.videos()` keeps a story's Live Photo videos in memory as object URLs: the ones around the memory showing, each fetched once, freed when they leave that window or the story closes. A refused fetch plays from the network instead (`features/on-this-day/prefetch.ts`, `use-story.ts`).
+- `src/api/media.ts` decodes a thumbnail with `new Image()` (`loadImage`), which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above.
+- `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once. What arrived stays for the session, within the limits in `createDownloads`.
+- A story opens once its first picture has arrived (`loadStory` in `features/on-this-day/day.ts`) and renders only pictures from the store. A picture fails only once none of it has arrived for `loadMilliseconds` (`mediaProgressed` in `story.ts`). A Live Photo video the server refuses plays from the network instead.
 
 ## The event stream
 
@@ -29,6 +30,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 - A change of user, signing out included, in this tab or from another, clears the query cache (`createAppRouter`), and `SignedIn` remounts its views per user, so the next user never sees the previous one's data.
 - `session.user()` is synchronous and stable between changes. Views read it through `useUser()` (`src/shared/use-user.ts`).
 - Signed in means a user is held. The `signed-in` route's `beforeLoad` puts it in the route context, so a guard below it reads `context.user`; the login route calls `isSignedIn()`.
+- A user without a storage config (`hasStorageConfig`) gets no flashback request: the home screen shows only its frame and the notice (`src/app/use-home.ts`), and the day route redirects to `/`.
 
 ## Failures
 
