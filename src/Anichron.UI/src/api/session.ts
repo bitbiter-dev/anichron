@@ -77,7 +77,6 @@ export function createSession(
   let signedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const changes = createChanges();
-  const changed = changes.notify;
 
   function wakeIn(milliseconds: number) {
     clearTimeout(timer);
@@ -91,7 +90,7 @@ export function createSession(
     renewAt = Date.now() + renewIn;
     failures = 0;
     wakeIn(renewIn);
-    changed();
+    changes.notify();
   }
 
   function end() {
@@ -99,7 +98,7 @@ export function createSession(
     accessToken = '';
     user = undefined;
     renewAt = Infinity;
-    changed();
+    changes.notify();
   }
 
   async function sendRefresh() {

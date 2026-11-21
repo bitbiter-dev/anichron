@@ -84,11 +84,9 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
 
   let snapshot = downloaded();
 
-  const notify = changes.notify;
-
   function changed() {
     snapshot = downloaded();
-    notify();
+    changes.notify();
   }
 
   async function body(url: string, signal: AbortSignal) {
@@ -103,7 +101,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
     const reader = response.body.getReader();
     for (let read = await reader.read(); !read.done; read = await reader.read()) {
       chunks.push(read.value);
-      notify();
+      changes.notify();
     }
     return new Blob(chunks, { type: response.headers.get('Content-Type') ?? '' });
   }

@@ -1,3 +1,4 @@
+import type { Downloads } from '../../api/media';
 import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 
@@ -31,4 +32,8 @@ export function recover(
 
 export function decoded(image: HTMLImageElement, ready: () => void) {
   void image.decode().then(ready, ready);
+}
+
+export function shownSource(downloads: Pick<Downloads, 'sourceOf' | 'failed'>, url: string) {
+  return downloads.sourceOf(url) ?? (downloads.failed(url) ? url : null);
 }

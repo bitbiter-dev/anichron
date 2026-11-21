@@ -7,8 +7,8 @@ import { burstQuery } from './day';
 export function useCover(memory: Memory) {
   const { api } = useRouter().options.context;
   const bursts = useQueries({
-    queries: (memory.burst ? [memory] : []).map((burst) => ({
-      ...burstQuery(api, burst),
+    queries: (memory.burst ? [memory] : []).map((ofBurst) => ({
+      ...burstQuery(api, ofBurst),
       enabled: false,
     })),
   });

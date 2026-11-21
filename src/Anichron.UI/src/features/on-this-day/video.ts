@@ -1,6 +1,6 @@
 import type { Memory } from '../../api/flashbacks';
 import type { Downloads } from '../../api/media';
-import { recover } from './media';
+import { recover, shownSource } from './media';
 import { memoryKind } from './memory-kinds';
 import type { Story, StoryState } from './story';
 
@@ -33,7 +33,7 @@ function sourceOf(
   if (!video || !url) return null;
   const poster = downloads.sourceOf(memory.proxies.preview) ?? '';
   if (!video.live) return { src: url, poster, live: false };
-  const src = downloads.sourceOf(url) ?? (downloads.failed(url) ? url : null);
+  const src = shownSource(downloads, url);
   return play.state !== 'still' && src ? { src, poster, live: true } : null;
 }
 

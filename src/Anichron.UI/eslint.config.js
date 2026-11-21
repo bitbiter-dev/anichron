@@ -64,7 +64,7 @@ const classes = (pattern) =>
 const only = (message) => (selector) => ({ selector, message });
 const syntaxGuards = {
   visibility: ['Literal[value="visibilitychange"]'].map(
-    only('Only src/shared/listen.ts listens for visibility; use onVisible or onVisibility.'),
+    only('Only src/shared/listen.ts listens for visibility; use onVisible or onVisibilityChange.'),
   ),
   notifiers: [
     'NewExpression[callee.name="EventTarget"]',

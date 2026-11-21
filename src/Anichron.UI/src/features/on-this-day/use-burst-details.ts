@@ -8,6 +8,7 @@ import { listen } from '../../shared/listen';
 import { blurhashOf } from './blurhash';
 import { clampFrame, createFrameScroll, framesShown } from './burst';
 import { burstQuery } from './day';
+import { shownSource } from './media';
 import { closesOnSwipe } from './navigation';
 
 function frameStep(key: string) {
@@ -28,7 +29,7 @@ export function useFrameBlurhash(frame: Memory) {
 export function useBurstDetails(cover: Memory, close: () => void) {
   const { api } = useRouter().options.context;
   const { downloads } = api.media;
-  const arrived = useSyncExternalStore(downloads.subscribe, downloads.snapshot);
+  useSyncExternalStore(downloads.subscribe, downloads.snapshot);
   const query = useQuery(burstQuery(api, cover));
   const frames = framesShown(query.data) ?? [cover];
   const [chosen, setChosen] = useState(0);
@@ -58,8 +59,7 @@ export function useBurstDetails(cover: Memory, close: () => void) {
   return {
     frames: frames.map((memory, index) => {
       const url = memory.proxies.preview;
-      const src = arrived.sourceOf(url) ?? (downloads.failed(url) ? url : null);
-      return { memory, place: index + 1, src };
+      return { memory, place: index + 1, src: url && shownSource(downloads, url) };
     }),
     count: frames.length,
     frame: frames[current] as Memory,
