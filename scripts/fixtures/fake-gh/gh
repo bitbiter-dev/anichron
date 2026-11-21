@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# A fake `gh api` for the UI mutation scripts' tests, serving $GH_STATE:
+# <name>.list answers the artifact listing by that name, and <id>.json is the
+# stryker-incremental.json inside artifact <id>'s zip.
+case "$2" in
+  *'/artifacts?name='*)
+    name=${2#*name=}
+    cat "$GH_STATE/${name%%&*}.list" 2>/dev/null
+    ;;
+  */artifacts/*/zip)
+    id=${2%/zip}
+    id=${id##*/}
+    [ -f "$GH_STATE/$id.json" ] || exit 1
+    d=$(mktemp -d)
+    cp "$GH_STATE/$id.json" "$d/stryker-incremental.json"
+    (cd "$d" && zip -q - stryker-incremental.json)
+    status=$?
+    rm -rf "$d"
+    exit "$status"
+    ;;
+  *) exit 1 ;;
+esac

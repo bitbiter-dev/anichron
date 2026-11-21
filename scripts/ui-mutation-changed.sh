@@ -4,18 +4,23 @@
 # Runs StrykerJS over the UI's whole mutation scope (src/Anichron.UI) in
 # incremental mode: a mutant whose code and covering tests are unchanged since
 # the baseline (reports/stryker-incremental.json) keeps its recorded result.
+# The commit the baseline was measured on sits next to it
+# (reports/stryker-incremental.commit).
 #   - No UI file changed since the merge-base with <ref> (default
 #     origin/master; committed, staged, unstaged, untracked, deleted): nothing
 #     to mutate, exit 0.
-#   - A changed measurement setup (the `setup` pattern below): every mutant
-#     runs again (--force).
-#   - Anything else: an incremental run. Without a local baseline, it is seeded
-#     from the newest master artifact `ui-mutation-incremental` (needs `gh`);
+#   - A local baseline whose commit is unknown is discarded. Without a local
+#     baseline, one is seeded from master (scripts/ui-mutation-seed.sh);
 #     without one, every mutant runs.
+#   - A measurement setup (the `setup` list below) changed since the
+#     baseline's commit: every mutant runs again (--force).
+#   - Anything else: an incremental run.
 # --all runs every mutant regardless (--force) and writes a fresh baseline.
-# --print prints the Stryker arguments instead of running it. Stryker runs
-# under the heavy lock (scripts/with-lock.sh), after clearing sandboxes an
-# aborted run left behind (its static-leaks reporter exits mid-run).
+# A run that writes the baseline records HEAD as its commit, or no commit when
+# the setup differs from HEAD. --print prints the Stryker arguments instead of
+# running it. Stryker runs under the heavy lock (scripts/with-lock.sh), after
+# clearing sandboxes an aborted run left behind (its static-leaks reporter
+# exits mid-run).
 #
 # See docs/mutation-testing.md, "The UI".
 set -euo pipefail
@@ -29,7 +34,7 @@ while [ "$#" -gt 0 ]; do
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --all) all=true; shift ;;
     --print) print=true; shift ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -38,7 +43,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root=$(git rev-parse --show-toplevel)
 ui="$root/src/Anichron.UI"
 baseline="$ui/reports/stryker-incremental.json"
-artifact='ui-mutation-incremental'
+commit_file="$ui/reports/stryker-incremental.commit"
+setup=(src/Anichron.UI/stryker.config.json src/Anichron.UI/vite.config.ts src/Anichron.UI/package.json src/Anichron.UI/pnpm-lock.yaml)
 cd "$root"
 
 args=()
@@ -62,10 +68,36 @@ else
     exit 0
   fi
 
-  setup=$(grep -xE 'stryker\.config\.json|vite\.config\.ts|package\.json|pnpm-lock\.yaml' <<<"$changed" || true)
-  if [ -n "$setup" ]; then
-    echo "running every mutant; the measurement setup changed: $(tr '\n' ' ' <<<"$setup" | sed 's/ $//')"
-    args=(--force)
+  commit=''
+  if [ -f "$baseline" ]; then
+    commit=$(cat "$commit_file" 2>/dev/null || true)
+    if [ -z "$commit" ] || ! git cat-file -e "$commit^{commit}" 2>/dev/null; then
+      echo "discarding the local baseline; the commit it was measured on is unknown"
+      rm -f "$baseline" "$commit_file"
+      commit=''
+    fi
+  fi
+
+  if [ ! -f "$baseline" ]; then
+    if commit=$("$here/ui-mutation-seed.sh"); then
+      echo "seeded the incremental baseline from master's artifact at $commit"
+    else
+      commit=''
+      echo "no incremental baseline from master; every mutant runs"
+    fi
+  fi
+
+  if [ -n "$commit" ]; then
+    drift=$(
+      {
+        git diff --name-only "$commit" -- "${setup[@]}"
+        git ls-files --others --exclude-standard -- "${setup[@]}"
+      } | sed 's#^src/Anichron.UI/##' | sort -u
+    )
+    if [ -n "$drift" ]; then
+      echo "running every mutant; the measurement setup changed since the baseline's commit: $(tr '\n' ' ' <<<"$drift" | sed 's/ $//')"
+      args=(--force)
+    fi
   fi
 fi
 
@@ -74,23 +106,24 @@ if $print; then
   exit 0
 fi
 
-if [ "${#args[@]}" -eq 0 ] && [ ! -f "$baseline" ]; then
-  seed=$(mktemp -d "${TMPDIR:-/tmp}/ui-mutation-seed.XXXXXXXX")
-  id=$(gh api "repos/{owner}/{repo}/actions/artifacts?name=$artifact&per_page=30" \
-    --jq '[.artifacts[] | select(.workflow_run.head_branch == "master" and (.expired | not))][0].id // empty' \
-    2>/dev/null || true)
-  if [ -n "$id" ] && gh api "repos/{owner}/{repo}/actions/artifacts/$id/zip" >"$seed/baseline.zip" 2>/dev/null \
-    && unzip -qo "$seed/baseline.zip" -d "$seed" && [ -f "$seed/stryker-incremental.json" ]; then
-    mkdir -p "$(dirname "$baseline")"
-    mv "$seed/stryker-incremental.json" "$baseline"
-    echo "seeded the incremental baseline from master's artifact $id"
-  else
-    echo "no incremental baseline from master; every mutant runs"
-  fi
-  rm -rf "$seed"
-fi
+stamp=$(mktemp "${TMPDIR:-/tmp}/ui-mutation-stamp.XXXXXXXX")
+trap 'rm -f "$stamp"' EXIT
+touch -t 197001010001 "$stamp"
+[ ! -f "$baseline" ] || touch -t 197001010000 "$baseline"
 
-cd "$ui"
-"$here/with-lock.sh" heavy sh -c 'rm -rf "$1" && shift && exec "$@"' sh \
-  "$(jq -r '.tempDirName // ".stryker-tmp"' stryker.config.json)" \
-  pnpm exec stryker run "${args[@]+"${args[@]}"}"
+status=0
+(
+  cd "$ui"
+  "$here/with-lock.sh" heavy sh -c 'rm -rf "$1" && shift && exec "$@"' sh \
+    "$(jq -r '.tempDirName // ".stryker-tmp"' stryker.config.json)" \
+    pnpm exec stryker run "${args[@]+"${args[@]}"}"
+) || status=$?
+
+if [ "$baseline" -nt "$stamp" ]; then
+  if [ -z "$(git status --porcelain -- "${setup[@]}")" ]; then
+    git rev-parse HEAD >"$commit_file"
+  else
+    rm -f "$commit_file"
+  fi
+fi
+exit "$status"
