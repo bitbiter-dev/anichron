@@ -126,7 +126,7 @@ export async function loadStory(
   const group = day?.years[startGroup(day.years, year)];
   if (!group) return;
   const first = previewOf(api, queryClient, group.memories[0] as Memory);
-  if (first) await api.media.loadPicture(first);
+  if (first) await api.media.downloads.picture(first);
 }
 
 export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
