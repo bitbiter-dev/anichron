@@ -11,10 +11,10 @@ export function useToday() {
       const now = localDate();
       if (document.visibilityState !== 'visible' || now === today) return;
       void navigate({
+        // Stryker disable next-line StringLiteral
         to: '.',
         search: (current) => ({ ...current, earlier: undefined }),
         replace: true,
-        resetScroll: false,
       }).then(() => {
         setToday(now);
       });

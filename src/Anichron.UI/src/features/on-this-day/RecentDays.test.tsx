@@ -273,6 +273,38 @@ describe('the recent days', () => {
     expect(screen.getByText('Nothing from this day in earlier years')).toBeVisible();
   });
 
+  it('shows the six days without waiting for today when they have memories', async () => {
+    const todayHeld = hold();
+    days['2026-11-11'] = async () => {
+      await todayHeld.until;
+      return HttpResponse.json({ date: '2026-11-11', years: [] });
+    };
+    days['2026-11-10'] = [onDay('2026-11-10', 2024)];
+    renderApp('/');
+
+    expect(
+      await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
+        name: 'Yesterday',
+      }),
+    ).toBeVisible();
+    expect(tray()).toHaveAttribute('aria-busy', 'false');
+    todayHeld.release();
+  });
+
+  it('says Earlier days while a day of the first six is still trying again', async () => {
+    days['2026-11-10'] = [onDay('2026-11-10', 2024)];
+    days['2026-11-09'] = () => problemResponse(500, 'internal_error');
+    renderApp('/');
+    await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
+      name: 'Yesterday',
+    });
+
+    expect(
+      within(tray()).getByRole('button', { name: /Earlier days|Nothing/ }),
+    ).toHaveAccessibleName('Earlier days');
+    expect(within(tray()).queryByRole('button', { name: /Try again/ })).toBeNull();
+  });
+
   it('keeps the tray busy while the six days are empty and today still loads', async () => {
     const todayHeld = hold();
     days['2026-11-11'] = async () => {
@@ -589,6 +621,11 @@ describe('earlier days', () => {
 
     vi.setSystemTime(new Date(2026, 10, 12, 8));
     act(() => {
+      becomes('hidden');
+    });
+    await advance(1000);
+    expect(router.state.location.href).toBe('/?earlier=2');
+    act(() => {
       becomes('visible');
     });
 
@@ -601,6 +638,7 @@ describe('earlier days', () => {
         .map((item) => item.textContent),
     ).toEqual(['Tue 10 Nov', 'Earlier days']);
     expect(router.state.location.href).toBe('/');
+    expect(router.history.length).toBe(1);
   });
 
   it('says Nothing in these days when only the newest six it added are empty', async () => {

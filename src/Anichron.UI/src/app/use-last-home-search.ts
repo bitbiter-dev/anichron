@@ -3,9 +3,8 @@ import { useState } from 'react';
 
 export function useLastHomeSearch() {
   const location = useLocation();
-  const [shown, setShown] = useState({ earlier: undefined as number | undefined });
-  const atHome = location.pathname === '/';
-  if (atHome && location.search.earlier !== shown.earlier)
-    setShown({ earlier: location.search.earlier });
-  return atHome ? { earlier: location.search.earlier } : shown;
+  const [earlier, setEarlier] = useState<number>();
+  if (location.pathname === '/' && location.search.earlier !== earlier)
+    setEarlier(location.search.earlier);
+  return { earlier };
 }
