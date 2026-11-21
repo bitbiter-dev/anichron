@@ -8,6 +8,10 @@ function waitSeconds(step: number) {
   return Math.min(firstWaitSeconds * 2 ** step, longestWaitSeconds);
 }
 
+function idle() {
+  return undefined;
+}
+
 function isVisible() {
   return document.visibilityState === 'visible';
 }
@@ -21,7 +25,7 @@ export function createStartRetry(
   let step = 0;
   let notBefore = 0;
   let wait = 0;
-  let changed: (() => void) | undefined;
+  let changed: () => void = idle;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function after({ retryAfterSeconds }: Problem) {
@@ -37,14 +41,14 @@ export function createStartRetry(
 
   function set(next: Partial<typeof state>) {
     state = { ...state, ...next };
-    changed?.();
+    changed();
   }
 
   function attempt() {
     if (state.pending) return;
     set({ pending: true });
     restore().catch((error: unknown) => {
-      if (!changed) return;
+      if (changed === idle) return;
       const problem = problemOf(error);
       set({ problem, pending: false });
       countdown(problem.retryAfterSeconds);
@@ -70,7 +74,7 @@ export function createStartRetry(
       ];
       schedule(wait);
       return () => {
-        changed = undefined;
+        changed = idle;
         clearTimeout(timer);
         for (const stop of stopListening) stop();
       };
