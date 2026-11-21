@@ -1,6 +1,7 @@
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.Core.Data;
+using Anichron.Infrastructure.Configuration;
 using Anichron.Infrastructure.Data;
 
 namespace Anichron.API.Infrastructure;
@@ -14,7 +15,7 @@ public static partial class DatabaseStartupExtensions
         using var hostSettings = new ConfigurationManager();
         hostSettings.AddEnvironmentVariables("ASPNETCORE_");
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = args, Configuration = hostSettings });
-        builder.AddAppConfiguration();
+        builder.AddAppConfiguration(ApiIniDefaults.Entries);
         builder.Services.AddDatabase(builder.Configuration).AddBootstrapAdmin(builder.Configuration);
 
         using var host = builder.Build();
