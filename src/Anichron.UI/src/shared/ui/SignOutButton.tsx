@@ -3,13 +3,17 @@ import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
 import { RowButton } from './Row';
 
-export function SignOutButton({ row = false }: { row?: boolean }) {
+export function SignOutRow() {
   const { t } = useTranslation();
   const { api } = useRouter().options.context;
-  const signOut = () => void api.session.logout();
-  if (row) return <RowButton onPress={signOut}>{t('signOut')}</RowButton>;
+  return <RowButton onPress={() => void api.session.logout()}>{t('signOut')}</RowButton>;
+}
+
+export function SignOutButton() {
+  const { t } = useTranslation();
+  const { api } = useRouter().options.context;
   return (
-    <Button variant="danger" onPress={signOut} className="self-start px-0">
+    <Button variant="danger" onPress={() => void api.session.logout()} className="self-start px-0">
       {t('signOut')}
     </Button>
   );

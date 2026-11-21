@@ -1,6 +1,5 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
-import { useState } from 'react';
 import type { Day, Memory, YearGroup } from '../../api/flashbacks';
 import { failureMessage } from '../../shared/failure';
 
@@ -13,13 +12,6 @@ export interface DayView {
 export function dayView({ data, error }: UseQueryResult<Day>): DayView {
   if (data) return data.years.length > 0 ? { years: data.years } : { empty: true };
   return error ? { failure: failureMessage(error, 'onThisDay.failed') } : {};
-}
-
-export function usePlayedDayView(day: UseQueryResult<Day>) {
-  const view = dayView(day);
-  const [played, setPlayed] = useState<DayView | null>(null);
-  if (!played && view.years) setPlayed(view);
-  return played ?? view;
 }
 
 export function thumbnailOf(group: YearGroup) {
