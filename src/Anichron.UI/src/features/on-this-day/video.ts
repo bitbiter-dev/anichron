@@ -1,4 +1,5 @@
 import type { Memory } from '../../api/flashbacks';
+import type { Downloads } from '../../api/media';
 import { recover } from './media';
 import { memoryKind } from './memory-kinds';
 import type { Story, StoryState } from './story';
@@ -7,6 +8,8 @@ type StoryMedia = Pick<
   Story,
   'state' | 'mediaReady' | 'mediaEnded' | 'mediaFailed' | 'livePlaying' | 'liveEnded'
 >;
+
+type InMemory = Pick<Downloads, 'sourceOf' | 'failed'>;
 
 interface Source {
   src: string;
@@ -23,20 +26,22 @@ interface MediaEvents {
 function sourceOf(
   { kind, load, play }: StoryState,
   memory: Memory,
-  liveSource: (url: string) => string,
+  downloads: InMemory,
 ): Source | null {
   const video = memoryKind(kind).video;
   const url = video?.source(memory, load);
-  if (!video || !url || (video.live && play.state === 'still')) return null;
-  const { live } = video;
-  return { src: live ? liveSource(url) : url, poster: memory.proxies.preview ?? '', live };
+  if (!video || !url) return null;
+  const poster = downloads.sourceOf(memory.proxies.preview) ?? '';
+  if (!video.live) return { src: url, poster, live: false };
+  const src = downloads.sourceOf(url) ?? (downloads.failed(url) ? url : null);
+  return play.state !== 'still' && src ? { src, poster, live: true } : null;
 }
 
 export function createVideoPlayer(
   story: StoryMedia,
   memoryOf: (state: StoryState) => Memory,
   renew: () => Promise<void>,
-  liveSource: (url: string) => string,
+  downloads: InMemory,
 ) {
   let element: HTMLVideoElement | null = null;
   let visit = 0;
@@ -47,7 +52,6 @@ export function createVideoPlayer(
   let playing: boolean;
 
   function load(video: HTMLVideoElement) {
-    video.poster = source.poster;
     video.src = source.src;
     playing = false;
   }
@@ -66,7 +70,7 @@ export function createVideoPlayer(
   function sync() {
     if (!element) return;
     const state = story.state();
-    const wanted = sourceOf(state, memoryOf(state), liveSource);
+    const wanted = sourceOf(state, memoryOf(state), downloads);
     element.muted = state.muted || wanted?.live === true;
     if (!wanted) {
       element.pause();
@@ -84,6 +88,7 @@ export function createVideoPlayer(
       reloaded = false;
       load(element);
     }
+    element.poster = wanted.poster;
     playOrPause(element);
   }
 

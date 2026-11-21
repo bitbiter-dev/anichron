@@ -5,7 +5,6 @@ const loadMilliseconds = 10_000;
 const videoMilliseconds = 120_000;
 const hintMilliseconds = 1000;
 const upcomingCount = 2;
-const behindCount = 3;
 
 type PlayedBy = 'hold' | 'button';
 
@@ -23,7 +22,9 @@ interface KindInStory {
   middle: 'sound' | 'details' | 'next';
   holdPlays: boolean;
   hint: boolean;
+  loadsPreview: boolean;
   warmsVideo: boolean;
+  downloadsVideo: boolean;
 }
 
 export function kindInStory(kind: Kind): KindInStory {
@@ -33,7 +34,9 @@ export function kindInStory(kind: Kind): KindInStory {
     middle: 'next',
     holdPlays: false,
     hint: false,
+    loadsPreview: true,
     warmsVideo: false,
+    downloadsVideo: false,
   };
 
   const kinds: Record<Kind, KindInStory> = {
@@ -48,9 +51,10 @@ export function kindInStory(kind: Kind): KindInStory {
       timeLimit: (load) => (load === 'failed' ? memoryMilliseconds : videoMilliseconds),
       middle: 'sound',
       hint: true,
+      loadsPreview: false,
       warmsVideo: true,
     },
-    live: { ...picture, holdPlays: true },
+    live: { ...picture, holdPlays: true, downloadsVideo: true },
     burst: { ...picture, middle: 'details' },
   };
   return kinds[kind];
@@ -84,7 +88,6 @@ export interface StoryState extends StoryPosition {
   playsMedia: boolean;
   length: number;
   upcoming: readonly Place[];
-  behind: readonly Place[];
 }
 
 export type Move = 'next' | 'previous' | 'nextGroup' | 'previousGroup';
@@ -98,6 +101,7 @@ export type Story = Record<
   state: () => StoryState;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
+  mediaProgressed: () => void;
   mediaEnded: (visit: number) => void;
   mediaFailed: (visit: number) => void;
   livePlaying: () => void;
@@ -132,6 +136,7 @@ function createClock(end: () => void) {
       remaining -= Date.now() - startedAt;
     },
     start() {
+      if (timer !== undefined) return;
       startedAt = Date.now();
       timer = setTimeout(end, remaining);
     },
@@ -175,10 +180,6 @@ export function createStory(
     places()
       .filter((place) => isAfter(place, from))
       .slice(0, upcomingCount);
-  const behind = (from: Place) =>
-    places()
-      .filter((place) => isAfter(from, place))
-      .slice(-behindCount);
   let position: StoryPosition = at(group, 0);
   let paused = false;
   let held = false;
@@ -198,7 +199,7 @@ export function createStory(
   hintClock.set(hintMilliseconds);
   let notify: (() => void) | undefined;
 
-  function livePlaying() {
+  function playingLive() {
     return position.play.state === 'playing';
   }
 
@@ -208,7 +209,7 @@ export function createStory(
 
   function stateOf(): StoryState {
     const running =
-      position.load !== 'loading' && !paused && !held && !details && !ended && !livePlaying();
+      position.load !== 'loading' && !paused && !held && !details && !ended && !playingLive();
     const playsMedia = held ? playsBy('hold') : !paused && (playsBy('button') || !ended);
     const { group, memory, kind, load } = position;
     const { durationSeconds } = memories(group)[memory] as StoryMemory;
@@ -224,7 +225,6 @@ export function createStory(
       playsMedia,
       length: kindInStory(kind).length(load, durationSeconds),
       upcoming: upcoming(position),
-      behind: behind(position),
     };
   }
 
@@ -234,7 +234,7 @@ export function createStory(
   }
 
   function start() {
-    if (!notify || paused || held || details || ended || livePlaying()) return;
+    if (!notify || paused || held || details || ended || playingLive()) return;
     clock.start();
     if (hint && position.load !== 'loading') hintClock.start();
   }
@@ -340,6 +340,12 @@ export function createStory(
     },
     mediaReady(visit) {
       settle(visit, 'shown');
+    },
+    mediaProgressed() {
+      if (position.load !== 'loading' || !kindInStory(position.kind).loadsPreview) return;
+      stop();
+      clock.set(loadMilliseconds);
+      start();
     },
     mediaEnded(visit) {
       if (visit === position.visit) next(rest);
