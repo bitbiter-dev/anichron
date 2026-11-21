@@ -2,13 +2,13 @@ import { Link } from '@tanstack/react-router';
 import { CalendarHeart, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useHidesOnScroll } from './use-hides-on-scroll';
-import { useHomeSearch } from './use-home-search';
+import { useLastHomeSearch } from './use-last-home-search';
 
 export function BottomBar() {
   const { t } = useTranslation();
   const { hidden, show } = useHidesOnScroll();
   const barItems = [
-    { to: '/', search: useHomeSearch(), label: 'shell.today', icon: CalendarHeart },
+    { to: '/', search: useLastHomeSearch(), label: 'shell.today', icon: CalendarHeart },
     { to: '/settings', search: {}, label: 'shell.settings', icon: Settings },
   ] as const;
   return (

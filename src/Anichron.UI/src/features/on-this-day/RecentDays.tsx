@@ -10,7 +10,6 @@ import {
   type DayWithMemories,
   type FailedDay,
   hasMemories,
-  type RecentDay,
   useRecentDays,
 } from './use-recent-days';
 import { useOpening } from './use-opening';
@@ -35,12 +34,7 @@ export function RecentDays({ today }: { today: string }) {
   );
 }
 
-interface DaysProps {
-  days: readonly RecentDay[];
-  earlierLabel: ParseKeys;
-  loadingEarlier: boolean;
-  showEarlier: () => void;
-}
+type DaysProps = Omit<ReturnType<typeof useRecentDays>, 'loading' | 'visible'>;
 
 function Days({ days, earlierLabel, loadingEarlier, showEarlier }: DaysProps) {
   return (

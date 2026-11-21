@@ -552,6 +552,8 @@ describe('earlier days', () => {
       ['-1', 1],
       ['soon', 1],
       ['2.5', 2],
+      ['Infinity', 61],
+      ['100000', 61],
     ])('reads an address of earlier=%s as %i times six days', async (earlierPages, shown) => {
       days['2026-11-10'] = [onDay('2026-11-10', 2024)];
       renderApp(`/?earlier=${earlierPages}`);

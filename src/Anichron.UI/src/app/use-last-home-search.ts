@@ -1,7 +1,7 @@
 import { useLocation } from '@tanstack/react-router';
 import { useState } from 'react';
 
-export function useHomeSearch() {
+export function useLastHomeSearch() {
   const location = useLocation();
   const [shown, setShown] = useState({ earlier: undefined as number | undefined });
   const atHome = location.pathname === '/';

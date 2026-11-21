@@ -21,7 +21,7 @@ import {
   type Connection,
   type Listed,
 } from '../../test/handlers/work-items';
-import { memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { hold, memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { sharedTabs } from '../../test/tabs';
@@ -63,14 +63,6 @@ const rowOf = (kind: string) =>
   rows().find((row) => within(row).queryByRole('link', { name: kind })) as HTMLElement;
 const reconnecting = () => screen.getByRole('status');
 const busy = () => screen.getByRole('main').querySelector('[aria-busy="true"]');
-
-function held<T>() {
-  let answer: (value: T) => void = () => undefined;
-  const answered = new Promise<T>((resolve) => {
-    answer = resolve;
-  });
-  return { answered, answer };
-}
 
 function lists(pages: Page | ((page: number) => Page | Response | Promise<Page>)) {
   server.use(workItemPages(typeof pages === 'function' ? pages : () => pages, listed));
@@ -155,8 +147,11 @@ describe('the work queue', () => {
   });
 
   it('shows placeholders, busy, while the list loads, and the list in their place', async () => {
-    const page = held<Page>();
-    lists(() => page.answered);
+    const page = hold();
+    lists(async () => {
+      await page.until;
+      return { items: [workItem(1)] };
+    });
     const { container } = renderApp('/admin/work-items');
     await vi.waitFor(() => {
       expect(listed).toHaveLength(1);
@@ -169,17 +164,19 @@ describe('the work queue', () => {
     expect(screen.queryByText('Nothing in the queue.')).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
 
-    page.answer({ items: [workItem(1)] });
+    page.release();
 
     expect(await screen.findByRole('link', { name: 'Crawl' })).toBeVisible();
     expect(busy()).toBeNull();
   });
 
   it('shows a page it has already read at once, without placeholders', async () => {
-    const again = held<Page>();
+    const again = hold();
     let holding = false;
-    const answer = (page: number) => ({ items: [workItem(3 - page)], page, pageSize: 1, total: 2 });
-    lists((page) => (holding ? again.answered : answer(page)));
+    lists(async (page) => {
+      if (holding) await again.until;
+      return { items: [workItem(3 - page)], page, pageSize: 1, total: 2 };
+    });
     renderApp('/admin/work-items');
     fireEvent.click(await screen.findByRole('link', { name: 'Older' }));
     await screen.findByRole('link', { name: 'Newer' });
@@ -193,7 +190,7 @@ describe('the work queue', () => {
     expect(busy()).toBeNull();
     await advance(0);
     expect(listed.map(({ page }) => page)).toEqual([1, 2, 2]);
-    again.answer(answer(2));
+    again.release();
   });
 
   it('says so when the queue is empty', async () => {
@@ -856,8 +853,13 @@ describe('an item', () => {
   });
 
   it('shows a placeholder, busy, while it loads, and its details in its place', async () => {
-    const item = held<WorkItem>();
-    server.use(workItemAnswers(() => item.answered));
+    const item = hold();
+    server.use(
+      workItemAnswers(async () => {
+        await item.until;
+        return workItem(1);
+      }),
+    );
     lists({ items: [] });
     const { container } = renderApp(`/admin/work-items/${itemId(1)}`);
     await vi.waitFor(() => {
@@ -871,7 +873,7 @@ describe('an item', () => {
     expect(screen.queryByText('There is no such work item.')).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
 
-    item.answer(workItem(1));
+    item.release();
 
     expect(await screen.findByRole('heading', { level: 2, name: 'Crawl' })).toBeVisible();
     expect(busy()).toBeNull();
