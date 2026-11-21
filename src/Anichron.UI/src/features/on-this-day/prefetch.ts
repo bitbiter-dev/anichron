@@ -1,7 +1,7 @@
 import type { Memory } from '../../api/flashbacks';
 import type { Downloads, Wanted } from '../../api/media';
-import type { Place, StoryState } from './story';
-import { kindOf } from './story-view';
+import { kindOf } from './memory-kinds';
+import { kindInStory, type Place, type StoryState } from './story';
 
 type MemoryAt = (place: Place) => Memory;
 type PreviewAt = (place: Place) => string | null;
@@ -11,13 +11,16 @@ export function wantedOf(state: StoryState, previewAt: PreviewAt, memoryAt: Memo
     places
       .flatMap((place) => previewAt(place) ?? [])
       .map((url) => ({ url, kind: 'picture' as const }));
-  const videoOf = (place: Place) => memoryAt(place).livePhotoVideoUrl;
+  const videoOf = (place: Place) => {
+    const memory = memoryAt(place);
+    return kindInStory(kindOf(memory)).downloadsVideo ? memory.livePhotoVideoUrl : null;
+  };
   const videos = (urls: readonly (string | null)[]) =>
     urls.flatMap((url) => (url ? [{ url, kind: 'video' as const }] : []));
   const current = videoOf(state);
   return [
     ...pictures([state]),
-    ...videos(state.livePlay ? [current] : []),
+    ...videos(state.play.state === 'still' ? [] : [current]),
     ...pictures(state.upcoming),
     ...videos([current, state.upcoming.map(videoOf).find(Boolean) ?? null]),
   ];
@@ -31,13 +34,13 @@ export function createPreviews(downloads: Downloads, previewAt: PreviewAt) {
       const url = previewAt(state);
       if (state.visit !== visit) downloads.retry(url);
       visit = state.visit;
-      if (state.kind !== 'video' && downloads.failed(url)) failed(state.visit);
+      if (kindInStory(state.kind).loadsPreview && downloads.failed(url)) failed(state.visit);
     },
   };
 }
 
 export function nextVideo({ upcoming }: StoryState, memoryAt: MemoryAt) {
-  const video = upcoming.map(memoryAt).find((memory) => kindOf(memory) === 'video');
+  const video = upcoming.map(memoryAt).find((memory) => kindInStory(kindOf(memory)).warmsVideo);
   return video?.proxies.video ?? null;
 }
 

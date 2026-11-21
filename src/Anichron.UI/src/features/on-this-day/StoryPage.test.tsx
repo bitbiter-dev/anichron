@@ -973,12 +973,12 @@ describe('a video', () => {
     expect(video().getAttribute('poster')).toBe('');
   });
 
-  it('lasts at most 60 s from the moment it plays', async () => {
+  it('lasts at most 120 s from the moment it plays', async () => {
     await openVideo();
     await advance(9000);
     await fire('playing');
 
-    await advance(59_999);
+    await advance(119_999);
     expect(video()).toBeVisible();
     await advance(1);
     expect(showing()).toBe(preview(ids.b2025));
@@ -992,7 +992,7 @@ describe('a video', () => {
     await user().click(button('Play'));
     await fire('playing');
 
-    await advance(39_999);
+    await advance(99_999);
     expect(video()).toBeVisible();
     await advance(1);
     expect(showing()).toBe(preview(ids.b2025));
@@ -1055,10 +1055,11 @@ describe('a video', () => {
   });
 
   it.each([
-    [90, '60000ms'],
-    [null, '60000ms'],
+    [90, '90000ms'],
+    [150, '120000ms'],
+    [null, '120000ms'],
   ])(
-    'fills the progress segment of a video of %s s over 60 s',
+    'fills the progress segment of a video of %s s over at most 120 s',
     async (durationSeconds, filling) => {
       years = [yearGroup(2025, film(ids.a2025, 2025, { durationSeconds }))];
       await openVideo();
@@ -1118,7 +1119,7 @@ describe('a video', () => {
 
     await fire('error');
     await fire('playing');
-    await advance(59_999);
+    await advance(119_999);
 
     expect(video()).toBeVisible();
   });
@@ -1745,6 +1746,23 @@ describe('a Live Photo', () => {
       expect(live()).toBe('still');
     });
 
+    it('stays still when its video reports playing after it ended', async () => {
+      const live = () => button('Play Live Photo').getAttribute('data-live');
+      await watched();
+      await replay();
+      await fire('playing');
+      await fire('ended');
+
+      await fire('playing');
+
+      expect(live()).toBe('still');
+      expect(video()).not.toBeVisible();
+      await advance(2999);
+      expect(showing()).toBe(preview(ids.a2025));
+      await advance(1);
+      expect(showing()).toBe(preview(ids.b2025));
+    });
+
     it('stays still while the story is paused', async () => {
       const live = () => button('Play Live Photo').getAttribute('data-live');
       await openStory('/day/2026-11-11?year=2025');
@@ -1979,6 +1997,24 @@ describe('a Live Photo', () => {
       fireEvent.click(button('Play Live Photo'));
 
       expect(video().getAttribute('src')).toBe(fromMemoryOf(motionOf(ids.b2025)));
+    });
+
+    it('downloads no video of a burst', async () => {
+      years = [
+        yearGroup(
+          2025,
+          memory(ids.a2025, 2025, {
+            mediaType: 'LivePhoto',
+            livePhotoVideoUrl: `proxies/${movOf(ids.a2025)}/video?v=fedcba9876543210`,
+            burst: { burstId: ids.c2025, isCover: true, count: 2 },
+          }),
+          liveAt(ids.b2025, 2025),
+        ),
+      ];
+      await openStory('/day/2026-11-11?year=2025');
+
+      await fetchedVideos(motionOf(ids.b2025));
+      expect(fetched()).toEqual([motionOf(ids.b2025)]);
     });
 
     it('downloads the next Live Photo video past a photo', async () => {

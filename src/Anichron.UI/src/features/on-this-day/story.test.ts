@@ -3,7 +3,7 @@ import { createStory } from './story';
 
 it('stops waiting for a picture to load once nobody listens', () => {
   const story = createStory(
-    [['picture']],
+    [[{ kind: 'picture', durationSeconds: null }]],
     0,
     () => undefined,
     () => false,

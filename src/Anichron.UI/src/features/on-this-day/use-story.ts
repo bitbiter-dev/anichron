@@ -3,9 +3,10 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Memory, YearGroup } from '../../api/flashbacks';
 import { previewOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
+import { kindOf } from './memory-kinds';
 import { createPreload, createPreviews, nextVideo, wantedOf } from './prefetch';
 import { createStory, type Place } from './story';
-import { kindOf, storyView } from './story-view';
+import { storyView } from './story-view';
 import { createVideoPlayer } from './video';
 
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
@@ -19,7 +20,12 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
       const previewAt = (place: Place) => previewOf(api, queryClient, memoryAt(place));
       const previews = createPreviews(downloads, previewAt);
       const story = createStory(
-        years.map((group) => group.memories.map(kindOf)),
+        years.map((group) =>
+          group.memories.map((memory) => ({
+            kind: kindOf(memory),
+            durationSeconds: memory.durationSeconds,
+          })),
+        ),
         startGroup(years, year),
         close,
         previews.downloaded,

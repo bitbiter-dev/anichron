@@ -1,6 +1,7 @@
 import type { Memory } from '../../api/flashbacks';
 import type { Downloads } from '../../api/media';
 import { recover } from './media';
+import { memoryKind } from './memory-kinds';
 import type { Story, StoryState } from './story';
 
 type StoryMedia = Pick<
@@ -13,6 +14,7 @@ type InMemory = Pick<Downloads, 'sourceOf' | 'failed'>;
 interface Source {
   src: string;
   poster: string;
+  live: boolean;
 }
 
 interface MediaEvents {
@@ -22,16 +24,17 @@ interface MediaEvents {
 }
 
 function sourceOf(
-  state: StoryState,
-  { proxies, livePhotoVideoUrl }: Memory,
+  { kind, load, play }: StoryState,
+  memory: Memory,
   downloads: InMemory,
 ): Source | null {
-  const poster = downloads.sourceOf(proxies.preview) ?? '';
-  if (state.kind === 'video' && state.load !== 'failed')
-    return { src: proxies.video as string, poster };
-  const live = livePhotoVideoUrl as string;
-  const src = downloads.sourceOf(live) ?? (downloads.failed(live) ? live : null);
-  return state.livePlay && src ? { src, poster } : null;
+  const video = memoryKind(kind).video;
+  const url = video?.source(memory, load);
+  if (!video || !url) return null;
+  const poster = downloads.sourceOf(memory.proxies.preview) ?? '';
+  if (!video.live) return { src: url, poster, live: false };
+  const src = downloads.sourceOf(url) ?? (downloads.failed(url) ? url : null);
+  return play.state !== 'still' && src ? { src, poster, live: true } : null;
 }
 
 export function createVideoPlayer(
@@ -68,7 +71,7 @@ export function createVideoPlayer(
     if (!element) return;
     const state = story.state();
     const wanted = sourceOf(state, memoryOf(state), downloads);
-    element.muted = state.muted || state.kind === 'live';
+    element.muted = state.muted || wanted?.live === true;
     if (!wanted) {
       element.pause();
       if (element.hasAttribute('src')) {
@@ -80,7 +83,7 @@ export function createVideoPlayer(
     if (state.playId !== playId) {
       playId = state.playId;
       visit = state.visit;
-      events = state.kind === 'live' ? liveEvents : videoEvents;
+      events = wanted.live ? liveEvents : videoEvents;
       source = wanted;
       reloaded = false;
       load(element);
