@@ -1999,6 +1999,24 @@ describe('a Live Photo', () => {
       expect(video().getAttribute('src')).toBe(fromMemoryOf(motionOf(ids.b2025)));
     });
 
+    it('downloads no video of a burst', async () => {
+      years = [
+        yearGroup(
+          2025,
+          memory(ids.a2025, 2025, {
+            mediaType: 'LivePhoto',
+            livePhotoVideoUrl: `proxies/${movOf(ids.a2025)}/video?v=fedcba9876543210`,
+            burst: { burstId: ids.c2025, isCover: true, count: 2 },
+          }),
+          liveAt(ids.b2025, 2025),
+        ),
+      ];
+      await openStory('/day/2026-11-11?year=2025');
+
+      await fetchedVideos(motionOf(ids.b2025));
+      expect(fetched()).toEqual([motionOf(ids.b2025)]);
+    });
+
     it('downloads the next Live Photo video past a photo', async () => {
       years = [
         yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025)),
