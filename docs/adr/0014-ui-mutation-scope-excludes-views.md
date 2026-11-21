@@ -46,5 +46,5 @@ A directive needs a row naming its file and the ADR 0005 proof: no input tells t
 - A view that needs a branch, computed value or timer gets a hook in `.ts`.
 - An equivalent mutant is rewritten away before it is suppressed.
 - The setup is guarded like the backend's: thresholds 100, the Vitest runner, no `ignoreStatic`, the static-leaks reporter loaded, `--force` only in `scripts/ui-mutation-changed.sh`.
-- Pull requests run incrementally against master's baseline: a mutant keeps its result while its code and covering tests are unchanged. What that cannot see, the weekly full run catches (`docs/mutation-testing.md`, "The UI").
+- Pull requests run incrementally against master's baseline, which every master push publishes: a tested push promotes its PR's file. A mutant keeps its result while its code and covering tests are unchanged, and a setup changed since the baseline's commit runs every mutant. What that cannot see, the weekly full run catches (`docs/mutation-testing.md`, "The UI").
 - `src/shared/ui/tv.ts` may build at module scope: views call `tv(...)` at import, so its mutants are static however it is written.

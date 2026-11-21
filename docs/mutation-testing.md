@@ -25,8 +25,9 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 
 - StrykerJS with the Vitest runner, configured in `src/Anichron.UI/stryker.config.json`. Scope: ADR 0014. Guard: `scripts/ui-mutation-guard.sh`.
 - `scripts/ui-mutation-changed.sh` runs the whole scope in incremental mode (ADR 0014): a mutant whose code and covering tests are unchanged keeps its result from the baseline, `reports/stryker-incremental.json`.
-- **The baseline** is the artifact `ui-mutation-incremental`, published by every `--all` run on master: the weekly full run, and a master push its PR did not test. A run without a local baseline seeds from the newest one.
-- **What incremental cannot see:** a change to a view, a catalog or test support that turns a recorded kill into a survivor. The weekly full run catches it. A change to the measurement setup (the script's header lists it) runs every mutant.
+- **The baseline** is the artifact `ui-mutation-incremental`, published by every master push and the weekly full run. Its commit is its run's head commit. A run without a local baseline seeds from the master one whose commit is the newest ancestor of `HEAD` (`scripts/ui-mutation-seed.sh`).
+- **A tested master push** publishes, through `scripts/ui-mutation-promote.sh`, its PR's file (kept under its tree), else master's baseline when no UI file changed, else an incremental run from it. An untested push and the weekly run publish from `--all`, which resets what chained incremental runs carried forward.
+- **What incremental cannot see:** a change to a view, a catalog or test support that turns a recorded kill into a survivor. The weekly full run catches it. A change to the measurement setup (the script's header lists it) since the baseline's commit runs every mutant; a local baseline whose commit is unknown is discarded.
 - No `TMPDIR` hazard: each worktree has its own sandbox, and the mutant is passed in process.
 - **`vitest.related` is off.** Per-test coverage already picks a mutant's tests; the related filter also drops a test file whose import of the mutated file Vitest cannot trace, such as a fresh-copy import with a query, and its mutants survive.
 - **Test files share a worker** (`isolate: false`), so a leak between tests would count as a kill. The suite runs in shuffled order everywhere and must pass in any order.
@@ -42,7 +43,7 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 - `Mutation targets` plans the runs (`scripts/mutation-changed.sh --matrix`): a pull request's changed files, otherwise every target, where an empty list fails. A pull request with nothing to mutate plans none and passes. `Mutation — <project>` runs one matrix job per planned project. `Mutation` merges the reports (`scripts/mutation-report.sh merge`) and fails in its **last** step, so the summary and report still upload.
 - The merge refuses inputs it cannot trust: a missing project report, a file in two reports, a test id with two names, or differing schemas or thresholds.
 - `Mutation` is not a required check itself. It blocks merges through `CI gate`.
-- A master push whose tree passed `CI gate` on its PR runs none of this (`scripts/tested-on-pr.sh`); the weekly full run sweeps instead.
+- A master push whose tree passed `CI gate` on its PR runs none of this (`scripts/tested-on-pr.sh`), only `UI baseline` ("The UI"); the weekly full run sweeps instead.
 - A job-level `if:` does not relax `needs:`; only `always()` or `!cancelled()` does. That is why the weekly run's `publish` and `deploy-pages` use `!cancelled()` with explicit result checks.
 
 ## Configuration

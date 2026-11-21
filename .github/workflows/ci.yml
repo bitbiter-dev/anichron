@@ -249,15 +249,19 @@ jobs:
         working-directory: .
         run: |
           scripts/ui-mutation-changed.test.sh
+          scripts/ui-mutation-promote.test.sh
           scripts/ui-mutation-guard.test.sh
 
       - name: Mutation setup matches its rules
         working-directory: .
         run: scripts/ui-mutation-guard.sh
 
-      # A pull request runs incrementally on master's baseline; master runs
-      # every mutant and publishes the next baseline.
+      # A pull request runs incrementally on master's baseline and keeps its
+      # file under its tree, for the ui-baseline job to promote once it lands.
+      # An untested master push runs every mutant and publishes the next
+      # baseline.
       - name: Mutation test
+        id: mutation
         working-directory: .
         env:
           EVENT: ${{ github.event_name }}
@@ -265,10 +269,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$EVENT" = pull_request ]; then
+            echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
             scripts/ui-mutation-changed.sh --base "origin/$BASE"
           else
             scripts/ui-mutation-changed.sh --all
           fi
+
+      - name: Keep the pull request's baseline
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-mutation-pr-${{ steps.mutation.outputs.tree }}
+          path: src/Anichron.UI/reports/stryker-incremental.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 14
 
       - name: Publish the incremental baseline
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
@@ -284,6 +299,56 @@ jobs:
 
       - name: Bundle budget
         run: pnpm size
+
+  # A master push whose tree passed on its pull request runs no UI job; this
+  # publishes the baseline describing it (scripts/ui-mutation-promote.sh).
+  # Not part of the gate: a stale baseline costs pull requests time, not
+  # correctness.
+  ui-baseline:
+    name: UI baseline
+    needs: changes
+    if: needs.changes.outputs.tested == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Promote the pull request's baseline
+        id: promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ui-mutation-promote.sh | tee -a "$GITHUB_OUTPUT"
+
+      - uses: pnpm/setup@v3
+        if: steps.promote.outputs.baseline == 'stale' || steps.promote.outputs.baseline == 'missing'
+        with:
+          working-directory: src/Anichron.UI
+          require-lockfile: true
+          cache: true
+
+      - name: Mutation test
+        if: steps.promote.outputs.baseline == 'stale' || steps.promote.outputs.baseline == 'missing'
+        env:
+          COMMIT: ${{ steps.promote.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "$COMMIT" ]; then
+            scripts/ui-mutation-changed.sh --base "$COMMIT"
+          else
+            scripts/ui-mutation-changed.sh --all
+          fi
+
+      - name: Publish the incremental baseline
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-mutation-incremental
+          path: src/Anichron.UI/reports/stryker-incremental.json
+          if-no-files-found: error
+          retention-days: 30
 
   # The API image built from this PR, started with PostgreSQL and no Worker,
   # in WebKit, Chromium and Firefox (src/Anichron.UI/e2e).
@@ -672,7 +737,7 @@ jobs:
   report:
     name: Report a failed master run
     runs-on: ubuntu-latest
-    needs: [gate, docker-publish]
+    needs: [gate, docker-publish, ui-baseline]
     if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     permissions:
       contents: read

@@ -206,7 +206,7 @@ Read the file before changing its area, and fix what your change makes wrong in 
 - **Images:** the Worker is `runtime:10.0-noble`, multi-arch (amd64 + arm64); its native packages are in its Dockerfile (ADR 0009, 0016). The API is Alpine.
 - **CI** (`.github/workflows/ci.yml`): images push only after `CI gate` passes, tagged `sha-<hash>`, `edge` on master, SemVer on releases.
   - A draft PR runs no CI or CodeQL; its gate passes as `Draft, no CI`, never as `CI gate`.
-  - A master push whose tree passed `CI gate` on its PR only publishes images (`scripts/tested-on-pr.sh`). The full sweeps, reports and badges run weekly (`docs/mutation-testing.md`, "The weekly full run").
+  - A master push whose tree passed `CI gate` on its PR only publishes images and the UI mutation baseline (`scripts/tested-on-pr.sh`). The full sweeps, reports and badges run weekly (`docs/mutation-testing.md`, "The weekly full run").
   - A failed master push or weekly run opens a "Full run failed" issue assigned to the maintainer (`scripts/full-run-report.sh`).
 - **Branch protection** requires only `CI gate` and `CodeQL`. A new required job goes into the gate's `needs` (`scripts/ci-gate.sh`), never into branch protection.
 - **Backend jobs skip** on a PR that changes only `src/Anichron.UI/` and Markdown outside `src/` (except ADR 0005), as `scripts/changed-areas.sh` decides. A job that should skip with the backend gets `needs: changes`, `if: needs.changes.outputs.backend == 'true'` and a `--backend <job>` in the gate's call; `scripts/ci-gate-guard.sh` checks they agree.
