@@ -43,7 +43,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root=$(git rev-parse --show-toplevel)
 ui="$root/src/Anichron.UI"
 baseline="$ui/reports/stryker-incremental.json"
-recorded="$ui/reports/stryker-incremental.commit"
+commit_file="$ui/reports/stryker-incremental.commit"
 setup=(src/Anichron.UI/stryker.config.json src/Anichron.UI/vite.config.ts src/Anichron.UI/package.json src/Anichron.UI/pnpm-lock.yaml)
 cd "$root"
 
@@ -70,10 +70,10 @@ else
 
   commit=''
   if [ -f "$baseline" ]; then
-    commit=$(cat "$recorded" 2>/dev/null || true)
+    commit=$(cat "$commit_file" 2>/dev/null || true)
     if [ -z "$commit" ] || ! git cat-file -e "$commit^{commit}" 2>/dev/null; then
       echo "discarding the local baseline; the commit it was measured on is unknown"
-      rm -f "$baseline" "$recorded"
+      rm -f "$baseline" "$commit_file"
       commit=''
     fi
   fi
@@ -121,9 +121,9 @@ status=0
 
 if [ "$baseline" -nt "$stamp" ]; then
   if [ -z "$(git status --porcelain -- "${setup[@]}")" ]; then
-    git rev-parse HEAD >"$recorded"
+    git rev-parse HEAD >"$commit_file"
   else
-    rm -f "$recorded"
+    rm -f "$commit_file"
   fi
 fi
 exit "$status"

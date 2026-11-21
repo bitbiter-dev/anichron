@@ -20,7 +20,7 @@ reports="$root/src/Anichron.UI/reports"
 tree=$(git -C "$root" rev-parse 'HEAD^{tree}')
 artifact="ui-mutation-pr-$tree"
 
-found() {
+finish() {
   echo "$1" >&2
   echo "baseline=$2"
   exit 0
@@ -35,15 +35,15 @@ if [ -n "$id" ]; then
     && unzip -qo "$promote/baseline.zip" -d "$promote" && [ -f "$promote/stryker-incremental.json" ]; then
     mkdir -p "$reports"
     mv "$promote/stryker-incremental.json" "$reports/stryker-incremental.json"
-    found "promoted the pull request's artifact $artifact" promoted
+    finish "promoted the pull request's artifact $artifact" promoted
   fi
   echo "cannot fetch the pull request's artifact $artifact" >&2
 fi
 
-commit=$("$here/ui-mutation-seed.sh") || found "no $artifact and no baseline from master" missing
+commit=$("$here/ui-mutation-seed.sh") || finish "no $artifact and no baseline from master" missing
 
 if git -C "$root" diff --quiet "$commit" HEAD -- src/Anichron.UI; then
-  found "no $artifact; master's baseline at $commit has the same UI files" carried
+  finish "no $artifact; master's baseline at $commit has the same UI files" carried
 fi
 echo "commit=$commit"
-found "no $artifact; master's baseline at $commit is behind the UI files" stale
+finish "no $artifact; master's baseline at $commit is behind the UI files" stale

@@ -292,6 +292,7 @@ jobs:
           name: ui-mutation-incremental
           path: src/Anichron.UI/reports/stryker-incremental.json
           if-no-files-found: error
+          overwrite: true
           retention-days: 30
 
       - name: Build
@@ -302,8 +303,6 @@ jobs:
 
   # A master push whose tree passed on its pull request runs no UI job; this
   # publishes the baseline describing it (scripts/ui-mutation-promote.sh).
-  # Not part of the gate: a stale baseline costs pull requests time, not
-  # correctness.
   ui-baseline:
     name: UI baseline
     needs: changes
@@ -348,6 +347,7 @@ jobs:
           name: ui-mutation-incremental
           path: src/Anichron.UI/reports/stryker-incremental.json
           if-no-files-found: error
+          overwrite: true
           retention-days: 30
 
   # The API image built from this PR, started with PostgreSQL and no Worker,
