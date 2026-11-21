@@ -9,7 +9,13 @@ import {
   refreshSucceeds,
   miraSession,
 } from '../../test/handlers/auth';
-import { memory, onThisDayAnswers, todayAnd, yearGroup } from '../../test/handlers/flashbacks';
+import {
+  hold,
+  memory,
+  onThisDayAnswers,
+  todayAnd,
+  yearGroup,
+} from '../../test/handlers/flashbacks';
 import { askedPictures, holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
@@ -43,6 +49,8 @@ async function advance(milliseconds: number) {
 }
 
 const pictureIn = (element: HTMLElement) => element.querySelector('img');
+const todayBox = () =>
+  screen.getByRole('heading', { level: 1, name: 'On This Day' }).nextElementSibling;
 
 beforeEach(() => {
   requested = [];
@@ -62,11 +70,39 @@ describe('the landing screen', () => {
       await advance(1000);
 
       expect(screen.queryAllByRole('link', { name: /ago/ })).toEqual([]);
+      expect(todayBox()).toHaveAttribute('aria-busy', 'true');
       thumbnailHeld[outcome]();
       expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
       expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+      expect(todayBox()).toHaveAttribute('aria-busy', 'false');
     },
   );
+
+  it('marks the day busy, showing none of it, while it loads', async () => {
+    const answer = hold();
+    server.use(
+      refreshSucceeds(),
+      onThisDayAnswers(
+        todayAnd([], async () => {
+          await answer.until;
+          return [yearGroup(2023, memory(ids.first2023, 2023))];
+        }),
+      ),
+    );
+    const { container } = renderApp('/');
+    await screen.findByRole('heading', { level: 1, name: 'On This Day' });
+    await advance(1000);
+
+    expect(todayBox()).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('link', { name: /ago/ })).toBeNull();
+    expect(screen.queryByText('Nothing from this day in earlier years')).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    answer.release();
+
+    expect(await screen.findByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
+    expect(todayBox()).toHaveAttribute('aria-busy', 'false');
+  });
 
   it('shows a year group whose first memory has no picture, asking for no picture for it', async () => {
     const noPicture = { proxies: { thumbnail: null, preview: null, video: null } };
@@ -174,6 +210,7 @@ describe('the landing screen', () => {
 
     expect(await screen.findByText('Nothing from this day in earlier years')).toBeVisible();
     expect(screen.queryByRole('link', { name: /ago/ })).toBeNull();
+    expect(todayBox()).toHaveAttribute('aria-busy', 'false');
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
@@ -208,9 +245,11 @@ describe('the landing screen', () => {
     await advance(6000);
     expect(requested).toHaveLength(3);
     expect(screen.queryByText(message)).toBeNull();
+    expect(todayBox()).toHaveAttribute('aria-busy', 'true');
     await advance(2000);
     expect(requested).toHaveLength(4);
     expect(await screen.findByText(message)).toBeVisible();
+    expect(todayBox()).toHaveAttribute('aria-busy', 'false');
     expect(await axeResults(container)).toHaveNoViolations();
 
     failing = false;

@@ -11,5 +11,6 @@ export function useDayView(date: string) {
   const shown = useGroupsShown([
     { settled: !day.isPending, pictures: (view.years ?? []).map(thumbnailOf) },
   ]);
-  return { view: shown > 0 ? view : {}, retry: () => void day.refetch() };
+  const loading = shown === 0;
+  return { view: loading ? {} : view, loading, retry: () => void day.refetch() };
 }

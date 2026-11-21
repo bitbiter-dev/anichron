@@ -95,9 +95,11 @@ describe('the recent days', () => {
       await advance(1000);
 
       expect(circles()).toEqual([]);
+      expect(tray()).toHaveAttribute('aria-busy', 'true');
       thumbnailHeld[outcome]();
       expect(await within(tray()).findByRole('link', { name: 'Sun 8 Nov' })).toBeVisible();
       expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sun 8 Nov']);
+      expect(tray()).toHaveAttribute('aria-busy', 'false');
     },
   );
 
@@ -108,15 +110,14 @@ describe('the recent days', () => {
       '2026-11-10': [onDay('2026-11-10', 2024)],
       '2026-10-31': [onDay('2026-10-31', 2023)],
     };
-    renderApp('/');
-    fireEvent.click(
-      await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('button', {
-        name: 'Earlier days',
-      }),
-    );
+    renderApp('/?earlier=2');
+    await vi.waitFor(() => {
+      expect(requested).toContain('2026-10-31');
+    });
     await advance(1000);
 
     expect(circles()).toEqual([]);
+    expect(tray()).toHaveAttribute('aria-busy', 'true');
     thumbnailHeld.load();
     expect(await within(tray()).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
     expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sat 31 Oct']);
@@ -226,6 +227,69 @@ describe('the recent days', () => {
     );
     expect(await screen.findByRole('dialog')).toBeVisible();
     expect(tapped).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('marks the tray busy, showing none of it, while its first six days load', async () => {
+    const dayHeld = hold();
+    days['2026-11-09'] = async () => {
+      await dayHeld.until;
+      return HttpResponse.json({ date: '2026-11-09', years: [onDay('2026-11-09', 2021)] });
+    };
+    const { container } = renderApp('/');
+    await vi.waitFor(() => {
+      expect(requested).toContain('2026-11-09');
+    });
+    await advance(1000);
+
+    expect(tray()).toHaveAttribute('aria-busy', 'true');
+    expect(within(tray()).queryAllByRole('listitem')).toEqual([]);
+    expect(screen.queryByRole('button', { name: 'Earlier days' })).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    dayHeld.release();
+
+    expect(await within(tray()).findByRole('link', { name: 'Mon 9 Nov' })).toBeVisible();
+    expect(tray()).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('takes the busy tray away once none of the days has memories', async () => {
+    const dayHeld = hold();
+    days['2026-11-09'] = async () => {
+      await dayHeld.until;
+      return HttpResponse.json({ date: '2026-11-09', years: [] });
+    };
+    renderApp('/');
+    await vi.waitFor(() => {
+      expect(requested).toContain('2026-11-09');
+    });
+    await advance(1000);
+    expect(tray()).toHaveAttribute('aria-busy', 'true');
+
+    dayHeld.release();
+
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('list', { name: 'Recent days' })).toBeNull();
+    });
+    expect(screen.getByText('Nothing from this day in earlier years')).toBeVisible();
+  });
+
+  it('keeps the tray busy while the six days are empty and today still loads', async () => {
+    const todayHeld = hold();
+    days['2026-11-11'] = async () => {
+      await todayHeld.until;
+      return HttpResponse.json({ date: '2026-11-11', years: [onDay('2026-11-11', 2025)] });
+    };
+    renderApp('/');
+    await vi.waitFor(() => {
+      expect(requested).toHaveLength(7);
+    });
+    await advance(1000);
+    expect(tray()).toHaveAttribute('aria-busy', 'true');
+
+    todayHeld.release();
+
+    expect(await within(tray()).findByRole('button', { name: 'Earlier days' })).toBeVisible();
+    expect(tray()).toHaveAttribute('aria-busy', 'false');
   });
 
   it('shows only the message when the whole week is empty', async () => {
@@ -362,7 +426,7 @@ describe('earlier days', () => {
     expect(earlier()).not.toHaveAttribute('data-pending');
   });
 
-  it('holds the first six days back, saying Earlier days, until the last of them arrives', async () => {
+  it('holds the first six days back, busy, until the last of them arrives', async () => {
     days['2026-11-11'] = [onDay('2026-11-11', 2025)];
     days['2026-11-10'] = [onDay('2026-11-10', 2024)];
     days['2026-11-09'] = () =>
@@ -376,9 +440,10 @@ describe('earlier days', () => {
     await advance(2900);
 
     expect(circles()).toEqual([]);
-    expect(earlier()).toHaveAccessibleName('Earlier days');
+    expect(tray()).toHaveAttribute('aria-busy', 'true');
     await advance(100);
     expect(await within(tray()).findByRole('link', { name: 'Yesterday' })).toBeVisible();
+    expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 
   it('says nothing when a retried day of the first six turns out empty', async () => {
@@ -395,9 +460,128 @@ describe('earlier days', () => {
     expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 
+  describe('once it added six more', () => {
+    const bar = () => screen.getByRole('navigation', { name: '' });
+
+    async function addedEarlier() {
+      days['2026-10-31'] = [onDay('2026-10-31', 2023)];
+      const rendered = await openLanding();
+      fireEvent.click(earlier());
+      await within(tray()).findByRole('link', { name: 'Sat 31 Oct' });
+      return rendered;
+    }
+
+    function holdEveryDay() {
+      const answers = hold();
+      server.use(
+        onThisDayAnswers(async (date) => {
+          requested.push(date);
+          await answers.until;
+          return [];
+        }),
+      );
+      return answers;
+    }
+
+    const shownAgain = async () => {
+      const shown = await screen.findByRole('list', { name: 'Recent days' });
+      expect(await within(shown).findByRole('link', { name: 'Sat 31 Oct' })).toBeVisible();
+      expect(circles().map((circle) => circle.textContent)).toEqual(['Yesterday', 'Sat 31 Oct']);
+      expect(tray()).toHaveAttribute('aria-busy', 'false');
+    };
+
+    it('keeps them in the address, without a new entry in history', async () => {
+      const { router } = await addedEarlier();
+
+      expect(router.state.location.href).toBe('/?earlier=2');
+      expect(router.history.length).toBe(1);
+    });
+
+    it('opens with them from the address, six days for each', async () => {
+      days['2026-10-31'] = [onDay('2026-10-31', 2023)];
+      days['2026-11-10'] = [onDay('2026-11-10', 2024)];
+      renderApp('/?earlier=2');
+
+      await shownAgain();
+      expect(requested).toHaveLength(13);
+    });
+
+    it.each([
+      [
+        'Today in the bottom bar',
+        () => fireEvent.click(within(bar()).getByRole('link', { name: 'Today' })),
+      ],
+      [
+        'Back',
+        (router: ReturnType<typeof renderApp>['router']) => {
+          router.history.back();
+        },
+      ],
+    ])('still shows them, from what it read, back from Settings through %s', async (_, back) => {
+      const { router } = await addedEarlier();
+      fireEvent.click(within(bar()).getByRole('link', { name: 'Settings' }));
+      await screen.findByRole('heading', { level: 1, name: 'Settings' });
+      const answers = holdEveryDay();
+
+      act(() => {
+        back(router);
+      });
+
+      await shownAgain();
+      expect(router.state.location.href).toBe('/?earlier=2');
+      answers.release();
+    });
+
+    it('still shows them behind a story opened from them, and once it closes', async () => {
+      const { router } = await addedEarlier();
+
+      fireEvent.click(within(tray()).getByRole('link', { name: 'Sat 31 Oct' }));
+      const story = await screen.findByRole('dialog');
+      expect(router.state.location.href).toBe('/day/2026-10-31?year=2023&earlier=2');
+      fireEvent.click(within(story).getByRole('button', { name: 'Close' }));
+
+      await vi.waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+      });
+      await shownAgain();
+      expect(router.state.location.href).toBe('/?earlier=2');
+    });
+
+    it.each([
+      ['0', 1],
+      ['-1', 1],
+      ['soon', 1],
+      ['2.5', 2],
+    ])('reads an address of earlier=%s as %i times six days', async (earlierPages, shown) => {
+      days['2026-11-10'] = [onDay('2026-11-10', 2024)];
+      renderApp(`/?earlier=${earlierPages}`);
+      await within(await screen.findByRole('list', { name: 'Recent days' })).findByRole('link', {
+        name: 'Yesterday',
+      });
+      await advance(0);
+
+      expect(requested).toHaveLength(1 + 6 * shown);
+    });
+
+    it('keeps them when it becomes visible on the same day', async () => {
+      const { router } = await addedEarlier();
+
+      act(() => {
+        becomes('hidden');
+      });
+      act(() => {
+        becomes('visible');
+      });
+      await advance(0);
+
+      await shownAgain();
+      expect(router.state.location.href).toBe('/?earlier=2');
+    });
+  });
+
   it('starts again from the last six days when it becomes visible on a new day', async () => {
     days['2026-10-31'] = [onDay('2026-10-31', 2023)];
-    await openLanding();
+    const { router } = await openLanding();
     fireEvent.click(earlier());
     await within(tray()).findByRole('link', { name: 'Sat 31 Oct' });
 
@@ -406,12 +590,15 @@ describe('earlier days', () => {
       becomes('visible');
     });
 
-    expect(await within(tray()).findByRole('link', { name: 'Tue 10 Nov' })).toBeVisible();
+    await vi.waitFor(() => {
+      expect(within(tray()).getByRole('link', { name: 'Tue 10 Nov' })).toBeVisible();
+    });
     expect(
       within(tray())
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual(['Tue 10 Nov', 'Earlier days']);
+    expect(router.state.location.href).toBe('/');
   });
 
   it('says Nothing in these days when only the newest six it added are empty', async () => {

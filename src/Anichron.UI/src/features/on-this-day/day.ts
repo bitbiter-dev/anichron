@@ -134,6 +134,11 @@ export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memo
   return cardOf(memory, frames).proxies.preview;
 }
 
+export function homeSearch(search: Record<string, unknown>): { earlier?: number } {
+  const earlier = Math.floor(Number(search.earlier));
+  return { earlier: earlier > 0 ? earlier : undefined };
+}
+
 // Stryker disable next-line BlockStatement
 export function storySearch(search: Record<string, unknown>) {
   // Stryker disable next-line ObjectLiteral

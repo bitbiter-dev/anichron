@@ -4,10 +4,12 @@
   --neutral-0: #ffffff;
   --neutral-50: #f7f5f2;
   --neutral-100: #f3f1ee;
+  --neutral-200: #e4dfd9;
   --neutral-400: #aaa39b;
   --neutral-500: #8a837c;
   --neutral-600: #7d766f;
   --neutral-700: #5e5852;
+  --neutral-800: #35312c;
   --neutral-850: #24211e;
   --neutral-900: #1f1c19;
   --neutral-950: #171513;
@@ -45,7 +47,9 @@
   --duration-base: 250ms;
   --duration-blink: 800ms;
   --duration-spin: 1s;
+  --duration-pulse: 1s;
   --delay-live-ring: 300ms;
+  --delay-skeleton: 300ms;
 }
 
 [data-theme='light'] {
@@ -63,6 +67,7 @@
     --animate-story-fill: story-fill steps(5) forwards;
     --animate-live-blink: none;
     --animate-live-ring: none;
+    --animate-skeleton: none;
   }
 }
 
@@ -85,6 +90,7 @@
   --color-player-glass: var(--neutral-850);
   --color-player-accent: var(--accent-300);
   --color-scrim: var(--black);
+  --color-skeleton: light-dark(var(--neutral-200), var(--neutral-800));
 
   --radius-*: initial;
   --radius-field: 0.75rem;
@@ -103,4 +109,6 @@
   --animate-story-fill: story-fill linear forwards;
   --animate-live-blink: live-blink var(--duration-blink) ease-in-out infinite alternate;
   --animate-live-ring: live-ring var(--duration-spin) linear infinite;
+  --animate-skeleton: skeleton-pulse var(--duration-pulse) ease-in-out var(--delay-skeleton)
+    infinite alternate;
 }
