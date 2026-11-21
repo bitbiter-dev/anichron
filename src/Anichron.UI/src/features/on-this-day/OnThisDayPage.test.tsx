@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -56,7 +56,7 @@ describe('the landing screen', () => {
       const thumbnailHeld = holdPicture(thumbnail(ids.first2023));
       server.use(refreshSucceeds(), today());
       renderApp('/');
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(requested).toEqual(['2026-11-11']);
       });
       await advance(1000);
@@ -201,7 +201,7 @@ describe('the landing screen', () => {
       ),
     );
     const { container } = renderApp('/');
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(requested).toHaveLength(1);
     });
 

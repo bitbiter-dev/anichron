@@ -124,7 +124,9 @@ describe('the bottom bar while scrolling', () => {
     scrollTo(500);
 
     act(() => {
-      screen.getByRole('link', { name: 'Today' }).focus();
+      act(() => {
+        screen.getByRole('link', { name: 'Today' }).focus();
+      });
     });
     expect(bar()).not.toHaveAttribute('data-hidden');
 

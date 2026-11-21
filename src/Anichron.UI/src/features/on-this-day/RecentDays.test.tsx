@@ -1,10 +1,11 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within, waitFor } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
 import { hold, memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { keptSource } from '../../test/object-urls';
 import { holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
@@ -205,7 +206,7 @@ describe('the recent days', () => {
     expect(router.state.location.href).toBe('/day/2026-12-31?year=2024');
     expect(within(story).getByText('2 years ago · 2024')).toBeVisible();
     expect(story.querySelector('img')?.getAttribute('src')).toBe(
-      `/api/v1/proxies/${id('2026-12-31')}/preview?v=0123456789abcdef`,
+      keptSource(`/api/v1/proxies/${id('2026-12-31')}/preview?v=0123456789abcdef`),
     );
   });
 
@@ -232,7 +233,7 @@ describe('the recent days', () => {
     const { container } = renderApp('/');
 
     expect(await screen.findByText('Nothing from this day in earlier years')).toBeVisible();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(requested).toHaveLength(7);
     });
     await advance(0);
@@ -351,7 +352,7 @@ describe('earlier days', () => {
 
     fireEvent.click(earlier());
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(requested).toContain('2026-10-31');
     });
     expect(earlier()).toHaveAttribute('data-pending', 'true');
@@ -389,7 +390,7 @@ describe('earlier days', () => {
     days['2026-11-09'] = [];
     fireEvent.click(within(tray()).getByRole('button', { name: 'Try again, Mon 9 Nov' }));
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(within(tray()).queryByRole('button', { name: /Try again/ })).toBeNull();
     });
     expect(earlier()).toHaveAccessibleName('Earlier days');
@@ -405,6 +406,7 @@ describe('earlier days', () => {
     act(() => {
       becomes('visible');
     });
+    await advance(0);
 
     expect(await within(tray()).findByRole('link', { name: 'Tue 10 Nov' })).toBeVisible();
     expect(

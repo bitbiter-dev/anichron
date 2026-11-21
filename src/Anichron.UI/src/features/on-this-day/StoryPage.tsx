@@ -4,14 +4,14 @@ import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import { Button, Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
-import type { Day } from '../../api/flashbacks';
+import type { Day, YearGroup } from '../../api/flashbacks';
 import { Toasts } from '../../shared/ui/Toast';
 import { Blurhash } from './BlurhashCanvas';
 import { BurstDetails } from './BurstDetails';
 import { otherFrames } from './burst';
 import { CloseButton, roundButton } from './CloseButton';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
-import { type DayView, dayView } from './day-view';
+import { type DayView, usePlayedDayView } from './day-view';
 import { Failed } from '../../shared/ui/Failed';
 import { LivePhotoIcon } from './LivePhotoIcon';
 import { focusOnMount } from './focus';
@@ -34,7 +34,7 @@ export function StoryPage() {
   const { year } = story.useSearch();
   const { api, back } = useRouter().options.context;
   const day = useQuery({ ...dayQuery(api, date), refetchOnMount: false });
-  const state = dayView(day);
+  const state = usePlayedDayView(day);
   const close = () => {
     back.to('/');
   };
@@ -49,7 +49,13 @@ export function StoryPage() {
           className="relative size-full text-on-player outline-none"
         >
           {state.years ? (
-            <Player date={date} year={year} day={day.data as Day} close={close} />
+            <Player
+              date={date}
+              year={year}
+              years={state.years}
+              day={day.data as Day}
+              close={close}
+            />
           ) : (
             <Fallback state={state} close={close} retry={() => void day.refetch()} />
           )}
@@ -101,13 +107,14 @@ function Fallback({ state, close, retry }: FallbackProps) {
 interface PlayerProps {
   date: string;
   year: number;
+  years: YearGroup[];
   day: Day;
   close: () => void;
 }
 
-function Player({ date, year, day, close }: PlayerProps) {
+function Player({ date, year, years, day, close }: PlayerProps) {
   const { t } = useTranslation();
-  const story = useStory(day.years, year, close);
+  const story = useStory(years, year, close);
   const {
     state,
     group,
@@ -161,7 +168,7 @@ function Player({ date, year, day, close }: PlayerProps) {
             {blurhash && <Blurhash {...blurhash} />}
             <Picture
               image={image}
-              src={card.proxies.preview}
+              src={story.source(card.proxies.preview)}
               onDecoded={mediaReady}
               onFailed={mediaFailed}
             />
