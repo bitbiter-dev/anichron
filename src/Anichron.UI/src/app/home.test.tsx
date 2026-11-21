@@ -60,6 +60,15 @@ describe('the home screen without a storage config', () => {
     expect(asked).toEqual([]);
   });
 
+  it('stays open after a click outside it', async () => {
+    renderApp('/');
+    await notice();
+
+    await user().click(document.body);
+
+    expect(await notice()).toBeVisible();
+  });
+
   it('opens again on the next app start', async () => {
     const first = renderApp('/');
     await user().click(within(await notice()).getByRole('button', { name: 'OK' }));

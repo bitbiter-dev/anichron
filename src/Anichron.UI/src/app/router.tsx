@@ -18,7 +18,7 @@ import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
 import { Home } from './Home';
 import type { Install } from './install';
-import { createNoPhotos, type NoPhotos } from './no-photos';
+import { createNoPhotos, type NoPhotos } from './use-home';
 import { NotFound } from './NotFound';
 import type { Updates } from './register-service-worker';
 import { returnPath } from './return-path';

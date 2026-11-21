@@ -12,7 +12,7 @@ export function Modal({ title, onClose, role, children }: ModalProps) {
   return (
     <ModalOverlay
       isOpen
-      isDismissable
+      isDismissable={role !== 'alertdialog'}
       onOpenChange={onClose}
       className="fixed inset-0 z-40 flex items-center justify-center bg-scrim/50 p-4"
     >

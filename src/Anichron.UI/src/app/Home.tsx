@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
 import { Button } from '../shared/ui/Button';
 import { Modal } from '../shared/ui/Modal';
-import { useHome } from './no-photos';
+import { useHome } from './use-home';
 
 export function Home() {
   const home = useHome();
