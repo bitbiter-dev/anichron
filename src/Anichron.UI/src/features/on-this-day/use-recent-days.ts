@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { useRouter } from '@tanstack/react-router';
+import { getRouteApi, useRouter } from '@tanstack/react-router';
 import type { TFunction } from 'i18next';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -61,11 +61,12 @@ function withMemories(date: string, label: string, newest: YearGroup): DayWithMe
 export function useRecentDays(today: string) {
   const { t } = useTranslation();
   const { api } = useRouter().options.context;
-  const [{ pages, tapped, wasNothing }, setPaging] = useState({
-    pages: 1,
-    tapped: false,
-    wasNothing: false,
-  });
+  const home = getRouteApi('/signed-in/shell/on-this-day');
+  const { earlier = 1 } = home.useSearch();
+  const navigate = home.useNavigate();
+  const [{ tappedFor, wasNothing }, setTapped] = useState({ tappedFor: 0, wasNothing: false });
+  const pages = Math.max(earlier, tappedFor);
+  const tapped = tappedFor === pages;
   const dates = Array.from({ length: pages * daysPerPage }, (_, index) =>
     daysBefore(today, index + 1),
   );
@@ -77,7 +78,7 @@ export function useRecentDays(today: string) {
   useEffect(() => {
     if (!addedNothing) return undefined;
     const timer = setTimeout(() => {
-      setPaging((current) => ({ ...current, tapped: false }));
+      setTapped((current) => ({ ...current, tappedFor: 0 }));
     }, nothingMilliseconds);
     return () => {
       clearTimeout(timer);
@@ -99,13 +100,22 @@ export function useRecentDays(today: string) {
     const newest = data?.years[0];
     return newest ? [withMemories(date, dayLabel, newest)] : [];
   });
+  const todaySettled = Boolean(todayView.years ?? todayView.empty ?? todayView.failure);
+  const loading = recent.length === 0 && (shownPages === 0 || !todaySettled);
   return {
     days: recent,
-    visible: recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
+    loading,
+    visible: loading || recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
     earlierLabel: nothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
     loadingEarlier: tapped && shownPages < pages,
     showEarlier: () => {
-      setPaging({ pages: pages + 1, tapped: true, wasNothing: nothing });
+      setTapped({ tappedFor: pages + 1, wasNothing: nothing });
+      void navigate({
+        to: '/',
+        search: (current) => ({ ...current, earlier: pages + 1 }),
+        replace: true,
+        resetScroll: false,
+      });
     },
   } as const;
 }

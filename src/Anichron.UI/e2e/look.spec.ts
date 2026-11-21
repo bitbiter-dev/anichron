@@ -54,6 +54,15 @@ test('the login screen stops its motion when the user asks for less', async ({ p
   await expect.poll(() => style(submit, 'transition-duration')).toBe('0s');
 });
 
+test('a skeleton stops pulsing when the user asks for less motion', async ({ page }) => {
+  await page.goto('/login');
+  const root = page.locator(':root');
+
+  expect(await style(root, '--animate-skeleton')).toMatch(/^skeleton-pulse .* infinite/);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(() => style(root, '--animate-skeleton')).toBe('none');
+});
+
 test('keyboard focus shows the accent ring, and a press shows none', async ({ page }) => {
   await page.goto('/login');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

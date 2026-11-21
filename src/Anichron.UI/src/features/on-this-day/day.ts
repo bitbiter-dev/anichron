@@ -134,6 +134,13 @@ export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memo
   return cardOf(memory, frames).proxies.preview;
 }
 
+const mostPages = 61;
+
+export function homeSearch(search: Record<string, unknown>): { earlier?: number } {
+  const earlier = Math.min(Math.floor(Number(search.earlier)), mostPages);
+  return { earlier: earlier > 0 ? earlier : undefined };
+}
+
 // Stryker disable next-line BlockStatement
 export function storySearch(search: Record<string, unknown>) {
   // Stryker disable next-line ObjectLiteral

@@ -21,7 +21,7 @@ import {
   type Connection,
   type Listed,
 } from '../../test/handlers/work-items';
-import { memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import { hold, memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { sharedTabs } from '../../test/tabs';
@@ -62,6 +62,7 @@ const kinds = () => rows().map((row) => within(row).getAllByRole('link')[0]?.tex
 const rowOf = (kind: string) =>
   rows().find((row) => within(row).queryByRole('link', { name: kind })) as HTMLElement;
 const reconnecting = () => screen.getByRole('status');
+const busy = () => screen.getByRole('main').querySelector('[aria-busy="true"]');
 
 function lists(pages: Page | ((page: number) => Page | Response | Promise<Page>)) {
   server.use(workItemPages(typeof pages === 'function' ? pages : () => pages, listed));
@@ -143,6 +144,53 @@ describe('the work queue', () => {
       'Proxy sweep',
       'Proxy deletion',
     ]);
+  });
+
+  it('shows placeholders, busy, while the list loads, and the list in their place', async () => {
+    const page = hold();
+    lists(async () => {
+      await page.until;
+      return { items: [workItem(1)] };
+    });
+    const { container } = renderApp('/admin/work-items');
+    await vi.waitFor(() => {
+      expect(listed).toHaveLength(1);
+    });
+    await advance(1000);
+
+    expect(busy()).not.toBeNull();
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(within(screen.getByRole('main')).queryByRole('link')).toBeNull();
+    expect(screen.queryByText('Nothing in the queue.')).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    page.release();
+
+    expect(await screen.findByRole('link', { name: 'Crawl' })).toBeVisible();
+    expect(busy()).toBeNull();
+  });
+
+  it('shows a page it has already read at once, without placeholders', async () => {
+    const again = hold();
+    let holding = false;
+    lists(async (page) => {
+      if (holding) await again.until;
+      return { items: [workItem(3 - page)], page, pageSize: 1, total: 2 };
+    });
+    renderApp('/admin/work-items');
+    fireEvent.click(await screen.findByRole('link', { name: 'Older' }));
+    await screen.findByRole('link', { name: 'Newer' });
+    holding = true;
+
+    fireEvent.click(screen.getByRole('link', { name: 'Newer' }));
+    expect(await screen.findByRole('link', { name: 'Older' })).toBeVisible();
+    expect(busy()).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Older' }));
+    expect(await screen.findByRole('link', { name: 'Newer' })).toBeVisible();
+    expect(busy()).toBeNull();
+    await advance(0);
+    expect(listed.map(({ page }) => page)).toEqual([1, 2, 2]);
+    again.release();
   });
 
   it('says so when the queue is empty', async () => {
@@ -802,6 +850,33 @@ describe('an item', () => {
     answer(workItem(1));
 
     expect(await screen.findByText('Running')).toBeVisible();
+  });
+
+  it('shows a placeholder, busy, while it loads, and its details in its place', async () => {
+    const item = hold();
+    server.use(
+      workItemAnswers(async () => {
+        await item.until;
+        return workItem(1);
+      }),
+    );
+    lists({ items: [] });
+    const { container } = renderApp(`/admin/work-items/${itemId(1)}`);
+    await vi.waitFor(() => {
+      expect(listed).toHaveLength(1);
+    });
+    await advance(1000);
+
+    expect(busy()).not.toBeNull();
+    expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
+    expect(screen.queryByRole('term')).toBeNull();
+    expect(screen.queryByText('There is no such work item.')).toBeNull();
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    item.release();
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Crawl' })).toBeVisible();
+    expect(busy()).toBeNull();
   });
 
   it('that does not exist says so', async () => {

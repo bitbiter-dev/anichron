@@ -5,6 +5,7 @@ import type { WorkItem, WorkItemPage } from '../../api/work-items';
 import { buttonStyles } from '../../shared/ui/Button';
 import { pageQuery } from './cache';
 import { Failed } from '../../shared/ui/Failed';
+import { Skeleton } from '../../shared/ui/Skeleton';
 import { Cancel, Progress } from './parts';
 import { at, cancellable, failureOf, pagesAround, statusOf } from './view';
 
@@ -20,10 +21,30 @@ function ListPage({ page }: { page: number }) {
   const query = useQuery(pageQuery(api, useQueryClient(), page));
   const failure = failureOf(query);
   return (
-    <>
+    <div aria-busy={query.isPending} className="flex flex-col gap-4">
+      {query.isPending && <ItemsSkeleton />}
       {query.data && <Items page={query.data} />}
       {failure && <Failed message={failure} onRetry={() => void query.refetch()} />}
-    </>
+    </div>
+  );
+}
+
+function ItemsSkeleton() {
+  return (
+    <div aria-hidden className="flex flex-col gap-3">
+      {[0, 1, 2].map((row) => (
+        <div key={row} className="flex flex-col gap-2 rounded-card p-4 glass-card">
+          <div className="flex h-6 items-center justify-between gap-3">
+            <Skeleton className="h-4 w-28 rounded-full" />
+            <Skeleton className="h-3 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-1.5 w-full rounded-full" />
+          <div className="flex h-5 items-center">
+            <Skeleton className="h-3 w-44 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

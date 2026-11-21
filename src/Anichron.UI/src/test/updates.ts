@@ -9,7 +9,7 @@ export function fakeUpdates() {
   const updates = {
     waiting: () => waiting,
     subscribe: (listener: () => void) => listen(changes, 'change', listener),
-    apply: vi.fn(),
+    reload: vi.fn(),
   } satisfies Updates;
   return {
     ...updates,

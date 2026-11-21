@@ -3,8 +3,9 @@ import type { ParseKeys } from 'i18next';
 import { ChevronRight } from 'lucide-react';
 import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
+import { Skeleton } from '../../shared/ui/Skeleton';
 import { ProxyImage } from './ProxyImage';
-import { Ring } from './Ring';
+import { Ring } from '../../shared/ui/Ring';
 import {
   type DayWithMemories,
   type FailedDay,
@@ -20,13 +21,24 @@ const ring = '-inset-1 hidden group-aria-busy:block group-data-pending:block';
 
 export function RecentDays({ today }: { today: string }) {
   const { t } = useTranslation();
-  const { days, visible, earlierLabel, loadingEarlier, showEarlier } = useRecentDays(today);
+  const { loading, visible, ...tray } = useRecentDays(today);
   if (!visible) return null;
   return (
     <ul
       aria-label={t('onThisDay.recentDays')}
+      aria-busy={loading}
       className="-mx-4 flex snap-x gap-4 overflow-x-auto border-t border-border px-4 pt-4 pb-2"
     >
+      {loading ? <DaysSkeleton /> : <Days {...tray} />}
+    </ul>
+  );
+}
+
+type DaysProps = Omit<ReturnType<typeof useRecentDays>, 'loading' | 'visible'>;
+
+function Days({ days, earlierLabel, loadingEarlier, showEarlier }: DaysProps) {
+  return (
+    <>
       {days.map((day) => (
         <li key={day.date} className="shrink-0 snap-start">
           {hasMemories(day) ? <DayLink {...day} /> : <Retry {...day} />}
@@ -35,8 +47,19 @@ export function RecentDays({ today }: { today: string }) {
       <li className="shrink-0 snap-start">
         <Earlier label={earlierLabel} loading={loadingEarlier} onPress={showEarlier} />
       </li>
-    </ul>
+    </>
   );
+}
+
+function DaysSkeleton() {
+  return [0, 1, 2, 3, 4, 5].map((day) => (
+    <li key={day} aria-hidden className="flex w-18 shrink-0 flex-col items-center gap-1">
+      <Skeleton className="size-16 rounded-full" />
+      <div className="flex h-5 items-center">
+        <Skeleton className="h-3 w-12 rounded-full" />
+      </div>
+    </li>
+  ));
 }
 
 function DayLink({ date, label, newestYear, thumbnail }: DayWithMemories) {
