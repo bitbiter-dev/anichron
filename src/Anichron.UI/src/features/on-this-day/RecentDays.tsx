@@ -5,7 +5,7 @@ import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import { Skeleton } from '../../shared/ui/Skeleton';
 import { ProxyImage } from './ProxyImage';
-import { Ring } from './Ring';
+import { Ring } from '../../shared/ui/Ring';
 import {
   type DayWithMemories,
   type FailedDay,

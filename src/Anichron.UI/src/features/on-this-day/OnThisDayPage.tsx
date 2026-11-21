@@ -8,7 +8,7 @@ import { Failed } from '../../shared/ui/Failed';
 import { Skeleton } from '../../shared/ui/Skeleton';
 import { ProxyImage } from './ProxyImage';
 import { RecentDays } from './RecentDays';
-import { Ring } from './Ring';
+import { Ring } from '../../shared/ui/Ring';
 import { useOpening } from './use-opening';
 import { useToday } from './use-today';
 

@@ -14,7 +14,7 @@ export function useUpdateNotice() {
   );
   if (!waiting || story || later) return undefined;
   return {
-    reload: updates.apply,
+    reload: updates.reload,
     later: () => {
       setLater(true);
     },

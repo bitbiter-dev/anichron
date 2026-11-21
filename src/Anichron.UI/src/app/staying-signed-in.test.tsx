@@ -497,11 +497,12 @@ describe('a refresh that fails', () => {
     },
   );
 
-  it('at start-up says the server cannot be reached and is not retried on a schedule', async () => {
+  it('at start-up says the server cannot be reached and leaves retrying to that screen', async () => {
     server.use(refreshAnswers(unavailable));
     renderApp('/');
     await screen.findByRole('heading', unreachableHeadingName);
 
+    becomes('hidden');
     await advance(lifetime * 1000);
     expect(refreshes).toBe(1);
   });
