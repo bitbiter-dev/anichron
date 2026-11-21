@@ -13,9 +13,9 @@ How the UI (`src/Anichron.UI`) calls the API.
 - An area module sends each call through `authorized`, which `createSession` hands to `client.ts`: the bearer token, and on a `401` one refresh and one retry. A token renewed meanwhile is retried without refreshing; a second `401` signs out.
 - A refresh that fails without signing out throws `SessionNotRenewed`, and the query retry predicate (`src/app/query-client.ts`) stops on it.
 - Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`, reused by `bursts.ts`).
-- An `<img>` cannot see a `401`: its error calls `session.renewMedia()` once, then loads the source once more; a second error is a failure (`features/on-this-day/media.ts`). See "The refresh rules".
+- A lapsed media session is renewed once, then the failure stands (`media.renewal` in `src/api/media.ts`). An `<img>` or `<video>` cannot see a `401`, so its error renews and loads the source once more. One showing an object URL fails at once. See "The refresh rules".
 - `src/api/media.ts` decodes a thumbnail with `new Image()` (`loadImage`), which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above.
-- `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once. What arrived stays for the session, within the limits in `createDownloads`.
+- `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once, by the same rule. What arrived stays for the session, within the limits in `createDownloads`.
 - A story opens once its first picture has arrived (`loadStory` in `features/on-this-day/day.ts`) and renders only pictures from the store. A picture fails only once none of it has arrived for `loadMilliseconds` (`mediaProgressed` in `story.ts`). A Live Photo video the server refuses plays from the network instead.
 
 ## The event stream

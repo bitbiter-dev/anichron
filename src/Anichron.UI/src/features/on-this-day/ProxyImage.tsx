@@ -23,7 +23,9 @@ export function ProxyImage({
       src={src}
       alt=""
       className={className}
-      onError={onError}
+      onError={() => {
+        onError(src);
+      }}
       onLoad={(event) => {
         decoded(event.currentTarget, onDecoded);
       }}

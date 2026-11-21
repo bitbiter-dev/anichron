@@ -2,31 +2,18 @@ import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 
 export function useRecovering(onFailed: () => void) {
-  const { session } = useRouter().options.context.api;
+  const { media } = useRouter().options.context.api;
+  const [renewal] = useState(media.renewal);
   const [reloads, setReloads] = useState(0);
   return {
     reloads,
-    onError: () => {
-      recover(
-        reloads > 0,
-        () => session.renewMedia(),
-        () => {
-          setReloads(1);
-        },
-        onFailed,
-      );
+    onError: (source: string) => {
+      void renewal(source).then((renewed) => {
+        if (renewed) setReloads(1);
+        else onFailed();
+      });
     },
   };
-}
-
-export function recover(
-  reloaded: boolean,
-  renew: () => Promise<void>,
-  reload: () => void,
-  onFailed: () => void,
-) {
-  if (reloaded) onFailed();
-  else void renew().then(reload);
 }
 
 export function decoded(image: HTMLImageElement, ready: () => void) {
