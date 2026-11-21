@@ -14,7 +14,7 @@ export const inputStyles = tv({
   base: 'min-h-11 rounded-field border border-border bg-surface px-3 text-fg',
   variants: {
     isHovered: { true: 'border-fg-muted' },
-    ...focusVariant(),
+    ...focusVariant,
     isInvalid: { true: 'border-danger' },
     isDisabled: { true: 'opacity-50' },
   },

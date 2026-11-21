@@ -12,7 +12,7 @@ import { focusVariant, tv } from './tv';
 export const toastStyles = tv({
   base: 'flex min-h-11 items-center gap-4 rounded-field bg-surface-raised py-1 pr-1 pl-4 text-small text-fg shadow-(--shadow-glass)',
   variants: {
-    ...focusVariant(),
+    ...focusVariant,
   },
 });
 

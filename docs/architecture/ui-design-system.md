@@ -52,7 +52,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - A loading ring stops spinning (`motion-reduce:`).
 - The Live pill and the years-ago line stay visible through a hold that hides the other controls. The pill shows a turning `player-accent` arc while its video loads (`live-ring`), faded in after `--delay-live-ring` so a quick load shows none, and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
 - A skeleton (`skeleton` utility) fades in after `--delay-skeleton`, so a quick load shows none, then pulses through `--animate-skeleton`; under reduced motion it stands still.
-- Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones and rows draw it inside. A `tv` state takes it from `focusVariant()` (`tv.ts`). A control with the ring does not transition its colours.
+- Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones and rows draw it inside. A `tv` state takes it from `focusVariant` (`tv.ts`). A control with the ring does not transition its colours.
 
 ## Base components
 

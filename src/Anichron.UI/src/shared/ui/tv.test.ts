@@ -26,12 +26,6 @@ describe('tv', () => {
     [true, 'focus-ring'],
     [false, 'outline-none'],
   ])('draws the focus ring only on keyboard focus (%s)', (isFocusVisible, classes) => {
-    expect(tv({ variants: focusVariant() })({ isFocusVisible })).toBe(classes);
-  });
-
-  it('adds a control’s own classes to the focus ring', () => {
-    expect(tv({ variants: focusVariant('transition-none') })({ isFocusVisible: true })).toBe(
-      'focus-ring transition-none',
-    );
+    expect(tv({ variants: focusVariant })({ isFocusVisible })).toBe(classes);
   });
 });

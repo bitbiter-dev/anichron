@@ -11,7 +11,7 @@ export const buttonStyles = tv({
     },
     isHovered: { true: 'opacity-90' },
     isPressed: { true: 'opacity-80' },
-    ...focusVariant(),
+    ...focusVariant,
     isDisabled: { true: 'opacity-50' },
   },
   defaultVariants: { variant: 'primary' },

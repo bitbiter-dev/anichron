@@ -42,7 +42,7 @@ const snippets = {
   ],
   focusVariant: [
     "export function f() { return { isFocusVisible: { true: 'a' } }; }",
-    'focusVariant()',
+    'focusVariant from',
   ],
   backdrop: ["export function f() { return 'grid glow-backdrop'; }", 'CentredPage'],
   glass: [

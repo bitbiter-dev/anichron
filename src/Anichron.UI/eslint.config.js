@@ -74,7 +74,7 @@ const syntaxGuards = {
     only('The focus ring is the focus-ring utility (src/app/focus.css).'),
   ),
   focusVariant: ['Property[key.name="isFocusVisible"]'].map(
-    only('A tv focus state is focusVariant() from src/shared/ui/tv.ts.'),
+    only('A tv focus state is focusVariant from src/shared/ui/tv.ts.'),
   ),
   backdrop: [classes('/\\bglow-backdrop\\b/')].map(
     only('A standalone screen is CentredPage (src/shared/ui/CentredPage.tsx).'),
