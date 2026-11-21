@@ -7,7 +7,7 @@ import { useDayView } from './use-day-view';
 import { Failed } from '../../shared/ui/Failed';
 import { ProxyImage } from './ProxyImage';
 import { RecentDays } from './RecentDays';
-import { Ring } from './Ring';
+import { Ring } from '../../shared/ui/Ring';
 import { useOpening } from './use-opening';
 import { useToday } from './use-today';
 

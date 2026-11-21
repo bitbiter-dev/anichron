@@ -11,7 +11,7 @@ interface TrustedTypesFactory {
 export interface Updates {
   waiting: () => boolean;
   subscribe: (listener: () => void) => () => void;
-  apply: () => void;
+  reload: () => void;
 }
 
 const checkMilliseconds = 60 * 60 * 1000;
@@ -46,10 +46,10 @@ export function registerServiceWorker(production: boolean, reload: () => void): 
   const updates: Updates = {
     waiting: () => offered,
     subscribe: (listener) => listen(changes, 'change', listener),
-    apply: () => {
+    reload: () => {
       const worker = registration?.waiting;
-      if (!worker) {
-        if (offered) reload();
+      if (!worker || !navigator.serviceWorker.controller) {
+        reload();
         return;
       }
       listen(navigator.serviceWorker, 'controllerchange', reload);
