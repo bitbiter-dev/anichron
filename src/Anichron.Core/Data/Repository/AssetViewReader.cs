@@ -151,6 +151,6 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
                    i != null && i.IsStarred,
                    i != null && i.IsLiked,
                    a.BurstId,
-                   i != null ? i.HiddenAt : null);
+                   i.HiddenAt);
     }
 }
