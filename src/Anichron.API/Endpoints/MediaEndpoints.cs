@@ -40,7 +40,7 @@ public static class MediaEndpoints
         var views = await reader.ReadAsync(userId, new HiddenAssets(cursor, HiddenPageSize + 1), ct);
         var page = views.Take(HiddenPageSize).ToList();
         return Results.Ok(new HiddenAssetsPageDto(
-            [.. page.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), HiddenCursors.Format(view.HiddenAt!.Value)))],
+            [.. page.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), HiddenCursors.FormatHiddenAt(view.HiddenAt!.Value)))],
             views.Count > HiddenPageSize ? HiddenCursors.Format(page[^1]) : null));
     }
 

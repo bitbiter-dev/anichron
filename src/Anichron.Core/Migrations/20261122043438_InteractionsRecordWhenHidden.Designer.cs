@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Anichron.Core.Migrations
 {
     [DbContext(typeof(AnichronDbContext))]
-    [Migration("20261122040140_InteractionsRecordWhenHidden")]
+    [Migration("20261122043438_InteractionsRecordWhenHidden")]
     partial class InteractionsRecordWhenHidden
     {
         /// <inheritdoc />
@@ -37,7 +37,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<Instant?>("HiddenAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasComment("When the user last hid the asset; NULL while it is shown. Being set is what hidden means, so no flag can disagree with it, and it orders the user's hidden memories, newest first.");
+                        .HasComment("When the user last hid the asset; NULL while it is shown. Orders the user's hidden memories, newest first.");
 
                     b.Property<bool>("IsLiked")
                         .HasColumnType("boolean");

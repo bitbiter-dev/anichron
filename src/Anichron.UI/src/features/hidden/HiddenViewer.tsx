@@ -79,13 +79,13 @@ function SlideFailed({ failed }: { failed: boolean }) {
 
 type SlideState = ReturnType<typeof useSlide>;
 
-function SlideControls({ replay, video, sound }: SlideState) {
+function SlideControls({ replay, live, sound }: SlideState) {
   return (
     <>
       <div className="absolute top-[calc(env(safe-area-inset-top)+3.5rem)] left-2">
         <LiveButton
           shown={replay !== null}
-          live={video ? 'playing' : 'still'}
+          live={live}
           play={() => {
             replay?.();
           }}

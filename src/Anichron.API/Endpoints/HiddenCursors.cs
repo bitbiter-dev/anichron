@@ -9,10 +9,10 @@ internal static class HiddenCursors
 {
     private const char separator = ' ';
 
-    internal static string Format(Instant hiddenAt) => InstantPattern.ExtendedIso.Format(hiddenAt);
+    internal static string FormatHiddenAt(Instant hiddenAt) => InstantPattern.ExtendedIso.Format(hiddenAt);
 
     internal static string Format(AssetView last)
-        => Base64Url.EncodeToString(Encoding.UTF8.GetBytes($"{Format(last.HiddenAt!.Value)}{separator}{last.Id:N}"));
+        => Base64Url.EncodeToString(Encoding.UTF8.GetBytes($"{FormatHiddenAt(last.HiddenAt!.Value)}{separator}{last.Id:N}"));
 
     internal static HiddenCursor? Parse(string text)
     {

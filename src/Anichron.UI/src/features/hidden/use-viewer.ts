@@ -9,6 +9,7 @@ export function useViewer(screen: HiddenScreen, start: number) {
   const viewer = useFrames(items.length, screen.close, start);
   const { current } = viewer;
   const item = items[current] as HiddenMemory;
+  const ago = hiddenAgo(item.hiddenAt, new Date());
 
   useEffect(() => {
     nearing(current);
@@ -23,10 +24,10 @@ export function useViewer(screen: HiddenScreen, start: number) {
     })),
     caption: {
       taken: takenOf(item.memory),
-      hidden: hiddenAgo(item.hiddenAt, new Date()).value,
+      hidden: ago.value,
       formatParams: {
         ...takenFormat(),
-        hidden: { range: hiddenAgo(item.hiddenAt, new Date()).range, numeric: 'auto' },
+        hidden: { range: ago.range, numeric: 'auto' },
       },
     },
     unhide: () => {

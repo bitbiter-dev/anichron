@@ -45,8 +45,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                     + "excludes, starred always includes and sorts first, liked raises DisplayWeight."
                 ));
             entity.Property(i => i.HiddenAt).HasComment(
-                "When the user last hid the asset; NULL while it is shown. Being set is what hidden means, so "
-                + "no flag can disagree with it, and it orders the user's hidden memories, newest first.");
+                "When the user last hid the asset; NULL while it is shown. Orders the user's hidden memories, "
+                + "newest first.");
             entity.HasIndex(i => new { i.UserId, i.AssetId }).IsUnique().HasDatabaseName(InteractionIndexNames.OnePerUserAndAsset);
             entity.HasQueryFilter(i => !i.Asset.IsSoftDeleted);
         });

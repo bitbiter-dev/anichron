@@ -8,7 +8,7 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 - Each selection declares the set it reads: **shown** (`NotHiddenFor`) or **hidden** (`HiddenFor`). The reader applies `VisibleTo` and that set's rule for the caller, and leaves out:
   - a Live Photo's paired MOV, which reaches the client only as the photo's `PairedMovId`;
   - undated assets.
-- **A new list view is a new `IAssetSelection`** (e.g. `OnThisDay`, `BurstMembers`). The reader never changes.
+- **A new list view is a new `IAssetSelection`** (e.g. `OnThisDay`, `BurstMembers`, `HiddenAssets`): its set, its filter on entity columns (`Apply`), and optionally its order and page over the joined rows (`Page`). The reader never changes.
 - Grouping and ordering happen in memory, except `HiddenAssets`, which orders by `HiddenAt` then id, newest first, and pages by keyset on that pair in SQL. `FlashbackYears` collapses each burst to its cover (`Bursts.Cover`) and orders years newest first, starred first, then by capture time.
 - On This Day for 28 February also matches 29 February in years without one. 29 February matches only itself.
 - The published `mediaType` is `LivePhoto` only when the paired video is visible and has a `WebVideo`; otherwise `Image` (`AssetDtoMapper`).

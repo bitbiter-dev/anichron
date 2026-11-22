@@ -66,6 +66,7 @@ export function useSlide({ memory, shown, current }: Slide) {
             },
           }
         : null,
+    live: source && plays ? ('playing' as const) : ('still' as const),
     replay:
       current && kind.liveButton && load === 'shown'
         ? () => {

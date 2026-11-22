@@ -20,7 +20,7 @@ namespace Anichron.Core.Migrations
                 table: "Interactions",
                 type: "timestamp with time zone",
                 nullable: true,
-                comment: "When the user last hid the asset; NULL while it is shown. Being set is what hidden means, so no flag can disagree with it, and it orders the user's hidden memories, newest first.");
+                comment: "When the user last hid the asset; NULL while it is shown. Orders the user's hidden memories, newest first.");
         }
 
         /// <inheritdoc />

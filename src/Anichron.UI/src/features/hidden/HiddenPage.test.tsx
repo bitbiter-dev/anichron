@@ -323,6 +323,23 @@ describe('the viewer', () => {
     expect(caption()).toHaveTextContent('Taken Nov 2, 2019');
   });
 
+  it('moves on a tap on the left or right half', async () => {
+    server.use(onePage(hidden(1, at(11, 18)), hidden(2, at(11, 17)), hidden(3, at(11, 16))));
+    await openHidden();
+    await openViewer(tileName(1));
+    const list = within(viewer()).getByRole('list');
+    const tap = (clientX: number) =>
+      user().pointer({ keys: '[MouseLeft]', target: list, coords: { clientX } });
+
+    await tap(900);
+    expect(caption()).toHaveTextContent('Taken Nov 2, 2019');
+    await tap(900);
+    await tap(900);
+    expect(caption()).toHaveTextContent('Taken Nov 3, 2019');
+    await tap(100);
+    expect(caption()).toHaveTextContent('Taken Nov 2, 2019');
+  });
+
   it('closes on Esc and on its close button, back to the grid', async () => {
     server.use(onePage(hidden(1, at(11, 18)), hidden(2, at(11, 17))));
     await openHidden();
