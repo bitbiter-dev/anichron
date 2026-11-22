@@ -9,15 +9,15 @@ public sealed record InteractionState(bool Starred, bool Liked, bool Hidden);
 
 /// <summary>
 /// Applies a change to the caller's own interaction with an asset they can see; a <c>null</c> flag keeps its
-/// stored value, and the row is created on the first change. Returns <c>null</c> when the asset is not visible
-/// to the caller.
+/// stored value, a hide stamps the current time even on a hidden asset, and the row is created on the first
+/// change. Returns <c>null</c> when the asset is not visible to the caller.
 /// </summary>
 public interface IAssetInteractionWriter
 {
     Task<InteractionState?> ApplyAsync(Guid userId, Guid assetId, InteractionChange change, CancellationToken ct);
 }
 
-public sealed class EfAssetInteractionWriter(AnichronDbContext db) : IAssetInteractionWriter
+public sealed class EfAssetInteractionWriter(AnichronDbContext db, TimeProvider time) : IAssetInteractionWriter
 {
     internal sealed record VisibleAsset(AssetInteraction? Interaction);
 
@@ -52,9 +52,14 @@ public sealed class EfAssetInteractionWriter(AnichronDbContext db) : IAssetInter
 
         interaction.IsStarred = change.Starred ?? interaction.IsStarred;
         interaction.IsLiked = change.Liked ?? interaction.IsLiked;
-        interaction.IsHidden = change.Hidden ?? interaction.IsHidden;
+        interaction.HiddenAt = change.Hidden switch
+        {
+            true => Instant.FromDateTimeOffset(time.GetUtcNow()),
+            false => null,
+            null => interaction.HiddenAt,
+        };
         await db.SaveChangesAsync(ct);
-        return new InteractionState(interaction.IsStarred, interaction.IsLiked, interaction.IsHidden);
+        return new InteractionState(interaction.IsStarred, interaction.IsLiked, interaction.HiddenAt is not null);
     }
 
     internal static IQueryable<VisibleAsset> Query(AnichronDbContext db, Guid userId, Guid assetId)

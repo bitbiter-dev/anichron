@@ -10,5 +10,5 @@ internal static class AssetViews
         Width: null, Height: null, Orientation: null, DurationInSeconds: null, Blurhash: null,
         HasThumbnail: false, HasPreview: false, HasCompactPreview: false, HasVideo: false,
         PairedMovId: null, PairedMovContentHash: null, PairedMovHasVideo: false,
-        IsStarred: false, IsLiked: false, BurstId: null);
+        IsStarred: false, IsLiked: false, BurstId: null, HiddenAt: null);
 }

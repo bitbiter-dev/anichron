@@ -1,13 +1,11 @@
-import { m } from 'motion/react';
-import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import type { Memory } from '../../api/flashbacks';
-import { CloseButton } from './CloseButton';
 import { Failed } from '../../shared/ui/Failed';
+import { Frames } from '../../shared/ui/Frames';
+import { MemoryImage } from '../../shared/ui/MemoryImage';
 import { MemoryActions } from './MemoryActions';
-import { MemoryImage } from './MemoryImage';
-import { PlayerDialog } from './PlayerDialog';
-import { useBurstDetails, useFrameBlurhash } from './use-burst-details';
+import { useBlurhash } from '../../shared/use-blurhash';
+import { useBurstDetails } from './use-burst-details';
 import type { useInteractions } from './use-interactions';
 
 interface BurstDetailsProps {
@@ -23,45 +21,19 @@ export function BurstDetails({ open, ...props }: BurstDetailsProps) {
 
 function Details({ cover, close, interactions }: Omit<BurstDetailsProps, 'open'>) {
   const { t } = useTranslation();
-  const { attach, ...details } = useBurstDetails(cover, close);
-  const { count, frame } = details;
+  const { viewer, count, frame, ...details } = useBurstDetails(cover, close);
   return (
-    <PlayerDialog label={t('story.frames')} layer="frames" close={close}>
-      <m.div
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragSnapToOrigin
-        onDragStart={details.onDragStart}
-        onDragEnd={details.onDragEnd}
-        className="absolute inset-0 select-none [-webkit-touch-callout:none]"
-      >
-        <ul
-          ref={attach}
-          onScroll={details.onScroll}
-          {...details.pressProps}
-          className="flex size-full snap-x snap-mandatory [scrollbar-width:none] overflow-x-auto overscroll-x-contain"
-        >
-          {details.frames.map(({ memory, place, src }) => (
-            <li key={memory.id} className="size-full shrink-0 snap-center snap-always">
-              <Frame memory={memory} src={src} label={t('story.frame', { place, count })} />
-            </li>
-          ))}
-        </ul>
-      </m.div>
-      <Button onPress={details.moveBy(-1)} className="sr-only">
-        {t('story.previousFrame')}
-      </Button>
-      <Button onPress={details.moveBy(1)} className="sr-only">
-        {t('story.nextFrame')}
-      </Button>
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center bg-linear-to-b from-player/60 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-6">
-        <p className="flex-1 text-small font-semibold">
-          {details.loaded && t('story.framePlace', { place: details.place, count })}
-        </p>
-        <div className="pointer-events-auto">
-          <CloseButton close={close} />
-        </div>
-      </div>
+    <Frames
+      label={t('story.frames')}
+      close={close}
+      viewer={viewer}
+      slides={details.frames.map(({ memory, place, src }) => ({
+        key: memory.id,
+        slide: <Frame memory={memory} src={src} label={t('story.frame', { place, count })} />,
+      }))}
+      moves={{ previous: t('story.previousFrame'), next: t('story.nextFrame') }}
+      title={details.loaded && t('story.framePlace', { place: viewer.place, count })}
+    >
       <MemoryActions
         interaction={frame.interaction}
         onToggle={interactions.toggleFrame(frame)}
@@ -74,7 +46,7 @@ function Details({ cover, close, interactions }: Omit<BurstDetailsProps, 'open'>
           <Failed message="story.framesFailed" onRetry={details.retry} />
         </div>
       )}
-    </PlayerDialog>
+    </Frames>
   );
 }
 
@@ -85,7 +57,7 @@ interface FrameProps {
 }
 
 function Frame({ memory, src, label }: FrameProps) {
-  const { blurhash, onDecoded } = useFrameBlurhash(memory);
+  const { blurhash, onDecoded } = useBlurhash(memory);
   return (
     <MemoryImage
       label={label}

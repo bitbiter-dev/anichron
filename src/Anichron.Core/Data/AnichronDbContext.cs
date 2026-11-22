@@ -44,6 +44,9 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                     + "the same file each get their own row. Drives flashback weighting — hidden "
                     + "excludes, starred always includes and sorts first, liked raises DisplayWeight."
                 ));
+            entity.Property(i => i.HiddenAt).HasComment(
+                "When the user last hid the asset; NULL while it is shown. Orders the user's hidden memories, "
+                + "newest first.");
             entity.HasIndex(i => new { i.UserId, i.AssetId }).IsUnique().HasDatabaseName(InteractionIndexNames.OnePerUserAndAsset);
             entity.HasQueryFilter(i => !i.Asset.IsSoftDeleted);
         });

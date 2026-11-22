@@ -32,8 +32,9 @@ namespace Anichron.Core.Migrations
                     b.Property<Guid>("AssetId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("IsHidden")
-                        .HasColumnType("boolean");
+                    b.Property<Instant?>("HiddenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasComment("When the user last hid the asset; NULL while it is shown. Orders the user's hidden memories, newest first.");
 
                     b.Property<bool>("IsLiked")
                         .HasColumnType("boolean");

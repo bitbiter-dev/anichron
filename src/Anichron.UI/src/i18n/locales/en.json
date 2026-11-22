@@ -97,6 +97,22 @@
     "changePassword": "Change password",
     "admin": "Admin"
   },
+  "hidden": {
+    "title": "Hidden memories",
+    "today": "Today",
+    "thisWeek": "This week",
+    "thisMonth": "This month",
+    "month": "{{month, datetime}}",
+    "memory": "{{kind}}, taken {{taken, datetime}}",
+    "empty": "Nothing hidden",
+    "emptyHint": "Memories you hide from a story show up here.",
+    "failed": "Couldn't load your hidden memories.",
+    "caption": "Taken {{taken, datetime}} · Hidden {{hidden, relativetime}}",
+    "previous": "Previous memory",
+    "next": "Next memory",
+    "unhide": "Unhide",
+    "unhidden": "Memory unhidden"
+  },
   "password": {
     "title": "Change password",
     "forcedTitle": "Choose a new password",

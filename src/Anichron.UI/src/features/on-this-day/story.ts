@@ -1,4 +1,4 @@
-import { type Kind, type Load, memoryKind } from './memory-kinds';
+import { type Kind, type Load, memoryKind } from '../../shared/memory-kinds';
 
 const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;

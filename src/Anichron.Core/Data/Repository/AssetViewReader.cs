@@ -25,16 +25,38 @@ public sealed record AssetView(
     bool PairedMovHasVideo,
     bool IsStarred,
     bool IsLiked,
-    Guid? BurstId);
+    Guid? BurstId,
+    Instant? HiddenAt);
 
-/// <summary>Narrows the assets an <see cref="IAssetViewReader"/> returns, filtering on entity columns only.</summary>
+public enum AssetSet
+{
+    Shown = 0,
+    Hidden = 1,
+}
+
+public sealed class InteractedAsset
+{
+    public required MediaAsset Asset { get; init; }
+    public AssetInteraction? Interaction { get; init; }
+}
+
+/// <summary>
+/// Narrows the assets an <see cref="IAssetViewReader"/> returns from the set it declares, filtering on entity
+/// columns only, and may order and page the caller's rows.
+/// </summary>
 public interface IAssetSelection
 {
+    AssetSet Set { get; }
+
     IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets);
+
+    IQueryable<InteractedAsset> Page(IQueryable<InteractedAsset> rows) => rows;
 }
 
 public sealed record OnThisDay(LocalDate Date) : IAssetSelection
 {
+    public AssetSet Set => AssetSet.Shown;
+
     private int LastDay
         => Date is { Month: 2, Day: 28 } && !CalendarSystem.Iso.IsLeapYear(Date.Year) ? 29 : Date.Day;
 
@@ -56,13 +78,36 @@ public sealed record OnThisDay(LocalDate Date) : IAssetSelection
 
 public sealed record BurstMembers(Guid BurstId) : IAssetSelection
 {
+    public AssetSet Set => AssetSet.Shown;
+
     public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets)
         => assets.Where(a => a.BurstId == BurstId);
 }
 
+public sealed record HiddenCursor(Instant HiddenAt, Guid AssetId);
+
+/// <summary>The caller's hidden assets, newest hidden first, as one page after a cursor.</summary>
+/// <param name="After">The last row of the previous page, or <c>null</c> for the first page.</param>
+/// <param name="Take">The most rows to read.</param>
+public sealed record HiddenAssets(HiddenCursor? After, int Take) : IAssetSelection
+{
+    public AssetSet Set => AssetSet.Hidden;
+
+    public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets) => assets;
+
+    public IQueryable<InteractedAsset> Page(IQueryable<InteractedAsset> rows)
+    {
+        var after = After is { } cursor
+            ? rows.Where(r => r.Interaction!.HiddenAt < cursor.HiddenAt
+                || (r.Interaction.HiddenAt == cursor.HiddenAt && r.Asset.Id.CompareTo(cursor.AssetId) < 0))
+            : rows;
+        return after.OrderByDescending(r => r.Interaction!.HiddenAt).ThenByDescending(r => r.Asset.Id).Take(Take);
+    }
+}
+
 /// <summary>
-/// Reads the caller's visible, not-hidden assets matching a selection, with the caller's own interaction
-/// state, in one query.
+/// Reads the caller's visible assets in the set a selection declares and matching it, with the caller's own
+/// interaction state, in one query.
 /// </summary>
 public interface IAssetViewReader
 {
@@ -77,9 +122,14 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
     internal static IQueryable<AssetView> Query(AnichronDbContext db, Guid userId, IAssetSelection selection)
     {
         var visible = db.MediaAssets.VisibleTo(userId);
-        return from a in selection.Apply(visible.NotHiddenFor(userId).NotPairedMovOf(visible).Where(a => a.DateCaptured != null))
-               join i in db.Interactions.Where(i => i.UserId == userId) on a.Id equals i.AssetId into interactions
-               from i in interactions.DefaultIfEmpty()
+        var set = selection.Set == AssetSet.Hidden ? visible.HiddenFor(userId) : visible.NotHiddenFor(userId);
+        var rows = from a in selection.Apply(set.NotPairedMovOf(visible).Where(a => a.DateCaptured != null))
+                   join i in db.Interactions.Where(i => i.UserId == userId) on a.Id equals i.AssetId into interactions
+                   from i in interactions.DefaultIfEmpty()
+                   select new InteractedAsset { Asset = a, Interaction = i };
+        return from r in selection.Page(rows)
+               let a = r.Asset
+               let i = r.Interaction
                select new AssetView(
                    a.Id,
                    a.ContentHash,
@@ -102,6 +152,7 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
                    a.PairedAsset.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
                    i != null && i.IsStarred,
                    i != null && i.IsLiked,
-                   a.BurstId);
+                   a.BurstId,
+                   i.HiddenAt);
     }
 }
