@@ -277,5 +277,5 @@ public sealed class CompactPreviewTests : IAsyncDisposable
     [Fact]
     public void Result_NamesItsCountsInItsJson()
         => WorkJson.SerializeResult(new CompactPreviewResult { Converted = 1, Failed = 2, Remaining = 3 })
-            .Should().Be("""{"converted":1,"failed":2,"remaining":3}""");
+            .Should().Be(/*lang=json,strict*/ """{"converted":1,"failed":2,"remaining":3}""");
 }
