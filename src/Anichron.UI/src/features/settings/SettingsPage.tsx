@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themes } from '../../shared/theme';
 import { RowLink } from '../../shared/ui/Row';
-import { SignOutButton } from '../../shared/ui/SignOutButton';
+import { SignOutRow } from '../../shared/ui/SignOut';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 import { useAccount } from './account';
 import { InstallRow } from './InstallRow';
@@ -38,7 +38,7 @@ export function SettingsPage() {
       <InstallRow className={card} />
       {account.isAdmin && <Administration />}
       <div className={card}>
-        <SignOutButton row />
+        <SignOutRow />
       </div>
     </main>
   );

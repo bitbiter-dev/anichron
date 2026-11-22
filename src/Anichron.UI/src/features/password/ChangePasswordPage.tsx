@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Alert } from '../../shared/ui/Alert';
 import { Button } from '../../shared/ui/Button';
 import { FormField } from '../../shared/ui/FormField';
-import { SignOutButton } from '../../shared/ui/SignOutButton';
+import { SignOutButton } from '../../shared/ui/SignOut';
 import { usePasswordForm, type PasswordForm } from './use-password-form';
 
 export function ChangePasswordPage() {

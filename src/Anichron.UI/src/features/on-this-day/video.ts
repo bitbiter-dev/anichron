@@ -1,6 +1,5 @@
 import type { Memory } from '../../api/flashbacks';
-import type { Downloads } from '../../api/media';
-import { recover } from './media';
+import type { Downloads, Renewal } from '../../api/media';
 import { memoryKind } from './memory-kinds';
 import type { Story, StoryState } from './story';
 
@@ -40,7 +39,7 @@ function sourceOf(
 export function createVideoPlayer(
   story: StoryMedia,
   memoryOf: (state: StoryState) => Memory,
-  renew: () => Promise<void>,
+  renewOnce: () => Renewal,
   downloads: InMemory,
 ) {
   let element: HTMLVideoElement | null = null;
@@ -48,7 +47,7 @@ export function createVideoPlayer(
   let playId = 0;
   let events: MediaEvents;
   let source: Source;
-  let reloaded: boolean;
+  let renewal: Renewal;
   let playing: boolean;
 
   function load(video: HTMLVideoElement) {
@@ -85,7 +84,7 @@ export function createVideoPlayer(
       visit = state.visit;
       events = wanted.live ? liveEvents : videoEvents;
       source = wanted;
-      reloaded = false;
+      renewal = renewOnce();
       load(element);
     }
     element.poster = wanted.poster;
@@ -94,19 +93,13 @@ export function createVideoPlayer(
 
   function failed() {
     const failing = visit;
-    recover(
-      reloaded,
-      renew,
-      () => {
-        reloaded = true;
-        if (!element || story.state().visit !== failing) return;
+    void renewal(source.src).then((renewed) => {
+      if (!renewed) story.mediaFailed(failing);
+      else if (element && story.state().visit === failing) {
         load(element);
         playOrPause(element);
-      },
-      () => {
-        story.mediaFailed(failing);
-      },
-    );
+      }
+    });
   }
 
   const liveEvents: MediaEvents = {

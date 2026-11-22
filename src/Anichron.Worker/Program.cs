@@ -1,7 +1,8 @@
+using Anichron.Infrastructure.Configuration;
 using Anichron.Worker.Infrastructure;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.AddAppConfiguration();
+builder.AddAppConfiguration(WorkerIniDefaults.Entries);
 
 builder.Services
     .AddWorkerCoreServices()

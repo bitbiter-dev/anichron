@@ -12,8 +12,7 @@
       "!**/Anichron.Core/Data/AnichronDbContextFactory.cs",
       "!**/Anichron.Worker/Ingestion/Proxy/SystemProcessLauncher.cs",
       "!**/Anichron.API/Infrastructure/DatabaseStartupExtensions.cs",
-      "!**/Anichron.API/Infrastructure/WebApplicationBuilderExtensions.cs",
-      "!**/Anichron.Worker/Infrastructure/HostApplicationBuilderExtensions.cs",
+      "!**/Anichron.Infrastructure/Configuration/AppConfigurationExtensions.cs",
       "!**/Anichron.Infrastructure/Data/DatabaseFacadeExtensions.cs"
     ],
     "ignore-methods": [

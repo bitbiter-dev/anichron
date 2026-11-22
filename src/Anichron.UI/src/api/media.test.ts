@@ -170,6 +170,7 @@ describe('downloading media', () => {
         return 'kept';
       },
       free: () => undefined,
+      isObjectUrl: () => false,
     }).downloads;
     answers.set(at('first'), () => {
       const response = new HttpResponse(
@@ -429,6 +430,16 @@ describe('downloading media', () => {
     stop();
     store.clear();
     expect(changes).toHaveBeenCalledTimes(3);
+  });
+
+  it('renews once for a url, and for nothing the browser shows from an object url', async () => {
+    const renew = vi.fn(() => Promise.resolve());
+    const media = createMedia(renew);
+
+    expect(await media.renewOnce()('blob:http://localhost/1')).toBe(false);
+    expect(renew).not.toHaveBeenCalled();
+    expect(await media.renewOnce()('/api/v1/proxies/1/preview')).toBe(true);
+    expect(renew).toHaveBeenCalledOnce();
   });
 
   it('makes object urls in the browser and revokes them', async () => {

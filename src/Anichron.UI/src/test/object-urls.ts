@@ -12,6 +12,7 @@ export function memoryUrls(): ObjectUrls {
     free: (source) => {
       freed.push(source);
     },
+    isObjectUrl: (source) => source.startsWith('memory:'),
   };
 }
 

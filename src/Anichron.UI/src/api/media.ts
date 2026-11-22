@@ -21,11 +21,15 @@ export interface Downloads {
 export interface ObjectUrls {
   create(blob: Blob, url: string): string;
   free(source: string): void;
+  isObjectUrl(source: string): boolean;
 }
+
+export type Renewal = (source: string) => Promise<boolean>;
 
 export interface Media {
   loadImage(url: string): Promise<boolean>;
   downloads: Downloads;
+  renewOnce: () => Renewal;
 }
 
 function browserObjectUrls(): ObjectUrls {
@@ -34,6 +38,19 @@ function browserObjectUrls(): ObjectUrls {
     free: (source) => {
       URL.revokeObjectURL(source);
     },
+    isObjectUrl: (source) => source.startsWith('blob:'),
+  };
+}
+
+function renewingOnce(renew: () => Promise<void>, objectUrls: ObjectUrls) {
+  return (): Renewal => {
+    let renewed = false;
+    return async (source) => {
+      if (renewed || objectUrls.isObjectUrl(source)) return false;
+      renewed = true;
+      await renew();
+      return true;
+    };
   };
 }
 
@@ -61,7 +78,7 @@ async function decodeSource(source: string) {
   await image.decode();
 }
 
-function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Downloads {
+function createDownloads(renewOnce: () => Renewal, objectUrls: ObjectUrls): Downloads {
   const cacheLimits: Record<MediaKind, number> = { picture: 60, video: 10 };
   const wanted = new Map<string | null, Download>();
   const cached = new Map<string, Download>();
@@ -95,10 +112,7 @@ function createDownloads(renew: () => Promise<void>, objectUrls: ObjectUrls): Do
   async function body(url: string, signal: AbortSignal) {
     const request = () => fetch(new URL(url, location.origin), { signal });
     let response = await request();
-    if (response.status === 401) {
-      await renew();
-      response = await request();
-    }
+    if (response.status === 401 && (await renewOnce()(url))) response = await request();
     if (!response.ok || !response.body) return null;
     const chunks: BlobPart[] = [];
     const reader = response.body.getReader();
@@ -230,8 +244,10 @@ export function createMedia(
   renew: () => Promise<void>,
   objectUrls: ObjectUrls = browserObjectUrls(),
 ): Media {
+  const renewOnce = renewingOnce(renew, objectUrls);
   return {
     loadImage: (url) => decodeImage(url).catch(() => false),
-    downloads: createDownloads(renew, objectUrls),
+    downloads: createDownloads(renewOnce, objectUrls),
+    renewOnce,
   };
 }
