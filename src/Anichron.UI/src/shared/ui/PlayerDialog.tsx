@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Dialog, Modal, ModalOverlay } from 'react-aria-components';
-import { tv } from '../../shared/ui/tv';
+import { tv } from './tv';
 
 const overlayStyles = tv({
   base: 'fixed inset-0',

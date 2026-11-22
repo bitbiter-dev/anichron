@@ -1,6 +1,6 @@
 import type { Memory } from '../../api/flashbacks';
 import type { Downloads, Wanted } from '../../api/media';
-import { kindOf } from './memory-kinds';
+import { kindOf } from '../../shared/memory-kinds';
 import { kindInStory, type Place, type StoryState } from './story';
 
 type MemoryAt = (place: Place) => Memory;

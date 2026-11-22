@@ -1,4 +1,4 @@
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../api/flashbacks';
 
 export type Load = 'loading' | 'shown' | 'failed';
 

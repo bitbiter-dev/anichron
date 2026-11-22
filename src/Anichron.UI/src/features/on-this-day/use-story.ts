@@ -4,7 +4,7 @@ import type { Memory, YearGroup } from '../../api/flashbacks';
 import { framesShown } from './burst';
 import { framesOf, previewOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
-import { kindOf } from './memory-kinds';
+import { kindOf } from '../../shared/memory-kinds';
 import { createPreload, createPreviews, nextVideo, wantedOf } from './prefetch';
 import { createStory, type Place } from './story';
 import { storyView } from './story-view';

@@ -6,7 +6,7 @@ import { type DayView, thumbnailOf } from './day-view';
 import { useDayView } from './use-day-view';
 import { Failed } from '../../shared/ui/Failed';
 import { Skeleton } from '../../shared/ui/Skeleton';
-import { ProxyImage } from './ProxyImage';
+import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { RecentDays } from './RecentDays';
 import { Ring } from '../../shared/ui/Ring';
 import { useOpening } from './use-opening';

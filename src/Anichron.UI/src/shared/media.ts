@@ -1,4 +1,4 @@
-import type { Downloads } from '../../api/media';
+import type { Downloads } from '../api/media';
 
 export function decoded(image: HTMLImageElement, ready: () => void) {
   void image.decode().then(ready, ready);

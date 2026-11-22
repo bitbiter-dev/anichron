@@ -1,6 +1,6 @@
 import type { Memory, YearGroup } from '../../api/flashbacks';
-import { blurhashOf } from './blurhash';
-import { memoryKind } from './memory-kinds';
+import { blurhashOf } from '../../shared/blurhash';
+import { memoryKind } from '../../shared/memory-kinds';
 import type { LivePlay, StoryState } from './story';
 
 export type LiveState = LivePlay['state'];

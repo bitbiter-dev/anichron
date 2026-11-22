@@ -1,5 +1,5 @@
 import { decode } from 'blurhash';
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../api/flashbacks';
 
 const longSide = 32;
 
