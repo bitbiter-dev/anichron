@@ -3,6 +3,7 @@ import { createAssets, type Assets } from './assets';
 import { createBursts, type Bursts } from './bursts';
 import { createFlashbacks, type Flashbacks } from './flashbacks';
 import type { paths } from './generated/v1';
+import { createHidden, type Hidden } from './hidden';
 import { createMedia, type Media, type ObjectUrls } from './media';
 import { createSession, type Session } from './session';
 import type { Tabs } from './tabs';
@@ -13,6 +14,7 @@ export interface ApiClient {
   flashbacks: Flashbacks;
   assets: Assets;
   bursts: Bursts;
+  hidden: Hidden;
   media: Media;
   workItems: WorkItems;
 }
@@ -25,6 +27,7 @@ export function createApiClient(tabs: Tabs, objectUrls?: ObjectUrls): ApiClient 
     flashbacks: createFlashbacks(client, authorized),
     assets: createAssets(client, authorized),
     bursts: createBursts(client, authorized),
+    hidden: createHidden(client, authorized),
     media: createMedia(() => session.renewMedia(), objectUrls),
     workItems: createWorkItems(client, authorized),
   };

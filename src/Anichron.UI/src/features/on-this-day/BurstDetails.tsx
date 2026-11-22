@@ -4,7 +4,8 @@ import { Failed } from '../../shared/ui/Failed';
 import { Frames } from '../../shared/ui/Frames';
 import { MemoryImage } from '../../shared/ui/MemoryImage';
 import { MemoryActions } from './MemoryActions';
-import { useBurstDetails, useFrameBlurhash } from './use-burst-details';
+import { useBlurhash } from '../../shared/use-blurhash';
+import { useBurstDetails } from './use-burst-details';
 import type { useInteractions } from './use-interactions';
 
 interface BurstDetailsProps {
@@ -56,7 +57,7 @@ interface FrameProps {
 }
 
 function Frame({ memory, src, label }: FrameProps) {
-  const { blurhash, onDecoded } = useFrameBlurhash(memory);
+  const { blurhash, onDecoded } = useBlurhash(memory);
   return (
     <MemoryImage
       label={label}

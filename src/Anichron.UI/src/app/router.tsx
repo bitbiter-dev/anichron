@@ -20,6 +20,7 @@ import {
   loadStory,
   storySearch,
 } from '../features/on-this-day/day';
+import { hiddenKey } from '../features/hidden/hidden';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createBack, type Back } from './back';
@@ -119,6 +120,16 @@ function routeTree() {
     staticData: { screen: { title: 'settings.title' } },
   });
 
+  const hiddenRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: '/hidden',
+    onLeave: ({ context }) => {
+      context.queryClient.removeQueries({ queryKey: hiddenKey() });
+    },
+    component: lazyRouteComponent(() => import('../features/hidden/HiddenPage'), 'HiddenPage'),
+    staticData: { screen: { title: 'hidden.title', parent: '/settings' } },
+  });
+
   const passwordRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: '/settings/password',
@@ -196,6 +207,7 @@ function routeTree() {
       shellRoute.addChildren([
         onThisDayRoute.addChildren([homeRoute, storyRoute]),
         settingsRoute,
+        hiddenRoute,
         passwordRoute,
         adminRoute.addChildren([workItemsRoute.addChildren([workItemListRoute, workItemRoute])]),
       ]),
