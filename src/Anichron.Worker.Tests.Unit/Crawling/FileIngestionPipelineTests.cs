@@ -4,9 +4,11 @@ using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using SixLabors.ImageSharp;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 
@@ -388,6 +390,55 @@ public sealed class FileIngestionPipelineTests
         seen.Should().HaveCount(2);
     }
 
+    private static Exception BrokenFileFailure(string decoder) => decoder switch
+    {
+        "completeness check" => new IncompleteImageException("The image data is incomplete."),
+        "ImageSharp, unknown format" => new UnknownImageFormatException("Image cannot be loaded."),
+        "ImageSharp, bad content" => new InvalidImageContentException("CRC error in the IDAT chunk."),
+        "MetadataExtractor" => new MetadataExtractor.ImageProcessingException("File format could not be determined."),
+        "FFmpeg" => new FfmpegException("Invalid data found when processing input."),
+        _ => throw new ArgumentOutOfRangeException(nameof(decoder), decoder, null),
+    };
+
+    [Theory]
+    [InlineData("completeness check")]
+    [InlineData("ImageSharp, unknown format")]
+    [InlineData("ImageSharp, bad content")]
+    [InlineData("MetadataExtractor")]
+    [InlineData("FFmpeg")]
+    public async Task RunAsync_FileWhoseBytesAreBroken_LogsOneWarningWithItsReasonAndNoStackTraceAsync(string decoder)
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        var failure = BrokenFileFailure(decoder);
+
+        var run = await fixture.BuildWithMiddlewares([new ThrowingMiddleware(failure)])
+            .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        run.Result.Failed.Should().Be(1);
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Warning
+                && e.Message == $"Failed to ingest /nas/a.jpg: {failure.Message}"
+                && e.Exception == null);
+    }
+
+    [Fact]
+    public async Task RunAsync_UnexpectedFailure_LogsAnErrorWithTheExceptionAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
+        var failure = new InvalidOperationException("boom");
+
+        var run = await fixture.BuildWithMiddlewares([new ThrowingMiddleware(failure)])
+            .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
+
+        run.Result.Failed.Should().Be(1);
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Error
+                && e.Message == "Failed to ingest /nas/a.jpg."
+                && e.Exception == failure);
+    }
+
     // ==========================================================================
     // Counts and progress
     // ==========================================================================
@@ -672,6 +723,15 @@ public sealed class FileIngestionPipelineTests
             await cts.CancelAsync();
             ct.ThrowIfCancellationRequested();
         }
+    }
+
+    private sealed class ThrowingMiddleware(Exception failure) : IIngestionMiddleware
+    {
+        public int Order => 10;
+        public bool CanInvoke(IngestionContext context) => true;
+
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+            => Task.FromException(failure);
     }
 
     private sealed class FailingOnFirstItemMiddleware(List<IngestionContext> seen) : IIngestionMiddleware

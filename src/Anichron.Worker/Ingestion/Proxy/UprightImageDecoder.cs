@@ -12,7 +12,17 @@ internal interface IUprightImageDecoder
 internal sealed class UprightImageDecoder(MagickHeifDecoder heif, ImageSharpUprightDecoder imageSharp) : IUprightImageDecoder
 {
     public Task<Image<Rgb24>> DecodeAsync(byte[] original, CancellationToken ct)
-        => IsHeifStill(original) ? heif.DecodeAsync(original, ct) : imageSharp.DecodeAsync(original, ct);
+    {
+        if (IsHeifStill(original))
+        {
+            ImageCompleteness.EnsureHeif(original);
+            return heif.DecodeAsync(original, ct);
+        }
+
+        if (original is [0xFF, 0xD8, ..])
+            ImageCompleteness.EnsureJpeg(original);
+        return imageSharp.DecodeAsync(original, ct);
+    }
 
     private static bool IsHeifStill(byte[] original)
         => original is [_, _, _, _, (byte)'f', (byte)'t', (byte)'y', (byte)'p', .. var brand]
