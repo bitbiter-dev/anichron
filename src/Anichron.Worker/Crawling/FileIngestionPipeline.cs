@@ -163,6 +163,11 @@ internal sealed partial class FileIngestionPipeline(
                 // A shutdown or a cancel is not an item failure: stop promptly instead of draining the queue.
                 throw;
             }
+            catch (Exception ex) when (BrokenFile.Rejected(ex))
+            {
+                Log.ItemBroken(logger, item.AbsolutePath, ex.Message);
+                tally.Failed();
+            }
             catch (Exception ex)
             {
                 Log.ItemFailed(logger, item.AbsolutePath, ex);
@@ -178,6 +183,9 @@ internal sealed partial class FileIngestionPipeline(
 
         [LoggerMessage(Level = LogLevel.Error, Message = "Failed to ingest {Path}.")]
         public static partial void ItemFailed(ILogger logger, string path, Exception ex);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to ingest {Path}: {Reason}")]
+        public static partial void ItemBroken(ILogger logger, string path, string reason);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping link {Path}: a crawl never follows links.")]
         public static partial void LinkSkipped(ILogger logger, string path);

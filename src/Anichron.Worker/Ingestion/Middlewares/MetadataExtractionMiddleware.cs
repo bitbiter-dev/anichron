@@ -28,6 +28,11 @@ internal sealed partial class MetadataExtractionMiddleware(
             var directories = ImageMetadataReader.ReadMetadata(stream);
             return Extract(directories, mediaType == MediaType.Video ? AppleCreationDateOf(stream, absolutePath) : null, mediaType);
         }
+        catch (Exception ex) when (BrokenFile.Rejected(ex))
+        {
+            Log.BrokenFileUnreadable(logger, absolutePath, ex.Message);
+            return ExtractedMedia.Empty;
+        }
         catch (Exception ex)
         {
             Log.ExtractionFailed(logger, absolutePath, ex);
@@ -74,6 +79,9 @@ internal sealed partial class MetadataExtractionMiddleware(
     {
         [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to extract metadata from {Path}.")]
         public static partial void ExtractionFailed(ILogger logger, string path, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to extract metadata from {Path}: {Reason}")]
+        public static partial void BrokenFileUnreadable(ILogger logger, string path, string reason);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to read the Apple creation date of {Path}; the video is dated by its other sources.")]
         public static partial void AppleCreationDateUnreadable(ILogger logger, string path, Exception exception);

@@ -23,13 +23,7 @@ public sealed class OrbThumbnailMatcherTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static byte[] Fixture(string name)
-    {
-        using var stream = typeof(OrbThumbnailMatcherTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
-        using var copy = new MemoryStream();
-        stream.CopyTo(copy);
-        return copy.ToArray();
-    }
+    private static byte[] Fixture(string name) => EmbeddedFixtures.Read(name);
 
     // The maintainer's IMG_4386 and IMG_4387: the same leafy scene 3 s apart, panned about 5%.
     private static byte[] Before => Fixture("burst-4386.jpg");
