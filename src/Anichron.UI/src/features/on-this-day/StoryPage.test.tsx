@@ -627,18 +627,24 @@ describe('a memory loading', () => {
     expect(await shown()).toBe(preview(ids.b2025));
   });
 
-  it('fails a picture that breaks again after its reload, and moves on 5 s later', async () => {
+  it('fails a picture that breaks, without renewing the session, and moves on 5 s later', async () => {
+    let refreshes = 0;
+    let answeredAt = 0;
+    server.use(
+      refreshRespondsWith(() => {
+        refreshes++;
+        answeredAt = Date.now();
+        return HttpResponse.json(miraSession);
+      }),
+    );
     await loadingSecond();
     await shown();
+    vi.setSystemTime(answeredAt + miraSession.expiresIn * 800 + 1);
 
-    const broken = picture();
-    fireEvent.error(broken);
-    await advance(0);
-    expect(picture()).not.toBe(broken);
-    expect(within(story()).queryByText(failure)).toBeNull();
     fireEvent.error(picture());
     await advance(0);
 
+    expect(refreshes).toBe(1);
     expect(within(story()).getByText(failure)).toBeVisible();
     expect(picture()).toBeNull();
     await advance(4999);
@@ -2504,14 +2510,12 @@ describe('a blurhash', () => {
       expect(segment(0).style.animationPlayState).toBe('paused');
     });
 
-    it('fails a picture that breaks after its reload', async () => {
+    it('fails a picture that breaks, without reloading it', async () => {
       threeYears();
       await openFetchingAhead();
       fireEvent.click(button('Next'));
       await advance(0);
 
-      fireEvent.error(picture());
-      await advance(0);
       fireEvent.error(picture());
       await advance(0);
 

@@ -1,4 +1,5 @@
-import { decoded, useRecovering } from './media';
+import { decoded } from './media';
+import { useRecovering } from './use-recovering';
 
 interface ProxyImageProps {
   src: string | null;
@@ -23,7 +24,9 @@ export function ProxyImage({
       src={src}
       alt=""
       className={className}
-      onError={onError}
+      onError={() => {
+        onError(src);
+      }}
       onLoad={(event) => {
         decoded(event.currentTarget, onDecoded);
       }}

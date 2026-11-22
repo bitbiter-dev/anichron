@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { themes } from '../../shared/theme';
 import { Card } from '../../shared/ui/Card';
 import { RowLink } from '../../shared/ui/Row';
-import { SignOutButton } from '../../shared/ui/SignOutButton';
+import { SignOutRow } from '../../shared/ui/SignOut';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 import { useAccount } from './account';
 import { InstallRow } from './InstallRow';
@@ -38,7 +38,7 @@ export function SettingsPage() {
       <InstallRow />
       {account.isAdmin && <Administration />}
       <Card padded={false}>
-        <SignOutButton row />
+        <SignOutRow />
       </Card>
     </main>
   );

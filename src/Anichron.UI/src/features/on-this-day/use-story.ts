@@ -12,7 +12,7 @@ import { createVideoPlayer } from './video';
 
 export function useStory(years: readonly YearGroup[], year: number, close: () => void) {
   const { api, queryClient } = useRouter().options.context;
-  const { session, media } = api;
+  const { media } = api;
   const { downloads } = media;
   const [{ snapshot, story, gestures, player, subscribe, sync, memoryAt, preload }] = useState(
     () => {
@@ -33,7 +33,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
         close,
         previews.downloaded,
       );
-      const player = createVideoPlayer(story, memoryAt, () => session.renewMedia(), downloads);
+      const player = createVideoPlayer(story, memoryAt, media.renewOnce, downloads);
       const sync = () => {
         const state = story.state();
         downloads.keep(wantedOf(state, previewAt, memoryAt, framesAt));

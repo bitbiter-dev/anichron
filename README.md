@@ -18,7 +18,7 @@ Early development — Follow progress in [Issues](https://github.com/bitbiter-de
 - Monthly, seasonal, and yearly recap views
 - Daily notifications with a deep link to today's memories
 - Multi-user — each person keeps their own interaction state; family libraries supported
-- GPU-accelerated transcoding (Intel QuickSync → NVENC → AMF → software fallback)
+- GPU-accelerated transcoding (Intel QuickSync → NVENC → software fallback)
 - No cloud dependency — your NAS, your data — [AGPL-3.0](LICENSE)
 
 ## Get started

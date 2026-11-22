@@ -1,5 +1,6 @@
 using Anichron.API;
 using Anichron.API.Infrastructure;
+using Anichron.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 
 if (args is [DatabaseStartupExtensions.MigrateCommand, .. var migrateArgs])
@@ -9,7 +10,7 @@ if (args is [DatabaseStartupExtensions.MigrateCommand, .. var migrateArgs])
 }
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddAppConfiguration();
+builder.AddAppConfiguration(ApiIniDefaults.Entries);
 builder.Services.AddApiSurface(builder.Configuration);
 
 var app = builder.Build();

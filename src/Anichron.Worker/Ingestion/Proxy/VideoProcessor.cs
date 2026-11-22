@@ -17,7 +17,6 @@ internal sealed partial class FfmpegVideoProcessor(
     [
         H264Encoder.QuickSync,
         H264Encoder.Nvenc,
-        H264Encoder.Amf,
         H264Encoder.Software,
     ];
 
@@ -114,6 +113,5 @@ internal static class H264Encoder
 {
     internal const string QuickSync = "h264_qsv";
     internal const string Nvenc = "h264_nvenc";
-    internal const string Amf = "h264_amf";
     internal const string Software = "libx264";
 }

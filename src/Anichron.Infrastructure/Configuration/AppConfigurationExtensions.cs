@@ -1,16 +1,17 @@
-using Anichron.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using System.IO.Abstractions;
 
-namespace Anichron.API.Infrastructure;
+namespace Anichron.Infrastructure.Configuration;
 
-public static class WebApplicationBuilderExtensions
+public static class AppConfigurationExtensions
 {
     extension(IHostApplicationBuilder builder)
     {
-        public IHostApplicationBuilder AddAppConfiguration()
+        public IHostApplicationBuilder AddAppConfiguration(IReadOnlyList<IniEntry> iniEntries)
         {
             var iniPath = AppIniInitializer.PathUnder(builder.Environment.ContentRootPath);
-            new AppIniInitializer(new FileSystem()).EnsureUpToDate(iniPath, ApiIniDefaults.Entries);
+            new AppIniInitializer(new FileSystem()).EnsureUpToDate(iniPath, iniEntries);
             builder.Configuration.AddIniFile(iniPath, optional: false, reloadOnChange: false);
             builder.Configuration.AddEnvironmentVariables();
             return builder;

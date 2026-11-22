@@ -4,7 +4,7 @@ import { Card } from '../../shared/ui/Card';
 import { CentredPage } from '../../shared/ui/CentredPage';
 import { FormField } from '../../shared/ui/FormField';
 import { FormStatus } from '../../shared/ui/FormStatus';
-import { SignOutButton } from '../../shared/ui/SignOutButton';
+import { SignOutButton } from '../../shared/ui/SignOut';
 import { usePasswordForm, type PasswordForm } from './use-password-form';
 
 export function ChangePasswordPage() {
