@@ -25,6 +25,7 @@ internal static class AssetDtoMapper
             new AssetProxyUrls(
                 view.HasThumbnail ? ProxyKinds.UrlOf(view.Id, ProxyType.Thumbnail, view.ContentHash) : null,
                 view.HasPreview ? ProxyKinds.UrlOf(view.Id, ProxyType.FullPreview, view.ContentHash) : null,
+                view.HasCompactPreview ? ProxyKinds.UrlOf(view.Id, ProxyType.CompactPreview, view.ContentHash) : null,
                 view.HasVideo ? ProxyKinds.UrlOf(view.Id, ProxyType.WebVideo, view.ContentHash) : null),
             view.Blurhash,
             liveVideoUrl,

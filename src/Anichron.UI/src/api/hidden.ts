@@ -17,7 +17,11 @@ export interface Hidden {
   page(after: string | null, signal?: AbortSignal): Promise<HiddenPage>;
 }
 
-export function createHidden(client: Client<paths>, authorized: Authorized): Hidden {
+export function createHidden(
+  client: Client<paths>,
+  authorized: Authorized,
+  compact: Promise<boolean>,
+): Hidden {
   return {
     async page(after, signal) {
       const page = await authorized((init) =>
@@ -27,8 +31,12 @@ export function createHidden(client: Client<paths>, authorized: Authorized): Hid
           params: { query: { after: after ?? undefined } },
         }),
       );
+      const shown = await compact;
       return {
-        items: page.items.map(({ asset, hiddenAt }) => ({ memory: memoryOf(asset), hiddenAt })),
+        items: page.items.map(({ asset, hiddenAt }) => ({
+          memory: memoryOf(asset, shown),
+          hiddenAt,
+        })),
         next: page.next,
       };
     },

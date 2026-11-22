@@ -56,6 +56,22 @@ public interface IMediaAssetRepository
     /// <param name="ct">Cancels the query.</param>
     Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct);
 
+    /// <summary>
+    /// The config's active assets with a <see cref="ProxyType.FullPreview"/> but no
+    /// <see cref="ProxyType.CompactPreview"/>, tracked with their proxy rows, by id.
+    /// </summary>
+    /// <param name="storageConfigId">The config whose assets are loaded.</param>
+    /// <param name="after">Only assets whose id comes after this one; null starts at the first.</param>
+    /// <param name="count">At most this many.</param>
+    /// <param name="ct">Cancels the query.</param>
+    Task<IReadOnlyList<MediaAsset>> GetWithoutCompactPreviewAsync(Guid storageConfigId, Guid? after, int count, CancellationToken ct);
+
+    /// <summary>How many assets <see cref="GetWithoutCompactPreviewAsync"/> would find with no limit.</summary>
+    /// <param name="storageConfigId">The config whose assets are counted.</param>
+    /// <param name="after">Only assets whose id comes after this one; null counts from the first.</param>
+    /// <param name="ct">Cancels the query.</param>
+    Task<int> CountWithoutCompactPreviewAsync(Guid storageConfigId, Guid? after, CancellationToken ct);
+
     void Add(MediaAsset asset);
     void AddProxyFiles(IEnumerable<ProxyFile> proxyFiles);
     void RemoveProxyFile(ProxyFile proxyFile);
@@ -128,6 +144,27 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
 
     public Task LoadMetadataAsync(MediaAsset asset, CancellationToken ct)
         => db.Entry(asset).Reference(a => a.Metadata).Query().IgnoreQueryFilters().LoadAsync(ct);
+
+    public async Task<IReadOnlyList<MediaAsset>> GetWithoutCompactPreviewAsync(
+        Guid storageConfigId, Guid? after, int count, CancellationToken ct)
+        => await WithoutCompactPreviewQuery(db, storageConfigId, after)
+            .Include(a => a.ProxyFiles)
+            .OrderBy(a => a.Id)
+            .Take(count)
+            .ToListAsync(ct);
+
+    public Task<int> CountWithoutCompactPreviewAsync(Guid storageConfigId, Guid? after, CancellationToken ct)
+        => WithoutCompactPreviewQuery(db, storageConfigId, after).CountAsync(ct);
+
+    internal static IQueryable<MediaAsset> WithoutCompactPreviewQuery(AnichronDbContext db, Guid storageConfigId, Guid? after)
+    {
+        var pending = db.MediaAssets
+            .IgnoreQueryFilters()
+            .Where(a => a.StorageConfigId == storageConfigId && !a.IsSoftDeleted
+                && a.ProxyFiles.Any(p => p.ProxyType == ProxyType.FullPreview)
+                && !a.ProxyFiles.Any(p => p.ProxyType == ProxyType.CompactPreview));
+        return after is { } id ? pending.Where(a => a.Id.CompareTo(id) > 0) : pending;
+    }
 
     public void Add(MediaAsset asset)
         => db.MediaAssets.Add(asset);

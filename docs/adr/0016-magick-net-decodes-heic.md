@@ -28,4 +28,4 @@ Reconsider FFmpeg once the distro's FFmpeg merges tile grids.
 - **Colour** is handled as for JPEG: the ICC profile is carried onto the proxies, not applied, and the HDR gain map is ignored.
 - A large native library in the Worker image. The publish stage keeps only the target platform's copy, and no extra package is needed.
 - libheif and libde265 are LGPL-3.0. Shipping the HEVC decoder was accepted by the maintainer.
-- Only `MagickHeifDecoder` touches Magick.NET (`magick-stays-in-the-decoder`). Callers see `IUprightImageDecoder`.
+- Only `MagickHeifDecoder` and `MagickCompactPreviewEncoder` (JPEG XL) touch Magick.NET (`magick-stays-in-its-codecs`). Callers see `IUprightImageDecoder` and `ICompactPreviewEncoder`.

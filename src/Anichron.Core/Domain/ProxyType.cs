@@ -10,4 +10,7 @@ public enum ProxyType
 
     /// <summary> Optimized full-screen JPEG for Story view </summary>
     FullPreview = 3,
+
+    /// <summary> Smaller JPEG XL preview for phones, made after ingestion from the FullPreview </summary>
+    CompactPreview = 4,
 }

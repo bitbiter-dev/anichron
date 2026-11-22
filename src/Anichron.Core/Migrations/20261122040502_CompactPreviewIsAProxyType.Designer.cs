@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Anichron.Core.Migrations
 {
     [DbContext(typeof(AnichronDbContext))]
-    [Migration("20261122043438_InteractionsRecordWhenHidden")]
-    partial class InteractionsRecordWhenHidden
+    [Migration("20261122040502_CompactPreviewIsAProxyType")]
+    partial class CompactPreviewIsAProxyType
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -35,9 +35,8 @@ namespace Anichron.Core.Migrations
                     b.Property<Guid>("AssetId")
                         .HasColumnType("uuid");
 
-                    b.Property<Instant?>("HiddenAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasComment("When the user last hid the asset; NULL while it is shown. Orders the user's hidden memories, newest first.");
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsLiked")
                         .HasColumnType("boolean");
@@ -308,7 +307,7 @@ namespace Anichron.Core.Migrations
                     b.Property<string>("ProxyType")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasComment("Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.");
+                        .HasComment("Thumbnail, WebVideo, FullPreview or CompactPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");

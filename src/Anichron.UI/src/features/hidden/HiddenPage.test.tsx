@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { refreshSucceeds } from '../../test/handlers/auth';
 import { type Interacted, interactionAnswers } from '../../test/handlers/assets';
-import { hold, proxyUrl } from '../../test/handlers/flashbacks';
+import { fakeDisplay } from '../../test/display';
+import { hold, memory, proxyPath, proxyUrl } from '../../test/handlers/flashbacks';
 import { hiddenAnswers, hiddenMemory } from '../../test/handlers/hidden';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
@@ -427,6 +428,23 @@ describe('the viewer', () => {
     expect(asked).toEqual([null, 'page1']);
     await user().keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
     expect(caption()).toHaveTextContent('Taken Nov 6, 2019');
+  });
+
+  it('shows the compact preview on a phone that decodes JPEG XL', async () => {
+    const { proxies } = memory(id(1), 2019);
+    server.use(
+      onePage(
+        hidden(1, at(11, 18), {
+          proxies: { ...proxies, compactPreview: proxyPath(id(1), 'compact-preview') },
+        }),
+      ),
+    );
+    renderApp('/hidden', undefined, fakeDisplay({ jpegXl: true, longEdge: 844 }));
+    await screen.findAllByRole('button', { name: /, taken / });
+    await openViewer(tileName(1));
+
+    const photo = within(viewer()).getByRole('img', { name: 'Photo' });
+    expect(photo.querySelector('img')).toHaveAttribute('src', proxyUrl(id(1), 'compact-preview'));
   });
 
   it('shows a photo at full preview size and its BlurHash until it decodes', async () => {

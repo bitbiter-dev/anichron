@@ -3,9 +3,9 @@ import type { components, paths } from './generated/v1';
 import type { Authorized } from './session';
 
 type Schemas = components['schemas'];
-type Proxies = Schemas['AssetProxyUrls'];
+type Proxies = Omit<Schemas['AssetProxyUrls'], 'compactPreview'>;
 
-export type Memory = Schemas['AssetDto'];
+export type Memory = Omit<Schemas['AssetDto'], 'proxies'> & { proxies: Proxies };
 
 export interface YearGroup {
   year: number;
@@ -24,17 +24,26 @@ function fromApi(url: string | null) {
   return url && `/api/v1/${url}`;
 }
 
-export function memoryOf(asset: Schemas['AssetDto']): Memory {
+export function memoryOf(asset: Schemas['AssetDto'], compact: boolean): Memory {
+  const { compactPreview, ...proxies } = asset.proxies;
+  const shown = {
+    ...proxies,
+    preview: compact ? (compactPreview ?? proxies.preview) : proxies.preview,
+  };
   return {
     ...asset,
     proxies: Object.fromEntries(
-      Object.entries(asset.proxies).map(([type, url]) => [type, fromApi(url)]),
+      Object.entries(shown).map(([type, url]) => [type, fromApi(url)]),
     ) as Proxies,
     livePhotoVideoUrl: fromApi(asset.livePhotoVideoUrl),
   };
 }
 
-export function createFlashbacks(client: Client<paths>, authorized: Authorized): Flashbacks {
+export function createFlashbacks(
+  client: Client<paths>,
+  authorized: Authorized,
+  compact: Promise<boolean>,
+): Flashbacks {
   return {
     async onThisDay(date, signal) {
       const day = await authorized((init) =>
@@ -44,10 +53,11 @@ export function createFlashbacks(client: Client<paths>, authorized: Authorized):
           params: { query: { date } },
         }),
       );
+      const shown = await compact;
       return {
         years: day.years.map(({ year, assets }) => ({
           year,
-          memories: assets.map(memoryOf),
+          memories: assets.map((asset) => memoryOf(asset, shown)),
         })),
       };
     },

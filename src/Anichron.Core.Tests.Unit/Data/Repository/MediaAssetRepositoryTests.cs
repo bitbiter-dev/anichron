@@ -498,4 +498,81 @@ public sealed class MediaAssetRepositoryTests
             .And.Contain("""WHERE m."StorageConfigId" = ANY (@storageConfigIds) AND NOT (m."IsSoftDeleted") AND EXISTS""")
             .And.Contain("""WHERE m0."StorageConfigId" = ANY (@storageConfigIds) AND NOT (m0."IsSoftDeleted")""");
     }
+
+    private static MediaAsset WithProxies(Guid id, Guid configId, params ProxyType[] types)
+    {
+        var asset = MakeAsset(configId, id.ToString("N"));
+        asset.Id = id;
+        asset.ProxyFiles = [.. types.Select(type => new ProxyFile { Id = Guid.NewGuid(), AssetId = id, ProxyType = type, ProxyPath = $"{id:N}/{type}" })];
+        return asset;
+    }
+
+    private static Guid IdOf(int n) => Guid.Parse($"00000000-0000-0000-0000-{n:D12}");
+
+    private static async Task<(IReadOnlyList<MediaAsset> Found, int Counted)> WithoutCompactPreviewAsync(
+        MediaAsset[] seeded, Guid? after, int count = 10)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var name = Guid.NewGuid().ToString();
+        await using (var seed = AnichronDbContexts.InMemory(name))
+        {
+            seed.MediaAssets.AddRange(seeded);
+            await seed.SaveChangesAsync(ct);
+        }
+
+        await using var db = AnichronDbContexts.InMemory(name);
+        var repository = new EfMediaAssetRepository(db);
+        return (await repository.GetWithoutCompactPreviewAsync(ConfigA, after, count, ct),
+            await repository.CountWithoutCompactPreviewAsync(ConfigA, after, ct));
+    }
+
+    [Fact]
+    public async Task WithoutCompactPreview_FindsOnlyTheConfigsActiveAssetsWithAPreviewAndNoCompactOne()
+    {
+        var pending = WithProxies(IdOf(1), ConfigA, ProxyType.Thumbnail, ProxyType.FullPreview);
+        var trashed = WithProxies(IdOf(2), ConfigA, ProxyType.FullPreview);
+        trashed.IsSoftDeleted = true;
+
+        var (found, counted) = await WithoutCompactPreviewAsync(
+            [
+                pending,
+                trashed,
+                WithProxies(IdOf(3), ConfigA, ProxyType.FullPreview, ProxyType.CompactPreview),
+                WithProxies(IdOf(4), ConfigA, ProxyType.WebVideo),
+                WithProxies(IdOf(5), ConfigB, ProxyType.FullPreview),
+            ],
+            after: null);
+
+        found.Should().ContainSingle().Which.Id.Should().Be(pending.Id);
+        counted.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task WithoutCompactPreview_AfterACursor_TakesTheNextByIdWithTheirProxyRows()
+    {
+        var (found, counted) = await WithoutCompactPreviewAsync(
+            [
+                WithProxies(IdOf(4), ConfigA, ProxyType.FullPreview),
+                WithProxies(IdOf(1), ConfigA, ProxyType.FullPreview),
+                WithProxies(IdOf(3), ConfigA, ProxyType.FullPreview),
+                WithProxies(IdOf(2), ConfigA, ProxyType.FullPreview),
+            ],
+            after: IdOf(1),
+            count: 2);
+
+        found.Select(a => a.Id).Should().Equal(IdOf(2), IdOf(3));
+        found[0].ProxyFiles.Should().ContainSingle().Which.ProxyType.Should().Be(ProxyType.FullPreview);
+        counted.Should().Be(3);
+    }
+
+    [Fact]
+    public void WithoutCompactPreview_OnPostgres_ComparesTheIdInTheQuery()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfMediaAssetRepository.WithoutCompactPreviewQuery(db, ConfigA, IdOf(1)).ToQueryString();
+
+        sql.Should().Contain("""WHERE m."StorageConfigId" = @storageConfigId AND NOT (m."IsSoftDeleted") AND EXISTS""")
+            .And.Contain("""AND m."Id" > @id""");
+    }
 }

@@ -4,6 +4,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Core.Work;
 using Anichron.Worker.Bursts;
+using Anichron.Worker.CompactPreviews;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Infrastructure;
 using Anichron.Worker.Ingestion;
@@ -142,6 +143,13 @@ public sealed class WorkerServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddIngestionServices_RegistersTheCompactPreviewEncoder_AsSingleton()
+        => new ServiceCollection().AddIngestionServices().Should().ContainSingle(d =>
+            d.ServiceType == typeof(ICompactPreviewEncoder)
+            && d.ImplementationType == typeof(MagickCompactPreviewEncoder)
+            && d.Lifetime == ServiceLifetime.Singleton);
+
+    [Fact]
     public void AddIngestionServices_RegistersOneVideoProxyGenerator_AsSingleton()
     {
         var services = new ServiceCollection();
@@ -230,6 +238,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
                 (typeof(IWorkHandler<BurstDetectionPayload>), typeof(BurstDetectionHandler)),
                 (typeof(IWorkHandler<ProxySweepPayload>), typeof(ProxySweepHandler)),
                 (typeof(IWorkHandler<ProxyDeletionPayload>), typeof(ProxyDeletionHandler)),
+                (typeof(IWorkHandler<CompactPreviewPayload>), typeof(CompactPreviewHandler)),
             ]);
     }
 
@@ -242,6 +251,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
                 (typeof(WorkItemRetentionSchedule), ServiceLifetime.Singleton),
                 (typeof(StorageConfigSchedules<CrawlPayload>), ServiceLifetime.Singleton),
                 (typeof(StorageConfigSchedules<BurstDetectionPayload>), ServiceLifetime.Singleton),
+                (typeof(StorageConfigSchedules<CompactPreviewPayload>), ServiceLifetime.Singleton),
             ]);
 
     [Fact]

@@ -164,7 +164,8 @@
       "Crawl": "Crawl",
       "BurstDetection": "Burst detection",
       "ProxySweep": "Proxy sweep",
-      "ProxyDeletion": "Proxy deletion"
+      "ProxyDeletion": "Proxy deletion",
+      "CompactPreview": "Compact previews"
     },
     "statuses": {
       "Queued": "Queued",

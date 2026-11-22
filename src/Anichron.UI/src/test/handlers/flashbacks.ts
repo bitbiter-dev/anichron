@@ -6,7 +6,7 @@ type Schemas = components['schemas'];
 
 const http = createOpenApiHttp<paths>();
 
-type ProxyType = 'thumbnail' | 'preview' | 'video';
+type ProxyType = 'thumbnail' | 'preview' | 'compact-preview' | 'video';
 
 export function proxyPath(id: string, type: ProxyType, version = '0123456789abcdef') {
   return `proxies/${id}/${type}?v=${version}`;
@@ -29,6 +29,7 @@ export function memory(id: string, year: number, overrides: Partial<Schemas['Ass
     proxies: {
       thumbnail: proxyPath(id, 'thumbnail'),
       preview: proxyPath(id, 'preview'),
+      compactPreview: null,
       video: null,
     },
     blurhash: null,
