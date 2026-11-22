@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import type { PanInfo } from 'motion/react';
-import { type UIEvent, useEffect, useState, useSyncExternalStore } from 'react';
+import { type UIEvent, useEffect, useState } from 'react';
 import { usePress } from 'react-aria/usePress';
 import type { Memory } from '../../api/flashbacks';
 import { listen } from '../../shared/listen';
@@ -29,7 +29,6 @@ export function useFrameBlurhash(frame: Memory) {
 export function useBurstDetails(cover: Memory, close: () => void) {
   const { api } = useRouter().options.context;
   const { downloads } = api.media;
-  useSyncExternalStore(downloads.subscribe, downloads.snapshot);
   const query = useQuery(burstQuery(api, cover));
   const frames = framesShown(query.data) ?? [cover];
   const [chosen, setChosen] = useState(0);
