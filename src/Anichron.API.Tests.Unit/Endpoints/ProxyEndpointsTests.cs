@@ -58,6 +58,7 @@ public sealed class ProxyEndpointsTests
     [Theory]
     [InlineData("thumbnail", ProxyType.Thumbnail, "image/jpeg")]
     [InlineData("preview", ProxyType.FullPreview, "image/jpeg")]
+    [InlineData("compact-preview", ProxyType.CompactPreview, "image/jxl")]
     [InlineData("video", ProxyType.WebVideo, "video/mp4")]
     public async Task GetProxy_OwnAssetWithThatProxy_StreamsTheFileWithItsContentTypeAsync(
         string type, ProxyType proxyType, string contentType)

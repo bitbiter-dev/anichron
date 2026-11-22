@@ -234,7 +234,7 @@ CREATE TABLE "ProxyFiles" (
 );
 COMMENT ON TABLE "ProxyFiles" IS 'One row per generated artefact on the local SSD. An asset has several, but at most one per ProxyType, so of two attempts racing to add the same proxy only one row lands. Written only by ProxyStagingWriter, at the moment the file reaches its final name.';
 COMMENT ON COLUMN "ProxyFiles"."ProxyPath" IS 'Path relative to the proxy root, sharded by CONTENT rather than by ingestion attempt so a retry overwrites its own debris instead of stranding it. IProxyDirectoryStrategy is the single place that rule lives.';
-COMMENT ON COLUMN "ProxyFiles"."ProxyType" IS 'Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.';
+COMMENT ON COLUMN "ProxyFiles"."ProxyType" IS 'Thumbnail, WebVideo, FullPreview or CompactPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.';
 
 
 CREATE INDEX "IX_BurstChecks_CameraBurstId" ON "BurstChecks" ("CameraBurstId");

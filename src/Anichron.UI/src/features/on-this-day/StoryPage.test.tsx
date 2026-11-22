@@ -24,6 +24,7 @@ import {
 import { burstAnswers } from '../../test/handlers/bursts';
 import { proxyAnswers } from '../../test/handlers/proxies';
 import { freedSources, keptSource as fromMemoryOf } from '../../test/object-urls';
+import { fakeDisplay } from '../../test/display';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -123,8 +124,15 @@ async function openLanding2023() {
   return rendered;
 }
 
-async function openStory(path: string) {
-  const rendered = renderApp(path);
+const phone = () => fakeDisplay({ jpegXl: true, longEdge: 844 });
+const compact = (id: string) => proxyUrl(id, 'compact-preview');
+const withCompact = (asset: ReturnType<typeof memory>) => ({
+  ...asset,
+  proxies: { ...asset.proxies, compactPreview: proxyPath(asset.id, 'compact-preview') },
+});
+
+async function openStory(path: string, display = fakeDisplay()) {
+  const rendered = renderApp(path, undefined, display);
   await screen.findByRole('dialog', { name: storyName });
   await waitFor(() => {
     expect(picture()).not.toBeNull();
@@ -229,7 +237,9 @@ describe('opening a story', () => {
     years = [
       yearGroup(
         2023,
-        memory(ids.a2023, 2023, { proxies: { thumbnail: null, preview: null, video: null } }),
+        memory(ids.a2023, 2023, {
+          proxies: { thumbnail: null, preview: null, compactPreview: null, video: null },
+        }),
       ),
     ];
     const urls: string[] = [];
@@ -354,7 +364,9 @@ describe('a story playing', () => {
   it('shows a memory without a preview for 5 s from the moment it is on screen', async () => {
     previewsNotPrefetched();
     const bare = (id: string) =>
-      memory(id, 2025, { proxies: { thumbnail: null, preview: null, video: null } });
+      memory(id, 2025, {
+        proxies: { thumbnail: null, preview: null, compactPreview: null, video: null },
+      });
     years = [
       yearGroup(2025, bare(ids.a2025), memory(ids.b2025, 2025)),
       yearGroup(2023, bare(ids.a2023)),
@@ -835,6 +847,7 @@ describe('a video', () => {
       proxies: {
         thumbnail: proxyPath(id, 'thumbnail'),
         preview: proxyPath(id, 'preview'),
+        compactPreview: null,
         video: proxyPath(id, 'video'),
       },
       ...overrides,
@@ -966,6 +979,7 @@ describe('a video', () => {
           proxies: {
             thumbnail: null,
             preview: null,
+            compactPreview: null,
             video: proxyPath(ids.a2025, 'video'),
           },
         }),
@@ -1505,7 +1519,12 @@ describe('a Live Photo', () => {
         memory(ids.c2025, 2025, {
           mediaType: 'Video',
           durationSeconds: 3,
-          proxies: { thumbnail: null, preview: null, video: `proxies/${ids.c2025}/video?v=0` },
+          proxies: {
+            thumbnail: null,
+            preview: null,
+            compactPreview: null,
+            video: `proxies/${ids.c2025}/video?v=0`,
+          },
         }),
         live(ids.a2025, 2025),
       ),
@@ -1660,6 +1679,7 @@ describe('a Live Photo', () => {
           proxies: {
             thumbnail: null,
             preview: `proxies/${ids.a2025}/preview?v=1`,
+            compactPreview: null,
             video: `proxies/${ids.a2025}/video?v=1`,
           },
         }),
@@ -2149,6 +2169,7 @@ describe('the next memories', () => {
       proxies: {
         thumbnail: proxyPath(id, 'thumbnail'),
         preview: proxyPath(id, 'preview'),
+        compactPreview: null,
         video: proxyPath(id, 'video'),
       },
     });
@@ -2244,7 +2265,7 @@ describe('the next memories', () => {
   });
 
   it('downloads ahead of a memory without a preview at once, and skips one ahead', async () => {
-    const bare = { thumbnail: null, preview: null, video: null };
+    const bare = { thumbnail: null, preview: null, compactPreview: null, video: null };
     years = [
       yearGroup(2025, memory(ids.a2025, 2025, { proxies: bare })),
       yearGroup(2023, memory(ids.a2023, 2023, { proxies: bare }), memory(ids.b2025, 2023)),
@@ -2498,6 +2519,7 @@ describe('a blurhash', () => {
         proxies: {
           thumbnail: proxyPath(ids.a2023, 'thumbnail'),
           preview: proxyPath(ids.a2023, 'preview'),
+          compactPreview: null,
           video: proxyPath(ids.a2023, 'video'),
         },
       });
@@ -2536,7 +2558,9 @@ describe('a blurhash', () => {
   });
 
   it('does not show for a memory without a preview', async () => {
-    withBlurhash({ proxies: { thumbnail: null, preview: null, video: null } });
+    withBlurhash({
+      proxies: { thumbnail: null, preview: null, compactPreview: null, video: null },
+    });
     renderApp('/day/2026-11-11?year=2025');
 
     const memory = await screen.findByRole('img', { name: 'Photo, 2025, 1 of 1' });
@@ -3328,6 +3352,7 @@ describe('a story for a screen reader', () => {
         proxies: {
           thumbnail: null,
           preview: proxyPath(id, 'preview'),
+          compactPreview: null,
           video: proxyPath(id, 'video'),
         },
       });
@@ -3351,7 +3376,9 @@ describe('a story for a screen reader', () => {
     years = [
       yearGroup(
         2023,
-        memory(ids.a2023, 2023, { proxies: { thumbnail: null, preview: null, video: null } }),
+        memory(ids.a2023, 2023, {
+          proxies: { thumbnail: null, preview: null, compactPreview: null, video: null },
+        }),
       ),
     ];
     renderApp('/day/2026-11-11?year=2023');
@@ -3884,7 +3911,9 @@ describe('starring, liking and hiding', () => {
     years = [
       yearGroup(
         2025,
-        memory(ids.a2025, 2025, { proxies: { thumbnail: null, preview: null, video: null } }),
+        memory(ids.a2025, 2025, {
+          proxies: { thumbnail: null, preview: null, compactPreview: null, video: null },
+        }),
       ),
     ];
     const { router } = await openLanding();
@@ -3986,6 +4015,16 @@ describe('a burst', () => {
     expect(document.querySelector('ol > li > span')).toHaveStyle({
       animationPlayState: 'paused',
     });
+  });
+
+  it('shows the compact preview of each frame on a phone that decodes JPEG XL', async () => {
+    server.use(burstAnswers(() => frameIds.map((id, index) => withCompact(frame(id, index)))));
+    await openStory('/day/2026-11-11?year=2025', phone());
+    await shown();
+
+    await openDetails();
+
+    expect(await framesArrived()).toEqual(frameIds.map(compact));
   });
 
   it('closes on Esc and plays on from where the story paused', async () => {
@@ -4475,5 +4514,29 @@ describe('a burst', () => {
     expect(opened).toEqual([]);
     await user().click(button('Previous'));
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+});
+
+describe('on a phone', () => {
+  it('shows and fetches ahead the compact preview of each memory that has one', async () => {
+    const received: string[] = [];
+    server.use(proxyAnswers(received));
+    years = [yearGroup(2025, withCompact(memory(ids.a2025, 2025)), memory(ids.b2025, 2025))];
+
+    await openStory('/day/2026-11-11?year=2025', phone());
+
+    expect(await shown()).toBe(compact(ids.a2025));
+    await waitFor(() => {
+      expect(received).toContain(preview(ids.b2025));
+    });
+    expect(received).not.toContain(preview(ids.a2025));
+  });
+
+  it('shows the preview on a phone that cannot decode JPEG XL', async () => {
+    years = [yearGroup(2025, withCompact(memory(ids.a2025, 2025)))];
+
+    await openStory('/day/2026-11-11?year=2025', fakeDisplay({ jpegXl: false, longEdge: 844 }));
+
+    expect(await shown()).toBe(preview(ids.a2025));
   });
 });

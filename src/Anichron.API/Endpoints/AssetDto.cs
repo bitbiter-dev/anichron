@@ -15,7 +15,7 @@ public sealed record AssetDto(
     AssetInteractionDto Interaction,
     AssetBurstDto? Burst);
 
-public sealed record AssetProxyUrls(string? Thumbnail, string? Preview, string? Video);
+public sealed record AssetProxyUrls(string? Thumbnail, string? Preview, string? CompactPreview, string? Video);
 
 public sealed record AssetBurstDto(Guid BurstId, bool IsCover, int Count);
 

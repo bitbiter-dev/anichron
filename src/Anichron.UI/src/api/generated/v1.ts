@@ -1435,6 +1435,7 @@ export interface paths {
                     };
                     content: {
                         "image/jpeg": components["schemas"]["Stream"];
+                        "image/jxl": components["schemas"]["Stream"];
                         "video/mp4": components["schemas"]["Stream"];
                     };
                 };
@@ -1445,6 +1446,7 @@ export interface paths {
                     };
                     content: {
                         "image/jpeg": components["schemas"]["Stream"];
+                        "image/jxl": components["schemas"]["Stream"];
                         "video/mp4": components["schemas"]["Stream"];
                     };
                 };
@@ -2408,6 +2410,7 @@ export interface components {
         AssetProxyUrls: {
             thumbnail: null | string;
             preview: null | string;
+            compactPreview: null | string;
             video: null | string;
         };
         ChangePasswordRequest: {
@@ -2579,7 +2582,7 @@ export interface components {
         /** @enum {string} */
         WorkItemStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {string} */
-        WorkKind: "TokenCleanup" | "WorkItemRetention" | "Crawl" | "BurstDetection" | "ProxySweep" | "ProxyDeletion";
+        WorkKind: "TokenCleanup" | "WorkItemRetention" | "Crawl" | "BurstDetection" | "ProxySweep" | "ProxyDeletion" | "CompactPreview";
         WorkProgressDto: {
             /** Format: int64 */
             done: number;

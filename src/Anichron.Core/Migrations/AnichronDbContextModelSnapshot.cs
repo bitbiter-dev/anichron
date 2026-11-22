@@ -304,7 +304,7 @@ namespace Anichron.Core.Migrations
                     b.Property<string>("ProxyType")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasComment("Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.");
+                        .HasComment("Thumbnail, WebVideo, FullPreview or CompactPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");

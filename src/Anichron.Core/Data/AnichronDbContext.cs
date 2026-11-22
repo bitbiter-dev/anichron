@@ -243,7 +243,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "attempt so a retry overwrites its own debris instead of stranding it. "
                 + "IProxyDirectoryStrategy is the single place that rule lives.");
             entity.Property(p => p.ProxyType).HasComment(
-                "Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder "
+                "Thumbnail, WebVideo, FullPreview or CompactPreview, persisted as text. The BlurHash placeholder "
                 + "is not a proxy: it is the Metadata.Blurhash column.");
 
             entity.HasIndex(p => new { p.AssetId, p.ProxyType })
