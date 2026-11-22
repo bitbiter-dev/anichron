@@ -130,6 +130,7 @@ describe('the work queue', () => {
       'BurstDetection',
       'ProxySweep',
       'ProxyDeletion',
+      'CompactPreview',
     ] as const;
     await openList({ items: all.map((kind, n) => workItem(n + 1, { kind })) });
 
@@ -140,6 +141,7 @@ describe('the work queue', () => {
       'Burst detection',
       'Proxy sweep',
       'Proxy deletion',
+      'Compact previews',
     ]);
   });
 

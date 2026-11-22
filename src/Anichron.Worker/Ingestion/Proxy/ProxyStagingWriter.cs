@@ -37,9 +37,46 @@ internal sealed partial class ProxyStagingWriter(
         Func<string, CancellationToken, Task> produceAsync,
         CancellationToken ct)
     {
+        var (proxy, replacedExistingFile) = await MoveIntoPlaceAsync(
+            ownerAssetId, relativePath, proxyType, context.AttemptId, produceAsync, ct);
+
+        // Registered at the moment it lands, so the context always reflects what is on disk
+        // and compensation can delete precisely the files this attempt wrote.
+        context.AddProxyFile(proxy, replacedExistingFile);
+        Log.ProxyWritten(logger, proxyType, proxy.SizeBytes, context.Item.RelativePath);
+    }
+
+    /// <summary>Writes a proxy outside ingestion, by the same rule as <see cref="WriteAsync"/>.</summary>
+    /// <param name="ownerAssetId">The asset the proxy belongs to.</param>
+    /// <param name="relativePath">The proxy's path relative to the proxy root.</param>
+    /// <param name="proxyType">The proxy's type.</param>
+    /// <param name="attemptId">Names this attempt's temporary file.</param>
+    /// <param name="produceAsync">Writes the bytes to the temporary path it is handed.</param>
+    /// <param name="ct">Cancels the write.</param>
+    /// <returns>The row describing the file now at its final name, for the caller to add.</returns>
+    internal async Task<ProxyFile> PlaceAsync(
+        Guid ownerAssetId,
+        string relativePath,
+        ProxyType proxyType,
+        Guid attemptId,
+        Func<string, CancellationToken, Task> produceAsync,
+        CancellationToken ct)
+    {
+        var (proxy, _) = await MoveIntoPlaceAsync(ownerAssetId, relativePath, proxyType, attemptId, produceAsync, ct);
+        return proxy;
+    }
+
+    private async Task<(ProxyFile Proxy, bool ReplacedExistingFile)> MoveIntoPlaceAsync(
+        Guid ownerAssetId,
+        string relativePath,
+        ProxyType proxyType,
+        Guid attemptId,
+        Func<string, CancellationToken, Task> produceAsync,
+        CancellationToken ct)
+    {
         var proxyAbsolutePath = StoragePath.ResolveProxy(relativePath)
             ?? throw new InvalidOperationException($"Proxy path {relativePath} resolves outside the proxy root.");
-        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath, context.AttemptId);
+        var temporaryAbsolutePath = TemporaryPathFor(proxyAbsolutePath, attemptId);
         try
         {
             if (fileSystem.Path.GetDirectoryName(proxyAbsolutePath) is { } directory)
@@ -49,13 +86,7 @@ internal sealed partial class ProxyStagingWriter(
             var sizeBytes = fileSystem.FileInfo.New(temporaryAbsolutePath).Length;
             var replacedExistingFile = fileSystem.File.Exists(proxyAbsolutePath);
             fileSystem.File.Move(temporaryAbsolutePath, proxyAbsolutePath, overwrite: true);
-
-            // Registered at the moment it lands, so the context always reflects what is on disk
-            // and compensation can delete precisely the files this attempt wrote.
-            context.AddProxyFile(
-                ProxyFileBuilder.Build(ownerAssetId, relativePath, proxyType, sizeBytes, guidFactory, clock),
-                replacedExistingFile);
-            Log.ProxyWritten(logger, proxyType, sizeBytes, context.Item.RelativePath);
+            return (ProxyFileBuilder.Build(ownerAssetId, relativePath, proxyType, sizeBytes, guidFactory, clock), replacedExistingFile);
         }
         finally
         {

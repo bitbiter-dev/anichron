@@ -29,6 +29,8 @@ internal sealed partial class CrawlHandler(
             Reconciliation = reconciliation,
         };
         await queue.EnqueueAsync(new BurstDetectionPayload(config.Id), null, ct);
+        if (result.Ingested > 0)
+            await queue.EnqueueAsync(CompactPreviewPayload.For(config.Id), null, ct);
         return result;
     }
 

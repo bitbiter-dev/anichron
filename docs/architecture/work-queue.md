@@ -2,7 +2,7 @@
 
 Durable Worker work in `WorkItems` (ADR 0008). Code: `Anichron.Core/Work`, `Anichron.Worker/Work`.
 
-Kinds: `Crawl` and `BurstDetection` (one per storage config), `TokenCleanup` and `WorkItemRetention` (maintenance), `ProxySweep` and `ProxyDeletion` (admin-requested).
+Kinds: `Crawl`, `BurstDetection` and `CompactPreview` (one per storage config), `TokenCleanup` and `WorkItemRetention` (maintenance), `ProxySweep` and `ProxyDeletion` (admin-requested).
 
 ## Lifecycle
 

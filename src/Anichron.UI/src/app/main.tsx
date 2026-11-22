@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { z } from 'zod/mini';
 import { createApiClient } from '../api/client';
+import { browserDisplay } from '../api/display';
 import { browserTabs } from '../api/tabs';
 import { createI18n } from '../i18n/i18n';
 import { App } from './App';
@@ -24,7 +25,7 @@ if (root) {
     <StrictMode>
       <App
         router={createAppRouter(
-          createApiClient(browserTabs()),
+          createApiClient(browserTabs(), browserDisplay()),
           createQueryClient(),
           updates,
           install,

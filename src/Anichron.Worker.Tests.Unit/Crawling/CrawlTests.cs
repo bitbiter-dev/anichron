@@ -141,6 +141,24 @@ public sealed class CrawlTests
                 "reconciliation":{"softDeleted":0,"autoRestored":0,"skippedBecause":"IncompleteWalk"}
                 """);
 
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    public async Task RunAsync_IngestedSomething_EnqueuesItsCompactPreviewsAfterTheBurstDetectionAsync(long ingested, int enqueued)
+    {
+        var config = Config();
+        configs.FindByIdAsync(config.Id, Ct).Returns(config);
+        pipeline.RunAsync(config, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0) { Ingested = ingested }, 0));
+        var steps = new List<string>();
+        queue.When(q => q.EnqueueAsync(Arg.Any<BurstDetectionPayload>(), null, Ct)).Do(_ => steps.Add("bursts"));
+        queue.When(q => q.EnqueueAsync(CompactPreviewPayload.For(config.Id), null, Ct)).Do(_ => steps.Add("compact"));
+
+        await RunAsync(config.Id);
+
+        string[] expected = ["bursts", .. Enumerable.Repeat("compact", enqueued)];
+        steps.Should().Equal(expected);
+    }
+
     [Fact]
     public async Task RunAsync_DuplicateReportFails_LogsItAndStillSucceedsWithoutTheReportAsync()
     {

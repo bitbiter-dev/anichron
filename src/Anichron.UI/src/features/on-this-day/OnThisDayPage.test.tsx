@@ -103,7 +103,9 @@ describe('the landing screen', () => {
   });
 
   it('shows a year group whose first memory has no picture, asking for no picture for it', async () => {
-    const noPicture = { proxies: { thumbnail: null, preview: null, video: null } };
+    const noPicture = {
+      proxies: { thumbnail: null, preview: null, compactPreview: null, video: null },
+    };
     server.use(
       refreshSucceeds(),
       today([
@@ -194,7 +196,7 @@ describe('the landing screen', () => {
 
   it('shows a year group without a thumbnail without a picture', async () => {
     const bare = memory(ids.first2023, 2023, {
-      proxies: { thumbnail: null, preview: null, video: null },
+      proxies: { thumbnail: null, preview: null, compactPreview: null, video: null },
     });
     server.use(refreshSucceeds(), today([yearGroup(2023, bare)]));
     renderApp('/');

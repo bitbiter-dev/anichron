@@ -252,7 +252,7 @@ public sealed partial class AssetViewReaderTests
         view.Should().Be(new AssetView(
             asset.Id, asset.ContentHash, MediaType.Video, 2019, 7, 14, new LocalDateTime(2019, 7, 14, 9, 30),
             4032, 3024, 6, 12, "LEHV6nWB2yk8",
-            HasThumbnail: true, HasPreview: false, HasVideo: true,
+            HasThumbnail: true, HasPreview: false, HasCompactPreview: false, HasVideo: true,
             PairedMovId: null, PairedMovContentHash: null, PairedMovHasVideo: false,
             IsStarred: false, IsLiked: false, BurstId: null));
     }
@@ -288,7 +288,18 @@ public sealed partial class AssetViewReaderTests
 
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
-        (view.HasThumbnail, view.HasPreview, view.HasVideo).Should().Be((false, true, false));
+        (view.HasThumbnail, view.HasPreview, view.HasCompactPreview, view.HasVideo).Should().Be((false, true, false, false));
+    }
+
+    [Fact]
+    public async Task ReadAsync_CompactPreviewProxy_IsReported()
+    {
+        var library = new Library();
+        library.Asset(library.MiraConfig, null, MediaType.Image, false, null, ProxyType.CompactPreview);
+
+        var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
+
+        (view.HasThumbnail, view.HasPreview, view.HasCompactPreview, view.HasVideo).Should().Be((false, false, true, false));
     }
 
     [Fact]
@@ -299,7 +310,7 @@ public sealed partial class AssetViewReaderTests
 
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
-        (view.HasThumbnail, view.HasPreview, view.HasVideo).Should().Be((false, false, false));
+        (view.HasThumbnail, view.HasPreview, view.HasCompactPreview, view.HasVideo).Should().Be((false, false, false, false));
     }
 
     [Fact]
@@ -654,7 +665,7 @@ public sealed partial class AssetViewReaderTests
     {
         var view = new AssetView(
             Guid.NewGuid(), "0123456789abcdef", MediaType.Image, year, month, day, new LocalDateTime(year, month, day, 9, 0),
-            null, null, null, null, null, false, false, false, null, null, false, false, false, null);
+            null, null, null, null, null, false, false, false, false, null, null, false, false, false, null);
 
         new OnThisDay(new LocalDate(2026, 7, 14)).FallsOnTheDay(view).Should().Be(falls);
     }

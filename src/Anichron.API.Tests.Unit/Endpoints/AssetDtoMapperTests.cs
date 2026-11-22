@@ -37,6 +37,7 @@ public sealed class AssetDtoMapperTests
             new AssetProxyUrls(
                 "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=0123456789abcdef",
                 "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/preview?v=0123456789abcdef",
+                null,
                 null),
             "LEHV6nWB2yk8",
             null,
@@ -62,13 +63,14 @@ public sealed class AssetDtoMapperTests
         dto.Proxies.Should().Be(new AssetProxyUrls(
             "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=0123456789abcdef",
             null,
+            null,
             "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/video?v=0123456789abcdef"));
     }
 
     [Fact]
     public void AssetThatTookNewContent_KeepsItsIdButEveryProxyUrlChanges()
     {
-        var before = Photo with { MediaType = MediaType.Video, HasThumbnail = true, HasPreview = true, HasVideo = true };
+        var before = Photo with { MediaType = MediaType.Video, HasThumbnail = true, HasPreview = true, HasCompactPreview = true, HasVideo = true };
 
         var after = ToDto(before with { ContentHash = "fedcba9876543210" });
 
@@ -76,6 +78,7 @@ public sealed class AssetDtoMapperTests
         after.Proxies.Should().Be(new AssetProxyUrls(
             "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=fedcba9876543210",
             "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/preview?v=fedcba9876543210",
+            "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/compact-preview?v=fedcba9876543210",
             "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/video?v=fedcba9876543210"));
     }
 
@@ -127,7 +130,7 @@ public sealed class AssetDtoMapperTests
             DurationInSeconds = null,
         });
 
-        dto.Proxies.Should().Be(new AssetProxyUrls(null, null, null));
+        dto.Proxies.Should().Be(new AssetProxyUrls(null, null, null, null));
         dto.Blurhash.Should().BeNull();
         dto.LivePhotoVideoUrl.Should().BeNull();
         dto.Width.Should().BeNull();

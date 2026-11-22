@@ -7,7 +7,11 @@ export interface Bursts {
   frames(id: string): Promise<Memory[]>;
 }
 
-export function createBursts(client: Client<paths>, authorized: Authorized): Bursts {
+export function createBursts(
+  client: Client<paths>,
+  authorized: Authorized,
+  compact: Promise<boolean>,
+): Bursts {
   return {
     async frames(id) {
       const frames = await authorized((init) =>
@@ -16,7 +20,8 @@ export function createBursts(client: Client<paths>, authorized: Authorized): Bur
           params: { path: { burstId: id } },
         }),
       );
-      return frames.map(memoryOf);
+      const shown = await compact;
+      return frames.map((frame) => memoryOf(frame, shown));
     },
   };
 }

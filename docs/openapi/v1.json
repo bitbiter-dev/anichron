@@ -1452,6 +1452,11 @@
                   "$ref": "#/components/schemas/Stream"
                 }
               },
+              "image/jxl": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              },
               "video/mp4": {
                 "schema": {
                   "$ref": "#/components/schemas/Stream"
@@ -1463,6 +1468,11 @@
             "description": "Partial Content",
             "content": {
               "image/jpeg": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              },
+              "image/jxl": {
                 "schema": {
                   "$ref": "#/components/schemas/Stream"
                 }
@@ -2595,6 +2605,7 @@
         "required": [
           "thumbnail",
           "preview",
+          "compactPreview",
           "video"
         ],
         "type": "object",
@@ -2606,6 +2617,12 @@
             ]
           },
           "preview": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "compactPreview": {
             "type": [
               "null",
               "string"
@@ -3303,7 +3320,8 @@
           "Crawl",
           "BurstDetection",
           "ProxySweep",
-          "ProxyDeletion"
+          "ProxyDeletion",
+          "CompactPreview"
         ],
         "type": "string"
       },
