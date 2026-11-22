@@ -11,6 +11,7 @@ How the Worker turns files on the NAS into assets. Code: `Anichron.Worker/Crawli
 - `MediaTypeDetector` decides what is ingested. A video format counts only when MetadataExtractor reads its size and duration (QuickTime, AVI; not `.mkv` or `.wmv`).
 - A file it finds no type for (an `.AAE` sidecar, a `.txt`) is logged at `Debug` and counted (`work-queue.md`, "Crawl result").
 - Files flow through a bounded `Channel<T>` to `Worker:MaxConcurrentFiles` consumers. Processing is idempotent.
+- A failed item counts in `failed`. A file whose bytes a decoder rejects (`BrokenFile`) logs one `Warning` with the reason and no stack trace; metadata extraction logs it only at `Debug`. Any other failure logs at `Error` with its exception.
 
 ## One item, step by step
 
@@ -69,7 +70,7 @@ For a file with content H at path P, first match wins (ADR 0011 for the path-hol
 - `Thumbnail`, `FullPreview` and `WebVideo` are files made at ingestion; the BlurHash is a string in `Metadata.Blurhash`.
 - **`CompactPreview` is made after ingestion**, by its own work kind (`CompactPreviewHandler`): a JPEG XL from the asset's `FullPreview` file, a chunk per item, enqueued after a crawl that ingested anything and periodically. A failure is skipped until the next periodic pass. A content change drops its row (`ProxyFileRows.Replace`), so the next pass makes a new one.
 - A photo's come from the photo. A standalone video gets its `WebVideo` and a poster (thumbnail, preview, BlurHash) from its frame at 1 s. A Live Photo's video gets only its `WebVideo`.
-- `IUprightImageSource` supplies the upright image once: a photo through `IUprightImageDecoder` (HEIC by its bytes to Magick.NET, ADR 0016; everything else to ImageSharp), a video through `IVideoFrameExtractor`. It is shrunk largest-first; each generator gets its own copy.
+- `IUprightImageSource` supplies the upright image once: a photo through `IUprightImageDecoder` (HEIC by its bytes to Magick.NET, ADR 0016; everything else to ImageSharp), a video through `IVideoFrameExtractor`. No decoder reports a cut file, so a HEIF still or JPEG whose data ends early fails before decoding (`ImageCompleteness`). It is shrunk largest-first; each generator gets its own copy.
 - Sizes are edge-based and never upscale. The video encoder is picked at runtime: QuickSync, NVENC, then software.
 - A changed `Worker:VideoShortEdge` or `Worker:CompactPreviewLongEdge` does not resize existing proxies. The files, `video.mp4` and `compact-preview.jxl`, name no size.
 - Proxy paths derive from content (CLAUDE.md, "Storage Layout").

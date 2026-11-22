@@ -161,13 +161,7 @@ public sealed class MetadataExtractionMiddlewareTests
     // Real files: size, orientation and duration
     // ==========================================================================
 
-    private static byte[] Fixture(string name)
-    {
-        using var stream = typeof(MetadataExtractionMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
-        using var copy = new MemoryStream();
-        stream.CopyTo(copy);
-        return copy.ToArray();
-    }
+    private static byte[] Fixture(string name) => EmbeddedFixtures.Read(name);
 
     // The maintainer's stripped iPhone photo: stored 4032x3024, irot 270, EXIF orientation 6.
     private const int HeicIrotAngleOffset = 2401;
@@ -397,6 +391,58 @@ public sealed class MetadataExtractionMiddlewareTests
 
         extracted.Recorded.Should().Be(new RecordedDate.Moment(Instant.FromUtc(2026, 10, 30, 6, 10, 41)));
         extracted.Description.DurationInSeconds.Should().Be(4);
+    }
+
+    // ==========================================================================
+    // Broken files
+    // ==========================================================================
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not an image")]
+    public async Task InvokeAsync_FileNoReaderRecognises_IsLoggedAtDebugWithoutTheExceptionAsync(string content)
+    {
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
+
+        var extracted = await ExtractFromAsync(Encoding.ASCII.GetBytes(content), MediaType.Image, logger);
+
+        extracted.Should().Be(ExtractedMedia.Empty);
+        logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug
+                && r.Message.StartsWith("Failed to extract metadata from /abs/media: ", StringComparison.Ordinal)
+                && r.Exception == null);
+    }
+
+    [Theory]
+    [InlineData("iphone-4732.heic", 20, MediaType.Image)]
+    [InlineData("iphone-4732.heic", 4000, MediaType.Image)]
+    [InlineData("iphone-4732.heic", 1_258_027, MediaType.Image)]
+    [InlineData("exif-clip.mp4", 1600, MediaType.Video)]
+    [InlineData("apple-creationdate.mov", 100, MediaType.Video)]
+    [InlineData("apple-creationdate.mov", 8000, MediaType.Video)]
+    public async Task InvokeAsync_FileCutShort_LogsNoWarningAsync(string name, int length, MediaType mediaType)
+    {
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
+
+        await ExtractFromAsync(Fixture(name)[..length], mediaType, logger);
+
+        logger.Collector.GetSnapshot().Should().AllSatisfy(r => r.Level.Should().Be(LogLevel.Debug));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_FileThatCannotBeOpened_IsLoggedAsAWarningWithTheExceptionAsync()
+    {
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
+
+        var context = MakeContext();
+
+        await MakeMiddleware(new MockFileSystem(), logger).InvokeAsync(context, (_, _) => Task.CompletedTask, CancellationToken.None);
+
+        context.Extracted.Should().Be(ExtractedMedia.Empty);
+        logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Warning
+                && r.Message == "Failed to extract metadata from /abs/photo.jpg."
+                && r.Exception is FileNotFoundException);
     }
 
     private static byte[] QuickTimeTheReaderFailsOn()
