@@ -8,7 +8,10 @@ public static class MediaAssetVisibility
         => assets.Where(a => a.StorageConfig.UserId == userId && a.StorageConfig.IsActive && !a.IsSoftDeleted);
 
     public static IQueryable<MediaAsset> NotHiddenFor(this IQueryable<MediaAsset> assets, Guid userId)
-        => assets.Where(a => !a.Interactions.Any(i => i.UserId == userId && i.IsHidden));
+        => assets.Where(a => !a.Interactions.Any(i => i.UserId == userId && i.HiddenAt != null));
+
+    public static IQueryable<MediaAsset> HiddenFor(this IQueryable<MediaAsset> assets, Guid userId)
+        => assets.Where(a => a.Interactions.Any(i => i.UserId == userId && i.HiddenAt != null));
 
     public static IQueryable<MediaAsset> NotPairedMovOf(this IQueryable<MediaAsset> assets, IQueryable<MediaAsset> livePhotos)
         => assets.Where(a => !livePhotos.Any(livePhoto => livePhoto.PairedAssetId == a.Id));

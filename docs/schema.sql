@@ -192,7 +192,7 @@ CREATE TABLE "Interactions" (
     "AssetId" uuid NOT NULL,
     "IsStarred" boolean NOT NULL,
     "IsLiked" boolean NOT NULL,
-    "IsHidden" boolean NOT NULL,
+    "HiddenAt" timestamp with time zone,
     "LastViewed" timestamp with time zone,
     "ViewCount" integer NOT NULL,
     CONSTRAINT "PK_Interactions" PRIMARY KEY ("Id"),
@@ -200,6 +200,7 @@ CREATE TABLE "Interactions" (
     CONSTRAINT "FK_Interactions_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "Interactions" IS 'Per-user state for one asset. Never shared between users: two people looking at the same file each get their own row. Drives flashback weighting — hidden excludes, starred always includes and sorts first, liked raises DisplayWeight.';
+COMMENT ON COLUMN "Interactions"."HiddenAt" IS 'When the user last hid the asset; NULL while it is shown. Being set is what hidden means, so no flag can disagree with it, and it orders the user''s hidden memories, newest first.';
 
 
 CREATE TABLE "Metadata" (

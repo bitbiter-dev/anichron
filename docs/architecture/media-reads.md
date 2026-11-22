@@ -5,11 +5,11 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 ## Asset lists
 
 - **Every list goes through `IAssetViewReader`**, in one SQL statement projected into a flat `AssetView`. No API type touches a media entity (`api-reads-media-through-views`).
-- The reader always applies `VisibleTo` and `NotHiddenFor` for the caller, and leaves out:
+- Each selection declares the set it reads: **shown** (`NotHiddenFor`) or **hidden** (`HiddenFor`). The reader applies `VisibleTo` and that set's rule for the caller, and leaves out:
   - a Live Photo's paired MOV, which reaches the client only as the photo's `PairedMovId`;
   - undated assets.
 - **A new list view is a new `IAssetSelection`** (e.g. `OnThisDay`, `BurstMembers`). The reader never changes.
-- Grouping and ordering happen in memory. `FlashbackYears` collapses each burst to its cover (`Bursts.Cover`) and orders years newest first, starred first, then by capture time.
+- Grouping and ordering happen in memory, except `HiddenAssets`, which orders by `HiddenAt` then id, newest first, and pages by keyset on that pair in SQL. `FlashbackYears` collapses each burst to its cover (`Bursts.Cover`) and orders years newest first, starred first, then by capture time.
 - On This Day for 28 February also matches 29 February in years without one. 29 February matches only itself.
 - The published `mediaType` is `LivePhoto` only when the paired video is visible and has a `WebVideo`; otherwise `Image` (`AssetDtoMapper`).
 
@@ -23,6 +23,6 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 
 `AssetInteraction` is per user:
 
-- **hidden:** left out of that user's flashbacks by `NotHiddenFor`, at query level, not a global filter.
+- **hidden:** `HiddenAt` is set; every hide stamps it anew and an unhide clears it. Left out of that user's shown set at query level, not a global filter, and listed by `GET /api/v1/assets/hidden`, each asset alone (no burst).
 - **starred:** always included, and sorted first within its year.
 - **liked:** `DisplayWeight` 2.0 instead of 1.0. It is computed by `FlashbackWeight.For`, never stored.

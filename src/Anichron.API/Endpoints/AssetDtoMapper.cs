@@ -28,7 +28,7 @@ internal static class AssetDtoMapper
                 view.HasVideo ? ProxyKinds.UrlOf(view.Id, ProxyType.WebVideo, view.ContentHash) : null),
             view.Blurhash,
             liveVideoUrl,
-            ToDto(new InteractionState(view.IsStarred, view.IsLiked, Hidden: false)),
+            ToDto(new InteractionState(view.IsStarred, view.IsLiked, view.HiddenAt is not null)),
             burst);
     }
 

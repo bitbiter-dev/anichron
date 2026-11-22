@@ -11,13 +11,17 @@ namespace Anichron.Core.Tests.Unit.Data.Repository;
 
 public sealed partial class AssetViewReaderTests
 {
-    private sealed class Everything : IAssetSelection
+    private sealed class Everything(AssetSet set = AssetSet.Shown) : IAssetSelection
     {
+        public AssetSet Set => set;
+
         public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets) => assets;
     }
 
     private sealed class OnlyAsset(Guid id) : IAssetSelection
     {
+        public AssetSet Set => AssetSet.Shown;
+
         public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets) => assets.Where(a => a.Id == id);
     }
 
@@ -81,7 +85,8 @@ public sealed partial class AssetViewReaderTests
             return heic;
         }
 
-        public void Interaction(User user, MediaAsset asset, bool starred = false, bool liked = false, bool hidden = false)
+        public void Interaction(
+            User user, MediaAsset asset, bool starred = false, bool liked = false, bool hidden = false, Instant? hiddenAt = null)
             => interactions.Add(new AssetInteraction
             {
                 Id = Guid.NewGuid(),
@@ -89,7 +94,7 @@ public sealed partial class AssetViewReaderTests
                 AssetId = asset.Id,
                 IsStarred = starred,
                 IsLiked = liked,
-                IsHidden = hidden,
+                HiddenAt = hiddenAt ?? (hidden ? Instant.FromUtc(2026, 11, 1, 12, 0) : null),
             });
 
         public Burst Burst(params MediaAsset[] members)
@@ -254,7 +259,7 @@ public sealed partial class AssetViewReaderTests
             4032, 3024, 6, 12, "LEHV6nWB2yk8",
             HasThumbnail: true, HasPreview: false, HasVideo: true,
             PairedMovId: null, PairedMovContentHash: null, PairedMovHasVideo: false,
-            IsStarred: false, IsLiked: false, BurstId: null));
+            IsStarred: false, IsLiked: false, BurstId: null, HiddenAt: null));
     }
 
     [Fact]
@@ -654,7 +659,7 @@ public sealed partial class AssetViewReaderTests
     {
         var view = new AssetView(
             Guid.NewGuid(), "0123456789abcdef", MediaType.Image, year, month, day, new LocalDateTime(year, month, day, 9, 0),
-            null, null, null, null, null, false, false, false, null, null, false, false, false, null);
+            null, null, null, null, null, false, false, false, null, null, false, false, false, null, null);
 
         new OnThisDay(new LocalDate(2026, 7, 14)).FallsOnTheDay(view).Should().Be(falls);
     }
@@ -714,6 +719,162 @@ public sealed partial class AssetViewReaderTests
     }
 
     // ==========================================================================
+    // HiddenAssets (#558)
+    // ==========================================================================
+
+    private static readonly Instant Monday = Instant.FromUtc(2026, 11, 16, 9, 0);
+
+    private static Guid Id(int n) => Guid.Parse($"00000000-0000-0000-0000-{n:D12}");
+
+    private static async Task<List<AssetView>> AllPagesAsync(Library library, User caller, int take)
+    {
+        var options = await library.SeedAsync();
+        await using var db = new AnichronDbContext(options);
+        var reader = new EfAssetViewReader(db);
+        var all = new List<AssetView>();
+        HiddenCursor? after = null;
+        for (var pages = 0; pages < 10; pages++)
+        {
+            var page = await reader.ReadAsync(caller.Id, new HiddenAssets(after, take), TestContext.Current.CancellationToken);
+            all.AddRange(page);
+            if (page.Count < take)
+                return all;
+            after = new HiddenCursor(page[^1].HiddenAt!.Value, page[^1].Id);
+        }
+
+        throw new InvalidOperationException("The pages never ended.");
+    }
+
+    [Fact]
+    public async Task HiddenAssets_ReturnsTheCallersHiddenAssetsNewestHiddenFirstWithWhenTheyWereHidden()
+    {
+        var library = new Library();
+        var older = library.Asset(library.MiraConfig);
+        var newest = library.Asset(library.MiraConfig);
+        var middle = library.Asset(library.MiraConfig);
+        library.Asset(library.MiraConfig);
+        library.Interaction(library.Mira, older, hiddenAt: Monday);
+        library.Interaction(library.Mira, newest, hiddenAt: Monday + Duration.FromDays(2));
+        library.Interaction(library.Mira, middle, starred: true, hiddenAt: Monday + Duration.FromDays(1));
+
+        var views = await ReadAsync(library, library.Mira, new HiddenAssets(After: null, Take: 10));
+
+        views.Select(v => (v.Id, v.HiddenAt)).Should().Equal(
+            (newest.Id, Monday + Duration.FromDays(2)),
+            (middle.Id, Monday + Duration.FromDays(1)),
+            (older.Id, Monday));
+        views[1].IsStarred.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HiddenAssets_SameHiddenTime_IsOrderedByIdDescending()
+    {
+        var library = new Library();
+        var first = library.Asset(library.MiraConfig);
+        first.Id = Id(1);
+        var second = library.Asset(library.MiraConfig);
+        second.Id = Id(2);
+        library.Interaction(library.Mira, first, hiddenAt: Monday);
+        library.Interaction(library.Mira, second, hiddenAt: Monday);
+
+        var views = await ReadAsync(library, library.Mira, new HiddenAssets(After: null, Take: 10));
+
+        views.Select(v => v.Id).Should().Equal(Id(2), Id(1));
+    }
+
+    [Fact]
+    public async Task HiddenAssets_TakesAtMostThePageSize()
+    {
+        var library = new Library();
+        foreach (var day in Enumerable.Range(0, 3))
+            library.Interaction(library.Mira, library.Asset(library.MiraConfig), hiddenAt: Monday + Duration.FromDays(day));
+
+        var views = await ReadAsync(library, library.Mira, new HiddenAssets(After: null, Take: 2));
+
+        views.Select(v => v.HiddenAt).Should().Equal(Monday + Duration.FromDays(2), Monday + Duration.FromDays(1));
+    }
+
+    [Fact]
+    public async Task HiddenAssets_AfterACursor_StartsWithTheNextRowInOrder()
+    {
+        var library = new Library();
+        foreach (var n in Enumerable.Range(1, 4))
+        {
+            var asset = library.Asset(library.MiraConfig);
+            asset.Id = Id(n);
+            library.Interaction(library.Mira, asset, hiddenAt: n == 4 ? Monday - Duration.FromHours(1) : Monday);
+        }
+
+        var views = await ReadAsync(library, library.Mira, new HiddenAssets(new HiddenCursor(Monday, Id(2)), Take: 10));
+
+        views.Select(v => v.Id).Should().Equal(Id(1), Id(4));
+    }
+
+    [Fact]
+    public async Task HiddenAssets_KeysetPages_CoverTheSetWithoutGapsOrRepeats()
+    {
+        var library = new Library();
+        int[] hoursAfterMonday = [0, 0, 2, 2, 2, 1, 1];
+        foreach (var (n, hours) in hoursAfterMonday.Select((hours, index) => (index + 1, hours)))
+        {
+            var asset = library.Asset(library.MiraConfig);
+            asset.Id = Id(n);
+            library.Interaction(library.Mira, asset, hiddenAt: Monday + Duration.FromHours(hours));
+        }
+
+        var all = await AllPagesAsync(library, library.Mira, take: 2);
+
+        all.Select(v => v.Id).Should().Equal(Id(5), Id(4), Id(3), Id(7), Id(6), Id(2), Id(1));
+    }
+
+    [Fact]
+    public async Task HiddenAssets_LeavesOutWhatIsNotTheCallersVisibleDatedHiddenAsset()
+    {
+        var library = new Library();
+        var hidden = library.Asset(library.MiraConfig);
+        library.Interaction(library.Mira, hidden, hidden: true);
+        library.Asset(library.MiraConfig);
+        library.Interaction(library.Mira, library.Asset(library.MiraConfig), starred: true);
+        library.Interaction(library.Alice, library.Asset(library.MiraConfig), hidden: true);
+        library.Interaction(library.Alice, library.Asset(library.AliceConfig), hidden: true);
+        library.Interaction(library.Mira, library.Asset(library.MiraArchive), hidden: true);
+        library.Interaction(library.Mira, library.Asset(library.MiraConfig, softDeleted: true), hidden: true);
+        var undated = library.Asset(library.MiraConfig);
+        undated.Captured = null;
+        library.Interaction(library.Mira, undated, hidden: true);
+
+        var views = await ReadAsync(library, library.Mira, new HiddenAssets(After: null, Take: 10));
+
+        views.Select(v => v.Id).Should().Equal(hidden.Id);
+    }
+
+    [Fact]
+    public async Task HiddenAssets_HiddenLivePhoto_IsListedWithoutItsPairedMov()
+    {
+        var library = new Library();
+        var mov = library.Asset(library.MiraConfig, type: MediaType.Video);
+        var heic = library.LivePhoto(mov);
+        library.Interaction(library.Mira, heic, hidden: true);
+        library.Interaction(library.Mira, mov, hidden: true);
+
+        var views = await ReadAsync(library, library.Mira, new HiddenAssets(After: null, Take: 10));
+
+        var view = views.Should().ContainSingle().Which;
+        (view.Id, view.PairedMovId).Should().Be((heic.Id, mov.Id));
+    }
+
+    [Fact]
+    public async Task ReadAsync_ShownSet_ReportsNoHiddenTime()
+    {
+        var library = new Library();
+        library.Interaction(library.Mira, library.Asset(library.MiraConfig), starred: true);
+
+        var views = await ReadAsync(library, library.Mira);
+
+        views.Should().ContainSingle().Which.HiddenAt.Should().BeNull();
+    }
+
+    // ==========================================================================
     // Generated SQL
     // ==========================================================================
 
@@ -749,6 +910,30 @@ public sealed partial class AssetViewReaderTests
     }
 
     [Fact]
+    public void Query_HiddenAssets_PagesByKeysetInSqlAndKeepsTheOrderOutermost()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new HiddenAssets(new HiddenCursor(Monday, Id(1)), 61)).ToQueryString();
+
+        sql.Should().MatchRegex(@"\.""HiddenAt"" < @cursor_HiddenAt OR \(\w+\.""HiddenAt"" = @cursor_HiddenAt AND \w+\.""Id"" < @cursor_AssetId\)")
+            .And.MatchRegex(@"ORDER BY \w+\.""HiddenAt"" DESC, \w+\.""Id"" DESC\s+LIMIT @p")
+            .And.MatchRegex(@"ORDER BY \w+\.""HiddenAt"" DESC, \w+\.""Id"" DESC$", "the joins around the page must not lose its order")
+            .And.Contain("\"HiddenAt\" IS NOT NULL")
+            .And.NotContain(";");
+    }
+
+    [Fact]
+    public void Query_HiddenAssets_FirstPageHasNoKeyset()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new HiddenAssets(After: null, 61)).ToQueryString();
+
+        sql.Should().NotContain("@cursor").And.Contain("LIMIT @p");
+    }
+
+    [Fact]
     public void Query_BurstMembers_FiltersOnTheBurstAfterVisibility()
     {
         using var db = AnichronDbContexts.NpgsqlModel();
@@ -757,7 +942,7 @@ public sealed partial class AssetViewReaderTests
 
         sql.Should().Contain("\"BurstId\" = @BurstId")
             .And.Contain("\"IsActive\"")
-            .And.Contain("\"IsHidden\"")
+            .And.Contain("\"HiddenAt\" IS NOT NULL")
             .And.NotContain(";");
     }
 
@@ -799,7 +984,7 @@ public sealed partial class AssetViewReaderTests
         sql.Should().Contain("JOIN \"StorageConfigs\"")
             .And.Contain("\"IsActive\"")
             .And.Contain("\"IsSoftDeleted\"")
-            .And.Contain("\"IsHidden\"")
+            .And.Contain("\"HiddenAt\" IS NOT NULL")
             .And.Contain("LEFT JOIN")
             .And.Contain("FROM \"Interactions\"");
         sql.Split("\"UserId\" = @").Should().HaveCount(5,

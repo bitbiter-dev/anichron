@@ -9,7 +9,7 @@ public class AssetInteraction
     // Interaction State
     public bool IsStarred { get; set; }
     public bool IsLiked { get; set; }
-    public bool IsHidden { get; set; }
+    public Instant? HiddenAt { get; set; }
 
     // Analytics
     public Instant? LastViewed { get; set; }

@@ -43,6 +43,7 @@ internal static class ApiPaths
     {
         internal const string Group = "assets";
         internal const string Interaction = "{assetId:guid}/interaction";
+        internal const string Hidden = "hidden";
     }
 
     internal static class Proxies
