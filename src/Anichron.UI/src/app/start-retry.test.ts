@@ -1,6 +1,7 @@
-import { expect, it, vi } from 'vitest';
+import { expect, it } from 'vitest';
 import { unreachableProblem } from '../api/problem';
 import { createStartRetry } from './start-retry';
+import { advance } from '../test/time';
 
 it('tells its subscriber when a retry starts and when it fails', async () => {
   const retry = createStartRetry(
@@ -13,7 +14,7 @@ it('tells its subscriber when a retry starts and when it fails', async () => {
     pending.push(retry.state().pending);
   });
 
-  await vi.advanceTimersByTimeAsync(5000);
+  await advance(5000);
   stop();
 
   expect(pending).toEqual([true, false]);

@@ -19,3 +19,5 @@ export const tv = createTV({
     },
   }),
 });
+
+export const focusVariant = { isFocusVisible: { true: 'focus-ring', false: 'outline-none' } };

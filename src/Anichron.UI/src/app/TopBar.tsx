@@ -36,7 +36,7 @@ function BackButton({ parent }: { parent: string }) {
       onPress={() => {
         back.to(parent);
       }}
-      className="flex min-h-11 items-center gap-0.5 justify-self-start rounded-full pr-3 text-accent outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      className="flex min-h-11 items-center gap-0.5 justify-self-start rounded-full pr-3 text-accent outline-none focus-visible:focus-ring"
     >
       <ChevronLeft aria-hidden className="size-6" />
       {t('shell.back')}

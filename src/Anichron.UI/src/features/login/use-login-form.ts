@@ -1,10 +1,7 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from '@tanstack/react-router';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod/mini';
-import { fieldCodes, problemOf, type ValidationCode } from '../../api/problem';
-import { useCountdown } from '../../shared/use-countdown';
-import { messageKey } from '../../shared/messages';
+import type { ValidationCode } from '../../api/problem';
+import { useProblemForm } from '../../shared/use-problem-form';
 import { loginMessages } from './messages';
 
 function loginSchema() {
@@ -15,40 +12,16 @@ function loginSchema() {
   });
 }
 
-export type LoginFields = z.infer<ReturnType<typeof loginSchema>>;
-
-function fields() {
-  return ['usernameOrEmail', 'password'] as const;
-}
-
 export function useLoginForm() {
   const router = useRouter();
   const { api } = router.options.context;
-  const countdown = useCountdown();
-  const { control, handleSubmit, setError, formState } = useForm<LoginFields>({
-    resolver: zodResolver(loginSchema()),
+  return useProblemForm({
+    schema: loginSchema(),
     defaultValues: { usernameOrEmail: '', password: '' },
-  });
-
-  const onSubmit = handleSubmit(async (values) => {
-    const problem = await api.session.login(values).then(() => undefined, problemOf);
-    if (!problem) {
+    messages: loginMessages(),
+    submit: async (values) => {
+      await api.session.login(values);
       await router.invalidate();
-      return;
-    }
-    setError('root', { message: problem.code });
-    for (const [field, code] of fieldCodes(problem, fields())) setError(field, { message: code });
-    countdown.start(problem.retryAfterSeconds);
+    },
   });
-
-  const { errors, isSubmitting } = formState;
-  return {
-    control,
-    onSubmit,
-    formError: errors.root && messageKey(errors.root.message, loginMessages()),
-    fieldError: (field: ReturnType<typeof fields>[number]) =>
-      errors[field] && messageKey(errors[field].message, loginMessages()),
-    retryIn: countdown.remaining,
-    blocked: isSubmitting || countdown.remaining > 0,
-  };
 }

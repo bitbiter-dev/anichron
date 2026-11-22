@@ -2,7 +2,7 @@ import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
 import type { Day, Memory, YearGroup } from '../../api/flashbacks';
-import { cardOf } from './burst';
+import { burstIdOf, coverOf } from './burst';
 
 function twoDigits(value: number) {
   return String(value).padStart(2, '0');
@@ -49,7 +49,8 @@ function burstsKey() {
   return ['burst'] as const;
 }
 
-export function burstQuery(api: ApiClient, id: string) {
+export function burstQuery(api: ApiClient, memory: Memory) {
+  const id = burstIdOf(memory);
   return queryOptions({
     queryKey: [...burstsKey(), id],
     queryFn: () => api.bursts.frames(id),
@@ -129,9 +130,12 @@ export async function loadStory(
   if (first) await api.media.downloads.picture(first);
 }
 
+export function framesOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
+  return memory.burst ? queryClient.getQueryData(burstQuery(api, memory).queryKey) : undefined;
+}
+
 export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
-  const frames = queryClient.getQueryData(burstQuery(api, String(memory.burst?.burstId)).queryKey);
-  return cardOf(memory, frames).proxies.preview;
+  return coverOf(memory, framesOf(api, queryClient, memory)).proxies.preview;
 }
 
 const mostPages = 61;

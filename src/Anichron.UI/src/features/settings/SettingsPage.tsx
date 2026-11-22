@@ -2,13 +2,13 @@ import { useRouter } from '@tanstack/react-router';
 import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { themes } from '../../shared/theme';
+import { Card } from '../../shared/ui/Card';
 import { RowLink } from '../../shared/ui/Row';
 import { SignOutRow } from '../../shared/ui/SignOut';
 import { SegmentedControl } from '../../shared/ui/SegmentedControl';
 import { useAccount } from './account';
 import { InstallRow } from './InstallRow';
 
-const card = 'flex flex-col overflow-hidden rounded-card glass-card';
 const divider = 'border-t border-border';
 
 export function SettingsPage() {
@@ -17,7 +17,7 @@ export function SettingsPage() {
   const account = useAccount();
   return (
     <main className="flex flex-col gap-6 p-4">
-      <section aria-labelledby="settings-account" className={card}>
+      <Card as="section" aria-labelledby="settings-account" padded={false}>
         <h2 id="settings-account" className="sr-only">
           {t('settings.account')}
         </h2>
@@ -25,8 +25,8 @@ export function SettingsPage() {
         <div className={divider}>
           <RowLink to="/settings/password">{t('settings.changePassword')}</RowLink>
         </div>
-      </section>
-      <section className="flex flex-col gap-3 rounded-card p-4 glass-card">
+      </Card>
+      <Card as="section" className="gap-3">
         <h2 className="font-semibold">{t('settings.appearance')}</h2>
         <SegmentedControl
           label={t('settings.theme')}
@@ -34,12 +34,12 @@ export function SettingsPage() {
           value={useSyncExternalStore(theme.subscribe, theme.get)}
           onChange={theme.choose}
         />
-      </section>
-      <InstallRow className={card} />
+      </Card>
+      <InstallRow />
       {account.isAdmin && <Administration />}
-      <div className={card}>
+      <Card padded={false}>
         <SignOutRow />
-      </div>
+      </Card>
     </main>
   );
 }
@@ -71,13 +71,13 @@ function Account({ name, initial, isAdmin }: AccountProps) {
 function Administration() {
   const { t } = useTranslation();
   return (
-    <section aria-labelledby="settings-administration" className={card}>
+    <Card as="section" aria-labelledby="settings-administration" padded={false}>
       <h2 id="settings-administration" className="p-4 font-semibold">
         {t('settings.administration')}
       </h2>
       <div className={divider}>
         <RowLink to="/admin/work-items">{t('settings.workItems')}</RowLink>
       </div>
-    </section>
+    </Card>
   );
 }

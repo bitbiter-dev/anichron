@@ -1,8 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
 import { HttpResponse } from 'msw';
-import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { axeResults } from '../../test/axe';
 import {
   forcedSession,
@@ -18,8 +16,7 @@ import {
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { sharedTabs } from '../../test/tabs';
-
-const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+import { advance, user } from '../../test/time';
 
 const submitButton = () => screen.getByRole('button', { name: 'Change password' });
 const changed = 'Your password is changed. Your other devices will need to sign in again.';
@@ -238,7 +235,7 @@ describe('changing the password from settings', () => {
     expect(screen.getByText('You can try again in 2 seconds.')).toBeVisible();
     expect(submitButton()).toBeDisabled();
     expect(await axeResults(container)).toHaveNoViolations();
-    await act(() => vi.advanceTimersByTimeAsync(2000));
+    await advance(2000);
     expect(submitButton()).toBeEnabled();
     server.use(passwordChangeSucceeds());
     await user().click(submitButton());

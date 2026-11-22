@@ -1,5 +1,5 @@
 import { problemOf, type Problem } from '../api/problem';
-import { listen } from '../shared/listen';
+import { isVisible, listen, onVisibilityChange } from '../shared/listen';
 
 const firstWaitSeconds = 5;
 const longestWaitSeconds = 60;
@@ -9,10 +9,6 @@ function waitSeconds(step: number) {
 }
 
 function idle() {}
-
-function isVisible() {
-  return document.visibilityState === 'visible';
-}
 
 export function createStartRetry(
   restore: () => Promise<void>,
@@ -65,7 +61,7 @@ export function createStartRetry(
         listen(window, 'online', () => {
           schedule(0);
         }),
-        listen(document, 'visibilitychange', () => {
+        onVisibilityChange(() => {
           step = 0;
           schedule(0);
         }),

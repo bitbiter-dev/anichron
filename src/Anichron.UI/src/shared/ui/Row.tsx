@@ -3,7 +3,7 @@ import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { Button } from 'react-aria-components';
 
 export const rowStyles =
-  'flex min-h-11 w-full items-center px-4 py-3 font-semibold outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus';
+  'flex min-h-11 w-full items-center px-4 py-3 font-semibold outline-none focus-visible:focus-ring-inset';
 
 export const rowLinkStyles = `${rowStyles} justify-between gap-3`;
 

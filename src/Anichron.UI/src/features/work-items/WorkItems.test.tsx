@@ -26,6 +26,7 @@ import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { sharedTabs } from '../../test/tabs';
 import { becomes } from '../../test/visibility';
+import { advance } from '../../test/time';
 
 type WorkItem = components['schemas']['WorkItemDto'];
 type Page = Partial<components['schemas']['WorkItemPageDto']>;
@@ -34,10 +35,6 @@ const listCursor = '2026-11-12T12:02:00.123456Z';
 
 let listed: Listed[];
 let events: ReturnType<typeof workItemEvents>;
-
-async function advance(milliseconds: number) {
-  await act(() => vi.advanceTimersByTimeAsync(milliseconds));
-}
 
 async function opened(count: number): Promise<Connection> {
   for (let step = 0; events.connections.length < count; step++) {

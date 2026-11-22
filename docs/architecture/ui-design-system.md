@@ -16,7 +16,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 - Photo-first: warm neutral grey chrome, one accent (teal) used only for primary actions, focus and selection.
 - About 12 px radius, pill buttons, touch targets of at least 44 px.
 - The story player is black in both themes. Its Live Photo button and memory actions sit on grey frosted pills (`player-glass`).
-- A standalone screen (sign-in) puts a frosted glass card over a backdrop of colour glows. Fields and buttons on it stay solid. Without blur support the card falls back to a solid surface.
+- A standalone screen (sign-in, `CentredPage`) puts a frosted glass card over a backdrop of colour glows. Fields and buttons on it stay solid. Without blur support the card falls back to a solid surface.
 
 ## Tokens
 
@@ -24,7 +24,7 @@ The tokens, themes and base components every screen of `Anichron.UI` is built fr
 - **Semantic tokens** are the only ones registered with Tailwind (`surface`, `fg`, `accent`, `danger`, `focus`, `player`, …). Tailwind's default palette is cleared, so an off-palette class generates nothing.
 - Radius and type size follow the same split. Spacing keeps Tailwind's scale.
 - A new kind of colour starts as a semantic token with a value for each theme.
-- Glass is a set of utilities in `src/app/glass.css`, built only from tokens.
+- Glass is a set of utilities in `src/app/glass.css`, built only from tokens. The focus ring is `focus-ring` (and `focus-ring-inset`) in `src/app/focus.css`.
 
 ## Themes
 
@@ -52,23 +52,25 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - A loading ring stops spinning (`motion-reduce:`).
 - The Live pill and the years-ago line stay visible through a hold that hides the other controls. The pill shows a turning `player-accent` arc while its video loads (`live-ring`), faded in after `--delay-live-ring` so a quick load shows none, and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
 - A skeleton (`skeleton` utility) fades in after `--delay-skeleton`, so a quick load shows none, then pulses through `--animate-skeleton`; under reduced motion it stands still.
-- Focus is a 2 px accent ring, offset 2 px, on keyboard focus only; the story's full-screen tap zones draw it inside. A control with the ring does not transition its colours.
+- Focus is an accent ring on keyboard focus only; the story's full-screen tap zones and rows draw it inside. A `tv` state takes it from `focusVariant` (`tv.ts`). A control with the ring does not transition its colours.
 
 ## Base components
 
 - They live in `src/shared/ui/`. Variant definitions stay in the view; logic goes into a `.ts` module (ADR 0014).
-- They are form-agnostic: a feature connects react-hook-form through `Controller` and passes `field.ref` as `inputRef`.
+- They are form-agnostic: `FormField` connects react-hook-form through `Controller` and passes `field.ref` as `inputRef`, and `FormStatus` takes plain values (a message key, `retryIn`).
 - States are `tv` variants named after React Aria's render props. A state that only interaction reaches gets an exported style function, so the design page can show it.
 - A caller's `className` goes on the outer element.
 - Toasts: the screen that shows them owns a queue (`src/shared/toasts.ts`) and renders its region (`Toast.tsx`). A toast is announced politely and lasts a few seconds.
 - Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out.
+- Cards (`Card.tsx`): the glass panel, padded or, for rows, unpadded. `CentredPage.tsx` puts one, with a title and body, over the glow backdrop.
+- Form status (`FormStatus.tsx`): a form's alert and its retry countdown.
 - Rows (`Row.tsx`): a full-width entry in a card: a link with a chevron, a button with an icon and a chevron, or a red button.
 - Skeletons (`Skeleton.tsx`): an `aria-hidden` block in the `skeleton` colour. A screen composes its own skeleton beside the view it stands in for, and marks the region it fills `aria-busy`.
 - Each component ships with its first caller.
 
 ## Checks
 
-- **Seam 2:** a component is tested through its screen, with axe, and its keyboard use through `user-event`. jsdom has no colour scheme, so contrast is checked elsewhere.
+- **Seam 2:** a component is tested through its screen, with axe, and its keyboard use through `user()` (`src/test/time.ts`). jsdom has no colour scheme, so contrast is checked elsewhere.
 - **Contrast:** `src/app/tokens.test.ts` checks every semantic foreground and background pair in each theme, glass at its worst case included.
 - **E2E:** axe in both schemes; `e2e/look.spec.ts` checks the theme switch, reduced motion, the focus ring and touch targets, and captures screenshots.
 - **VoiceOver**, by the maintainer, on the PR that introduces a component:

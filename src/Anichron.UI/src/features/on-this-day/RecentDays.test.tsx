@@ -4,28 +4,31 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { problemResponse, refreshSucceeds } from '../../test/handlers/auth';
-import { hold, memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import {
+  hold,
+  memory,
+  onThisDayAnswers,
+  proxyUrl,
+  yearGroup,
+} from '../../test/handlers/flashbacks';
 import { keptSource } from '../../test/object-urls';
 import { holdPicture } from '../../test/pictures';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
+import { advance } from '../../test/time';
 
 type Years = ReturnType<typeof yearGroup>[] | (() => Response | Promise<Response>);
 
 const id = (date: string, n = 0) =>
   `0199a1b2-c3d4-7e5f-8a9b-${String(n)}000${date.replaceAll('-', '')}`;
-const thumbnail = (assetId: string) => `/api/v1/proxies/${assetId}/thumbnail?v=0123456789abcdef`;
+const thumbnail = (assetId: string) => proxyUrl(assetId, 'thumbnail');
 
 let requested: string[];
 let days: Record<string, Years>;
 
 const onDay = (date: string, year: number, seed = 0) =>
   yearGroup(year, memory(id(date, seed), year), memory(id(date, seed + 1), year));
-
-async function advance(milliseconds: number) {
-  await act(() => vi.advanceTimersByTimeAsync(milliseconds));
-}
 
 const tray = () => screen.getByRole('list', { name: 'Recent days' });
 const circles = () => within(tray()).queryAllByRole('link');
@@ -207,7 +210,7 @@ describe('the recent days', () => {
     expect(router.state.location.href).toBe('/day/2026-12-31?year=2024');
     expect(within(story).getByText('2 years ago · 2024')).toBeVisible();
     expect(story.querySelector('img')?.getAttribute('src')).toBe(
-      keptSource(`/api/v1/proxies/${id('2026-12-31')}/preview?v=0123456789abcdef`),
+      keptSource(proxyUrl(id('2026-12-31'), 'preview')),
     );
   });
 

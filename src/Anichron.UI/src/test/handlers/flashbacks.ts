@@ -6,6 +6,16 @@ type Schemas = components['schemas'];
 
 const http = createOpenApiHttp<paths>();
 
+type ProxyType = 'thumbnail' | 'preview' | 'video';
+
+export function proxyPath(id: string, type: ProxyType, version = '0123456789abcdef') {
+  return `proxies/${id}/${type}?v=${version}`;
+}
+
+export function proxyUrl(id: string, type: ProxyType, version?: string) {
+  return `/api/v1/${proxyPath(id, type, version)}`;
+}
+
 export function memory(id: string, year: number, overrides: Partial<Schemas['AssetDto']> = {}) {
   return {
     id,
@@ -17,8 +27,8 @@ export function memory(id: string, year: number, overrides: Partial<Schemas['Ass
     height: 3024,
     durationSeconds: null,
     proxies: {
-      thumbnail: `proxies/${id}/thumbnail?v=0123456789abcdef`,
-      preview: `proxies/${id}/preview?v=0123456789abcdef`,
+      thumbnail: proxyPath(id, 'thumbnail'),
+      preview: proxyPath(id, 'preview'),
       video: null,
     },
     blurhash: null,

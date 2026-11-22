@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tv } from './tv';
+import { focusVariant, tv } from './tv';
 
 const merge = (base: string, override: string) => tv({ base })({ class: override });
 
@@ -20,5 +20,12 @@ describe('tv', () => {
 
   it('lets a caller’s colour override the default', () => {
     expect(merge('bg-accent text-on-accent', 'bg-surface')).toBe('text-on-accent bg-surface');
+  });
+
+  it.each([
+    [true, 'focus-ring'],
+    [false, 'outline-none'],
+  ])('draws the focus ring only on keyboard focus (%s)', (isFocusVisible, classes) => {
+    expect(tv({ variants: focusVariant })({ isFocusVisible })).toBe(classes);
   });
 });

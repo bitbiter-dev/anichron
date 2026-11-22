@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { becomes } from '../test/visibility';
 import { registerServiceWorker } from './register-service-worker';
+import { advance } from '../test/time';
 
 const hour = 60 * 60 * 1000;
 
@@ -71,7 +72,7 @@ function serveWith(serviceWorker: FakeContainer) {
 
 async function registered(production = true) {
   const updates = registerServiceWorker(production, reload);
-  await vi.advanceTimersByTimeAsync(0);
+  await advance(0);
   return updates;
 }
 
@@ -143,7 +144,7 @@ it('checks for a new version at start', async () => {
 
 it('checks again when the page becomes visible an hour after the last check', async () => {
   await registered();
-  vi.advanceTimersByTime(hour);
+  await advance(hour);
 
   becomes('visible');
 
@@ -152,11 +153,11 @@ it('checks again when the page becomes visible an hour after the last check', as
 
 it('checks no more than once an hour', async () => {
   await registered();
-  vi.advanceTimersByTime(hour - 1);
+  await advance(hour - 1);
   becomes('visible');
   expect(registration.update).toHaveBeenCalledOnce();
 
-  vi.advanceTimersByTime(1);
+  await advance(1);
   becomes('visible');
   becomes('visible');
 
@@ -165,7 +166,7 @@ it('checks no more than once an hour', async () => {
 
 it('checks only when the page becomes visible, not when it is hidden', async () => {
   await registered();
-  vi.advanceTimersByTime(hour);
+  await advance(hour);
 
   becomes('hidden');
 
@@ -175,10 +176,10 @@ it('checks only when the page becomes visible, not when it is hidden', async () 
 it('carries on when a check cannot reach the server', async () => {
   registration.update.mockRejectedValue(new TypeError('Failed to fetch'));
   await registered();
-  vi.advanceTimersByTime(hour);
+  await advance(hour);
 
   becomes('visible');
-  await vi.advanceTimersByTimeAsync(0);
+  await advance(0);
 
   expect(registration.update).toHaveBeenCalledTimes(2);
 });
@@ -260,7 +261,7 @@ it('never activates a waiting version by itself', async () => {
   const updates = await registered();
   const worker = registration.found();
   registration.installed(worker);
-  vi.advanceTimersByTime(24 * hour);
+  await advance(24 * hour);
   becomes('visible');
 
   expect(updates.waiting()).toBe(true);

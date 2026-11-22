@@ -1,4 +1,4 @@
-import { listen } from '../shared/listen';
+import { createChanges, listen, onVisible } from '../shared/listen';
 import { takeOver } from './take-over';
 
 interface TrustedTypesFactory {
@@ -34,18 +34,16 @@ function checkHourly(registration: ServiceWorkerRegistration) {
     registration.update().catch(() => undefined);
   };
   check();
-  listen(document, 'visibilitychange', () => {
-    if (document.visibilityState === 'visible') check();
-  });
+  onVisible(check);
 }
 
 export function registerServiceWorker(production: boolean, reload: () => void): Updates {
-  const changes = new EventTarget();
+  const changes = createChanges();
   let registration: ServiceWorkerRegistration | undefined;
   let offered = false;
   const updates: Updates = {
     waiting: () => offered,
-    subscribe: (listener) => listen(changes, 'change', listener),
+    subscribe: changes.subscribe,
     reload: () => {
       const worker = registration?.waiting;
       if (!worker || !navigator.serviceWorker.controller) {
@@ -64,7 +62,7 @@ export function registerServiceWorker(production: boolean, reload: () => void): 
       const offer = () => {
         if (!registered.waiting || !navigator.serviceWorker.controller) return;
         offered = true;
-        changes.dispatchEvent(new Event('change'));
+        changes.notify();
       };
       const watchInstalling = () => {
         registered.installing?.addEventListener('statechange', offer);

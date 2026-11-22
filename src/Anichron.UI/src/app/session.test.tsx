@@ -1,7 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { delay, HttpResponse } from 'msw';
 import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { axeResults } from '../test/axe';
 import {
   loginSucceeds,
@@ -14,6 +14,8 @@ import {
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
 import { becomes } from '../test/visibility';
+import { advance } from '../test/time';
+import { signIn } from '../test/session';
 
 const signedIn = { level: 1, name: 'On This Day' } as const;
 const loginHeadingName = { level: 1, name: 'Sign in to Anichron' } as const;
@@ -27,14 +29,6 @@ const rateLimitedBody =
 const retryButton = () => screen.getByRole('button', { name: 'Retry' });
 const unreachableBody = 'Check your connection, or try again in a moment.';
 
-function signIn() {
-  fireEvent.change(screen.getByLabelText('Username or email'), { target: { value: 'mira' } });
-  fireEvent.change(screen.getByLabelText('Password'), {
-    target: { value: 'correct horse battery staple' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-}
-
 function answers(respond: (refresh: number) => Response | Promise<Response>) {
   let refreshes = 0;
   server.use(refreshRespondsWith(() => respond(++refreshes)));
@@ -43,9 +37,9 @@ function answers(respond: (refresh: number) => Response | Promise<Response>) {
 
 async function retriesAfter(seconds: number, refreshes: () => number) {
   const before = refreshes();
-  await act(() => vi.advanceTimersByTimeAsync(seconds * 1000 - 1));
+  await advance(seconds * 1000 - 1);
   expect(refreshes()).toBe(before);
-  await act(() => vi.advanceTimersByTimeAsync(1));
+  await advance(1);
   expect(refreshes()).toBe(before + 1);
 }
 
@@ -65,12 +59,12 @@ describe('starting the app', () => {
     );
     const { router, container } = renderApp('/?from=link');
 
-    await act(() => vi.advanceTimersByTimeAsync(1200));
+    await advance(1200);
     expect(loginHeading()).toBeNull();
     expect(screen.queryByRole('heading', signedIn)).toBeNull();
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 
-    await act(() => vi.advanceTimersByTimeAsync(300));
+    await advance(300);
     expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(loginHeading()).toBeNull();
     expect(where(router)).toBe('/?from=link');
@@ -100,7 +94,7 @@ describe('starting the app', () => {
       expect(await axeResults(container)).toHaveNoViolations();
 
       server.use(loginSucceeds());
-      signIn();
+      signIn('mira');
 
       expect(await screen.findByRole('heading', signedIn)).toBeVisible();
       expect(where(router)).toBe('/?from=link');
@@ -149,16 +143,16 @@ describe('starting the app', () => {
     await retriesAfter(10, refreshes);
 
     becomes('hidden');
-    await act(() => {
+    act(() => {
       window.dispatchEvent(new Event('online'));
-      return vi.advanceTimersByTimeAsync(10 * 60_000);
     });
+    await advance(10 * 60_000);
     expect(refreshes()).toBe(3);
 
-    await act(() => {
+    act(() => {
       becomes('visible');
-      return vi.advanceTimersByTimeAsync(0);
     });
+    await advance(0);
     expect(refreshes()).toBe(4);
     await retriesAfter(5, refreshes);
   });
@@ -170,10 +164,10 @@ describe('starting the app', () => {
     const { router } = renderApp('/settings?from=link');
     await findUnreachableHeading();
 
-    await act(() => {
+    act(() => {
       window.dispatchEvent(new Event('online'));
-      return vi.advanceTimersByTimeAsync(0);
     });
+    await advance(0);
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
     expect(where(router)).toBe('/settings?from=link');
@@ -205,17 +199,17 @@ describe('starting the app', () => {
     await findUnreachableHeading();
     expect(retryButton()).not.toHaveAttribute('data-pending');
 
-    await act(() => vi.advanceTimersByTimeAsync(5000));
+    await advance(5000);
     expect(retryButton()).toHaveAttribute('data-pending', 'true');
     expect(retryButton()).toHaveAttribute('aria-disabled', 'true');
-    await act(() => {
+    act(() => {
       window.dispatchEvent(new Event('online'));
       becomes('visible');
-      return vi.advanceTimersByTimeAsync(2000);
     });
+    await advance(2000);
     expect(refreshes()).toBe(2);
 
-    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await advance(1000);
     expect(retryButton()).not.toHaveAttribute('data-pending');
     expect(unreachableHeading()).toBeVisible();
     expect(refreshes()).toBe(2);
@@ -254,11 +248,11 @@ describe('starting the app', () => {
     await findUnreachableHeading();
 
     unmount();
-    await act(() => {
+    act(() => {
       window.dispatchEvent(new Event('online'));
       becomes('visible');
-      return vi.advanceTimersByTimeAsync(10 * 60_000);
     });
+    await advance(10 * 60_000);
 
     expect(refreshes()).toBe(1);
   });
@@ -270,10 +264,10 @@ describe('starting the app', () => {
     });
     const { unmount } = renderApp('/');
     await findUnreachableHeading();
-    await act(() => vi.advanceTimersByTimeAsync(5000));
+    await advance(5000);
 
     unmount();
-    await act(() => vi.advanceTimersByTimeAsync(10 * 60_000));
+    await advance(10 * 60_000);
 
     expect(refreshes()).toBe(2);
   });
@@ -290,7 +284,7 @@ describe('starting the app', () => {
     const { router } = renderApp(`/login?redirect=${encodeURIComponent(target)}`);
     await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
 
-    signIn();
+    signIn('mira');
 
     expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe('/');
@@ -303,7 +297,7 @@ describe('starting the app', () => {
 
     expect(where(router)).toBe('/login');
 
-    signIn();
+    signIn('mira');
 
     expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe('/');
@@ -339,19 +333,19 @@ describe('starting the app while the server limits the rate', () => {
     expect(unreachableHeading()).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
 
-    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    await advance(10_000);
     becomes('hidden');
-    await act(() => vi.advanceTimersByTimeAsync(10_000));
-    await act(() => {
+    await advance(10_000);
+    act(() => {
       becomes('visible');
       window.dispatchEvent(new Event('online'));
-      return vi.advanceTimersByTimeAsync(9000);
     });
+    await advance(9000);
     expect(screen.getByText('You can try again in 1 second.')).toBeVisible();
     expect(retryButton()).toBeDisabled();
     expect(refreshes()).toBe(1);
 
-    await act(() => vi.advanceTimersByTimeAsync(1000));
+    await advance(1000);
 
     expect(await screen.findByRole('heading', signedIn)).toBeVisible();
     expect(where(router)).toBe('/?from=link');
