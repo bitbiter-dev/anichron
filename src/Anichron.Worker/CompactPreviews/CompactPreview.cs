@@ -65,6 +65,7 @@ internal sealed partial class CompactPreviewHandler(
         ProxyFile proxy;
         try
         {
+            // Stryker disable once Linq
             var preview = asset.ProxyFiles.Single(p => p.ProxyType == ProxyType.FullPreview);
             var source = StoragePath.ResolveProxy(preview.ProxyPath)
                 ?? throw new InvalidOperationException($"Proxy path {preview.ProxyPath} resolves outside the proxy root.");

@@ -214,6 +214,8 @@ public sealed class CompactPreviewTests : IAsyncDisposable
         result.Should().Be(new CompactPreviewResult { Converted = 1, Failed = 1, Remaining = 0 });
         StoredCompactPreviews().Should().ContainSingle().Which.AssetId.Should().Be(IdOf(2));
         TemporaryFiles().Should().BeEmpty();
+        progress.Received(1).Report(1, 2, "Making compact previews");
+        progress.Received(1).Report(2, 2, "Making compact previews");
         logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning).Which.Should().Match<FakeLogRecord>(e =>
             e.Message == $"Making the compact preview of asset {IdOf(1)} failed." && e.Exception is InvalidOperationException);
     }
@@ -251,7 +253,8 @@ public sealed class CompactPreviewTests : IAsyncDisposable
 
         result.Should().Be(new CompactPreviewResult { Converted = 0, Failed = 1, Remaining = 0 });
         logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
-            .Which.Exception.Should().BeOfType<InvalidOperationException>();
+            .Which.Exception.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Be("Proxy path ../../etc/passwd resolves outside the proxy root.");
     }
 
     [Fact]
