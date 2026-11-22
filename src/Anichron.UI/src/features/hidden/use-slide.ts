@@ -12,7 +12,9 @@ export interface Slide {
 
 export function useSlide({ memory, shown, current }: Slide) {
   const kind = memoryKind(kindOf(memory));
-  const [load, setLoad] = useState<Load>(() => kind.firstLoad(() => false));
+  // Stryker disable next-line ArrowFunction
+  const undecoded = () => false;
+  const [load, setLoad] = useState<Load>(() => kind.firstLoad(undecoded));
   const [live, setLive] = useState(true);
   const [replays, setReplays] = useState(0);
   const [muted, setMuted] = useState(true);

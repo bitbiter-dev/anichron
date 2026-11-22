@@ -24,7 +24,7 @@ export function createHidden(client: Client<paths>, authorized: Authorized): Hid
         client.GET('/api/v1/assets/hidden', {
           ...init,
           signal,
-          params: { query: after === null ? {} : { after } },
+          params: { query: { after: after ?? undefined } },
         }),
       );
       return {

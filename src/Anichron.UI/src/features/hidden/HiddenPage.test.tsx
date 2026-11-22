@@ -245,6 +245,14 @@ describe('the grid', () => {
     expect(await screen.findByRole('button', { name: tileName(1) })).toBeVisible();
   });
 
+  it('loads more without a scroll while the grid is too short to fill the screen', async () => {
+    server.use(pages([hidden(1, at(11, 18))], [hidden(2, at(11, 17))]));
+    await openHidden();
+
+    expect(await screen.findByRole('button', { name: tileName(2) })).toBeVisible();
+    expect(asked).toEqual([null, 'page1']);
+  });
+
   it('loads the next page as the grid scrolls near its end, and stops after the last', async () => {
     pageHeight(4000);
     server.use(
@@ -257,11 +265,11 @@ describe('the grid', () => {
     await openHidden();
     expect(asked).toEqual([null]);
 
-    scrollTo(1000);
+    scrollTo(2431);
     await advance(0);
     expect(asked).toEqual([null]);
 
-    scrollTo(2500);
+    scrollTo(2432);
     expect(await screen.findByRole('button', { name: tileName(3) })).toBeVisible();
     scrollTo(2600);
     expect(await screen.findByRole('button', { name: tileName(4) })).toBeVisible();
@@ -283,6 +291,35 @@ describe('the viewer', () => {
     expect(caption()).toHaveTextContent('Taken Nov 12, 2019 · Hidden 3 days ago');
     expect(within(viewer()).getAllByRole('img', { name: 'Photo' })).toHaveLength(3);
     expect(await axeResults(container.ownerDocument.body)).toHaveNoViolations();
+  });
+
+  it('scrolls to the tapped memory as it opens', async () => {
+    server.use(onePage(hidden(1, at(11, 18)), hidden(2, at(11, 17)), hidden(3, at(11, 16))));
+    await openHidden();
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(390);
+    const scrolledTo = vi.spyOn(Element.prototype, 'scrollLeft', 'set');
+
+    await openViewer(tileName(3));
+
+    expect(scrolledTo.mock.calls).toEqual([[780]]);
+  });
+
+  it('shows a memory with no preview yet without its BlurHash', async () => {
+    paintsBlurhashes();
+    server.use(
+      onePage(
+        hidden(1, at(11, 18), {
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+          proxies: { thumbnail: null, preview: null, video: null },
+        }),
+      ),
+    );
+    await openHidden();
+    await openViewer(tileName(1));
+
+    const slide = within(viewer()).getByRole('img', { name: 'Photo' });
+    expect(slide.querySelector('canvas')).toBeNull();
+    expect(slide.querySelector('img')).toBeNull();
   });
 
   it.each([
@@ -646,7 +683,7 @@ describe('unhiding', () => {
 
   it('marks the days and bursts stale once an unhide or its Undo is saved, so stories reload', async () => {
     const today = '2026-11-18';
-    server.use(onePage(...three()));
+    server.use(pages(three()));
     const { router } = renderApp('/hidden');
     await screen.findAllByRole('button', { name: /, taken / });
     const { queryClient } = router.options.context;
@@ -665,6 +702,9 @@ describe('unhiding', () => {
     await waitFor(() => {
       expect(stale()).toEqual([true, true]);
     });
+    await advance(1000);
+    expect(asked).toEqual([null]);
+    expect(allTiles()).toEqual([tileName(1), tileName(3)]);
   });
 
   it('leaves the days alone when the unhide is not saved', async () => {
@@ -695,7 +735,10 @@ describe('unhiding', () => {
     expect(allTiles()).toEqual([tileName(1), tileName(2), tileName(3)]);
 
     order = [hidden(2, at(11, 18, 9)), hidden(1, at(11, 18)), hidden(3, at(11, 16))];
+    const { queryClient } = router.options.context;
+    queryClient.setQueryData(['on-this-day', '2026-11-18'], { years: [] });
     await act(() => router.navigate({ to: '/settings' }));
+    expect(queryClient.getQueryData(['on-this-day', '2026-11-18'])).toEqual({ years: [] });
     await act(() => router.navigate({ to: '/hidden' }));
 
     await waitFor(() => {
