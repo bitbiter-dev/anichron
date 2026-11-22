@@ -110,6 +110,7 @@ public sealed class ImageCompletenessTests
     [Theory]
     [InlineData("")]
     [InlineData("0000")]
+    [InlineData("00D9")]
     [InlineData("FFFF")]
     [InlineData("FFE0")]
     [InlineData("FFE0 00")]
