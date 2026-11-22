@@ -645,13 +645,7 @@ public sealed class ImageProxyMiddlewareTests
 
     private static readonly WorkerSettings HeicProxySettings = new() { PreviewLongEdge = 400, ThumbnailShortEdge = 150 };
 
-    private static byte[] Fixture(string name)
-    {
-        using var stream = typeof(ImageProxyMiddlewareTests).Assembly.GetManifestResourceStream($"Fixtures.{name}")!;
-        using var copy = new MemoryStream();
-        stream.CopyTo(copy);
-        return copy.ToArray();
-    }
+    private static byte[] Fixture(string name) => EmbeddedFixtures.Read(name);
 
     // The maintainer's stripped iPhone photo: stored 4032x3024 as a tile grid, irot 270, EXIF orientation 6,
     // a Display P3 profile.
@@ -800,16 +794,22 @@ public sealed class ImageProxyMiddlewareTests
         await act.Should().ThrowAsync<UnknownImageFormatException>();
     }
 
-    [Fact]
-    public async Task InvokeAsync_TruncatedHeic_FailsWithoutProxiesAsync()
+    [Theory]
+    [InlineData("iphone-4732.heic", 4096)]
+    [InlineData("iphone-4732.heic", 1_258_027)]
+    [InlineData("burst-4386.jpg", 28_941)]
+    public async Task InvokeAsync_TruncatedPhoto_FailsWithoutProxiesOrTheNextStepAsync(string fixtureName, int length)
     {
         var fixture = new TestFixture();
-        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(IphoneHeic()[..4096]));
+        fixture.FileSystem.AddFile("/nas/photo.jpg", new MockFileData(Fixture(fixtureName)[..length]));
         var context = MakeContext();
+        var next = Substitute.For<IngestionDelegate>();
 
-        var act = () => fixture.Build().InvokeAsync(context, NoOpNextAsync, CancellationToken.None);
+        var act = () => fixture.Build().InvokeAsync(context, next, CancellationToken.None);
 
-        await act.Should().ThrowAsync<ImageMagick.MagickException>();
+        await act.Should().ThrowAsync<IncompleteImageException>();
         context.ProxyFiles.Should().BeEmpty();
+        fixture.FileSystem.AllFiles.Should().Equal("/nas/photo.jpg");
+        await next.DidNotReceiveWithAnyArgs().Invoke(default!, TestContext.Current.CancellationToken);
     }
 }
