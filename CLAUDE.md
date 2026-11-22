@@ -113,6 +113,7 @@ Mutants that flip between runs:
 
 - dependency-cruiser forbids: a feature importing another feature; `shared/` or `api/` importing `features/` or `app/`; anything but `app/` importing a feature; cycles; production code importing test code or the design page; `.ts` importing `.tsx`.
 - Only `src/api/` touches the network: ESLint bans `fetch`, `EventSource`, `XMLHttpRequest` and `WebSocket` elsewhere.
+- Repeated knowledge has one home, and an ESLint guard points to it (`eslint.config.js`, built per path category; `lint/guards.test.ts` pins each guard and exemption). Follow its message rather than copying.
 
 **Logic in `.ts`, views in `.tsx`.** Branching, computed values, timers and hooks without JSX go in `.ts`. ESLint caps `.tsx` at `complexity` 4 and `max-depth` 2. Every user-facing string goes through `t(...)` from `src/i18n/locales/en.json`; lint fails on a literal in JSX text or user-visible attributes.
 

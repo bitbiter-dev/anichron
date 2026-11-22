@@ -15,7 +15,7 @@ import {
 import { useOpening } from './use-opening';
 
 const item =
-  'group flex w-18 flex-col items-center gap-1 rounded-card text-small outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+  'group flex w-18 flex-col items-center gap-1 rounded-card text-small outline-none focus-visible:focus-ring';
 const circle = 'relative flex size-16 items-center justify-center rounded-full';
 const ring = '-inset-1 hidden group-aria-busy:block group-data-pending:block';
 

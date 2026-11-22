@@ -3,6 +3,7 @@ import { getRouteApi, useRouter } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { WorkItem } from '../../api/work-items';
 import { itemQuery } from './cache';
+import { Card } from '../../shared/ui/Card';
 import { Failed } from '../../shared/ui/Failed';
 import { Skeleton } from '../../shared/ui/Skeleton';
 import { Cancel, Progress } from './parts';
@@ -31,7 +32,7 @@ function Found({ item }: { item: WorkItem | null }) {
 
 function DetailsSkeleton() {
   return (
-    <div aria-hidden className="flex flex-col gap-4 rounded-card p-4 glass-card">
+    <Card aria-hidden className="gap-4">
       <div className="flex h-6 items-center">
         <Skeleton className="h-4 w-32 rounded-full" />
       </div>
@@ -44,7 +45,7 @@ function DetailsSkeleton() {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -53,7 +54,7 @@ const term = 'text-small text-fg-muted';
 function Details({ item }: { item: WorkItem }) {
   const { t } = useTranslation();
   return (
-    <section className="flex flex-col gap-4 rounded-card p-4 glass-card">
+    <Card as="section" className="gap-4">
       <h2 className="font-semibold">{t(`workItems.kinds.${item.kind}`)}</h2>
       <Progress item={item} />
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
@@ -73,7 +74,7 @@ function Details({ item }: { item: WorkItem }) {
       <Result item={item} />
       {item.error && <ErrorText message={item.error} />}
       {cancellable(item) && <Cancel item={item} />}
-    </section>
+    </Card>
   );
 }
 

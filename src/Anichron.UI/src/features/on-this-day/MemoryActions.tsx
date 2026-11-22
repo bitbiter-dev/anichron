@@ -5,7 +5,7 @@ import type { Memory } from '../../api/flashbacks';
 import type { Toggle } from './use-interactions';
 
 const controlStyles =
-  'group flex size-11 items-center justify-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+  'group flex size-11 items-center justify-center rounded-full outline-none focus-visible:focus-ring';
 
 interface MemoryActionsProps {
   interaction: Memory['interaction'];

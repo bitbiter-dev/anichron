@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { memoryCaches } from '../test/caches';
 import { serveAppShell, type WorkerScope } from './app-shell';
+import { runAllTimers } from '../test/time';
 
 const frame = '<!doctype html><title>Anichron</title>';
 
@@ -28,7 +29,7 @@ const navigation = (path: string) => {
 async function settled<T>(promise: Promise<T>) {
   const progress = { done: false };
   const result = promise.finally(() => (progress.done = true));
-  for (let round = 0; round < 10 && !progress.done; round++) await vi.runAllTimersAsync();
+  for (let round = 0; round < 10 && !progress.done; round++) await runAllTimers();
   expect(progress.done).toBe(true);
   return result;
 }

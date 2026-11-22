@@ -1,5 +1,4 @@
 import { screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../test/axe';
@@ -7,9 +6,9 @@ import { noPhotosSession, refreshSucceeds } from '../test/handlers/auth';
 import { onThisDayAnswers } from '../test/handlers/flashbacks';
 import { renderApp } from '../test/render-app';
 import { server } from '../test/server';
+import { user } from '../test/time';
 
 const message = 'No photos are set up for you yet.';
-const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
 const notice = () => screen.findByRole('alertdialog', { name: message });
 
 let asked: string[];

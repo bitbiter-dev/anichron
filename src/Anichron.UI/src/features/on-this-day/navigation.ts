@@ -51,18 +51,27 @@ export function closesOnSwipe(offset: Point, velocity: Point, height: number) {
   return swipeMove(offset, velocity, height) === 'close';
 }
 
-export function createGestures(story: Story) {
-  let swiping: boolean | undefined;
+export function createTapGuard() {
+  let dragging: boolean | undefined;
   return {
-    hold: story.hold,
     pressStart: () => {
-      swiping = false;
+      dragging = false;
     },
     dragStart: () => {
-      swiping = true;
+      dragging = true;
     },
+    tapped: () => !dragging,
+  };
+}
+
+export function createGestures(story: Story) {
+  const guard = createTapGuard();
+  return {
+    hold: story.hold,
+    pressStart: guard.pressStart,
+    dragStart: guard.dragStart,
     tap: (move: Tap) => () => {
-      if (!swiping) story[move]();
+      if (guard.tapped()) story[move]();
     },
     dragEnd: (offset: Point, velocity: Point, height: number) => {
       const move = swipeMove(offset, velocity, height);

@@ -8,13 +8,13 @@ import {
   TextField as AriaTextField,
   type TextFieldProps as AriaTextFieldProps,
 } from 'react-aria-components';
-import { tv } from './tv';
+import { focusVariant, tv } from './tv';
 
 export const inputStyles = tv({
   base: 'min-h-11 rounded-field border border-border bg-surface px-3 text-fg',
   variants: {
     isHovered: { true: 'border-fg-muted' },
-    isFocusVisible: { true: 'outline-2 outline-offset-2 outline-focus', false: 'outline-none' },
+    ...focusVariant,
     isInvalid: { true: 'border-danger' },
     isDisabled: { true: 'opacity-50' },
   },

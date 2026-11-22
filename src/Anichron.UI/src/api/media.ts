@@ -1,3 +1,4 @@
+import { createChanges } from '../shared/listen';
 export type MediaKind = 'picture' | 'video';
 
 export type Wanted = readonly { url: string; kind: MediaKind }[];
@@ -84,7 +85,7 @@ function createDownloads(renewOnce: () => Renewal, objectUrls: ObjectUrls): Down
   const cached = new Map<string, Download>();
   let order: Wanted = [];
   let active: Download | undefined;
-  const listeners = new Set<() => void>();
+  const changes = createChanges();
   const sourceOf = (url: string | null) => wanted.get(url)?.source ?? null;
   const settled = ({ source, failed }: Download) => source !== null || failed;
 
@@ -100,13 +101,9 @@ function createDownloads(renewOnce: () => Renewal, objectUrls: ObjectUrls): Down
 
   let snapshot = downloaded();
 
-  function notify() {
-    for (const listener of listeners) listener();
-  }
-
   function changed() {
     snapshot = downloaded();
-    notify();
+    changes.notify();
   }
 
   async function body(url: string, signal: AbortSignal) {
@@ -118,7 +115,7 @@ function createDownloads(renewOnce: () => Renewal, objectUrls: ObjectUrls): Down
     const reader = response.body.getReader();
     for (let read = await reader.read(); !read.done; read = await reader.read()) {
       chunks.push(read.value);
-      notify();
+      changes.notify();
     }
     return new Blob(chunks, { type: response.headers.get('Content-Type') ?? '' });
   }
@@ -223,10 +220,7 @@ function createDownloads(renewOnce: () => Renewal, objectUrls: ObjectUrls): Down
       startNext();
     },
     snapshot: () => snapshot,
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    subscribe: changes.subscribe,
     clear() {
       keep([]);
     },

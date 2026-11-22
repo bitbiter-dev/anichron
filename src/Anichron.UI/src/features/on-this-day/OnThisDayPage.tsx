@@ -87,7 +87,7 @@ function YearGroupLink({ date, group }: { date: string; group: YearGroup }) {
       search={{ year: group.year }}
       resetScroll={false}
       aria-busy={useOpening(date, group.year)}
-      className="group flex min-w-32 flex-col gap-2 rounded-card text-small whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      className="group flex min-w-32 flex-col gap-2 rounded-card text-small whitespace-nowrap outline-none focus-visible:focus-ring"
     >
       <div className="relative aspect-[3/4] w-32 overflow-hidden rounded-card bg-surface-raised outline-accent group-aria-busy:outline-2 group-aria-busy:-outline-offset-2">
         <ProxyImage src={thumbnailOf(group)} className="size-full object-cover" />

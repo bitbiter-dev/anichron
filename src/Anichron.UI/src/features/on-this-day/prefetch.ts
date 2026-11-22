@@ -5,12 +5,18 @@ import { kindInStory, type Place, type StoryState } from './story';
 
 type MemoryAt = (place: Place) => Memory;
 type PreviewAt = (place: Place) => string | null;
+type FramesAt = (place: Place) => readonly Memory[];
 
-export function wantedOf(state: StoryState, previewAt: PreviewAt, memoryAt: MemoryAt): Wanted {
-  const pictures = (places: readonly Place[]) =>
-    places
-      .flatMap((place) => previewAt(place) ?? [])
-      .map((url) => ({ url, kind: 'picture' as const }));
+export function wantedOf(
+  state: StoryState,
+  previewAt: PreviewAt,
+  memoryAt: MemoryAt,
+  framesAt: FramesAt,
+): Wanted {
+  const picturesOf = (urls: readonly (string | null)[]) =>
+    urls.flatMap((url) => (url ? [{ url, kind: 'picture' as const }] : []));
+  const pictures = (places: readonly Place[]) => picturesOf(places.map(previewAt));
+  const frames = state.details ? framesAt(state).map(({ proxies }) => proxies.preview) : [];
   const videoOf = (place: Place) => {
     const memory = memoryAt(place);
     return kindInStory(kindOf(memory)).downloadsVideo ? memory.livePhotoVideoUrl : null;
@@ -20,6 +26,7 @@ export function wantedOf(state: StoryState, previewAt: PreviewAt, memoryAt: Memo
   const current = videoOf(state);
   return [
     ...pictures([state]),
+    ...picturesOf(frames),
     ...videos(state.play.state === 'still' ? [] : [current]),
     ...pictures(state.upcoming),
     ...videos([current, state.upcoming.map(videoOf).find(Boolean) ?? null]),

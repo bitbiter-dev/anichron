@@ -6,8 +6,9 @@ import { usePress } from 'react-aria/usePress';
 import type { Memory } from '../../api/flashbacks';
 import { listen } from '../../shared/listen';
 import { blurhashOf } from './blurhash';
-import { burstIdOf, clampFrame, createFrameScroll, framesShown } from './burst';
+import { clampFrame, createFrameScroll, framesShown } from './burst';
 import { burstQuery } from './day';
+import { shownSource } from './media';
 import { closesOnSwipe } from './navigation';
 
 function frameStep(key: string) {
@@ -25,10 +26,11 @@ export function useFrameBlurhash(frame: Memory) {
   };
 }
 
-export function useBurstDetails(card: Memory, close: () => void) {
+export function useBurstDetails(cover: Memory, close: () => void) {
   const { api } = useRouter().options.context;
-  const query = useQuery(burstQuery(api, burstIdOf(card)));
-  const frames = framesShown(query.data) ?? [card];
+  const { downloads } = api.media;
+  const query = useQuery(burstQuery(api, cover));
+  const frames = framesShown(query.data) ?? [cover];
   const [chosen, setChosen] = useState(0);
   const [scroll] = useState(createFrameScroll);
   const current = clampFrame(chosen, frames.length);
@@ -54,7 +56,10 @@ export function useBurstDetails(card: Memory, close: () => void) {
   });
 
   return {
-    frames: frames.map((memory, index) => ({ memory, place: index + 1 })),
+    frames: frames.map((memory, index) => {
+      const url = memory.proxies.preview;
+      return { memory, place: index + 1, src: url && shownSource(downloads, url) };
+    }),
     count: frames.length,
     frame: frames[current] as Memory,
     place: current + 1,

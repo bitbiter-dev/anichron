@@ -7,6 +7,7 @@ import {
   unreachableProblem,
   type Problem,
 } from './problem';
+import { createChanges, onVisible } from '../shared/listen';
 import type { TabMessage, Tabs } from './tabs';
 
 type Schemas = components['schemas'];
@@ -75,11 +76,7 @@ export function createSession(
   let failures = 0;
   let signedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const listeners = new Set<() => void>();
-
-  function changed() {
-    for (const listener of listeners) listener();
-  }
+  const changes = createChanges();
 
   function wakeIn(milliseconds: number) {
     clearTimeout(timer);
@@ -93,7 +90,7 @@ export function createSession(
     renewAt = Date.now() + renewIn;
     failures = 0;
     wakeIn(renewIn);
-    changed();
+    changes.notify();
   }
 
   function end() {
@@ -101,7 +98,7 @@ export function createSession(
     accessToken = '';
     user = undefined;
     renewAt = Infinity;
-    changed();
+    changes.notify();
   }
 
   async function sendRefresh() {
@@ -151,8 +148,8 @@ export function createSession(
 
   const dueToRenew = () => Date.now() > renewAt;
 
-  function onVisibilityChange() {
-    if (document.visibilityState === 'visible' && dueToRenew()) void refresh();
+  function renewIfDue() {
+    if (dueToRenew()) void refresh();
   }
 
   const onTabMessage: Record<TabMessage, () => void> = {
@@ -204,17 +201,14 @@ export function createSession(
     user: () => user,
     isSignedIn: () => user !== undefined,
     signedOut: () => signedOut,
-    onChange(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    onChange: changes.subscribe,
     watch() {
-      document.addEventListener('visibilitychange', onVisibilityChange);
+      const stopRenewing = onVisible(renewIfDue);
       const stopListening = tabs.listen((message) => {
         onTabMessage[message]();
       });
       return () => {
-        document.removeEventListener('visibilitychange', onVisibilityChange);
+        stopRenewing();
         stopListening();
       };
     },

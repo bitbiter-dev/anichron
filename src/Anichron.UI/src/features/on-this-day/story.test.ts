@@ -1,7 +1,8 @@
-import { expect, it, vi } from 'vitest';
+import { expect, it } from 'vitest';
+import { advance } from '../../test/time';
 import { createStory } from './story';
 
-it('stops waiting for a picture to load once nobody listens', () => {
+it('stops waiting for a picture to load once nobody listens', async () => {
   const story = createStory(
     [[{ kind: 'picture', durationSeconds: null }]],
     0,
@@ -11,7 +12,7 @@ it('stops waiting for a picture to load once nobody listens', () => {
   const stop = story.subscribe(() => undefined);
 
   stop();
-  vi.advanceTimersByTime(60_000);
+  await advance(60_000);
 
   expect(story.state().load).toBe('loading');
 });

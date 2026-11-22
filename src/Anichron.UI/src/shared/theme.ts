@@ -1,4 +1,4 @@
-import { listen } from './listen';
+import { createChanges, listen } from './listen';
 
 export function themes() {
   return ['system', 'light', 'dark'] as const;
@@ -49,11 +49,11 @@ export function applyTheme(theme: Theme) {
 
 export function createThemeChoice() {
   let current = storedTheme();
-  const changes = new EventTarget();
+  const changes = createChanges();
   const change = (theme: Theme) => {
     current = theme;
     applyTheme(theme);
-    changes.dispatchEvent(new Event('change'));
+    changes.notify();
   };
   return {
     get: () => current,
@@ -61,7 +61,7 @@ export function createThemeChoice() {
       store(theme);
       change(theme);
     },
-    subscribe: (listener: () => void) => listen(changes, 'change', listener),
+    subscribe: changes.subscribe,
     watch: () => {
       const follow = () => {
         change(storedTheme());

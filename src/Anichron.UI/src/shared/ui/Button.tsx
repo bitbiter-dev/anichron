@@ -1,5 +1,5 @@
 import { Button as AriaButton, type ButtonProps as AriaButtonProps } from 'react-aria-components';
-import { tv } from './tv';
+import { focusVariant, tv } from './tv';
 
 export const buttonStyles = tv({
   base: 'inline-flex min-h-11 items-center justify-center rounded-full px-6 font-semibold transition-opacity',
@@ -11,7 +11,7 @@ export const buttonStyles = tv({
     },
     isHovered: { true: 'opacity-90' },
     isPressed: { true: 'opacity-80' },
-    isFocusVisible: { true: 'outline-2 outline-offset-2 outline-focus', false: 'outline-none' },
+    ...focusVariant,
     isDisabled: { true: 'opacity-50' },
   },
   defaultVariants: { variant: 'primary' },

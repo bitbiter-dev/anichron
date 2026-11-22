@@ -3,7 +3,7 @@ import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 
 export const roundButton =
-  'flex size-11 items-center justify-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+  'flex size-11 items-center justify-center rounded-full outline-none focus-visible:focus-ring';
 
 export function CloseButton({ close }: { close: () => void }) {
   const { t } = useTranslation();

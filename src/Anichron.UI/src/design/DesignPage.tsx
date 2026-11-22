@@ -2,6 +2,9 @@ import { SquarePlus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Alert } from '../shared/ui/Alert';
 import { Button, buttonStyles } from '../shared/ui/Button';
+import { Card } from '../shared/ui/Card';
+import { CentredPage } from '../shared/ui/CentredPage';
+import { FormStatus } from '../shared/ui/FormStatus';
 import { themes as themeNames, type Theme as ThemeName } from '../shared/theme';
 import { SegmentedControl, segmentStyles } from '../shared/ui/SegmentedControl';
 import { Skeleton } from '../shared/ui/Skeleton';
@@ -24,7 +27,7 @@ const ratio = (a = '', b = '') => contrastRatio(a, b).toFixed(2);
 export function DesignPage({ tokens }: { tokens: string }) {
   const colours = themeColours(tokens);
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-10 p-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-10 p-6">
       <h1 className="text-title font-semibold">Anichron design</h1>
       <Section title="Palette">
         <div className="grid gap-6 md:grid-cols-2">
@@ -54,7 +57,7 @@ export function DesignPage({ tokens }: { tokens: string }) {
           ))}
         </div>
       </Section>
-    </main>
+    </div>
   );
 }
 
@@ -97,18 +100,16 @@ function LoginMock({ theme }: { theme: Theme }) {
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-small font-semibold">{theme}</h3>
-      <div
-        className="grid h-[560px] place-items-center p-4 text-fg glow-backdrop"
-        style={{ colorScheme: theme }}
-      >
-        <div className="flex w-full max-w-sm flex-col gap-4 rounded-card p-6 glass-card">
-          <h4 className="mb-2 text-title font-semibold">Sign in to Anichron</h4>
-          <MockField label="Username or email" value="mira" />
-          <MockField label="Password" value="••••••••••" />
-          <span className="mt-2 flex min-h-11 items-center justify-center rounded-full bg-accent px-6 font-semibold text-on-accent lift-accent">
-            Sign in
-          </span>
-        </div>
+      <div className="text-fg" style={{ colorScheme: theme }}>
+        <CentredPage title="Sign in to Anichron" className="h-[560px] min-h-0">
+          <div className="mt-2 flex flex-col gap-4">
+            <MockField label="Username or email" value="mira" />
+            <MockField label="Password" value="••••••••••" />
+            <span className="mt-2 flex min-h-11 items-center justify-center rounded-full bg-accent px-6 font-semibold text-on-accent lift-accent">
+              Sign in
+            </span>
+          </div>
+        </CentredPage>
       </div>
     </div>
   );
@@ -193,26 +194,38 @@ function Components({ theme }: { theme: Theme }) {
           <Alert message="login.errors.invalidCredentials" />
         </State>
       </States>
+      <States title="Form status">
+        <State name="error, counting down">
+          <FormStatus error="login.errors.accountLocked" retryIn={42} />
+        </State>
+      </States>
+      <States title="Card">
+        <State name="padded">
+          <Card className="w-full">
+            <span className="font-semibold">Appearance</span>
+          </Card>
+        </State>
+      </States>
       <States title="Row">
         <State name="link">
-          <div className="w-full rounded-card glass-card">
+          <Card padded={false} className="w-full">
             <span className={rowLinkStyles}>
               Change password
               <RowChevron />
             </span>
-          </div>
+          </Card>
         </State>
         <State name="action">
-          <div className="w-full rounded-card glass-card">
+          <Card padded={false} className="w-full">
             <RowAction icon={SquarePlus} onPress={() => undefined}>
               Install the app
             </RowAction>
-          </div>
+          </Card>
         </State>
         <State name="danger">
-          <div className="w-full rounded-card glass-card">
+          <Card padded={false} className="w-full">
             <RowButton onPress={() => undefined}>Sign out</RowButton>
-          </div>
+          </Card>
         </State>
       </States>
       <States title="Modal">
@@ -228,10 +241,10 @@ function Components({ theme }: { theme: Theme }) {
           </div>
         </State>
         <State name="on glass">
-          <div className="flex w-full flex-col gap-2 rounded-card p-3 glass-card">
+          <Card className="w-full gap-2 p-3">
             <Skeleton className="h-4 w-24 rounded-full" />
             <Skeleton className="h-1.5 w-full rounded-full" />
-          </div>
+          </Card>
         </State>
       </States>
       <States title="Toast">
