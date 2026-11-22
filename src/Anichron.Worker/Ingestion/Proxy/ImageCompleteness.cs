@@ -36,7 +36,7 @@ internal static class ImageCompleteness
             if (prefix < 0)
                 throw JpegEndsEarly();
 
-            rest = rest[prefix..];
+            rest = rest[(prefix + 1)..];
             var code = rest.IndexOfAnyExcept(markerPrefix);
             if (code < 0)
                 throw JpegEndsEarly();
@@ -47,12 +47,13 @@ internal static class ImageCompleteness
                 return;
             if (marker is 0x00 or 0x01 or (>= 0xD0 and <= 0xD7))
                 continue;
-            if (!BinaryPrimitives.TryReadUInt16BigEndian(rest, out var length))
-                throw JpegEndsEarly();
 
-            rest = rest[Math.Min(length, rest.Length)..];
+            rest = rest[Math.Min(SegmentLength(rest), rest.Length)..];
         }
     }
+
+    private static ushort SegmentLength(ReadOnlySpan<byte> segment)
+        => BinaryPrimitives.TryReadUInt16BigEndian(segment, out var length) ? length : (ushort)0;
 
     private static IncompleteImageException HeifEndsEarly()
         => new("The image data is incomplete: the file ends inside a HEIF box.");

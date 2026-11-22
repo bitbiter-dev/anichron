@@ -396,7 +396,8 @@ public sealed class FileIngestionPipelineTests
         "ImageSharp, unknown format" => new UnknownImageFormatException("Image cannot be loaded."),
         "ImageSharp, bad content" => new InvalidImageContentException("CRC error in the IDAT chunk."),
         "MetadataExtractor" => new MetadataExtractor.ImageProcessingException("File format could not be determined."),
-        _ => new FfmpegException("Invalid data found when processing input."),
+        "FFmpeg" => new FfmpegException("Invalid data found when processing input."),
+        _ => throw new ArgumentOutOfRangeException(nameof(decoder), decoder, null),
     };
 
     [Theory]
