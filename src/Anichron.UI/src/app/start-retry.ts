@@ -10,7 +10,7 @@ export function createStartRetry(
   let state = { problem: failure, pending: false };
   const backoff = createBackoff({ firstSeconds: 5, longestSeconds: 60 });
   const changes = createChanges();
-  let subscribed = false;
+  let subscribed: boolean;
   let notBefore = 0;
   let wait = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;

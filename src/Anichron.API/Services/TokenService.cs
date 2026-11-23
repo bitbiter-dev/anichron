@@ -18,7 +18,6 @@ public interface ITokenService
 
 public sealed class TokenService(
     IRefreshTokenRepository tokens,
-    IUserStorageConfigRepository storageConfigs,
     IUnitOfWork unitOfWork,
     IClock clock,
     IGuidFactory guidFactory,
@@ -29,11 +28,11 @@ public sealed class TokenService(
 
     private readonly JwtSettings settings = options.Value;
 
-    public async Task<AuthTokens> IssueAsync(User user, CancellationToken ct)
+    public Task<AuthTokens> IssueAsync(User user, CancellationToken ct)
     {
-        var (stored, issued) = await NewSessionAsync(user, ct);
+        var (stored, issued) = NewSession(user);
         tokens.Add(stored);
-        return issued;
+        return Task.FromResult(issued);
     }
 
     public Task<ServiceResult<AuthTokens, IRefreshError>> RefreshAsync(string rawToken, CancellationToken ct)
@@ -62,7 +61,7 @@ public sealed class TokenService(
         if (stored.User.LockedUntil is { } lockedUntil && lockedUntil > now)
             return new AccountLocked(Math.Max(1, (int)Math.Ceiling((lockedUntil - now).TotalSeconds)));
 
-        var (successor, issued) = await NewSessionAsync(stored.User, ct);
+        var (successor, issued) = NewSession(stored.User);
         if (await tokens.RotateAsync(rotating.Id, successor, ct) == TokenRotation.Rotated)
             return issued;
 
@@ -81,7 +80,7 @@ public sealed class TokenService(
         return new RefreshTokenInvalid();
     }
 
-    private async Task<(RefreshToken Stored, AuthTokens Issued)> NewSessionAsync(User user, CancellationToken ct)
+    private (RefreshToken Stored, AuthTokens Issued) NewSession(User user)
     {
         var rawToken = GenerateRefreshToken();
         var now = clock.GetCurrentInstant();
@@ -95,8 +94,7 @@ public sealed class TokenService(
             ExpiresAt = now.Plus(Duration.FromDays(settings.RefreshTokenDays)),
         };
 
-        var hasStorageConfig = await storageConfigs.AnyActiveByUserIdAsync(user.Id, ct);
-        return (stored, new AuthTokens(jwtFactory.Create(user), rawToken, settings.AccessTokenLifetime, user, hasStorageConfig));
+        return (stored, new AuthTokens(jwtFactory.Create(user), rawToken, settings.AccessTokenLifetime, user));
     }
 
     public async Task RevokeAsync(string rawToken, CancellationToken ct)

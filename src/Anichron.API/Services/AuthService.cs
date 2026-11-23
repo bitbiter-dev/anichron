@@ -10,7 +10,7 @@ using System.Text;
 
 namespace Anichron.API.Services;
 
-public sealed record AuthTokens(string AccessToken, string RefreshToken, TimeSpan AccessTokenLifetime, User User, bool HasStorageConfig);
+public sealed record AuthTokens(string AccessToken, string RefreshToken, TimeSpan AccessTokenLifetime, User User);
 public sealed record AdminCreatedUser(Guid Id, string Username, string Email, string TemporaryPassword);
 
 public interface IAuthService

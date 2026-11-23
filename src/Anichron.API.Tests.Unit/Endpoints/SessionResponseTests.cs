@@ -2,6 +2,7 @@ using Anichron.API.Endpoints;
 using Anichron.API.Services;
 using Anichron.API.Settings;
 using Anichron.API.Tests.Unit.Infrastructure;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,8 +28,7 @@ public sealed class SessionResponseTests
             Username = "alice",
             Email = "alice@example.com",
             IsAdmin = true,
-        },
-        true);
+        });
 
     private readonly IAuthService auth = Substitute.For<IAuthService>();
 
@@ -44,8 +44,17 @@ public sealed class SessionResponseTests
                 services.AddSingleton(auth);
                 services.AddSingleton(new AuthCookieSettings { SameSite = SameSiteMode.Strict, RefreshTokenDays = 7 });
                 services.AddSingleton(Substitute.For<IClock>());
-                services.AddSingleton<ISessionResponseMapper, SessionResponseMapper>();
+                services.AddSingleton(StorageConfigs());
+                services.AddScoped<IUserProfiles, UserProfiles>();
+                services.AddScoped<ISessionResponseMapper, SessionResponseMapper>();
             });
+
+    private static IUserStorageConfigRepository StorageConfigs()
+    {
+        var storageConfigs = Substitute.For<IUserStorageConfigRepository>();
+        storageConfigs.AnyActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(true);
+        return storageConfigs;
+    }
 
     private static Task<string> BodyAsync(HttpResponseMessage response)
         => response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
