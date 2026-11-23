@@ -36,7 +36,7 @@ internal static class ApiTestHost
         var builder = CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddAuthorizationPolicies();
-        builder.Services.AddApiProblems();
+        builder.Services.AddApiProblems().AddApiJson();
         if (rateLimited)
             builder.Services.AddRateLimiting(builder.Configuration);
         configure(builder);

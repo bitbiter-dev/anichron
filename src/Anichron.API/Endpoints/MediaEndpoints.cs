@@ -5,7 +5,7 @@ using System.Security.Claims;
 
 namespace Anichron.API.Endpoints;
 
-public sealed record PatchInteractionRequest(bool? Starred, bool? Liked, bool? Hidden);
+public sealed record PatchInteractionRequest(bool? Starred = null, bool? Liked = null, bool? Hidden = null);
 
 public static class MediaEndpoints
 {

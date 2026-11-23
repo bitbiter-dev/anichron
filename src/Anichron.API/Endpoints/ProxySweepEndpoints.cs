@@ -10,7 +10,7 @@ namespace Anichron.API.Endpoints;
 
 public sealed record ProxySweepRequestedDto(Guid WorkItemId);
 
-public sealed record ProxyDeletionRequest(IReadOnlyList<Guid>? OrphanIds, bool All);
+public sealed record ProxyDeletionRequest(IReadOnlyList<Guid>? OrphanIds = null, bool All = false);
 
 public sealed record ProxyDeletionsRequestedDto(IReadOnlyList<Guid> WorkItemIds);
 
