@@ -45,7 +45,7 @@ public sealed class UprightImageDecoderTests
         var act = () => DecodeAsync(Convert.FromHexString("00000018667479706865696300000000686569636D696631"));
 
         var thrown = (await act.Should().ThrowAsync<InvalidImageContentException>()).Which;
-        thrown.InnerException.Should().BeAssignableTo<MagickException>()
+        thrown.InnerException.Should().BeOfType<MagickCorruptImageErrorException>()
             .Which.Message.Should().Be(thrown.Message);
         BrokenFile.Rejected(thrown).Should().BeTrue();
     }
