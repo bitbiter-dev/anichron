@@ -8,13 +8,10 @@ import { SignOutButton } from '../../shared/ui/SignOut';
 import { usePasswordForm, type PasswordForm } from './use-password-form';
 
 export function ChangePasswordPage() {
-  const { t } = useTranslation();
-  const form = usePasswordForm();
   return (
     <main className="p-4">
       <Card as="section" className="max-w-sm gap-4">
-        <p role="status">{form.changed && t('password.changed')}</p>
-        <PasswordFormFields form={form} />
+        <PasswordFormFields form={usePasswordForm('home')} />
       </Card>
     </main>
   );
@@ -24,7 +21,7 @@ export function ForcedPasswordPage() {
   const { t } = useTranslation();
   return (
     <CentredPage title={t('password.forcedTitle')} body={t('password.forcedBody')}>
-      <PasswordFormFields form={usePasswordForm()} />
+      <PasswordFormFields form={usePasswordForm('requested')} />
       <SignOutButton />
     </CentredPage>
   );

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import type { HiddenMemory } from '../../api/hidden';
 import { listen } from '../../shared/listen';
 import { burstsKey, daysKey } from '../../shared/memory-queries';
-import { createToasts } from '../../shared/toasts';
 import { failureOf, hiddenQuery, sectionsOf } from './hidden';
 
 const loadAheadPixels = 800;
@@ -22,11 +21,10 @@ function without(ids: ReadonlySet<string>, id: string) {
 }
 
 export function useHidden() {
-  const { api, queryClient } = useRouter().options.context;
+  const { api, queryClient, toasts } = useRouter().options.context;
   const query = useInfiniteQuery(hiddenQuery(api));
   const [unhidden, setUnhidden] = useState<ReadonlySet<string>>(() => new Set());
   const [opened, setOpened] = useState<number | null>(null);
-  const [toasts] = useState(createToasts);
   const items = (query.data?.pages.flatMap((page) => page.items) ?? []).filter(
     ({ memory }) => !unhidden.has(memory.id),
   );
@@ -90,7 +88,6 @@ export function useHidden() {
     failure: failureOf(query.error),
     retry: () => void query.refetch(),
     loadingMore: query.isFetchingNextPage,
-    toasts,
     opened,
     open: (index: number) => () => {
       setOpened(index);
