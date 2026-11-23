@@ -229,6 +229,7 @@ export function createAppRouter(
   install: Install,
   history: RouterHistory = createBrowserHistory(),
 ) {
+  const toasts = createToasts();
   const router = createRouter({
     routeTree: routeTree(),
     history,
@@ -241,13 +242,16 @@ export function createAppRouter(
       theme: createThemeChoice(),
       updates,
       install,
-      toasts: createToasts(),
+      toasts,
     },
   });
   let userId: string | undefined;
   api.session.onChange(() => {
     const changedTo = api.session.user()?.id;
-    if (changedTo !== userId) queryClient.clear();
+    if (changedTo !== userId) {
+      queryClient.clear();
+      toasts.clear();
+    }
     userId = changedTo;
     void router.invalidate();
   });

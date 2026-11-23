@@ -22,7 +22,7 @@ function passwordSchema() {
 
 export type PasswordForm = ReturnType<typeof usePasswordForm>;
 
-export function usePasswordForm(afterChange: 'home' | 'return') {
+export function usePasswordForm(afterChange: 'home' | 'requested') {
   const router = useRouter();
   const { api, toasts } = router.options.context;
   return useProblemForm({

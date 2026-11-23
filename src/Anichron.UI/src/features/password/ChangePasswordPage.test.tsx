@@ -5,6 +5,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 import { axeResults } from '../../test/axe';
 import {
   forcedAdminSession,
+  adminSession,
   forcedSession,
   loginSucceeds,
   logoutSucceeds,
@@ -135,11 +136,13 @@ describe('changing the password from settings', () => {
   it('keeps this device signed in with the new session', async () => {
     const bearers: (string | null)[] = [];
     server.use(passwordChangeSucceeds((_, bearer) => bearers.push(bearer)));
-    const { router } = await openVoluntary();
+    await openVoluntary();
 
     await change('old secret', 'correct horse battery staple');
     await screen.findByRole('heading', home);
-    await act(() => router.navigate({ to: '/settings/password' }));
+    await user().click(screen.getByRole('link', { name: 'Settings' }));
+    await user().click(await screen.findByRole('link', { name: 'Change password' }));
+    await screen.findByRole('heading', { level: 1, name: 'Change password' });
     await change('correct horse battery staple', 'another staple');
 
     await waitFor(() => {
@@ -148,6 +151,23 @@ describe('changing the password from settings', () => {
         'Bearer header.changed.signature',
       ]);
     });
+  });
+
+  it('leaves its toast behind for the next user', async () => {
+    server.use(passwordChangeSucceeds(), logoutSucceeds(), loginSucceeds(undefined, adminSession));
+    await openVoluntary();
+    await change('old secret', 'correct horse battery staple');
+    expect(await toastSays(passwordChanged)).toBeVisible();
+
+    await user().click(screen.getByRole('link', { name: 'Settings' }));
+    await user().click(await screen.findByRole('button', { name: 'Sign out' }));
+    await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
+    await user().type(screen.getByLabelText('Username or email'), 'alice');
+    await user().type(screen.getByLabelText('Password'), 'secret');
+    await user().click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('heading', home)).toBeVisible();
+    expect(screen.queryByText(passwordChanged)).toBeNull();
   });
 
   it('asks for every field before sending anything', async () => {
@@ -335,10 +355,15 @@ describe('a password that must be changed', () => {
     expect(requests).toEqual([]);
   });
 
-  it('turns a sign-in into the change, keeping the requested page', async () => {
+  it.each([
+    ['/', '%2F'],
+    ['/day/2026-11-11?year=2023', '%2Fday%2F2026-11-11%3Fyear%3D2023'],
+    ['/settings', '%2Fsettings'],
+    ['/admin/work-items', '%2Fadmin%2Fwork-items'],
+  ])('turns a sign-in on %s into the change, keeping the address', async (path, encoded) => {
     const requests = dataRequests();
-    server.use(refreshFails(), loginSucceeds(undefined, forcedSession));
-    const { router } = renderApp('/settings');
+    server.use(refreshFails(), loginSucceeds(undefined, forcedAdminSession));
+    const { router } = renderApp(path);
     await screen.findByRole('heading', { level: 1, name: 'Sign in to Anichron' });
 
     await user().type(screen.getByLabelText('Username or email'), 'mira');
@@ -348,7 +373,7 @@ describe('a password that must be changed', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Choose a new password' }),
     ).toBeVisible();
-    expect(router.state.location.href).toBe('/change-password?redirect=%2Fsettings');
+    expect(router.state.location.href).toBe(`/change-password?redirect=${encoded}`);
     expect(requests).toEqual([]);
   });
 

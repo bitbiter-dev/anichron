@@ -21,7 +21,7 @@ export function ForcedPasswordPage() {
   const { t } = useTranslation();
   return (
     <CentredPage title={t('password.forcedTitle')} body={t('password.forcedBody')}>
-      <PasswordFormFields form={usePasswordForm('return')} />
+      <PasswordFormFields form={usePasswordForm('requested')} />
       <SignOutButton />
     </CentredPage>
   );

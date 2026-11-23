@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { expect, type APIRequestContext } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export const bootstrapAdmin = { username: 'admin', password: 'end-to-end bootstrap passphrase' };
 export const admin = { username: 'admin', password: 'end-to-end admin passphrase' };
@@ -39,7 +39,7 @@ export async function changePassword(
 
 export async function createAccount(
   request: APIRequestContext,
-  { photos = true, temporaryPassword: keepTemporary = false } = {},
+  { photos = true, keepTemporaryPassword = false } = {},
 ): Promise<Account> {
   const adminToken = await signIn(request, admin.username, admin.password);
   const username = `user-${randomUUID().slice(0, 8)}`;
@@ -59,11 +59,17 @@ export async function createAccount(
     });
     expect(storage.status(), await storage.text()).toBe(201);
   }
-  if (keepTemporary) return { id, username, password: temporaryPassword };
+  if (keepTemporaryPassword) return { id, username, password: temporaryPassword };
   const password = `${username} passphrase`;
   const token = await signIn(request, username, temporaryPassword);
   await changePassword(request, token, temporaryPassword, password);
   return { id, username, password };
+}
+
+export async function fillInSignIn(page: Page, account: Account) {
+  await page.getByLabel('Username or email').fill(account.username);
+  await page.getByLabel('Password').fill(account.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
 export async function disable(request: APIRequestContext, account: Account) {
