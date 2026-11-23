@@ -1,14 +1,6 @@
 import { problemOf, type Problem } from '../api/problem';
-import { isVisible, listen, onVisibilityChange } from '../shared/listen';
-
-const firstWaitSeconds = 5;
-const longestWaitSeconds = 60;
-
-function waitSeconds(step: number) {
-  return Math.min(firstWaitSeconds * 2 ** step, longestWaitSeconds);
-}
-
-function idle() {}
+import { createBackoff } from '../shared/backoff';
+import { createChanges, isVisible, listen, onVisibilityChange } from '../shared/listen';
 
 export function createStartRetry(
   restore: () => Promise<void>,
@@ -16,15 +8,16 @@ export function createStartRetry(
   countdown: (seconds: number) => void,
 ) {
   let state = { problem: failure, pending: false };
-  let step = 0;
+  const backoff = createBackoff({ firstSeconds: 5, longestSeconds: 60 });
+  const changes = createChanges();
+  let subscribed = false;
   let notBefore = 0;
   let wait = 0;
-  let changed: () => void = idle;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function after({ retryAfterSeconds }: Problem) {
     notBefore = Date.now() + retryAfterSeconds * 1000;
-    wait = retryAfterSeconds ? 0 : waitSeconds(step++) * 1000;
+    wait = backoff.waitMilliseconds(retryAfterSeconds);
   }
 
   function schedule(milliseconds: number) {
@@ -35,14 +28,14 @@ export function createStartRetry(
 
   function set(next: Partial<typeof state>) {
     state = { ...state, ...next };
-    changed();
+    changes.notify();
   }
 
   function attempt() {
     if (state.pending) return;
     set({ pending: true });
     restore().catch((error: unknown) => {
-      if (changed === idle) return;
+      if (!subscribed) return;
       const problem = problemOf(error);
       set({ problem, pending: false });
       countdown(problem.retryAfterSeconds);
@@ -56,19 +49,20 @@ export function createStartRetry(
   return {
     state: () => state,
     subscribe: (listener: () => void) => {
-      changed = listener;
+      subscribed = true;
       const stopListening = [
+        changes.subscribe(listener),
         listen(window, 'online', () => {
           schedule(0);
         }),
         onVisibilityChange(() => {
-          step = 0;
+          backoff.reset();
           schedule(0);
         }),
       ];
       schedule(wait);
       return () => {
-        changed = idle;
+        subscribed = false;
         clearTimeout(timer);
         for (const stop of stopListening) stop();
       };

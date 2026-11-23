@@ -7,6 +7,7 @@ import {
   unreachableProblem,
   type Problem,
 } from './problem';
+import { createBackoff } from '../shared/backoff';
 import { createChanges, onVisible } from '../shared/listen';
 import type { TabMessage, Tabs } from './tabs';
 
@@ -43,12 +44,6 @@ export interface Session {
 }
 
 const renewAtShare = 0.8;
-const firstBackoffSeconds = 5;
-const maxBackoffSeconds = 300;
-
-function backoffSeconds(failures: number) {
-  return Math.min(firstBackoffSeconds * 2 ** (failures - 1), maxBackoffSeconds);
-}
 
 async function send<T>(call: () => Promise<Call<T>>): Promise<Answer<T>> {
   try {
@@ -73,7 +68,7 @@ export function createSession(
   let renewAt = Infinity;
   let restored: Promise<void> | undefined;
   let refreshing: ReturnType<typeof sendRefresh> | undefined;
-  let failures = 0;
+  const backoff = createBackoff({ firstSeconds: 5, longestSeconds: 300 });
   let signedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const changes = createChanges();
@@ -88,7 +83,7 @@ export function createSession(
     accessToken = session.accessToken;
     user = session.user;
     renewAt = Date.now() + renewIn;
-    failures = 0;
+    backoff.reset();
     wakeIn(renewIn);
     changes.notify();
   }
@@ -105,10 +100,7 @@ export function createSession(
     const answer = await send(() => client.POST('/api/v1/auth/refresh'));
     if (answer.ok) open(answer.data);
     else if (answer.status === 401) end();
-    else if (accessToken) {
-      failures++;
-      wakeIn((answer.problem.retryAfterSeconds || backoffSeconds(failures)) * 1000);
-    }
+    else if (accessToken) wakeIn(backoff.waitMilliseconds(answer.problem.retryAfterSeconds));
     return answer;
   }
 

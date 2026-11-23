@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import type { Memory } from '../../api/flashbacks';
-import { blurhashOf } from '../../shared/blurhash';
-import { kindOf, type Load, memoryKind } from '../../shared/memory-kinds';
+import type { Memory } from '../../api/memories';
+import { kindOf, type Load, loadView, memoryKind, soundLabel } from '../../shared/memory-kinds';
 import { useRecovering } from '../../shared/use-recovering';
 
 export interface Slide {
@@ -12,9 +11,7 @@ export interface Slide {
 
 export function useSlide({ memory, shown, current }: Slide) {
   const kind = memoryKind(kindOf(memory));
-  // Stryker disable next-line ArrowFunction
-  const undecoded = () => false;
-  const [load, setLoad] = useState<Load>(() => kind.firstLoad(undecoded));
+  const [load, setLoad] = useState<Load>(() => kind.firstLoad(false));
   const [live, setLive] = useState(true);
   const [replays, setReplays] = useState(0);
   const [muted, setMuted] = useState(true);
@@ -26,11 +23,12 @@ export function useSlide({ memory, shown, current }: Slide) {
   const source = current ? kind.video?.source(memory, load) : null;
   const plays = kind.video?.live ? live && load === 'shown' : true;
   const preview = shown ? memory.proxies.preview : null;
+  const { blurhash, failed, liveButton } = loadView(kind, memory, load);
 
   return {
     name: kind.name(memory),
     reload: `${String(video.reloads)}-${String(replays)}`,
-    blurhash: load === 'shown' ? null : blurhashOf(memory),
+    blurhash,
     picture: {
       src: image && preview,
       onDecoded: () => {
@@ -40,7 +38,7 @@ export function useSlide({ memory, shown, current }: Slide) {
         if (image === 'picture') setLoad('failed');
       },
     },
-    failed: kind.failure && load === 'failed',
+    failed,
     video:
       source && plays
         ? {
@@ -62,7 +60,7 @@ export function useSlide({ memory, shown, current }: Slide) {
     sound:
       current && kind.sound
         ? {
-            label: muted ? ('story.soundOn' as const) : ('story.soundOff' as const),
+            label: soundLabel(muted),
             toggle: () => {
               setMuted(!muted);
             },
@@ -70,7 +68,7 @@ export function useSlide({ memory, shown, current }: Slide) {
         : null,
     live: source && plays ? ('playing' as const) : ('still' as const),
     replay:
-      current && kind.liveButton && load === 'shown'
+      current && liveButton
         ? () => {
             setLive(true);
             setReplays(replays + 1);

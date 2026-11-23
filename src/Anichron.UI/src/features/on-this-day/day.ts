@@ -1,7 +1,8 @@
 import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
-import type { Day, Memory, YearGroup } from '../../api/flashbacks';
+import type { Day, YearGroup } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import { burstsKey, daysKey } from '../../shared/memory-queries';
 import { burstIdOf, coverOf } from './burst';
 

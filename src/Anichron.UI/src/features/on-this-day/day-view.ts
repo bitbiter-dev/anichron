@@ -1,6 +1,7 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
-import type { Day, Memory, YearGroup } from '../../api/flashbacks';
+import type { Day, YearGroup } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import { failureMessage } from '../../shared/failure';
 
 export interface DayView {
