@@ -19,6 +19,7 @@ using Microsoft.Extensions.Time.Testing;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
@@ -45,6 +46,21 @@ public sealed class ApiServiceRegistrationTests
         services.AddLogging();
         services.AddAuthServices(configuration ?? Configuration());
         return services;
+    }
+
+    [Fact]
+    public void AddApiSurface_SetsTheApiJsonOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApiSurface(Configuration());
+        using var provider = services.BuildServiceProvider();
+
+        var json = provider.GetRequiredService<IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions;
+
+        json.NumberHandling.Should().Be(JsonNumberHandling.Strict);
+        json.RespectNullableAnnotations.Should().BeTrue();
+        json.RespectRequiredConstructorParameters.Should().BeTrue();
     }
 
     // ==========================================================================

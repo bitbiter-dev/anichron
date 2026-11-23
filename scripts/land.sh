@@ -21,11 +21,11 @@
 # LAND_TIMEOUT_MINUTES the longest wait for CI and the required checks, not
 # counting time asleep or with `gh` failing (default 120), LAND_OUTAGE_MINUTES
 # the longest one `gh` call is retried while it keeps failing, not counting
-# time asleep (default 360), LAND_MERGE_SECONDS how long a merge GitHub refuses while it still
-# reports the PR BLOCKED or UNKNOWN is tried again (default 300), and
-# LAND_MERGE_CALL_SECONDS how long one merge call may take (default 120). After
-# a merge call fails or times out, the PR's state decides: a merged PR is
-# cleaned up, a closed one stops it.
+# time asleep (default 360), LAND_MERGE_SECONDS how long a merge GitHub refuses
+# while it still reports the PR BLOCKED or UNKNOWN is tried again (default
+# 300), and LAND_MERGE_CALL_SECONDS how long one merge call may take (default
+# 120). After a merge call fails or times out, the PR's state decides: a merged
+# PR is cleaned up, a closed one stops it.
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
 # a draft again if it had been marked ready and is still open, or still ready
@@ -45,11 +45,12 @@ stop_by=''
 say() { printf 'land: %s\n' "$*" >&2; }
 die() { say "$1"; exit "${2:-1}"; }
 
-# Runs gh, reading `gh pr checks`' "no checks reported" as an empty list.
+# Runs gh, reading `gh pr checks`' "no (required) checks reported" as an empty
+# list.
 gh_call() {
   local err status=0
   { err=$(gh "$@" 2>&1 >&3 3>&-) || status=$?; } 3>&1
-  if [ "$status" -ne 0 ] && [ "$1 $2" = 'pr checks' ] && [[ "$err" == *'no checks reported'* ]]; then
+  if [ "$status" -ne 0 ] && [ "$1 $2" = 'pr checks' ] && [[ "$err" == *'checks reported on the'* ]]; then
     echo '[]'
     return
   fi
@@ -57,13 +58,15 @@ gh_call() {
   return "$status"
 }
 
-# Runs gh until it succeeds, saying when it stops and starts answering. It gives
-# up once the gaps between failing calls, each counted up to one poll and the
-# slack, add up to the outage cap, or once `stop_by` passes.
+# Runs gh until it succeeds and sets `answer` to its output, saying when it
+# stops and starts answering. It gives up once the gaps between failing calls,
+# each counted up to one poll and the slack, add up to the outage cap, or once
+# `stop_by` passes. It waits in the calling shell, so a signal to the main
+# shell stops it within one poll.
 gh_retry() {
   local failed='' outage=0 then now
   then=$(date +%s)
-  until gh_call "$@"; do
+  until answer=$(gh_call "$@"); do
     now=$(date +%s)
     outage=$((outage + (now - then < poll + slack_seconds ? now - then : poll + slack_seconds)))
     then=$now
@@ -94,20 +97,22 @@ passes() {
       | if length > 0 and all(.[]; .status == "COMPLETED") then max_by(.completedAt) else null end;
     . as $pr
     | .headRefOid == $sha and .isDraft == false and .mergeStateStatus != "BEHIND"
-      and all("CI gate", "CodeQL"; . as $name | $pr | newest($name) | . != null and (.conclusion == "SUCCESS" or .conclusion == "NEUTRAL"))
+      and all("CI gate", "CodeQL"; . as $name | $pr | newest($name) | . != null and (.conclusion == "SUCCESS" or ($name == "CodeQL" and .conclusion == "NEUTRAL")))
   ' <<<"$1" >/dev/null 2>&1
 }
 
-# The newest run of <workflow> on <sha> created since <since>, other than the
-# ids in <skip>, whose <root-job> is not skipped as a draft's is.
+# Sets `found` to the newest run of <workflow> on <sha> created since <since>,
+# other than the ids in <skip>, whose <root-job> is not skipped as a draft's is.
 ready_run() {
-  local workflow="$1" sha="$2" since="$3" root_job="$4" skip="$5" runs id jobs
-  runs=$(gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json databaseId,createdAt) || return 1
+  local workflow="$1" sha="$2" since="$3" root_job="$4" skip="$5" runs id
+  found=''
+  gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json databaseId,createdAt || return 1
+  runs=$answer
   for id in $(jq -r --arg since "$since" '[.[] | select(.createdAt >= $since)] | sort_by(.createdAt) | reverse | .[].databaseId' <<<"$runs"); do
     [[ " $skip " != *" $id "* ]] || continue
-    jobs=$(gh_retry run view "$id" --json jobs) || return 1
-    if jq -e --arg job "$root_job" 'any(.jobs[]; .name == $job and .conclusion != "skipped")' <<<"$jobs" >/dev/null; then
-      echo "$id"
+    gh_retry run view "$id" --json jobs || return 1
+    if jq -e --arg job "$root_job" 'any(.jobs[]; .name == $job and .conclusion != "skipped")' <<<"$answer" >/dev/null; then
+      found=$id
       return
     fi
   done
@@ -120,17 +125,20 @@ await_run() {
   local workflow="$1" sha="$2" since="$3" root_job="$4" id='' skip='' run newer reported='' job
   while :; do
     if [ -z "$id" ]; then
-      id=$(ready_run "$workflow" "$sha" "$since" "$root_job" "$skip") || { outcome=gh-failing; return; }
+      ready_run "$workflow" "$sha" "$since" "$root_job" "$skip" || { outcome=gh-failing; return; }
+      id=$found
     fi
     if [ -n "$id" ]; then
-      run=$(gh_retry run view "$id" --json status,conclusion,url,jobs,createdAt) || { outcome="gh-failing $id"; return; }
+      gh_retry run view "$id" --json status,conclusion,url,jobs,createdAt || { outcome="gh-failing $id"; return; }
+      run=$answer
       while IFS= read -r job; do
         [ -n "$job" ] || continue
         grep -qxF -- "$job" <<<"$reported" || { say "${workflow%.yml}: $job"; reported="$reported"$'\n'"$job"; }
       done < <(jq -r '.jobs[] | select(.status == "completed" and .conclusion != "skipped") | "\(.name): \(.conclusion)"' <<<"$run")
       if [ "$(jq -r .status <<<"$run")" = completed ]; then
         if [ "$(jq -r .conclusion <<<"$run")" = cancelled ]; then
-          newer=$(ready_run "$workflow" "$sha" "$(jq -r .createdAt <<<"$run")" "$root_job" "$skip $id") || { outcome="gh-failing $id"; return; }
+          ready_run "$workflow" "$sha" "$(jq -r .createdAt <<<"$run")" "$root_job" "$skip $id" || { outcome="gh-failing $id"; return; }
+          newer=$found
           if [ -n "$newer" ]; then
             skip="$skip $id"
             id="$newer"
@@ -147,10 +155,10 @@ await_run() {
   done
 }
 
-# The PR's ready_for_review events, oldest first.
+# Sets `events` to the PR's ready_for_review events, oldest first.
 ready_events() {
-  gh_retry api --paginate "repos/{owner}/{repo}/issues/$1/events" \
-    | jq -r '.[] | select(.event == "ready_for_review") | .created_at'
+  gh_retry api --paginate "repos/{owner}/{repo}/issues/$1/events" || return 1
+  events=$(jq -r '.[] | select(.event == "ready_for_review") | .created_at' <<<"$answer")
 }
 
 # Waits for a ready_for_review event beyond the first <seen>; sets `since` to
@@ -158,7 +166,7 @@ ready_events() {
 ready_since() {
   local number="$1" seen="$2" events
   while :; do
-    events=$(ready_events "$number") || return 1
+    ready_events "$number" || return 1
     if [ "$(grep -c . <<<"$events" || true)" -gt "$seen" ]; then
       since=$(tail -n 1 <<<"$events")
       return
@@ -177,10 +185,10 @@ merges_cleanly() {
 
 # Waits until <workflow> has a run on <sha> created since <since>.
 await_started() {
-  local workflow="$1" sha="$2" since="$3" runs
+  local workflow="$1" sha="$2" since="$3"
   while :; do
-    runs=$(gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json createdAt) || return 1
-    jq -e --arg since "$since" 'any(.[]; .createdAt >= $since)' <<<"$runs" >/dev/null && return
+    gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json createdAt || return 1
+    jq -e --arg since "$since" 'any(.[]; .createdAt >= $since)' <<<"$answer" >/dev/null && return
     tick
     [ "$last" -lt "$deadline" ] || { say "$workflow never started on $sha"; return 1; }
     sleep "$poll"
@@ -211,11 +219,11 @@ merge_once() {
 # state stops it, and a PR GitHub reports merged counts as merged. Sets `state`
 # to the last merge state read.
 merge_pr() {
-  local number="$1" sha="$2" refuse_by=$(($(date +%s) + merge_seconds)) refused='' view
+  local number="$1" sha="$2" refuse_by=$(($(date +%s) + merge_seconds)) refused=''
   until merge_once "$number" "$sha"; do
-    view=$(gh_retry pr view "$number" --json state,mergeStateStatus) || return 1
-    [ "$(jq -r .state <<<"$view")" != MERGED ] || return 0
-    state=$(jq -r .mergeStateStatus <<<"$view")
+    gh_retry pr view "$number" --json state,mergeStateStatus || return 1
+    [ "$(jq -r .state <<<"$answer")" != MERGED ] || return 0
+    state=$(jq -r .mergeStateStatus <<<"$answer")
     case "$state" in BLOCKED | UNKNOWN) ;; *) return 1 ;; esac
     [ "$(date +%s)" -lt "$refuse_by" ] || return 1
     [ -n "$refused" ] || say "GitHub refused the merge of a $state PR; trying again every ${poll}s"
@@ -227,11 +235,11 @@ merge_pr() {
 # Waits until the required checks are reported and none is pending; sets
 # `failing` to each failing one.
 await_required() {
-  local number="$1" checks
+  local number="$1"
   while :; do
-    checks=$(gh_retry pr checks "$number" --required --json name,bucket) || { failing='gh is failing'; return; }
-    if jq -e 'length > 0 and all(.[]; .bucket != "pending")' <<<"$checks" >/dev/null; then
-      failing=$(jq -r '.[] | select(.bucket == "fail" or .bucket == "cancel") | "\(.name): \(.bucket)"' <<<"$checks")
+    gh_retry pr checks "$number" --required --json name,bucket || { failing='gh is failing'; return; }
+    if jq -e 'length > 0 and all(.[]; .bucket != "pending")' <<<"$answer" >/dev/null; then
+      failing=$(jq -r '.[] | select(.bucket == "fail" or .bucket == "cancel") | "\(.name): \(.bucket)"' <<<"$answer")
       return
     fi
     tick
@@ -253,8 +261,8 @@ main() {
     LAND_LOCKED=1 exec "$here/with-lock.sh" land "$here/land.sh"
   fi
 
-  local before
-  before=$(git rev-parse HEAD)
+  local head_before_merge
+  head_before_merge=$(git rev-parse HEAD)
   git fetch --quiet origin master || die 'cannot fetch origin/master'
   if ! git merge --quiet --no-edit origin/master; then
     git merge --abort 2>/dev/null || true
@@ -267,7 +275,8 @@ main() {
   local pr number draft url='' sha remote events seen
   sha=$(git rev-parse HEAD)
   remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1) || die "cannot read origin's $branch"
-  pr=$(gh_retry pr list --head "$branch" --state open --json number,isDraft) || die 'cannot list the open PRs'
+  gh_retry pr list --head "$branch" --state open --json number,isDraft || die 'cannot list the open PRs'
+  pr=$answer
   number=$(jq -r '.[0].number // empty' <<<"$pr")
   draft=$(jq -r '.[0].isDraft // false' <<<"$pr")
 
@@ -276,14 +285,14 @@ main() {
     trap - TERM HUP INT
     [ -z "$merging" ] || kill "$merging" 2>/dev/null || true
     stop_by=$(($(date +%s) + 600))
-    local view
-    view=$(gh_retry pr view "$number" --json "state,$passed_fields") || view='{}'
+    local view='{}'
+    if gh_retry pr view "$number" --json "state,$passed_fields"; then view=$answer; fi
     case "$(jq -r .state <<<"$view")" in
       MERGED) die "PR #$number is merged; not making it a draft, and not cleaned up. $1" 3 ;;
       CLOSED) die "PR #$number is closed; not making it a draft. $1" ;;
     esac
     ! passes "$view" "$sha" || die "not merged, PR #$number stays ready: every check passed; run land.sh again. $1"
-    gh_retry pr ready "$number" --undo >/dev/null || say "PR #$number could not be made a draft again"
+    gh_retry pr ready "$number" --undo || say "PR #$number could not be made a draft again"
     die "not merged, PR #$number is a draft again. $1"
   }
 
@@ -297,19 +306,19 @@ main() {
   fi
   trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
   make_ready() {
-    events=$(ready_events "$number") || back_to_draft "Its events could not be read."
+    ready_events "$number" || back_to_draft "Its events could not be read."
     seen=$(grep -c . <<<"$events" || true)
     if [ "$draft" != true ]; then
-      gh_retry pr ready "$number" --undo >/dev/null || back_to_draft "Making it a draft failed."
+      gh_retry pr ready "$number" --undo || back_to_draft "Making it a draft failed."
     fi
-    gh_retry pr ready "$number" >/dev/null || back_to_draft "Marking it ready failed."
+    gh_retry pr ready "$number" || back_to_draft "Marking it ready failed."
     ready_since "$number" "$seen" || back_to_draft 'Its ready event could not be read.'
   }
 
   local ci codeql state view
   view='{}'
-  if [ -z "$url" ] && [ "$draft" = false ] && [ "$before" = "$sha" ] && [ "$remote" = "$sha" ]; then
-    view=$(gh_retry pr view "$number" --json "$passed_fields") || view='{}'
+  if [ -z "$url" ] && [ "$draft" = false ] && [ "$head_before_merge" = "$sha" ] && [ "$remote" = "$sha" ]; then
+    if gh_retry pr view "$number" --json "$passed_fields"; then view=$answer; fi
   fi
   if passes "$view" "$sha"; then
     say "PR #$number already passed CI at $sha; merging"
@@ -344,7 +353,8 @@ main() {
     say 'every required check passed'
   fi
 
-  state=$(gh_retry pr view "$number" --json mergeStateStatus | jq -r .mergeStateStatus) || back_to_draft 'Its merge state could not be read.'
+  gh_retry pr view "$number" --json mergeStateStatus || back_to_draft 'Its merge state could not be read.'
+  state=$(jq -r .mergeStateStatus <<<"$answer")
   [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'
   if ! merge_pr "$number" "$sha"; then
     [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'

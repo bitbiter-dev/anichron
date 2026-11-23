@@ -114,6 +114,7 @@ public sealed class RequestBodyBindingTests
 
         using var response = await SendAsync(app, HttpMethod.Patch, $"/api/v1/users/{OtherId}", """{"isDisabled":true}""");
 
+        response.StatusCode.Should().NotBe(HttpStatusCode.BadRequest);
         await adminUsers.Received(1).UpdateAsync(CallerId, OtherId, null, true, Arg.Any<CancellationToken>());
     }
 

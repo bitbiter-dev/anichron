@@ -29,6 +29,15 @@ cat >"$work/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$GH_STATE/calls"
 advance() { [ ! -f "$GH_STATE/clock" ] || echo $(($(cat "$GH_STATE/clock") + $1)) >"$GH_STATE/clock"; }
+# The main land.sh shell: the topmost land.sh process below with-lock.sh.
+land_pid() {
+  local p=$PPID top=''
+  while [ "$p" -gt 1 ]; do
+    case "$(ps -o args= -p "$p")" in *with-lock.sh*) break ;; *land.sh*) top=$p ;; esac
+    p=$(ps -o ppid= -p "$p" | tr -d ' ')
+  done
+  echo "$top"
+}
 if [ -f "$GH_STATE/all-fail" ]; then
   advance 300
   echo 'error connecting to api.github.com' >&2
@@ -54,6 +63,11 @@ case "$1 $2" in
       if [ -z "$left" ] || [ "$left" -gt 0 ]; then
         [ -z "$left" ] || echo $((left - 1)) >"$GH_STATE/run-list-fails"
         [ ! -f "$GH_STATE/fail-step" ] || advance "$(cat "$GH_STATE/fail-step")"
+        if [ -f "$GH_STATE/signal-on-fail" ]; then
+          rm "$GH_STATE/signal-on-fail"
+          touch "$GH_STATE/all-fail"
+          kill -TERM "$(land_pid)"
+        fi
         echo 'error connecting to api.github.com' >&2
         exit 1
       fi
@@ -71,7 +85,7 @@ case "$1 $2" in
   'pr checks')
     if [ -f "$GH_STATE/no-checks-yet" ]; then
       rm "$GH_STATE/no-checks-yet"
-      echo "no checks reported on the 'feature' branch" >&2
+      echo "no required checks reported on the 'feature' branch" >&2
       exit 1
     fi
     cat "$GH_STATE/checks" ;;
@@ -80,11 +94,6 @@ case "$1 $2" in
     jq -c --arg m "$state" --arg h "$(git ls-remote origin refs/heads/feature | cut -f1)" --argjson r "$(cat "$GH_STATE/rollup")" \
       '{mergeStateStatus: $m, state, isDraft, headRefOid: $h, statusCheckRollup: $r}' "$GH_STATE/pr" ;;
   'pr merge')
-    if [ -f "$GH_STATE/merge-signals-outage" ]; then
-      touch "$GH_STATE/all-fail"
-      kill -TERM "$PPID"
-      exec sleep 600
-    fi
     if [ -f "$GH_STATE/merge-closes" ]; then
       jq -c '.state = "CLOSED"' "$GH_STATE/pr" >"$GH_STATE/pr.new" && mv "$GH_STATE/pr.new" "$GH_STATE/pr"
       exit 1
@@ -319,11 +328,11 @@ echo 10800 >"$work/state/sleep-jump"
 out=$(land "$work/wt" 10); status=$?
 check 'a machine asleep during a poll does not time out, and the PR is merged' "[ $status -eq 0 ] && [ \"\$(grep -c '^run view 3 --json status' '$work/state/calls')\" -eq 3 ] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
 
-setup '{"number":7,"state":"OPEN","isDraft":true}' success
+setup '{"number":7,"state":"OPEN","isDraft":false}' success
 echo 1800000000 >"$work/state/clock"
-touch "$work/state/merge-signals-outage"
-out=$(land); status=$?
-check 'a signal during an outage stops within the stop deadline, and goes back to draft' "[ $status -eq 1 ] && [[ \"\$out\" == *'gh pr view still failing; giving up'*'gh pr ready still failing; giving up'*'stopped by a signal'* ]]" "exit $status: $out"
+touch "$work/state/run-list-fails" "$work/state/signal-on-fail"
+out=$(land "$work/wt" 60); status=$?
+check 'a signal during an outage stops at once, and within the stop deadline' "[ $status -eq 1 ] && [ \"\$(grep -c '^run list' '$work/state/calls')\" -eq 1 ] && [[ \"\$out\" == *'gh pr view still failing; giving up'*'gh pr ready still failing; giving up'*'stopped by a signal'* ]]" "exit $status: $out"
 
 setup '{"number":7,"state":"OPEN","isDraft":true}' success
 touch "$work/state/no-checks-yet"
@@ -337,15 +346,16 @@ out=$(land); status=$?
 check 'a ready PR whose head already passed is merged without a new run' "[ $status -eq 0 ] && [[ \"\$(calls)\" != *'pr ready'* ]] && [[ \"\$(calls)\" != *'run list'* ]] && [[ \"\$(calls)\" == *\"pr merge 7 --squash --match-head-commit \$(git -C '$work/origin.git' rev-parse feature)\"* ]]" "exit $status: $out"
 check 'the skip is announced' "[[ \"\$out\" == *'land: PR #7 already passed CI at '*'; merging'* ]]" "$out"
 
-for case in \
+for variant in \
+  "a CI gate that is only neutral|$(rollup_check 'CI gate' COMPLETED NEUTRAL 2026-11-13T11:00:00Z)" \
   "a newer CI gate still running|$(rollup_check 'CI gate' IN_PROGRESS '' '')" \
   "a newer CI gate that failed|$(rollup_check 'CI gate' COMPLETED FAILURE 2026-11-13T11:00:00Z)" \
   "a newer CodeQL that was skipped|$(rollup_check CodeQL COMPLETED SKIPPED 2026-11-13T11:00:00Z)"; do
   setup '{"number":7,"state":"OPEN","isDraft":false}' success
   pushed_already
-  passed "${case#*|}"
+  passed "${variant#*|}"
   out=$(land); status=$?
-  check "a head with ${case%%|*} is run again" "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr ready 7 --undo'*'pr ready 7'*'run view 3 --json status'* ]]" "exit $status: $out"
+  check "a head with ${variant%%|*} is run again" "[ $status -eq 0 ] && [[ \"\$(calls)\" == *'pr ready 7 --undo'*'pr ready 7'*'run view 3 --json status'* ]]" "exit $status: $out"
 done
 
 setup '{"number":7,"state":"OPEN","isDraft":false}' success
