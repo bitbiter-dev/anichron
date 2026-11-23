@@ -59,25 +59,25 @@ public sealed class RequestBodyBindingTests
 
     public static TheoryData<string, string, string> BodiesMissingARequiredField => new()
     {
-        { "POST", "/api/v1/auth/login", """{"password":"SecurePass1!"}""" },
-        { "POST", "/api/v1/auth/login", """{"usernameOrEmail":"alice"}""" },
-        { "POST", "/api/v1/auth/login", """{"usernameOrEmail":null,"password":"SecurePass1!"}""" },
-        { "POST", "/api/v1/auth/login", """{"usernameOrEmail":"alice","password":null}""" },
-        { "POST", "/api/v1/auth/login/mobile", """{"password":"SecurePass1!"}""" },
-        { "POST", "/api/v1/auth/login/mobile", """{"usernameOrEmail":"alice"}""" },
-        { "POST", "/api/v1/auth/login/mobile", """{"usernameOrEmail":null,"password":"SecurePass1!"}""" },
-        { "POST", "/api/v1/auth/login/mobile", """{"usernameOrEmail":"alice","password":null}""" },
-        { "POST", "/api/v1/auth/register", """{"username":"alice","email":"alice@example.com","password":"SecurePass1!"}""" },
-        { "POST", "/api/v1/auth/register", """{"username":"alice","email":null,"password":"SecurePass1!","inviteToken":"inv"}""" },
-        { "POST", "/api/v1/auth/refresh", "{}" },
-        { "POST", "/api/v1/auth/refresh", """{"refreshToken":null}""" },
-        { "POST", "/api/v1/auth/logout", "{}" },
-        { "POST", "/api/v1/users/me/password", """{"currentPassword":"OldPass1!"}""" },
-        { "POST", "/api/v1/users/me/password", """{"currentPassword":"OldPass1!","newPassword":null}""" },
-        { "POST", "/api/v1/users", """{"username":"alice"}""" },
-        { "POST", "/api/v1/users", """{"username":"alice","email":null}""" },
-        { "POST", $"/api/v1/users/{OtherId}/storage-configs", "{}" },
-        { "POST", $"/api/v1/users/{OtherId}/storage-configs", """{"rootPath":null}""" },
+        { "POST", "/api/v1/auth/login", /*lang=json,strict*/ """{"password":"SecurePass1!"}""" },
+        { "POST", "/api/v1/auth/login", /*lang=json,strict*/ """{"usernameOrEmail":"alice"}""" },
+        { "POST", "/api/v1/auth/login", /*lang=json,strict*/ """{"usernameOrEmail":null,"password":"SecurePass1!"}""" },
+        { "POST", "/api/v1/auth/login", /*lang=json,strict*/ """{"usernameOrEmail":"alice","password":null}""" },
+        { "POST", "/api/v1/auth/login/mobile", /*lang=json,strict*/ """{"password":"SecurePass1!"}""" },
+        { "POST", "/api/v1/auth/login/mobile", /*lang=json,strict*/ """{"usernameOrEmail":"alice"}""" },
+        { "POST", "/api/v1/auth/login/mobile", /*lang=json,strict*/ """{"usernameOrEmail":null,"password":"SecurePass1!"}""" },
+        { "POST", "/api/v1/auth/login/mobile", /*lang=json,strict*/ """{"usernameOrEmail":"alice","password":null}""" },
+        { "POST", "/api/v1/auth/register", /*lang=json,strict*/ """{"username":"alice","email":"alice@example.com","password":"SecurePass1!"}""" },
+        { "POST", "/api/v1/auth/register", /*lang=json,strict*/ """{"username":"alice","email":null,"password":"SecurePass1!","inviteToken":"inv"}""" },
+        { "POST", "/api/v1/auth/refresh", /*lang=json,strict*/ "{}" },
+        { "POST", "/api/v1/auth/refresh", /*lang=json,strict*/ """{"refreshToken":null}""" },
+        { "POST", "/api/v1/auth/logout", /*lang=json,strict*/ "{}" },
+        { "POST", "/api/v1/users/me/password", /*lang=json,strict*/ """{"currentPassword":"OldPass1!"}""" },
+        { "POST", "/api/v1/users/me/password", /*lang=json,strict*/ """{"currentPassword":"OldPass1!","newPassword":null}""" },
+        { "POST", "/api/v1/users", /*lang=json,strict*/ """{"username":"alice"}""" },
+        { "POST", "/api/v1/users", /*lang=json,strict*/ """{"username":"alice","email":null}""" },
+        { "POST", $"/api/v1/users/{OtherId}/storage-configs", /*lang=json,strict*/ "{}" },
+        { "POST", $"/api/v1/users/{OtherId}/storage-configs", /*lang=json,strict*/ """{"rootPath":null}""" },
     };
 
     [Theory]
@@ -101,7 +101,7 @@ public sealed class RequestBodyBindingTests
             .Returns(new InteractionState(Starred: true, Liked: false, Hidden: false));
         await using var app = await StartAsync();
 
-        using var response = await SendAsync(app, HttpMethod.Patch, $"/api/v1/assets/{OtherId}/interaction", """{"starred":true}""");
+        using var response = await SendAsync(app, HttpMethod.Patch, $"/api/v1/assets/{OtherId}/interaction", /*lang=json,strict*/ """{"starred":true}""");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await interactions.Received(1).ApplyAsync(CallerId, OtherId, new InteractionChange(true, null, null), Arg.Any<CancellationToken>());
@@ -112,15 +112,15 @@ public sealed class RequestBodyBindingTests
     {
         await using var app = await StartAsync();
 
-        using var response = await SendAsync(app, HttpMethod.Patch, $"/api/v1/users/{OtherId}", """{"isDisabled":true}""");
+        using var response = await SendAsync(app, HttpMethod.Patch, $"/api/v1/users/{OtherId}", /*lang=json,strict*/ """{"isDisabled":true}""");
 
         response.StatusCode.Should().NotBe(HttpStatusCode.BadRequest);
         await adminUsers.Received(1).UpdateAsync(CallerId, OtherId, null, true, Arg.Any<CancellationToken>());
     }
 
     [Theory]
-    [InlineData("""{"orphanIds":["00000000-0000-0000-0000-000000000001"]}""")]
-    [InlineData("""{"all":true}""")]
+    [InlineData(/*lang=json,strict*/ """{"orphanIds":["00000000-0000-0000-0000-000000000001"]}""")]
+    [InlineData(/*lang=json,strict*/ """{"all":true}""")]
     public async Task ProxyDeletions_EitherFieldAlone_IsAcceptedAsync(string json)
     {
         var sweepId = Guid.Parse("50000000-0000-0000-0000-000000000000");
