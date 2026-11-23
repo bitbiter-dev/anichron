@@ -37,7 +37,10 @@ export async function changePassword(
   expect(response.status(), await response.text()).toBe(200);
 }
 
-export async function createAccount(request: APIRequestContext): Promise<Account> {
+export async function createAccount(
+  request: APIRequestContext,
+  { photos = true, temporaryPassword: keepTemporary = false } = {},
+): Promise<Account> {
   const adminToken = await signIn(request, admin.username, admin.password);
   const username = `user-${randomUUID().slice(0, 8)}`;
   const created = await request.post('/api/v1/users', {
@@ -49,11 +52,14 @@ export async function createAccount(request: APIRequestContext): Promise<Account
     id: string;
     temporaryPassword: string;
   };
-  const storage = await request.post(`/api/v1/users/${id}/storage-configs`, {
-    headers: bearer(adminToken),
-    data: { rootPath: `/data/originals/${username}` },
-  });
-  expect(storage.status(), await storage.text()).toBe(201);
+  if (photos) {
+    const storage = await request.post(`/api/v1/users/${id}/storage-configs`, {
+      headers: bearer(adminToken),
+      data: { rootPath: `/data/originals/${username}` },
+    });
+    expect(storage.status(), await storage.text()).toBe(201);
+  }
+  if (keepTemporary) return { id, username, password: temporaryPassword };
   const password = `${username} passphrase`;
   const token = await signIn(request, username, temporaryPassword);
   await changePassword(request, token, temporaryPassword, password);

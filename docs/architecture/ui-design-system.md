@@ -60,7 +60,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - They are form-agnostic: `FormField` connects react-hook-form through `Controller` and passes `field.ref` as `inputRef`, and `FormStatus` takes plain values (a message key, `retryIn`).
 - States are `tv` variants named after React Aria's render props. A state that only interaction reaches gets an exported style function, so the design page can show it.
 - A caller's `className` goes on the outer element.
-- Toasts: the screen that shows them owns a queue (`src/shared/toasts.ts`) and renders its region (`Toast.tsx`). A toast is announced politely and lasts a few seconds.
+- Toasts (`src/shared/toasts.ts`, `Toast.tsx`): one region per layer, because a full-screen modal makes everything outside it inert. The shell's queue is `toasts` in the router context, rendered by `Shell`, so a toast outlives a navigation; a full-screen modal (the story) owns its own. A toast is announced politely and lasts a few seconds.
 - Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out.
 - Cards (`Card.tsx`): the glass panel, padded or, for rows, unpadded. `CentredPage.tsx` puts one, with a title and body, over the glow backdrop.
 - Form status (`FormStatus.tsx`): a form's alert and its retry countdown.

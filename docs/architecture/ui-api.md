@@ -30,7 +30,8 @@ How the UI (`src/Anichron.UI`) calls the API.
 - A change of user, signing out included, in this tab or from another, clears the query cache (`createAppRouter`), and `SignedIn` remounts its views per user, so the next user never sees the previous one's data.
 - `session.user()` is synchronous and stable between changes. Views read it through `useUser()` (`src/shared/use-user.ts`).
 - Signed in means a user is held. The `signed-in` route's `beforeLoad` puts it in the route context, so a guard below it reads `context.user`; the login route calls `isSignedIn()`.
-- A user without a storage config (`hasStorageConfig`) gets no flashback request: the home screen shows only its frame and the notice (`src/app/use-home.ts`), and the day route redirects to `/`.
+- A user without photos (`hasPhotos` in `src/features/on-this-day/day.ts`) gets no flashback request: Today shows the no-photos message in place of the memories, and the day route redirects to `/`.
+- A user in a forced password change (`mustChangePassword`) reaches no shell route: the `shell` route's `beforeLoad` redirects to `/change-password`, carrying the address in `redirect`. Once the flag is clear, that route redirects to `returnPath`. The API enforces the rule on its own.
 
 ## Failures
 
