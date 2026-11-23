@@ -16,6 +16,7 @@ internal static class ApiTestHost
         builder.Services.AddHealthChecks();
         builder.Services.AddSingleton(Substitute.For<IAuthService>());
         builder.Services.AddSingleton(Substitute.For<ISessionResponseMapper>());
+        builder.Services.AddSingleton(Substitute.For<IUserProfiles>());
         builder.Services.AddSingleton(Substitute.For<IAdminResponseMapper>());
         builder.Services.AddSingleton(Substitute.For<IAdminResetService>());
         builder.Services.AddSingleton(Substitute.For<IAdminUserService>());

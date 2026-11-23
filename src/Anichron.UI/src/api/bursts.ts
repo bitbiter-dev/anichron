@@ -1,6 +1,6 @@
 import type { Client } from 'openapi-fetch';
-import { type Memory, memoryOf } from './flashbacks';
 import type { paths } from './generated/v1';
+import type { Memory, ShowMemories } from './memories';
 import type { Authorized } from './session';
 
 export interface Bursts {
@@ -10,7 +10,7 @@ export interface Bursts {
 export function createBursts(
   client: Client<paths>,
   authorized: Authorized,
-  compact: Promise<boolean>,
+  show: ShowMemories,
 ): Bursts {
   return {
     async frames(id) {
@@ -20,8 +20,7 @@ export function createBursts(
           params: { path: { burstId: id } },
         }),
       );
-      const shown = await compact;
-      return frames.map((frame) => memoryOf(frame, shown));
+      return show((memoryOf) => frames.map(memoryOf));
     },
   };
 }

@@ -17,7 +17,7 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 
 - A row keeps its `Id` when its content changes, so every proxy URL carries the content hash: `proxies/{assetId}/{type}?v={hash}` (`ProxyKinds.UrlOf`).
 - Only a request whose `v` is the current hash is cached `immutable`. A stale or missing `v` gets the current file with `no-cache`, never a `404`.
-- `compactPreview` is null until the Worker has made one. The client shows it instead of `preview` only on a small screen that decodes JPEG XL, decided once per session (`api/display.ts`), and maps it into `preview` in `memoryOf`, so prefetch and every screen read one URL.
+- `compactPreview` is null until the Worker has made one. The client shows it instead of `preview` only on a small screen that decodes JPEG XL, decided once per session (`api/display.ts`), and maps it into `preview` in `memoryOf` (`api/memories.ts`), so prefetch and every screen read one URL.
 - The proxy route also accepts the `media_token` cookie (ADR 0013). `ProxyEndpoints` owns that scheme, privately, so no other route can accept the cookie.
 
 ## Interaction rules

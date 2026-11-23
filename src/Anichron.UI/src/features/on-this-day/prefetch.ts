@@ -1,4 +1,4 @@
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import type { Downloads, Wanted } from '../../api/media';
 import { kindOf } from '../../shared/memory-kinds';
 import { kindInStory, type Place, type StoryState } from './story';

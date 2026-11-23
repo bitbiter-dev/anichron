@@ -1,6 +1,7 @@
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import type { Memory, YearGroup } from '../../api/flashbacks';
+import type { YearGroup } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import { framesShown } from './burst';
 import { framesOf, previewOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import { Failed } from '../../shared/ui/Failed';
 import { Frames } from '../../shared/ui/Frames';
 import { MemoryImage } from '../../shared/ui/MemoryImage';
