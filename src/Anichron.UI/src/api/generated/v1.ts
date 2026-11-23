@@ -2534,13 +2534,13 @@ export interface components {
             years: components["schemas"]["FlashbackYearDto"][];
         };
         PatchAdminUserRequest: {
-            isAdmin: null | boolean;
-            isDisabled: null | boolean;
+            isAdmin?: null | boolean;
+            isDisabled?: null | boolean;
         };
         PatchInteractionRequest: {
-            starred: null | boolean;
-            liked: null | boolean;
-            hidden: null | boolean;
+            starred?: null | boolean;
+            liked?: null | boolean;
+            hidden?: null | boolean;
         };
         ProblemDetails: {
             type?: null | string;
@@ -2553,7 +2553,8 @@ export interface components {
         };
         ProxyDeletionOutcome: number;
         ProxyDeletionRequest: {
-            orphanIds: null | string[];
+            orphanIds?: null | string[];
+            /** @default false */
             all: boolean;
         };
         ProxyDeletionsRequestedDto: {
