@@ -5,10 +5,10 @@ import { createAccount, fillInSignIn } from './accounts';
 const toast = 'Password changed.';
 
 async function submitPasswordChange(page: Page, current: string, next: string) {
-  await page.getByLabel('Current password').fill(current);
-  await page.getByLabel('New password').fill(next);
-  await page.getByLabel('Confirm new password').fill(next);
-  await page.getByRole('button', { name: 'Change password' }).click();
+  await page.getByLabel('Current password', { exact: true }).fill(current);
+  await page.getByLabel('New password', { exact: true }).fill(next);
+  await page.getByLabel('Confirm new password', { exact: true }).fill(next);
+  await page.getByRole('button', { name: 'Change password', exact: true }).click();
 }
 
 test('a temporary password is changed first, then the requested page opens', async ({
@@ -40,7 +40,7 @@ test('a password changed from settings goes home with a toast', async ({ page, r
   await expect(page.getByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Settings' }).click();
-  await page.getByRole('link', { name: 'Change password' }).click();
+  await page.getByRole('link', { name: 'Change password', exact: true }).click();
   await submitPasswordChange(page, account.password, `${account.username} new passphrase`);
 
   await expect(page.getByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
