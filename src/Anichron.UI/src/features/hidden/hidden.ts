@@ -1,7 +1,7 @@
 import { infiniteQueryOptions } from '@tanstack/react-query';
 import type { ParseKeys } from 'i18next';
 import type { ApiClient } from '../../api/client';
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import type { HiddenMemory, HiddenPage } from '../../api/hidden';
 import { failureMessage } from '../../shared/failure';
 import { kindOf, memoryKind } from '../../shared/memory-kinds';

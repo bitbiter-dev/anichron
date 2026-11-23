@@ -3,7 +3,7 @@ import { encode } from 'blurhash';
 import { http, HttpResponse } from 'msw';
 import { act } from 'react';
 import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import { axeResults } from '../../test/axe';
 import { interactionAnswers, type Interacted } from '../../test/handlers/assets';
 import {

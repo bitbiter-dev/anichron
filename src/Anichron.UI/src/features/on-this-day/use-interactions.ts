@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { Change, Flag } from '../../api/assets';
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import { createToasts } from '../../shared/toasts';
 import { otherFrames } from './burst';
 import { burstQuery, interactionMutation } from './day';

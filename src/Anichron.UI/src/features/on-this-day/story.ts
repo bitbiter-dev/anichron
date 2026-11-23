@@ -165,7 +165,7 @@ export function createStory(
       memory,
       visit,
       kind,
-      load: memoryKind(kind).firstLoad(() => decoded({ group, memory })),
+      load: memoryKind(kind).firstLoad(decoded({ group, memory })),
       shown: shown(group),
       playId: visit,
       play: still(),

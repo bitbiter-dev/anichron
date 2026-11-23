@@ -1,6 +1,6 @@
 import type { Client } from 'openapi-fetch';
-import { type Memory, memoryOf } from './flashbacks';
 import type { paths } from './generated/v1';
+import type { Memory, ShowMemories } from './memories';
 import type { Authorized } from './session';
 
 export interface HiddenMemory {
@@ -20,7 +20,7 @@ export interface Hidden {
 export function createHidden(
   client: Client<paths>,
   authorized: Authorized,
-  compact: Promise<boolean>,
+  show: ShowMemories,
 ): Hidden {
   return {
     async page(after, signal) {
@@ -31,14 +31,10 @@ export function createHidden(
           params: { query: { after: after ?? undefined } },
         }),
       );
-      const shown = await compact;
-      return {
-        items: page.items.map(({ asset, hiddenAt }) => ({
-          memory: memoryOf(asset, shown),
-          hiddenAt,
-        })),
+      return show((memoryOf) => ({
+        items: page.items.map(({ asset, hiddenAt }) => ({ memory: memoryOf(asset), hiddenAt })),
         next: page.next,
-      };
+      }));
     },
   };
 }

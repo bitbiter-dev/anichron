@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Memory } from '../api/flashbacks';
+import type { Memory } from '../api/memories';
 import { blurhashOf } from './blurhash';
 
 export function useBlurhash(memory: Memory) {

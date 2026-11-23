@@ -6,34 +6,37 @@ namespace Anichron.API.Endpoints;
 
 public interface ISessionResponseMapper
 {
-    IResult GetRegistrationResult(ServiceResult<AuthTokens, IRegisterError> result, HttpContext http);
-    IResult GetLoginResult(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie);
-    IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http);
-    IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http);
+    Task<IResult> GetRegistrationResultAsync(ServiceResult<AuthTokens, IRegisterError> result, HttpContext http);
+    Task<IResult> GetLoginResultAsync(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie);
+    Task<IResult> GetRefreshResultAsync(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http);
+    Task<IResult> GetChangePasswordResultAsync(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http);
     void ClearSessionCookies(HttpContext http);
 }
 
 public sealed class SessionResponseMapper(
     AuthCookieSettings cookieSettings,
     IClock clock,
+    IUserProfiles profiles,
     IOptions<UsernamePolicy> usernamePolicy,
     IOptions<PasswordPolicy> passwordPolicy) : ISessionResponseMapper
 {
     private readonly ServiceProblems problems = new(usernamePolicy.Value, passwordPolicy.Value, ServiceProblems.Fields.Password);
     private readonly ServiceProblems changePasswordProblems = new(usernamePolicy.Value, passwordPolicy.Value, ServiceProblems.Fields.NewPassword);
 
-    public IResult GetRegistrationResult(ServiceResult<AuthTokens, IRegisterError> result, HttpContext http)
-        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie: true), error => error.Accept(problems));
+    public Task<IResult> GetRegistrationResultAsync(ServiceResult<AuthTokens, IRegisterError> result, HttpContext http)
+        => result.Match(tokens => BuildSessionResponseAsync(tokens, http, setCookie: true), error => Task.FromResult(error.Accept(problems)));
 
-    public IResult GetLoginResult(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie)
-        => result.Match(tokens => BuildSessionResponse(tokens, http, setCookie), error => error.Accept(problems));
+    public Task<IResult> GetLoginResultAsync(ServiceResult<AuthTokens, ILoginError> result, HttpContext http, bool setCookie)
+        => result.Match(tokens => BuildSessionResponseAsync(tokens, http, setCookie), error => Task.FromResult(error.Accept(problems)));
 
-    public IResult GetRefreshResult(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http)
-        => result.Match(tokens => BuildSessionResponse(tokens, http, CameWithRefreshCookie(http)), error => error.Accept(problems));
-
-    public IResult GetChangePasswordResult(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http)
+    public Task<IResult> GetRefreshResultAsync(ServiceResult<AuthTokens, IRefreshError> result, HttpContext http)
         => result.Match(
-            tokens => BuildSessionResponse(tokens, http, CameWithRefreshCookie(http)), error => error.Accept(changePasswordProblems));
+            tokens => BuildSessionResponseAsync(tokens, http, CameWithRefreshCookie(http)), error => Task.FromResult(error.Accept(problems)));
+
+    public Task<IResult> GetChangePasswordResultAsync(ServiceResult<AuthTokens, IChangePasswordError> result, HttpContext http)
+        => result.Match(
+            tokens => BuildSessionResponseAsync(tokens, http, CameWithRefreshCookie(http)),
+            error => Task.FromResult(error.Accept(changePasswordProblems)));
 
     public void ClearSessionCookies(HttpContext http)
     {
@@ -44,9 +47,9 @@ public sealed class SessionResponseMapper(
     private static bool CameWithRefreshCookie(HttpContext http)
         => http.Request.Cookies.ContainsKey(AuthEndpoints.RefreshTokenCookieName);
 
-    private IResult BuildSessionResponse(AuthTokens tokens, HttpContext http, bool setCookie)
+    private async Task<IResult> BuildSessionResponseAsync(AuthTokens tokens, HttpContext http, bool setCookie)
     {
-        var user = UserProfileResponse.From(tokens.User, tokens.HasStorageConfig);
+        var user = await profiles.OfAsync(tokens.User, http.RequestAborted);
         var expiresIn = (int)tokens.AccessTokenLifetime.TotalSeconds;
         if (!setCookie)
             return Results.Ok(new SessionResponse(tokens.AccessToken, expiresIn, user, tokens.RefreshToken));

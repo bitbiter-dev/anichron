@@ -30,7 +30,7 @@ public sealed class UserEndpointsTests
         var repository = Substitute.For<IUserRepository>();
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithoutNameIdentifier(), repository, Substitute.For<IUserStorageConfigRepository>(), CancellationToken.None);
+            PrincipalWithoutNameIdentifier(), repository, new UserProfiles(Substitute.For<IUserStorageConfigRepository>()), CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>();
         await repository.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -42,7 +42,7 @@ public sealed class UserEndpointsTests
         var repository = Substitute.For<IUserRepository>();
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithClaim("not-a-guid"), repository, Substitute.For<IUserStorageConfigRepository>(), CancellationToken.None);
+            PrincipalWithClaim("not-a-guid"), repository, new UserProfiles(Substitute.For<IUserStorageConfigRepository>()), CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>();
         await repository.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -72,7 +72,7 @@ public sealed class UserEndpointsTests
         storageConfigs.AnyActiveByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(hasStorageConfig);
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithGuid(userId), repository, storageConfigs, CancellationToken.None);
+            PrincipalWithGuid(userId), repository, new UserProfiles(storageConfigs), CancellationToken.None);
 
         var ok = result.Should()
             .BeOfType<Microsoft.AspNetCore.Http.HttpResults.Ok<UserProfileResponse>>().Subject;
@@ -91,7 +91,7 @@ public sealed class UserEndpointsTests
         repository.FindByIdAsync(userId, Arg.Any<CancellationToken>()).Returns((User?)null);
 
         var result = await UserEndpoints.GetMeAsync(
-            PrincipalWithGuid(userId), repository, Substitute.For<IUserStorageConfigRepository>(), CancellationToken.None);
+            PrincipalWithGuid(userId), repository, new UserProfiles(Substitute.For<IUserStorageConfigRepository>()), CancellationToken.None);
 
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.NotFound>();
     }
@@ -141,8 +141,8 @@ public sealed class UserEndpointsTests
         var authService = Substitute.For<IAuthService>();
         var mapper = Substitute.For<ISessionResponseMapper>();
         authService.ChangePasswordAsync(userId, ValidRequest.CurrentPassword, ValidRequest.NewPassword, Arg.Any<CancellationToken>())
-            .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User(), false));
-        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>())
+            .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
+        mapper.GetChangePasswordResultAsync(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>())
             .Returns(Results.NoContent());
 
         await UserEndpoints.ChangePasswordAsync(
@@ -161,8 +161,8 @@ public sealed class UserEndpointsTests
         var mapper = Substitute.For<ISessionResponseMapper>();
         var expectedResult = Results.NoContent();
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User(), false));
-        mapper.GetChangePasswordResult(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>())
+            .Returns(new AuthTokens("access", "refresh", TimeSpan.FromMinutes(15), new User()));
+        mapper.GetChangePasswordResultAsync(Arg.Any<ServiceResult<AuthTokens, IChangePasswordError>>(), Arg.Any<HttpContext>())
             .Returns(expectedResult);
 
         var result = await UserEndpoints.ChangePasswordAsync(
@@ -186,7 +186,7 @@ public sealed class UserEndpointsTests
         var expectedResult = Results.Problem(statusCode: 400);
         authService.ChangePasswordAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(failureResult);
-        mapper.GetChangePasswordResult(failureResult, Arg.Any<HttpContext>())
+        mapper.GetChangePasswordResultAsync(failureResult, Arg.Any<HttpContext>())
             .Returns(expectedResult);
 
         var result = await UserEndpoints.ChangePasswordAsync(
@@ -194,6 +194,6 @@ public sealed class UserEndpointsTests
             CancellationToken.None);
 
         result.Should().BeSameAs(expectedResult);
-        mapper.Received(1).GetChangePasswordResult(failureResult, Arg.Any<HttpContext>());
+        await mapper.Received(1).GetChangePasswordResultAsync(failureResult, Arg.Any<HttpContext>());
     }
 }

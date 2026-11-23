@@ -1,6 +1,7 @@
 using Anichron.API.Endpoints;
 using Anichron.API.Services;
 using Anichron.API.Settings;
+using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
@@ -26,8 +27,10 @@ public sealed class SessionResponseMapperTests
             _cookieSettings = new() { SameSite = sameSite, AccessTokenMinutes = 15, RefreshTokenDays = 7 };
         }
 
+        public IUserStorageConfigRepository StorageConfigs { get; } = Substitute.For<IUserStorageConfigRepository>();
+
         public SessionResponseMapper CreateTestee()
-            => new(_cookieSettings, _clock, Options.Create(new UsernamePolicy()), Options.Create(_passwordPolicy));
+            => new(_cookieSettings, _clock, new UserProfiles(StorageConfigs), Options.Create(new UsernamePolicy()), Options.Create(_passwordPolicy));
     }
 
     private static DefaultHttpContext NewHttp(bool withRefreshCookie = false)
@@ -64,8 +67,8 @@ public sealed class SessionResponseMapperTests
         var http = NewHttp();
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetRegistrationResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false),
+        var result = await testee.GetRegistrationResultAsync(
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()),
             http);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
@@ -90,8 +93,8 @@ public sealed class SessionResponseMapperTests
         var http = NewHttp();
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetLoginResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http, setCookie: true);
+        var result = await testee.GetLoginResultAsync(
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: true);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
         var setCookie = http.Response.Headers.SetCookie.ToString();
@@ -111,8 +114,8 @@ public sealed class SessionResponseMapperTests
         var http = NewHttp();
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetLoginResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http, setCookie: false);
+        var result = await testee.GetLoginResultAsync(
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http, setCookie: false);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -135,8 +138,8 @@ public sealed class SessionResponseMapperTests
         var http = NewHttp(withRefreshCookie: true);
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetRefreshResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http);
+        var result = await testee.GetRefreshResultAsync(
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http);
         await result.ExecuteAsync(http);
 
         Assert.Multiple(() =>
@@ -152,8 +155,8 @@ public sealed class SessionResponseMapperTests
         var http = NewHttp();
         var testee = new TestFixture().CreateTestee();
 
-        var result = testee.GetRefreshResult(
-            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), false), http);
+        var result = await testee.GetRefreshResultAsync(
+            new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User()), http);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -178,18 +181,19 @@ public sealed class SessionResponseMapperTests
         { "change-password", SameSiteMode.Strict, "strict" },
     };
 
-    private static IResult SignIn(
-        SessionResponseMapper testee, string kind, bool setCookie, out HttpContext http, bool hasStorageConfig = false)
+    private static async Task<HttpContext> SignInAsync(SessionResponseMapper testee, string kind, bool setCookie, User? user = null)
     {
-        var tokens = new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), new User(), hasStorageConfig);
-        http = NewHttp(withRefreshCookie: setCookie);
-        return kind switch
+        var tokens = new AuthTokens("acc_token", "ref_token", TimeSpan.FromMinutes(15), user ?? new User());
+        var http = NewHttp(withRefreshCookie: setCookie);
+        var result = kind switch
         {
-            "register" => testee.GetRegistrationResult(tokens, http),
-            "login" => testee.GetLoginResult(tokens, http, setCookie),
-            "change-password" => testee.GetChangePasswordResult(tokens, http),
-            _ => testee.GetRefreshResult(tokens, http),
+            "register" => await testee.GetRegistrationResultAsync(tokens, http),
+            "login" => await testee.GetLoginResultAsync(tokens, http, setCookie),
+            "change-password" => await testee.GetChangePasswordResultAsync(tokens, http),
+            _ => await testee.GetRefreshResultAsync(tokens, http),
         };
+        await result.ExecuteAsync(http);
+        return http;
     }
 
     [Theory]
@@ -199,7 +203,7 @@ public sealed class SessionResponseMapperTests
     {
         var testee = new TestFixture(sameSite).CreateTestee();
 
-        await SignIn(testee, kind, setCookie: true, out var http).ExecuteAsync(http);
+        var http = await SignInAsync(testee, kind, setCookie: true);
 
         SetCookiesNamed(http, "media_token").Should().Equal(
             $"media_token=acc_token; expires=Thu, 01 Jan 2026 12:15:00 GMT; path=/api/v1/proxies; secure; samesite={expectedSameSite}; httponly");
@@ -213,7 +217,7 @@ public sealed class SessionResponseMapperTests
     {
         var testee = new TestFixture().CreateTestee();
 
-        await SignIn(testee, kind, setCookie: false, out var http).ExecuteAsync(http);
+        var http = await SignInAsync(testee, kind, setCookie: false);
 
         http.Response.Headers.SetCookie.Should().BeEmpty();
     }
@@ -238,12 +242,25 @@ public sealed class SessionResponseMapperTests
     [MemberData(nameof(SignInsWithAndWithoutAStorageConfig))]
     public async Task SignIn_SaysInTheUserProfileWhetherTheUserHasAStorageConfig(string kind, bool hasStorageConfig)
     {
-        var testee = new TestFixture().CreateTestee();
+        var user = new User { Id = Guid.Parse("33333333-3333-3333-3333-333333333333") };
+        var fixture = new TestFixture();
+        fixture.StorageConfigs.AnyActiveByUserIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(hasStorageConfig);
 
-        await SignIn(testee, kind, setCookie: true, out var http, hasStorageConfig).ExecuteAsync(http);
+        var http = await SignInAsync(fixture.CreateTestee(), kind, setCookie: true, user);
         var body = await ReadBodyAsync(http.Response);
 
         body.Should().Contain($"\"hasStorageConfig\":{(hasStorageConfig ? "true" : "false")}");
+        await fixture.StorageConfigs.Received(1).AnyActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RefusedSignIn_AsksNothingAboutStorageConfigs()
+    {
+        var fixture = new TestFixture();
+
+        await fixture.CreateTestee().GetLoginResultAsync(new InvalidCredentials(), NewHttp(), setCookie: true);
+
+        await fixture.StorageConfigs.DidNotReceive().AnyActiveByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================
@@ -286,7 +303,7 @@ public sealed class SessionResponseMapperTests
         var policy = new PasswordPolicy { MinLength = 16 };
         var testee = new TestFixture(passwordPolicy: policy).CreateTestee();
 
-        var result = testee.GetChangePasswordResult(new PasswordTooShort(), http);
+        var result = await testee.GetChangePasswordResultAsync(new PasswordTooShort(), http);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
@@ -304,7 +321,7 @@ public sealed class SessionResponseMapperTests
         var policy = new PasswordPolicy { MaxLength = 64 };
         var testee = new TestFixture(passwordPolicy: policy).CreateTestee();
 
-        var result = testee.GetChangePasswordResult(new PasswordTooLong(), http);
+        var result = await testee.GetChangePasswordResultAsync(new PasswordTooLong(), http);
         await result.ExecuteAsync(http);
         var body = await ReadBodyAsync(http.Response);
 
