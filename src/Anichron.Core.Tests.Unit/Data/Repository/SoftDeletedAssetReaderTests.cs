@@ -241,6 +241,17 @@ public sealed class SoftDeletedAssetReaderTests
     }
 
     [Fact]
+    public async Task ReadPageAsync_LivePhotoWhoseVideoHasNoWebVideo_HasNoPairedVideo()
+    {
+        var library = new Library();
+        library.LivePhoto(library.Asset(type: MediaType.Video, proxyTypes: [ProxyType.Thumbnail]));
+
+        var page = await ReadPageAsync(library);
+
+        page.Items.Should().ContainSingle().Which.PairedMovHasVideo.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ReadPageAsync_SoftDeletedVideoOfAnActivePhoto_IsLeftOut()
     {
         var library = new Library();
