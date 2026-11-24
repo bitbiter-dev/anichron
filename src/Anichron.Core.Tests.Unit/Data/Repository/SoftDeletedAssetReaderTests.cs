@@ -168,6 +168,23 @@ public sealed class SoftDeletedAssetReaderTests
     }
 
     [Fact]
+    public async Task ReadPageAsync_PhotoWithAPreview_HasItsPreviewButNoCompactPreview()
+    {
+        var library = new Library();
+        library.Asset(proxyTypes: [ProxyType.Thumbnail, ProxyType.FullPreview]);
+
+        var page = await ReadPageAsync(library);
+
+        page.Items.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            HasThumbnail = true,
+            HasPreview = true,
+            HasCompactPreview = false,
+            HasVideo = false,
+        });
+    }
+
+    [Fact]
     public async Task ReadPageAsync_UndatedAsset_IsListedWithoutADate()
     {
         var library = new Library();
@@ -194,7 +211,7 @@ public sealed class SoftDeletedAssetReaderTests
     public async Task ReadPageAsync_SoftDeletedLivePhoto_IsOneItemWithItsVideo()
     {
         var library = new Library();
-        var video = library.Asset(type: MediaType.Video, proxyTypes: [ProxyType.WebVideo]);
+        var video = library.Asset(type: MediaType.Video, proxyTypes: [ProxyType.Thumbnail, ProxyType.WebVideo]);
         var photo = library.LivePhoto(video);
 
         var page = await ReadPageAsync(library);

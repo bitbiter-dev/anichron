@@ -151,10 +151,16 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     public void PublishedMediaType_IsItsNames()
         => EnumNames("PublishedMediaType").Should().Equal("Image", "Video", "LivePhoto");
 
+    [Fact]
+    public void SoftDeleteReason_IsItsNames()
+        => EnumNames("SoftDeleteReason").Should().Equal("Missing", "Overwritten", "Superseded");
+
     [Theory]
     [InlineData("WorkItemDto", "kind", "WorkKind")]
     [InlineData("WorkItemDto", "status", "WorkItemStatus")]
     [InlineData("AssetDto", "mediaType", "PublishedMediaType")]
+    [InlineData("SoftDeletedAssetDto", "mediaType", "PublishedMediaType")]
+    [InlineData("SoftDeletedAssetDto", "reason", "SoftDeleteReason")]
     public void Dto_NamesItsEnums(string dto, string property, string schema)
         => composed.Value.Components!.Schemas![dto].Properties!.Should().ContainKey(property)
             .WhoseValue.Should().BeOfType<OpenApiSchemaReference>().Which.Reference.Id.Should().Be(schema);
