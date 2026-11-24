@@ -27,6 +27,7 @@ public sealed class BurstRepositoryTests(PostgresServer server)
             ContentHash = name,
             MediaType = MediaType.Image,
             IsSoftDeleted = softDeleted,
+            SoftDeleteReason = softDeleted ? SoftDeleteReason.Missing : null,
         };
 
         await using var db = PostgresServer.Context(connectionString);

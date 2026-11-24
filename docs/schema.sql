@@ -166,8 +166,10 @@ CREATE TABLE "MediaAssets" (
     "Year" integer,
     "MediaType" text NOT NULL,
     "IsSoftDeleted" boolean NOT NULL,
+    "SoftDeleteReason" text,
     "LastSeenOnNas" timestamp with time zone NOT NULL,
     CONSTRAINT "PK_MediaAssets" PRIMARY KEY ("Id"),
+    CONSTRAINT "CK_MediaAssets_SoftDeleteReason" CHECK ("IsSoftDeleted" = ("SoftDeleteReason" IS NOT NULL)),
     CONSTRAINT "FK_MediaAssets_Bursts_BurstId" FOREIGN KEY ("BurstId") REFERENCES "Bursts" ("Id") ON DELETE SET NULL,
     CONSTRAINT "FK_MediaAssets_MediaAssets_PairedAssetId" FOREIGN KEY ("PairedAssetId") REFERENCES "MediaAssets" ("Id") ON DELETE SET NULL,
     CONSTRAINT "FK_MediaAssets_StorageConfigs_StorageConfigId" FOREIGN KEY ("StorageConfigId") REFERENCES "StorageConfigs" ("Id") ON DELETE CASCADE
@@ -183,7 +185,8 @@ COMMENT ON COLUMN "MediaAssets"."CaptureSource" IS 'Which kind of source DateCap
 COMMENT ON COLUMN "MediaAssets"."CaptureZone" IS 'IANA time zone at the asset''s position when it was ingested, looked up offline; NULL without a position. Never changes DateCaptured or CaptureOffset.';
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';
 COMMENT ON COLUMN "MediaAssets"."Day" IS 'See Month — the pair backs IX_MediaAsset_Flashback.';
-COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore).';
+COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, when its path now holds content stored at another path, or when its Live Photo''s photo lets go of it. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore). SoftDeleteReason says which.';
+COMMENT ON COLUMN "MediaAssets"."SoftDeleteReason" IS 'Why the row is soft-deleted: Missing, Overwritten or Superseded. Set with IsSoftDeleted and cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of soft-deleted assets.';
 
 
 CREATE TABLE "Interactions" (

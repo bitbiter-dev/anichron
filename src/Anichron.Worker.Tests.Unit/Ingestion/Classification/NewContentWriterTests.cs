@@ -507,7 +507,7 @@ public sealed class NewContentWriterTests
         fx.UnitOfWork.ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
             .Returns(call => call.Arg<Func<Task>>()());
         var holder = new MediaAsset { Id = Guid.NewGuid(), ContentHash = "cafebabe", ProxyFiles = [new ProxyFile { ProxyType = ProxyType.WebVideo }] };
-        var moved = new MediaAsset { Id = Guid.NewGuid() };
+        var moved = new MediaAsset { Id = Guid.NewGuid(), IsSoftDeleted = true, SoftDeleteReason = SoftDeleteReason.Missing };
         var context = MakeContext(item: new LivePhotoPairItem("/abs/photo.heic", "photo.heic", "/abs/photo.mov", "photo.mov"));
         context.Classification = context.Classification! with
         {
@@ -519,7 +519,7 @@ public sealed class NewContentWriterTests
         asset!.PairedAssetId.Should().Be(holder.Id);
         holder.DateCaptured.Should().Be(new LocalDateTime(2023, 6, 15, 10, 0));
         await fx.Repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { moved.Id })), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { moved.Id })), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
     }
 
     [Fact]

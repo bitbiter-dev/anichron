@@ -235,6 +235,7 @@ public sealed class PairedMovResolverTests
         var mov = await fx.PairAsync(photo, videoStored ? Row(VideoId, "A.mov") : null);
 
         (photo.PairedAssetId, letGo.IsSoftDeleted, fx.Context!.StagedSoftDeleted).Should().Be((mov.Id, true, 1));
+        letGo.SoftDeleteReason.Should().Be(SoftDeleteReason.Superseded);
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().BeEquivalentTo(new
         {
             Level = LogLevel.Information,
