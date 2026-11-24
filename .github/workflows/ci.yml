@@ -350,8 +350,9 @@ jobs:
           overwrite: true
           retention-days: 30
 
-  # The API image built from this PR, started with PostgreSQL and no Worker,
-  # in WebKit, Chromium and Firefox (src/Anichron.UI/e2e).
+  # The API and Worker images built from this PR, started with PostgreSQL and
+  # the made-up media library, in WebKit, Chromium and Firefox
+  # (src/Anichron.UI/e2e).
   e2e:
     name: E2E
     needs: changes
@@ -361,6 +362,7 @@ jobs:
       contents: read
     env:
       E2E_API_IMAGE: anichron-api:e2e
+      E2E_WORKER_IMAGE: anichron-worker:e2e
     steps:
       - uses: actions/checkout@v7
 
@@ -380,7 +382,21 @@ jobs:
           cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/anichron-api:edge
           provenance: false
 
-      - name: Start the API and PostgreSQL
+      - name: Build the Worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: src
+          file: src/Anichron.Worker/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.E2E_WORKER_IMAGE }}
+          cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/anichron-worker:edge
+          provenance: false
+          secrets: |
+            sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}
+
+      - name: Start the stack
         run: docker compose -f src/docker-compose.e2e.yml up --detach --wait
 
       - uses: pnpm/setup@v3
@@ -405,7 +421,7 @@ jobs:
           path: src/Anichron.UI/test-results/look-*/login-*.png
           retention-days: 14
 
-      - name: API logs
+      - name: Stack logs
         if: failure()
         run: docker compose -f src/docker-compose.e2e.yml logs
 
