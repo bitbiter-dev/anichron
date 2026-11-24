@@ -29,7 +29,7 @@ internal sealed partial class MetadataExtractionMiddleware(
             return Extract(
                 directories,
                 mediaType == MediaType.Video ? AppleCreationDateOf(stream, absolutePath) : null,
-                Frames.IsHeif(directories) ? HeifTransformsOf(stream) : [],
+                Frames.IsHeif(directories) ? HeifTransformsOf(stream, absolutePath) : [],
                 mediaType);
         }
         catch (Exception ex) when (BrokenFile.Rejected(ex))
@@ -58,10 +58,18 @@ internal sealed partial class MetadataExtractionMiddleware(
         }
     }
 
-    private static IReadOnlyList<int> HeifTransformsOf(Stream stream)
+    private IReadOnlyList<int> HeifTransformsOf(Stream stream, string absolutePath)
     {
-        stream.Position = 0;
-        return HeifTransforms.Read(stream);
+        try
+        {
+            stream.Position = 0;
+            return HeifTransforms.Read(stream);
+        }
+        catch (Exception ex)
+        {
+            Log.HeifTransformsUnreadable(logger, absolutePath, ex);
+            return [];
+        }
     }
 
     internal ExtractedMedia Extract(
@@ -96,5 +104,8 @@ internal sealed partial class MetadataExtractionMiddleware(
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to read the Apple creation date of {Path}; the video is dated by its other sources.")]
         public static partial void AppleCreationDateUnreadable(ILogger logger, string path, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to read the HEIF transforms of {Path}; the photo is stored upright.")]
+        public static partial void HeifTransformsUnreadable(ILogger logger, string path, Exception exception);
     }
 }

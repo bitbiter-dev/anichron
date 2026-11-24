@@ -6,7 +6,9 @@ public static class ExifOrientation
     public const int FlipLeftRight = 2;
     public const int RotateHalfTurn = 3;
     public const int FlipTopBottom = 4;
+    public const int Transpose = 5;
     public const int RotateClockwise = 6;
+    public const int Transverse = 7;
     public const int RotateAnticlockwise = 8;
     public const int Max = 8;
 
@@ -34,14 +36,18 @@ public static class ExifOrientation
     /// <param name="steps">EXIF orientation values, 1-8, in the order they are applied.</param>
     public static int Compose(IEnumerable<int> steps) => steps.Aggregate(Upright, Then);
 
-    // Index = 4 × (flipped left-right first) + clockwise quarter turns after it.
-    private static ReadOnlySpan<int> ByFlipAndTurns => [Upright, RotateClockwise, RotateHalfTurn, RotateAnticlockwise, FlipLeftRight, 7, FlipTopBottom, 5];
+    private const int flipped = 4;
+    private const int turnsMask = 3;
+
+    // Index: flipped (left-right, applied first) plus the clockwise quarter turns after it.
+    private static ReadOnlySpan<int> ByFlipAndTurns
+        => [Upright, RotateClockwise, RotateHalfTurn, RotateAnticlockwise, FlipLeftRight, Transverse, FlipTopBottom, Transpose];
 
     private static int Then(int first, int second)
     {
-        var a = ByFlipAndTurns.IndexOf(first);
-        var b = ByFlipAndTurns.IndexOf(second);
-        var turns = b < 4 ? b + a : b - a;
-        return ByFlipAndTurns[((a ^ b) & 4) | (turns & 3)];
+        var before = ByFlipAndTurns.IndexOf(first);
+        var after = ByFlipAndTurns.IndexOf(second);
+        var turns = (after & flipped) == 0 ? after + before : after - before;
+        return ByFlipAndTurns[((before ^ after) & flipped) | (turns & turnsMask)];
     }
 }

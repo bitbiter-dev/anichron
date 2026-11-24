@@ -68,10 +68,11 @@ internal static class HeifTransforms
         }
     }
 
-    private static (int Version, uint Flags) FullBoxHeader(SequentialReader reader)
+    private static (int Version, int Flags) FullBoxHeader(SequentialReader reader)
     {
-        var header = reader.GetUInt32();
-        return ((int)(header >> 24), header & 0xFFFFFF);
+        var version = reader.GetByte();
+        reader.Skip(2);
+        return (version, reader.GetByte());
     }
 
     private static uint ItemId(SequentialReader reader, int version) => version == 0 ? reader.GetUInt16() : reader.GetUInt32();

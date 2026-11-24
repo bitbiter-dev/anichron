@@ -238,6 +238,21 @@ public sealed class MetadataExtractionMiddlewareTests
         (exif.Width, exif.Height, exif.Orientation).Should().Be((64, 32, orientation));
     }
 
+    [Fact]
+    public async Task InvokeAsync_HeicWhoseTransformsTheReaderFailsOn_IsUprightAndKeepsTheRestAsync()
+    {
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
+        byte[] boxTooLargeToAddress = [0, 0, 0, 1, .. "free"u8, 0x80, 0, 0, 0, 0, 0, 0, 0];
+
+        var exif = (await ExtractFromAsync([.. Fixture("heif-irot90-imir0.heic"), .. boxTooLargeToAddress], MediaType.Image, logger)).Description;
+
+        (exif.Width, exif.Height, exif.Orientation).Should().Be((64, 32, 1));
+        logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug
+                && r.Message == "Failed to read the HEIF transforms of /abs/media; the photo is stored upright."
+                && r.Exception is OverflowException);
+    }
+
     [Theory]
     [InlineData("heif-irot90-imir0.heic")]
     [InlineData("heif-imir0-irot90.heic")]

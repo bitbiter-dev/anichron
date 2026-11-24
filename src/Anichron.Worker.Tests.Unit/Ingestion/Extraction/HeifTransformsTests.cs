@@ -112,6 +112,10 @@ public sealed class HeifTransformsTests
         => Read(Heif(Pitm(1), Box("iprp", Properties(Irot(1)), Ipma(Entry(1, 0x81, 0x82, 0x83))))).Should().Equal(8);
 
     [Fact]
+    public void Read_TransformAsTheFirstProperty_Counts()
+        => Read(Heif(Pitm(1), Box("iprp", Ipco(Irot(1)), Ipma(Entry(1, 0x81))))).Should().Equal(8);
+
+    [Fact]
     public void Read_IndexZeroAndIndexesPastTheProperties_AreSkipped()
         => Read(Heif(Pitm(1), Box("iprp", Properties(Irot(1)), Ipma(Entry(1, 0x80, 0x84, 0x83, 0x7F))))).Should().Equal(8);
 
@@ -124,7 +128,7 @@ public sealed class HeifTransformsTests
         { "properties outside iprp", Heif(Pitm(1), Properties(Irot(1)), Box("iprp", Ipma(Entry(1, 0x83)))) },
         { "properties in another iprp child", Heif(Pitm(1), Box("iprp", Box("free", Properties(Irot(1))), Ipma(Entry(1, 0x83)))) },
         { "associations outside iprp", Heif(Pitm(1), Box("iprp", Properties(Irot(1))), Ipma(Entry(1, 0x83))) },
-        { "no meta", [.. Box("ftyp", Encoding.ASCII.GetBytes("heic")), .. Box("free", Pitm(1), Box("iprp", Properties(Irot(1)), Ipma(Entry(1, 0x83))))] },
+        { "no meta", [.. Box("ftyp", Encoding.ASCII.GetBytes("heic")), .. FullBox("moov", 0, 0, Pitm(1), Box("iprp", Properties(Irot(1)), Ipma(Entry(1, 0x83))))] },
         { "an empty file", [] },
     };
 
