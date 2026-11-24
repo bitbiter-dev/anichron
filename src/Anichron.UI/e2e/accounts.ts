@@ -3,6 +3,11 @@ import { expect, type APIRequestContext } from '@playwright/test';
 
 export const bootstrapAdmin = { username: 'admin', password: 'end-to-end bootstrap passphrase' };
 export const admin = { username: 'admin', password: 'end-to-end admin passphrase' };
+export const mediaUser = {
+  username: 'mira',
+  password: 'mira end-to-end passphrase',
+  rootPath: '/data/originals/mira',
+};
 
 export interface Account {
   id: string;
@@ -10,7 +15,7 @@ export interface Account {
   password: string;
 }
 
-const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 export async function signIn(
   request: APIRequestContext,
@@ -38,8 +43,19 @@ export async function changePassword(
 }
 
 export async function createAccount(request: APIRequestContext): Promise<Account> {
-  const adminToken = await signIn(request, admin.username, admin.password);
   const username = `user-${randomUUID().slice(0, 8)}`;
+  const password = `${username} passphrase`;
+  const { id } = await createUser(request, username, password, `/data/originals/${username}`);
+  return { id, username, password };
+}
+
+export async function createUser(
+  request: APIRequestContext,
+  username: string,
+  password: string,
+  rootPath: string,
+) {
+  const adminToken = await signIn(request, admin.username, admin.password);
   const created = await request.post('/api/v1/users', {
     headers: bearer(adminToken),
     data: { username, email: `${username}@example.com` },
@@ -51,13 +67,12 @@ export async function createAccount(request: APIRequestContext): Promise<Account
   };
   const storage = await request.post(`/api/v1/users/${id}/storage-configs`, {
     headers: bearer(adminToken),
-    data: { rootPath: `/data/originals/${username}` },
+    data: { rootPath },
   });
   expect(storage.status(), await storage.text()).toBe(201);
-  const password = `${username} passphrase`;
   const token = await signIn(request, username, temporaryPassword);
   await changePassword(request, token, temporaryPassword, password);
-  return { id, username, password };
+  return { id, storageConfigId: ((await storage.json()) as { id: string }).id, adminToken };
 }
 
 export async function disable(request: APIRequestContext, account: Account) {
