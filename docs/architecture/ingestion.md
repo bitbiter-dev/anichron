@@ -63,7 +63,7 @@ For a file with content H at path P, first match wins (ADR 0011 for the path-hol
 - Capture date and time zone: ADR 0015. An undated file gets its proxies, but never appears in On This Day or a burst.
 - The time zone is looked up from the GPS position (`CaptureZones`). `TZ` must be the same on the API and every Worker.
 - Until MetadataExtractor ships upstream #475, `AppleCreationDates` reads a video's raw Apple creation date itself. The canary test `MetadataExtractor_StillHandsOverAppleCreationDateWithoutItsOffset` fails on the bump that fixes it.
-- Orientation comes from where the pixels are actually turned: HEIC `irot`, a video's track rotation, otherwise EXIF. `Metadata.Orientation` applies only when serving an original image; a proxy is never rotated by it.
+- Orientation comes from where the pixels are actually turned: HEIC `irot` and `imir` in the order the primary item's `ipma` lists them (`HeifTransforms`), a video's track rotation, otherwise EXIF. `Metadata.Orientation` applies only when serving an original image; a proxy is never rotated by it.
 
 ## Proxies
 

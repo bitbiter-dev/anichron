@@ -26,7 +26,11 @@ internal sealed partial class MetadataExtractionMiddleware(
         {
             using var stream = fileSystem.File.OpenRead(absolutePath);
             var directories = ImageMetadataReader.ReadMetadata(stream);
-            return Extract(directories, mediaType == MediaType.Video ? AppleCreationDateOf(stream, absolutePath) : null, mediaType);
+            return Extract(
+                directories,
+                mediaType == MediaType.Video ? AppleCreationDateOf(stream, absolutePath) : null,
+                Frames.IsHeif(directories) ? HeifTransformsOf(stream) : [],
+                mediaType);
         }
         catch (Exception ex) when (BrokenFile.Rejected(ex))
         {
@@ -54,11 +58,18 @@ internal sealed partial class MetadataExtractionMiddleware(
         }
     }
 
-    internal ExtractedMedia Extract(IReadOnlyList<MetadataExtractor.Directory> directories, string? appleCreationDate, MediaType mediaType)
+    private static IReadOnlyList<int> HeifTransformsOf(Stream stream)
+    {
+        stream.Position = 0;
+        return HeifTransforms.Read(stream);
+    }
+
+    internal ExtractedMedia Extract(
+        IReadOnlyList<MetadataExtractor.Directory> directories, string? appleCreationDate, IReadOnlyList<int> heifTransforms, MediaType mediaType)
     {
         var cameraInfo = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
         var captureDetails = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
-        var (width, height, orientation) = Frames.Of(directories);
+        var (width, height, orientation) = Frames.Of(directories, heifTransforms);
         var (latitude, longitude) = Positions.Of(directories, logger);
 
         return new ExtractedMedia(
