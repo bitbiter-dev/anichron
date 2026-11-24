@@ -1,6 +1,6 @@
+using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
-using Anichron.Core.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 

@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { axeResults } from '../../test/axe';
@@ -126,6 +126,7 @@ describe('the list', () => {
   });
 
   it('shows each thumbnail, a Live Photo with its badge, and a video with no thumbnail as a video glyph', async () => {
+    const noProxies = { thumbnail: null, preview: null, compactPreview: null, video: null };
     server.use(
       onePage(
         removed(1),
@@ -136,22 +137,46 @@ describe('the list', () => {
         removed(3, {
           mediaType: 'Video',
           reason: 'Superseded',
-          proxies: {
-            thumbnail: null,
-            preview: null,
-            compactPreview: null,
-            video: proxyPath(id(3), 'video'),
-          },
+          proxies: { ...noProxies, video: proxyPath(id(3), 'video') },
         }),
+        removed(4, {
+          mediaType: 'Video',
+          proxies: { ...noProxies, thumbnail: proxyPath(id(4), 'thumbnail') },
+        }),
+        removed(5, { proxies: noProxies }),
       ),
     );
-    const { container } = await openRemoved();
+    await openRemoved();
 
-    expect(container.querySelector(`img[src="${proxyUrl(id(1), 'thumbnail')}"]`)).not.toBeNull();
-    expect(within(row(2)).getByRole('img', { name: 'Live Photo' })).toBeVisible();
-    expect(within(row(1)).queryByRole('img', { name: 'Live Photo' })).toBeNull();
-    expect(within(row(3)).getByRole('img', { name: 'Video' })).toBeVisible();
-    expect(row(3).querySelector('img[src]')).toBeNull();
+    const tile = (n: number) => within(row(n)).getByRole('img');
+    expect(tile(1)).toHaveAccessibleName('Photo');
+    expect(tile(1).querySelector('img')).toHaveAttribute('src', proxyUrl(id(1), 'thumbnail'));
+    expect(tile(1).querySelector('svg')).toBeNull();
+    expect(tile(2)).toHaveAccessibleName('Live Photo');
+    expect(tile(2).querySelector('svg')).not.toBeNull();
+    expect(tile(3)).toHaveAccessibleName('Video');
+    expect(tile(3).querySelector('svg')).not.toBeNull();
+    expect(tile(3).querySelector('img')).toBeNull();
+    expect(tile(4).querySelector('img')).toHaveAttribute('src', proxyUrl(id(4), 'thumbnail'));
+    expect(tile(4).querySelector('svg')).toBeNull();
+    expect(tile(5).querySelector('svg')).toBeNull();
+  });
+
+  it('loads the list afresh when the screen opens again', async () => {
+    let items = [removed(1)];
+    server.use(softDeletedAnswers(() => ({ items, next: null })));
+    const { router } = await openRemoved();
+
+    items = [removed(2), removed(1)];
+    const { queryClient } = router.options.context;
+    queryClient.setQueryData(['on-this-day', '2026-11-18'], { years: [] });
+    await act(() => router.navigate({ to: '/settings' }));
+    expect(queryClient.getQueryData(['on-this-day', '2026-11-18'])).toEqual({ years: [] });
+    await act(() => router.navigate({ to: '/removed' }));
+
+    await waitFor(() => {
+      expect(rowNames().map((text) => text.slice(0, name(1).length))).toEqual([name(2), name(1)]);
+    });
   });
 
   it('says Nothing removed, with what shows up here, when there are none', async () => {
