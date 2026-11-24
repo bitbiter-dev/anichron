@@ -79,3 +79,7 @@ _Avoid_: Replaced, clobbered
 **Superseded**:
 A Live Photo's video whose photo now has another video. It stays soft-deleted even while its file is still on the NAS, because it is never a memory of its own.
 _Avoid_: Replaced, orphaned video, let-go video
+
+**Forced password change**:
+The state of an account whose user can only change their password or sign out until the change succeeds. It is set when an admin creates the account or resets its password, and for the first admin until they choose their own.
+_Avoid_: Temporary password, must-change, password reset

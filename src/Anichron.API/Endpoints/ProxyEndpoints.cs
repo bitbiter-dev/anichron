@@ -75,7 +75,7 @@ public static class ProxyEndpoints
         if (ProxyKinds.FromSlug(type) is not { } kind)
             return Results.NotFound();
 
-        var proxy = await assets.FindVisibleProxyAsync(assetId, userId, kind.Type, ct);
+        var proxy = await assets.FindOwnedProxyAsync(assetId, userId, kind.Type, ct);
         if (proxy is null)
             return Results.NotFound();
 

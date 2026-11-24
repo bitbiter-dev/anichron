@@ -245,7 +245,7 @@ public sealed class ClassificationMiddlewareTests
         moved.Should().BeEquivalentTo(new { IsSoftDeleted = true, FilePath = "2023/photo.jpg" });
         context.AssetId.Should().Be(PathRowId);
         await fx.Repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { moved.Id })), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { moved.Id })), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         (context.SoftDeleted, context.AutoRestored).Should().Be((1, 0));
     }
@@ -295,7 +295,7 @@ public sealed class ClassificationMiddlewareTests
         atPath.IsSoftDeleted.Should().BeTrue();
         copied.IsSoftDeleted.Should().BeFalse();
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
-        await fx.Repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, TestContext.Current.CancellationToken);
+        await fx.Repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, default, TestContext.Current.CancellationToken);
         context.Classification!.DuplicateCopies.Should().Be(1);
         context.SoftDeleted.Should().Be(1);
     }
@@ -409,7 +409,7 @@ public sealed class ClassificationMiddlewareTests
         (mov.FilePath, mov.IsSoftDeleted).Should().Be(("2024/live.mov", false));
         context.SoftDeleted.Should().Be(1, "the pairer hands the video over before the reconciler retires its previous photo");
         await fx.Repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { heic.Id })), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { heic.Id })), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         await fx.UnitOfWork.Received(1).ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
     }
@@ -432,7 +432,7 @@ public sealed class ClassificationMiddlewareTests
         mov.IsSoftDeleted.Should().BeTrue();
         await fx.MovGenerator.DidNotReceive().TranscodeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await fx.Repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { mov.Id })), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { mov.Id })), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -535,7 +535,7 @@ public sealed class ClassificationMiddlewareTests
 
     private static Task SoftDeletedAsync(ClassificationFixture fx, params Guid[] ids)
         => fx.Repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(retired => retired.SequenceEqual(ids)), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(retired => retired.SequenceEqual(ids)), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
 
     [Fact]
     public async Task InvokeAsync_WholeLivePhotoMovedOntoAnother_BothOfItsRowsTakeTheContentInOneTransactionAsync()

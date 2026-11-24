@@ -36,20 +36,20 @@ public sealed class MissingFileSweepTests
     public async Task SweepAsync_SoftDeletesExactlyTheActiveRowsTheWalkDidNotFindAsync()
     {
         Stored(new AssetPath(Kept, "2024/a.jpg"), new AssetPath(Gone, "2024/b.jpg"), new AssetPath(AlsoGone, "old/c.mov"));
-        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns(2);
+        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Arg.Any<CancellationToken>()).Returns(2);
 
         var result = await SweepAsync(Walk(complete: true, "2024/a.jpg", "2024/new.jpg"));
 
         result.Should().Be(new MissingFiles(SoftDeleted: 2, SkippedBecause: null));
         await repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { Gone, AlsoGone })), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { Gone, AlsoGone })), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task SweepAsync_ReportsTheRowsTheWriteSoftDeletedAsync()
     {
         Stored(new AssetPath(Gone, "2024/b.jpg"), new AssetPath(AlsoGone, "old/c.mov"));
-        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns(1);
+        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Arg.Any<CancellationToken>()).Returns(1);
 
         var result = await SweepAsync(Walk(complete: true, "2024/a.jpg"));
 
@@ -60,12 +60,12 @@ public sealed class MissingFileSweepTests
     public async Task SweepAsync_PathsDifferingOnlyInCase_AreNotTheSameFileAsync()
     {
         Stored(new AssetPath(Gone, "IMG_0001.JPG"));
-        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns(1);
+        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Arg.Any<CancellationToken>()).Returns(1);
 
         await SweepAsync(Walk(complete: true, "img_0001.jpg"));
 
         await repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { Gone })), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { Gone })), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class MissingFileSweepTests
         var result = await SweepAsync(Walk(complete: true, "2024/a.jpg"));
 
         result.Should().Be(new MissingFiles(0, null));
-        await repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, Ct);
+        await repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, default, Ct);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class MissingFileSweepTests
 
         result.Should().Be(new MissingFiles(0, MissingFileSkip.IncompleteWalk));
         await repository.DidNotReceiveWithAnyArgs().GetActivePathsAsync(Guid.Empty, Ct);
-        await repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, Ct);
+        await repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, default, Ct);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class MissingFileSweepTests
         var result = await SweepAsync(Walk(complete: true));
 
         result.Should().Be(new MissingFiles(0, MissingFileSkip.EmptyRoot));
-        await repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, Ct);
+        await repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, default, Ct);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class MissingFileSweepTests
 
     private Task SoftDeletedExactlyAsync(params Guid[] ids)
         => repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(sent => sent.SequenceEqual(ids)), Arg.Any<CancellationToken>());
+            Arg.Is<IReadOnlyCollection<Guid>>(sent => sent.SequenceEqual(ids)), SoftDeleteReason.Missing, Arg.Any<CancellationToken>());
 
     private IEnumerable<FakeLogRecord> InformationLines()
         => logger.Collector.GetSnapshot().Where(r => r.Level == LogLevel.Information);
@@ -139,7 +139,7 @@ public sealed class MissingFileSweepTests
     public async Task SweepAsync_MissingPhoto_TakesItsVideoWithItAsync()
     {
         Stored(new AssetPath(Photo, "a.heic", PairedAssetId: Video), new AssetPath(Video, "a.mov"), new AssetPath(Kept, "b.jpg"));
-        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>()).Returns(2);
+        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Arg.Any<CancellationToken>()).Returns(2);
 
         var result = await SweepAsync(Walk(complete: true, "a.mov", "b.jpg"));
 
@@ -160,7 +160,7 @@ public sealed class MissingFileSweepTests
         var result = await SweepAsync(Walk(complete: true, "a.mov", "b.jpg"));
 
         result.Should().Be(new MissingFiles(0, null));
-        await repository.DidNotReceive().SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+        await repository.DidNotReceive().SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

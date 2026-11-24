@@ -211,7 +211,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<bool>("IsSoftDeleted")
                         .HasColumnType("boolean")
-                        .HasComment("Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user's interactions survive, and a crawl that finds the file again clears it (auto-restore).");
+                        .HasComment("Set by reconciliation when a complete crawl did not find the file, when its path now holds content stored at another path, or when its Live Photo's photo lets go of it. Soft rather than hard so the user's interactions survive, and a crawl that finds the file again clears it (auto-restore). SoftDeleteReason says which.");
 
                     b.Property<Instant>("LastSeenOnNas")
                         .HasColumnType("timestamp with time zone");
@@ -227,6 +227,10 @@ namespace Anichron.Core.Migrations
                     b.Property<Guid?>("PairedAssetId")
                         .HasColumnType("uuid")
                         .HasComment("Live Photo pairing: the photo points at its video. The video is part of the photo, never a memory of its own, and has at most one photo (unique): pairing hands it over, reconciliation soft-deletes it with its photo and leaves a lone copy of it alone. Without its video the photo is shown as a still photo, so SetNull on delete.");
+
+                    b.Property<string>("SoftDeleteReason")
+                        .HasColumnType("text")
+                        .HasComment("Why the row is soft-deleted, a SoftDeleteReason name. Set with IsSoftDeleted and cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of soft-deleted assets.");
 
                     b.Property<Guid>("StorageConfigId")
                         .HasColumnType("uuid");
@@ -265,6 +269,8 @@ namespace Anichron.Core.Migrations
                     b.ToTable("MediaAssets", t =>
                         {
                             t.HasComment("One row per media file, scoped to a storage config. Written ONLY by the Worker — the API never writes media data.");
+
+                            t.HasCheckConstraint("CK_MediaAssets_SoftDeleteReason", "\"IsSoftDeleted\" = (\"SoftDeleteReason\" IS NOT NULL)");
                         });
                 });
 
@@ -734,7 +740,7 @@ namespace Anichron.Core.Migrations
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("integer")
                                 .HasDefaultValue(1)
-                                .HasComment("EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container's irot for a HEIC, the video track's rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video's player applies its own rotation, so rotate neither by it.");
+                                .HasComment("EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container's irot and imir for a HEIC, composed in the order its ipma lists them, the video track's rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video's player applies its own rotation, so rotate neither by it.");
 
                             b1.Property<int>("Width")
                                 .HasColumnType("integer");

@@ -1,9 +1,12 @@
 # ============================================================
 # Anichron — end-to-end runs (src/Anichron.UI/e2e)
 #
-# The API image built from this checkout, and PostgreSQL on
-# tmpfs so every run starts from an empty database. No Worker
-# runs until a flow needs media. anichron-migrate migrates and
+# The API and Worker images built from this checkout, and
+# PostgreSQL on tmpfs so every run starts from an empty
+# database. One Worker serves every user; it ingests the made-up
+# library in Anichron.UI/e2e/media/mira, mounted read-only at
+# the same path in the API and the Worker, once global setup
+# adds its storage config. anichron-migrate migrates and
 # creates the bootstrap admin before the API starts; `--wait`
 # accepts it exiting 0, as it does anichron-next-build. Caddy
 # serves it over HTTPS on https://localhost:8443 with its own
@@ -11,6 +14,8 @@
 # with the cookie anichron-e2e-build=next (e2e/update.spec.ts).
 #
 #   docker build -f src/Anichron.API/Dockerfile -t anichron-api:e2e src
+#   docker build -f src/Anichron.Worker/Dockerfile -t anichron-worker:e2e \
+#     --secret id=sixlabors_license,src=sixlabors.lic src
 #   docker compose -f src/docker-compose.e2e.yml up --detach --wait
 #   pnpm --dir src/Anichron.UI e2e
 #   docker compose -f src/docker-compose.e2e.yml down
@@ -68,11 +73,32 @@ services:
       - Jwt__Audience=anichron
       - RateLimit__SensitivePermitLimit=10000
       - RateLimit__RefreshPermitLimit=10000
-    volumes: !reset []
+    volumes: !override
+      - ./Anichron.UI/e2e/media/mira:/data/originals/mira:ro
+      - proxies:/data/proxies:ro
     healthcheck:
       interval: 2s
       retries: 30
       start_period: !reset null
+
+  anichron-worker:
+    extends:
+      file: docker-compose.yml
+      service: anichron-worker
+    image: ${E2E_WORKER_IMAGE:-anichron-worker:e2e}
+    container_name: !reset null
+    restart: !reset null
+    devices: !reset []
+    environment: !override
+      - POSTGRES_CONNECTION__HOST=anichron-db
+      - POSTGRES_CONNECTION__DBNAME=anichron
+      - POSTGRES_CONNECTION__PORT=5432
+      - POSTGRES_CONNECTION__USER=anichron_e2e
+      - POSTGRES_CONNECTION__PASSWORD=anichron_e2e
+      - Worker__WorkPollIntervalSeconds=1
+    volumes: !override
+      - ./Anichron.UI/e2e/media/mira:/data/originals/mira:ro
+      - proxies:/data/proxies:rw
 
   anichron-next-build:
     image: ${E2E_API_IMAGE:-anichron-api:e2e}
@@ -125,3 +151,4 @@ configs:
 
 volumes:
   next-build:
+  proxies:

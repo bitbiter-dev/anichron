@@ -121,6 +121,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             services.AddScoped<IMediaAssetReadRepository, EfMediaAssetReadRepository>();
             services.AddScoped<IAssetViewReader, EfAssetViewReader>();
+            services.AddScoped<ISoftDeletedAssetReader, EfSoftDeletedAssetReader>();
             services.AddScoped<IAssetInteractionWriter, EfAssetInteractionWriter>();
             services.AddSingleton<IProxyStore, ProxyStore>();
             services.AddSingleton<IOriginalStore, OriginalStore>();

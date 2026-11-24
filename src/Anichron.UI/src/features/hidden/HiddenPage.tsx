@@ -8,7 +8,6 @@ import { Failed } from '../../shared/ui/Failed';
 import { LivePhotoIcon } from '../../shared/ui/LivePhotoIcon';
 import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { Skeleton } from '../../shared/ui/Skeleton';
-import { Toasts } from '../../shared/ui/Toast';
 import { monthFormat, type Section, takenFormat, tileOf } from './hidden';
 import { HiddenViewer } from './HiddenViewer';
 import { type HiddenScreen, useHidden } from './use-hidden';
@@ -23,7 +22,6 @@ export function HiddenPage() {
       <Sections screen={screen} />
       {screen.failure && <Failed message={screen.failure} onRetry={screen.retry} />}
       <HiddenViewer screen={screen} />
-      <Toasts toasts={screen.toasts} />
     </main>
   );
 }

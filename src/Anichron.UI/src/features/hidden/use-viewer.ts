@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { HiddenMemory } from '../../api/hidden';
 import { useFrames } from '../../shared/use-frames';
+import { slidesOf } from '../../shared/use-slide';
 import { hiddenAgo, takenFormat, takenOf } from './hidden';
 import type { HiddenScreen } from './use-hidden';
 
@@ -17,11 +18,10 @@ export function useViewer(screen: HiddenScreen, start: number) {
 
   return {
     viewer,
-    slides: items.map(({ memory }, index) => ({
-      memory,
-      current: index === current,
-      shown: Math.abs(index - current) <= 1,
-    })),
+    slides: slidesOf(
+      items.map(({ memory }) => memory),
+      current,
+    ),
     caption: {
       taken: takenOf(item.memory),
       hidden: ago.value,
