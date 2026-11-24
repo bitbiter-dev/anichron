@@ -463,6 +463,18 @@ public sealed class MetadataExtractionMiddlewareTests
         { "a truncated item list", QuickTime(Atom("meta", Keys(CreationDateKey), Atom("ilst", Item(1, "2026-10-30T19:10:45+13:00"))))[..^20] },
     };
 
+    [Fact]
+    public async Task InvokeAsync_VideoTheHeifReaderWouldFailOn_IsNotReadAsAHeifAsync()
+    {
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
+        byte[] boxTooLargeToAddress = [0, 0, 0, 1, .. "free"u8, 0x80, 0, 0, 0, 0, 0, 0, 0];
+
+        var extracted = await ExtractFromAsync([.. QuickTime(), .. Atom("meta", new byte[4], boxTooLargeToAddress)], MediaType.Video, logger);
+
+        extracted.Description.DurationInSeconds.Should().Be(4);
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
     [Theory]
     [MemberData(nameof(VideosWithoutAnAppleCreationDate))]
     public async Task InvokeAsync_VideoWithoutAReadableAppleCreationDate_IsDatedByItsMovieHeaderAndKeepsItsDurationAsync(string _, byte[] file)
