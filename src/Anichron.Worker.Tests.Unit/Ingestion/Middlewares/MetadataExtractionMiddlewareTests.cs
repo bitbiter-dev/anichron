@@ -3,6 +3,7 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Extraction;
 using Anichron.Worker.Ingestion.Middlewares;
 using Anichron.Worker.Ingestion.Pipeline;
+using Anichron.Worker.Ingestion.Proxy;
 using MetadataExtractor.Formats.QuickTime;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -10,9 +11,15 @@ using NodaTime;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System.Buffers.Binary;
 using System.IO.Abstractions.TestingHelpers;
 using System.Text;
+using HeicReadDefines = ImageMagick.Formats.HeicReadDefines;
+using MagickFormat = ImageMagick.MagickFormat;
+using MagickImage = ImageMagick.MagickImage;
+using MagickReadSettings = ImageMagick.MagickReadSettings;
+using PixelMapping = ImageMagick.PixelMapping;
 
 namespace Anichron.Worker.Tests.Unit.Ingestion.Middlewares;
 
@@ -219,6 +226,79 @@ public sealed class MetadataExtractionMiddlewareTests
     public async Task InvokeAsync_HeicIrot_MapsToTheEquivalentExifOrientationAsync(byte quarterTurns, int expected)
         => (await ExtractAsync(HeicPatched(HeicIrotAngleOffset, quarterTurns))).Orientation.Should().Be(expected);
 
+    // Stored 64x32, black with a red 16x16 top-left corner; named after the transforms their ipma lists, in order.
+    [Theory]
+    [InlineData("heif-irot90-imir0.heic", 5)]
+    [InlineData("heif-imir0-irot90.heic", 7)]
+    [InlineData("heif-irot180-imir1.heic", 4)]
+    public async Task InvokeAsync_MirroredHeic_StoresItsRotationAndMirrorInTheirOrderAsync(string name, int orientation)
+    {
+        var exif = await ExtractAsync(Fixture(name));
+
+        (exif.Width, exif.Height, exif.Orientation).Should().Be((64, 32, orientation));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_HeicWhoseTransformsTheReaderFailsOn_IsUprightAndKeepsTheRestAsync()
+    {
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
+        byte[] boxTooLargeToAddress = [0, 0, 0, 1, .. "free"u8, 0x80, 0, 0, 0, 0, 0, 0, 0];
+
+        var exif = (await ExtractFromAsync([.. Fixture("heif-irot90-imir0.heic"), .. boxTooLargeToAddress], MediaType.Image, logger)).Description;
+
+        (exif.Width, exif.Height, exif.Orientation).Should().Be((64, 32, 1));
+        logger.Collector.GetSnapshot().Should().ContainSingle()
+            .Which.Should().Match<FakeLogRecord>(r => r.Level == LogLevel.Debug
+                && r.Message == "Failed to read the HEIF transforms of /abs/media; the photo is stored upright."
+                && r.Exception is OverflowException);
+    }
+
+    [Theory]
+    [InlineData("heif-irot90-imir0.heic")]
+    [InlineData("heif-imir0-irot90.heic")]
+    [InlineData("heif-irot180-imir1.heic")]
+    [InlineData("iphone-4732.heic")]
+    public async Task InvokeAsync_Heic_StoresTheOrientationItsDecoderShowsAsync(string name)
+    {
+        var original = Fixture(name);
+        var orientation = (await ExtractAsync(original)).Orientation;
+        using var decoded = await new MagickHeifDecoder().DecodeAsync(original, TestContext.Current.CancellationToken);
+        using var stored = StoredPixels(original);
+        stored.Metadata.ExifProfile = new ExifProfile();
+        stored.Metadata.ExifProfile.SetValue(ExifTag.Orientation, (ushort)orientation);
+
+        stored.Mutate(image => image.AutoOrient());
+
+        stored.Size.Should().Be(decoded.Size);
+        LargestChannelDifference(stored, decoded).Should().Be(0);
+    }
+
+    private static int LargestChannelDifference(Image<Rgb24> a, Image<Rgb24> b)
+    {
+        var largest = 0;
+        for (var y = 0; y < a.Height; y++)
+        {
+            for (var x = 0; x < a.Width; x++)
+            {
+                var (p, q) = (a[x, y], b[x, y]);
+                largest = Math.Max(largest, Math.Max(Math.Abs(p.R - q.R), Math.Max(Math.Abs(p.G - q.G), Math.Abs(p.B - q.B))));
+            }
+        }
+
+        return largest;
+    }
+
+    private static Image<Rgb24> StoredPixels(byte[] heic)
+    {
+        using var heif = new MagickImage(heic, new MagickReadSettings
+        {
+            Format = MagickFormat.Heic,
+            Defines = new HeicReadDefines { PreserveOrientation = true },
+        });
+        using var pixels = heif.GetPixelsUnsafe();
+        return Image.LoadPixelData<Rgb24>(pixels.ToByteArray(PixelMapping.RGB), (int)heif.Width, (int)heif.Height);
+    }
+
     // Both MOVs carry an audio track (0x0) before the 1920x1080 video track; the portrait one is
     // rotated -90 as an iPhone records it.
     [Theory]
@@ -382,6 +462,18 @@ public sealed class MetadataExtractionMiddlewareTests
         { "the key outside meta", QuickTime(Atom("udta", Keys(CreationDateKey), Atom("ilst", Item(1, "2026-10-30T19:10:45+13:00")))) },
         { "a truncated item list", QuickTime(Atom("meta", Keys(CreationDateKey), Atom("ilst", Item(1, "2026-10-30T19:10:45+13:00"))))[..^20] },
     };
+
+    [Fact]
+    public async Task InvokeAsync_VideoTheHeifReaderWouldFailOn_IsNotReadAsAHeifAsync()
+    {
+        var logger = new FakeLogger<MetadataExtractionMiddleware>();
+        byte[] boxTooLargeToAddress = [0, 0, 0, 1, .. "free"u8, 0x80, 0, 0, 0, 0, 0, 0, 0];
+
+        var extracted = await ExtractFromAsync([.. QuickTime(), .. Atom("meta", new byte[4], boxTooLargeToAddress)], MediaType.Video, logger);
+
+        extracted.Description.DurationInSeconds.Should().Be(4);
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
 
     [Theory]
     [MemberData(nameof(VideosWithoutAnAppleCreationDate))]
