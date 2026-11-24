@@ -1,4 +1,5 @@
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../api/memories';
+import { blurhashOf } from './blurhash';
 
 export type Load = 'loading' | 'shown' | 'failed';
 
@@ -14,7 +15,7 @@ interface Video {
 }
 
 export interface MemoryKind {
-  firstLoad: (decoded: () => boolean) => Load;
+  firstLoad: (decoded: boolean) => Load;
   image: (load: Load) => ImageShown;
   video: Video | null;
   failure: boolean;
@@ -42,7 +43,7 @@ function nameOf({ mediaType }: Memory) {
 
 export function memoryKind(kind: Kind): MemoryKind {
   const picture: MemoryKind = {
-    firstLoad: (decoded) => (decoded() ? 'shown' : 'loading'),
+    firstLoad: (decoded) => (decoded ? 'shown' : 'loading'),
     image: (load) => (load === 'failed' ? null : 'picture'),
     video: null,
     failure: true,
@@ -72,4 +73,16 @@ export function memoryKind(kind: Kind): MemoryKind {
     burst: { ...picture, name: () => 'story.burst' },
   };
   return kinds[kind];
+}
+
+export function loadView(kind: MemoryKind, memory: Memory, load: Load) {
+  return {
+    blurhash: load === 'shown' ? null : blurhashOf(memory),
+    failed: kind.failure && load === 'failed',
+    liveButton: kind.liveButton && load === 'shown',
+  };
+}
+
+export function soundLabel(muted: boolean): 'story.soundOn' | 'story.soundOff' {
+  return muted ? 'story.soundOn' : 'story.soundOff';
 }

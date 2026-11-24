@@ -15,17 +15,19 @@ import type { ApiClient } from '../api/client';
 import { LoginPage } from '../features/login/LoginPage';
 import {
   dayKey,
+  hasPhotos,
   homeSearch,
   isCalendarDate,
   loadStory,
   storySearch,
 } from '../features/on-this-day/day';
+import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
+import { hiddenKey } from '../features/hidden/hidden';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
+import { createToasts, type Toasts } from '../shared/toasts';
 import { createBack, type Back } from './back';
-import { Home } from './Home';
 import type { Install } from './install';
-import { createNoPhotos, type NoPhotos } from './use-home';
 import { NotFound } from './NotFound';
 import type { Updates } from './register-service-worker';
 import { returnPath } from './return-path';
@@ -41,7 +43,7 @@ interface RouterContext {
   theme: ThemeChoice;
   updates: Updates;
   install: Install;
-  noPhotos: NoPhotos;
+  toasts: Toasts;
 }
 
 function routeTree() {
@@ -70,6 +72,10 @@ function routeTree() {
   const shellRoute = createRoute({
     getParentRoute: () => signedInRoute,
     id: 'shell',
+    beforeLoad: ({ context, location }) => {
+      if (context.user.mustChangePassword)
+        throw redirect({ href: `/change-password?redirect=${encodeURIComponent(location.href)}` });
+    },
     component: Shell,
   });
 
@@ -78,7 +84,7 @@ function routeTree() {
     id: 'on-this-day',
     validateSearch: homeSearch,
     search: { middlewares: [retainSearchParams(['earlier'])] },
-    component: Home,
+    component: OnThisDayPage,
   });
 
   const homeRoute = createRoute({
@@ -91,7 +97,7 @@ function routeTree() {
     path: '/day/$date',
     validateSearch: storySearch,
     beforeLoad: ({ context, params }) => {
-      if (!context.user.hasStorageConfig) throw redirect({ href: '/' });
+      if (!hasPhotos(context.user)) throw redirect({ href: '/' });
       if (!isCalendarDate(params.date)) throw notFound({ routeId: rootRoute.id });
     },
     loader: ({ cause, context, params, location }) =>
@@ -119,6 +125,16 @@ function routeTree() {
     staticData: { screen: { title: 'settings.title' } },
   });
 
+  const hiddenRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: '/hidden',
+    onLeave: ({ context }) => {
+      context.queryClient.removeQueries({ queryKey: hiddenKey() });
+    },
+    component: lazyRouteComponent(() => import('../features/hidden/HiddenPage'), 'HiddenPage'),
+    staticData: { screen: { title: 'hidden.title', parent: '/settings' } },
+  });
+
   const passwordRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: '/settings/password',
@@ -132,8 +148,8 @@ function routeTree() {
   const forcedPasswordRoute = createRoute({
     getParentRoute: () => signedInRoute,
     path: '/change-password',
-    beforeLoad: ({ context }) => {
-      if (!context.user.mustChangePassword) throw redirect({ href: '/' });
+    beforeLoad: ({ context, search }) => {
+      if (!context.user.mustChangePassword) throw redirect({ href: returnPath(search) });
     },
     component: lazyRouteComponent(
       () => import('../features/password/ChangePasswordPage'),
@@ -196,6 +212,7 @@ function routeTree() {
       shellRoute.addChildren([
         onThisDayRoute.addChildren([homeRoute, storyRoute]),
         settingsRoute,
+        hiddenRoute,
         passwordRoute,
         adminRoute.addChildren([workItemsRoute.addChildren([workItemListRoute, workItemRoute])]),
       ]),
@@ -212,6 +229,7 @@ export function createAppRouter(
   install: Install,
   history: RouterHistory = createBrowserHistory(),
 ) {
+  const toasts = createToasts();
   const router = createRouter({
     routeTree: routeTree(),
     history,
@@ -224,13 +242,16 @@ export function createAppRouter(
       theme: createThemeChoice(),
       updates,
       install,
-      noPhotos: createNoPhotos(),
+      toasts,
     },
   });
   let userId: string | undefined;
   api.session.onChange(() => {
     const changedTo = api.session.user()?.id;
-    if (changedTo !== userId) queryClient.clear();
+    if (changedTo !== userId) {
+      queryClient.clear();
+      toasts.clear();
+    }
     userId = changedTo;
     void router.invalidate();
   });

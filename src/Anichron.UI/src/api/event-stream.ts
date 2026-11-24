@@ -1,4 +1,5 @@
 import { EventSourceParserStream } from 'eventsource-parser/stream';
+import { createBackoff } from '../shared/backoff';
 import { problemOf } from './problem';
 
 type Open = (lastEventId: string) => Promise<ReadableStream<BufferSource> | null>;
@@ -7,13 +8,6 @@ export interface Received<T> {
   event(id: string, data: T): void;
   reconnecting(waiting: boolean): void;
   gone(): void;
-}
-
-const firstBackoff = 1000;
-const maxBackoff = 30_000;
-
-function backoff(failures: number) {
-  return Math.min(firstBackoff * 2 ** (failures - 1), maxBackoff);
 }
 
 function pause(milliseconds: number, signal: AbortSignal) {
@@ -31,7 +25,7 @@ export async function follow(
   received: Received<string>,
 ) {
   let lastEventId = from;
-  let failures = 0;
+  const backoff = createBackoff({ firstSeconds: 1, longestSeconds: 30 });
   for (;;) {
     let wait: number;
     try {
@@ -40,7 +34,7 @@ export async function follow(
         received.gone();
         return;
       }
-      failures = 0;
+      backoff.reset();
       const events = body
         .pipeThrough(new TextDecoderStream())
         .pipeThrough(new EventSourceParserStream())
@@ -49,9 +43,9 @@ export async function follow(
         lastEventId = next.value.id ?? lastEventId;
         received.event(lastEventId, next.value.data);
       }
-      wait = backoff(++failures);
+      wait = backoff.waitMilliseconds(0);
     } catch (error) {
-      wait = problemOf(error).retryAfterSeconds * 1000 || backoff(++failures);
+      wait = backoff.waitMilliseconds(problemOf(error).retryAfterSeconds);
     }
     if (signal.aborted) return;
     received.reconnecting(true);

@@ -61,6 +61,22 @@ public sealed record WorkerSettings : IValidatableObject
     [Range(1, 100)]
     public int PreviewJpegQuality { get; init; } = 85;
 
+    /// <summary>
+    /// The long edge of a compact preview. A change sizes only compact previews made afterwards, as
+    /// <see cref="VideoShortEdge"/>.
+    /// </summary>
+    [Range(1, int.MaxValue)]
+    public int CompactPreviewLongEdge { get; init; } = 1280;
+
+    [Range(0, 100)]
+    public int CompactPreviewQuality { get; init; } = 85;
+
+    [Range(3, 9)]
+    public int CompactPreviewEffort { get; init; } = 7;
+
+    [Range(1, int.MaxValue)]
+    public int CompactPreviewChunkSize { get; init; } = 200;
+
     [Range(1, int.MaxValue)]
     public int BlurhashSampleLongEdge { get; init; } = 64;
 

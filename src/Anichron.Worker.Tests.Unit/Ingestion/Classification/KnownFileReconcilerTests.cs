@@ -392,7 +392,7 @@ public sealed class KnownFileReconcilerTests
     {
         var fx = new TestFixture();
         var trashed = Row(PathRowId, "2024/taken.jpg", "abc123", softDeleted: true);
-        trashed.Interactions = [new AssetInteraction { AssetId = PathRowId, IsHidden = true }];
+        trashed.Interactions = [new AssetInteraction { AssetId = PathRowId, HiddenAt = Now }];
         trashed.BurstId = BurstId;
 
         var reconciled = await fx.ReconcileAsync(new FileClassification(FileOutcome.AutoRestored, trashed));
@@ -406,7 +406,7 @@ public sealed class KnownFileReconcilerTests
             ContentHash = "abc123",
             BurstId = (Guid?)BurstId,
         });
-        trashed.Interactions.Should().ContainSingle().Which.IsHidden.Should().BeTrue();
+        trashed.Interactions.Should().ContainSingle().Which.HiddenAt.Should().Be(Now);
         await fx.Bursts.Received(1).RemoveCheckAsync(PathRowId, Arg.Any<CancellationToken>());
         (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((0, 1));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r =>

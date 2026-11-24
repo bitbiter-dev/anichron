@@ -62,6 +62,18 @@ public sealed class ModelInvariantsTests
     }
 
     [Fact]
+    public void Interactions_RecordWhenHiddenAsANullableTimestampAndNoFlag()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var interaction = context.Model.FindEntityType(typeof(AssetInteraction))!;
+
+        var hiddenAt = interaction.GetProperty(nameof(AssetInteraction.HiddenAt));
+        hiddenAt.IsNullable.Should().BeTrue();
+        hiddenAt.GetColumnType().Should().Be("timestamp with time zone");
+        interaction.FindProperty("IsHidden").Should().BeNull();
+    }
+
+    [Fact]
     public void RunningWorkItems_AreUniquePerStorageConfigUnderTheNameTheClaimRecognises()
     {
         using var context = AnichronDbContexts.NpgsqlModel();

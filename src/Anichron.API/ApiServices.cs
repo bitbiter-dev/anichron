@@ -1,6 +1,5 @@
 using Anichron.API.Endpoints;
 using Anichron.API.Infrastructure;
-using System.Text.Json.Serialization;
 
 namespace Anichron.API;
 
@@ -11,7 +10,7 @@ public static class ApiServices
     {
         public IServiceCollection AddApiSurface(IConfiguration configuration)
             => services
-                .ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict)
+                .AddApiJson()
                 .AddOpenApi(options => options
                     .AddDocumentTransformer<ProblemCodeDocumentTransformer>()
                     .AddDocumentTransformer<EnumDocumentTransformer>())

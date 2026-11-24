@@ -1435,6 +1435,7 @@ export interface paths {
                     };
                     content: {
                         "image/jpeg": components["schemas"]["Stream"];
+                        "image/jxl": components["schemas"]["Stream"];
                         "video/mp4": components["schemas"]["Stream"];
                     };
                 };
@@ -1445,6 +1446,7 @@ export interface paths {
                     };
                     content: {
                         "image/jpeg": components["schemas"]["Stream"];
+                        "image/jxl": components["schemas"]["Stream"];
                         "video/mp4": components["schemas"]["Stream"];
                     };
                 };
@@ -1610,6 +1612,79 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/assets/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    after?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HiddenAssetsPageDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/flashbacks/on-this-day": {
@@ -2408,6 +2483,7 @@ export interface components {
         AssetProxyUrls: {
             thumbnail: null | string;
             preview: null | string;
+            compactPreview: null | string;
             video: null | string;
         };
         ChangePasswordRequest: {
@@ -2422,11 +2498,19 @@ export interface components {
             rootPath: string;
         };
         /** @enum {string} */
-        ErrorCode: "account_disabled" | "account_locked" | "cannot_modify_self" | "email_taken" | "invalid_credentials" | "invalid_date" | "invalid_email" | "invalid_orphan_count" | "invalid_page" | "invalid_page_size" | "invalid_username" | "invite_token_invalid" | "orphan_ids_or_all" | "password_change_required" | "password_pwned" | "password_too_long" | "password_too_short" | "path_already_assigned" | "path_invalid" | "path_overlaps" | "pending_or_outcome" | "rate_limited" | "refresh_token_invalid" | "refresh_token_required" | "service_unavailable" | "unknown_orphans" | "username_taken";
+        ErrorCode: "account_disabled" | "account_locked" | "cannot_modify_self" | "email_taken" | "invalid_credentials" | "invalid_cursor" | "invalid_date" | "invalid_email" | "invalid_orphan_count" | "invalid_page" | "invalid_page_size" | "invalid_username" | "invite_token_invalid" | "orphan_ids_or_all" | "password_change_required" | "password_pwned" | "password_too_long" | "password_too_short" | "path_already_assigned" | "path_invalid" | "path_overlaps" | "pending_or_outcome" | "rate_limited" | "refresh_token_invalid" | "refresh_token_required" | "service_unavailable" | "unknown_orphans" | "username_taken";
         FlashbackYearDto: {
             /** Format: int32 */
             year: number;
             assets: components["schemas"]["AssetDto"][];
+        };
+        HiddenAssetDto: {
+            asset: components["schemas"]["AssetDto"];
+            hiddenAt: string;
+        };
+        HiddenAssetsPageDto: {
+            items: components["schemas"]["HiddenAssetDto"][];
+            next: null | string;
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -2450,13 +2534,13 @@ export interface components {
             years: components["schemas"]["FlashbackYearDto"][];
         };
         PatchAdminUserRequest: {
-            isAdmin: null | boolean;
-            isDisabled: null | boolean;
+            isAdmin?: null | boolean;
+            isDisabled?: null | boolean;
         };
         PatchInteractionRequest: {
-            starred: null | boolean;
-            liked: null | boolean;
-            hidden: null | boolean;
+            starred?: null | boolean;
+            liked?: null | boolean;
+            hidden?: null | boolean;
         };
         ProblemDetails: {
             type?: null | string;
@@ -2469,7 +2553,8 @@ export interface components {
         };
         ProxyDeletionOutcome: number;
         ProxyDeletionRequest: {
-            orphanIds: null | string[];
+            orphanIds?: null | string[];
+            /** @default false */
             all: boolean;
         };
         ProxyDeletionsRequestedDto: {
@@ -2579,7 +2664,7 @@ export interface components {
         /** @enum {string} */
         WorkItemStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {string} */
-        WorkKind: "TokenCleanup" | "WorkItemRetention" | "Crawl" | "BurstDetection" | "ProxySweep" | "ProxyDeletion";
+        WorkKind: "TokenCleanup" | "WorkItemRetention" | "Crawl" | "BurstDetection" | "ProxySweep" | "ProxyDeletion" | "CompactPreview";
         WorkProgressDto: {
             /** Format: int64 */
             done: number;

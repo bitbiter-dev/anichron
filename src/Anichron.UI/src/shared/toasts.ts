@@ -23,5 +23,8 @@ export function createToasts() {
     close: (key: string) => {
       queue.close(key);
     },
+    clear: () => {
+      queue.clear();
+    },
   };
 }

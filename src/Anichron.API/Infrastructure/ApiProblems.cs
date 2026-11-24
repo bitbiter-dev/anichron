@@ -62,6 +62,7 @@ internal static class ErrorCodes
     public const string InvalidDate = "invalid_date";
     public const string InvalidPage = "invalid_page";
     public const string InvalidPageSize = "invalid_page_size";
+    public const string InvalidCursor = "invalid_cursor";
     public const string PendingOrOutcome = "pending_or_outcome";
     public const string OrphanIdsOrAll = "orphan_ids_or_all";
     public const string InvalidOrphanCount = "invalid_orphan_count";

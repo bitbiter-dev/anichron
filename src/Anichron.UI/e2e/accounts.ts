@@ -34,11 +34,15 @@ export async function signIn(
   return ((await response.json()) as { accessToken: string }).accessToken;
 }
 
-export async function signInPage(page: Page, { username, password }: Credentials) {
-  await page.goto('/login');
+export async function fillInSignIn(page: Page, { username, password }: Credentials) {
   await page.getByLabel('Username or email').fill(username);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+export async function signInPage(page: Page, credentials: Credentials) {
+  await page.goto('/login');
+  await fillInSignIn(page, credentials);
   await expect(page.getByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
 }
 
@@ -55,14 +59,17 @@ export async function changePassword(
   expect(response.status(), await response.text()).toBe(200);
 }
 
-export async function createAccount(request: APIRequestContext): Promise<Account> {
+export async function createAccount(
+  request: APIRequestContext,
+  { photos = true, keepTemporaryPassword = false } = {},
+): Promise<Account> {
+  const adminToken = await signIn(request, admin.username, admin.password);
   const username = `user-${randomUUID().slice(0, 8)}`;
+  const { id, temporaryPassword } = await addUser(request, adminToken, username);
+  if (photos) await addStorageConfig(request, adminToken, id, `/data/originals/${username}`);
+  if (keepTemporaryPassword) return { id, username, password: temporaryPassword };
   const password = `${username} passphrase`;
-  const { id } = await createUser(request, {
-    username,
-    password,
-    rootPath: `/data/originals/${username}`,
-  });
+  await replaceTemporaryPassword(request, username, temporaryPassword, password);
   return { id, username, password };
 }
 
@@ -71,24 +78,43 @@ export async function createUser(
   { username, password, rootPath }: Credentials & { rootPath: string },
 ) {
   const adminToken = await signIn(request, admin.username, admin.password);
+  const { id, temporaryPassword } = await addUser(request, adminToken, username);
+  const storageConfigId = await addStorageConfig(request, adminToken, id, rootPath);
+  await replaceTemporaryPassword(request, username, temporaryPassword, password);
+  return { id, storageConfigId };
+}
+
+async function addUser(request: APIRequestContext, adminToken: string, username: string) {
   const created = await request.post('/api/v1/users', {
     headers: bearer(adminToken),
     data: { username, email: `${username}@example.com` },
   });
   expect(created.status(), await created.text()).toBe(201);
-  const { id, temporaryPassword } = (await created.json()) as {
-    id: string;
-    temporaryPassword: string;
-  };
-  const storage = await request.post(`/api/v1/users/${id}/storage-configs`, {
+  return (await created.json()) as { id: string; temporaryPassword: string };
+}
+
+async function addStorageConfig(
+  request: APIRequestContext,
+  adminToken: string,
+  userId: string,
+  rootPath: string,
+) {
+  const storage = await request.post(`/api/v1/users/${userId}/storage-configs`, {
     headers: bearer(adminToken),
     data: { rootPath },
   });
   expect(storage.status(), await storage.text()).toBe(201);
+  return ((await storage.json()) as StorageConfig).id;
+}
+
+async function replaceTemporaryPassword(
+  request: APIRequestContext,
+  username: string,
+  temporaryPassword: string,
+  password: string,
+) {
   const token = await signIn(request, username, temporaryPassword);
   await changePassword(request, token, temporaryPassword, password);
-  const { id: storageConfigId } = (await storage.json()) as StorageConfig;
-  return { id, storageConfigId };
 }
 
 export async function disable(request: APIRequestContext, account: Account) {

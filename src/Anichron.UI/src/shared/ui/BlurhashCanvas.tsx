@@ -1,4 +1,4 @@
-import { paintBlurhash } from './blurhash';
+import { paintBlurhash } from '../blurhash';
 
 interface BlurhashProps {
   hash: string;

@@ -153,6 +153,6 @@ public sealed record CreateAdminUserRequest(string Username, string Email);
 public sealed record AdminCreatedUserResponse(Guid Id, string Username, string Email, string TemporaryPassword);
 public sealed record AdminPasswordResetResponse(string TemporaryPassword);
 public sealed record AdminUserResponse(Guid Id, string Username, string Email, bool IsAdmin, bool IsDisabled, int StorageConfigCount);
-public sealed record PatchAdminUserRequest(bool? IsAdmin, bool? IsDisabled);
+public sealed record PatchAdminUserRequest(bool? IsAdmin = null, bool? IsDisabled = null);
 public sealed record CreateStorageConfigRequest(string RootPath);
 public sealed record AdminStorageConfigResponse(Guid Id, Guid UserId, string RootPath, bool IsActive);

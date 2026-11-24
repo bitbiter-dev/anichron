@@ -1,11 +1,7 @@
 import type { Client } from 'openapi-fetch';
-import type { components, paths } from './generated/v1';
+import type { paths } from './generated/v1';
+import type { Memory, ShowMemories } from './memories';
 import type { Authorized } from './session';
-
-type Schemas = components['schemas'];
-type Proxies = Schemas['AssetProxyUrls'];
-
-export type Memory = Schemas['AssetDto'];
 
 export interface YearGroup {
   year: number;
@@ -20,21 +16,11 @@ export interface Flashbacks {
   onThisDay(date: string, signal?: AbortSignal): Promise<Day>;
 }
 
-function fromApi(url: string | null) {
-  return url && `/api/v1/${url}`;
-}
-
-export function memoryOf(asset: Schemas['AssetDto']): Memory {
-  return {
-    ...asset,
-    proxies: Object.fromEntries(
-      Object.entries(asset.proxies).map(([type, url]) => [type, fromApi(url)]),
-    ) as Proxies,
-    livePhotoVideoUrl: fromApi(asset.livePhotoVideoUrl),
-  };
-}
-
-export function createFlashbacks(client: Client<paths>, authorized: Authorized): Flashbacks {
+export function createFlashbacks(
+  client: Client<paths>,
+  authorized: Authorized,
+  show: ShowMemories,
+): Flashbacks {
   return {
     async onThisDay(date, signal) {
       const day = await authorized((init) =>
@@ -44,12 +30,9 @@ export function createFlashbacks(client: Client<paths>, authorized: Authorized):
           params: { query: { date } },
         }),
       );
-      return {
-        years: day.years.map(({ year, assets }) => ({
-          year,
-          memories: assets.map(memoryOf),
-        })),
-      };
+      return show((memoryOf) => ({
+        years: day.years.map(({ year, assets }) => ({ year, memories: assets.map(memoryOf) })),
+      }));
     },
   };
 }

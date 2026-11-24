@@ -1,6 +1,6 @@
-import type { Memory, YearGroup } from '../../api/flashbacks';
-import { blurhashOf } from './blurhash';
-import { memoryKind } from './memory-kinds';
+import type { YearGroup } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
+import { loadView, memoryKind, soundLabel } from '../../shared/memory-kinds';
 import type { LivePlay, StoryState } from './story';
 
 export type LiveState = LivePlay['state'];
@@ -30,17 +30,15 @@ export function storyView(state: StoryState, group: YearGroup) {
     },
     pause: state.paused ? 'story.play' : 'story.pause',
     controls: state.held ? 'hidden' : 'visible',
-    blurhash: state.load === 'shown' ? null : blurhashOf(memory),
-    failed: kind.failure && state.load === 'failed',
+    ...loadView(kind, memory, state.load),
     image: kind.image(state.load),
     video: videoShown(state, memory),
-    liveButton: kind.liveButton && state.load === 'shown',
     live: liveOf(state),
     duration: state.length,
     sound: {
       shown: kind.sound,
       hint: state.hint,
-      label: state.muted ? 'story.soundOn' : 'story.soundOff',
+      label: soundLabel(state.muted),
     },
   } as const;
 }

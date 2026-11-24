@@ -1,7 +1,10 @@
 import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
-import type { Day, Memory, YearGroup } from '../../api/flashbacks';
+import type { Day, YearGroup } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
+import type { User } from '../../api/session';
+import { burstsKey, daysKey } from '../../shared/memory-queries';
 import { burstIdOf, coverOf } from './burst';
 
 function twoDigits(value: number) {
@@ -22,6 +25,10 @@ export function daysBefore(date: string, count: number) {
   return day.toISOString().slice(0, 10);
 }
 
+export function hasPhotos(user: User) {
+  return user.hasStorageConfig;
+}
+
 export function isCalendarDate(text: string) {
   const date = utcDay(text);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
@@ -35,7 +42,7 @@ export function yearsAgo(date: string, year: number) {
 }
 
 export function dayKey(date: string) {
-  return ['on-this-day', date] as const;
+  return [...daysKey(), date] as const;
 }
 
 export function dayQuery(api: ApiClient, date: string) {
@@ -43,10 +50,6 @@ export function dayQuery(api: ApiClient, date: string) {
     queryKey: dayKey(date),
     queryFn: ({ signal }) => api.flashbacks.onThisDay(date, signal),
   });
-}
-
-function burstsKey() {
-  return ['burst'] as const;
 }
 
 export function burstQuery(api: ApiClient, memory: Memory) {
