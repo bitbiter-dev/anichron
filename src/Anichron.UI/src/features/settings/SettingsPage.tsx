@@ -35,8 +35,16 @@ export function SettingsPage() {
           onChange={theme.choose}
         />
       </Card>
-      <Card padded={false}>
-        <RowLink to="/hidden">{t('hidden.title')}</RowLink>
+      <Card as="section" aria-labelledby="settings-library" padded={false}>
+        <h2 id="settings-library" className="p-4 font-semibold">
+          {t('settings.library')}
+        </h2>
+        <div className={divider}>
+          <RowLink to="/hidden">{t('hidden.title')}</RowLink>
+        </div>
+        <div className={divider}>
+          <RowLink to="/removed">{t('removed.title')}</RowLink>
+        </div>
       </Card>
       <InstallRow />
       {account.isAdmin && <Administration />}

@@ -9,6 +9,14 @@ export interface Slide {
   current: boolean;
 }
 
+export function slidesOf(memories: readonly MemoryMedia[], current: number): Slide[] {
+  return memories.map((memory, index) => ({
+    memory,
+    current: index === current,
+    shown: Math.abs(index - current) <= 1,
+  }));
+}
+
 export function useSlide({ memory, shown, current }: Slide) {
   const kind = memoryKind(kindOf(memory));
   const [load, setLoad] = useState<Load>(() => kind.firstLoad(false));

@@ -94,7 +94,8 @@
     "administration": "Administration",
     "workItems": "Work queue",
     "changePassword": "Change password",
-    "admin": "Admin"
+    "admin": "Admin",
+    "library": "Library"
   },
   "hidden": {
     "title": "Hidden memories",
@@ -107,10 +108,24 @@
     "emptyHint": "Memories you hide from a story show up here.",
     "failed": "Couldn't load your hidden memories.",
     "caption": "Taken {{taken, datetime}} · Hidden {{hidden, relativetime}}",
-    "previous": "Previous memory",
-    "next": "Next memory",
     "unhide": "Unhide",
     "unhidden": "Memory unhidden"
+  },
+  "removed": {
+    "title": "Removed memories",
+    "empty": "Nothing removed",
+    "emptyHint": "Memories whose file went missing or was replaced on your NAS show up here.",
+    "failed": "Couldn't load your removed memories.",
+    "failedMore": "Couldn't load more removed memories.",
+    "reasons": {
+      "Missing": "Not found on your NAS · last seen {{date, datetime}}",
+      "Overwritten": "Another file took its place · last seen {{date, datetime}}",
+      "Superseded": "Its Live Photo has a newer video · removed around {{date, datetime}}"
+    }
+  },
+  "viewer": {
+    "previous": "Previous memory",
+    "next": "Next memory"
   },
   "password": {
     "title": "Change password",

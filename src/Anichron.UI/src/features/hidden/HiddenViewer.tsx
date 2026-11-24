@@ -29,7 +29,7 @@ function Viewer({ screen, start }: HiddenViewerProps & { start: number }) {
             key: slide.memory.id,
             slide: <SlideView {...slide} />,
           }))}
-          moves={{ previous: t('hidden.previous'), next: t('hidden.next') }}
+          moves={{ previous: t('viewer.previous'), next: t('viewer.next') }}
           title={t('hidden.caption', caption)}
         >
           <div className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] mx-auto w-fit rounded-full p-1 player-glass">
