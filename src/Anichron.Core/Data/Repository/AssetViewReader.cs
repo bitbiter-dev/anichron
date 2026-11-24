@@ -84,12 +84,10 @@ public sealed record BurstMembers(Guid BurstId) : IAssetSelection
         => assets.Where(a => a.BurstId == BurstId);
 }
 
-public sealed record HiddenCursor(Instant HiddenAt, Guid AssetId);
-
 /// <summary>The caller's hidden assets, newest hidden first, as one page after a cursor.</summary>
 /// <param name="After">The last row of the previous page, or <c>null</c> for the first page.</param>
 /// <param name="Take">The most rows to read.</param>
-public sealed record HiddenAssets(HiddenCursor? After, int Take) : IAssetSelection
+public sealed record HiddenAssets(AssetCursor? After, int Take) : IAssetSelection
 {
     public AssetSet Set => AssetSet.Hidden;
 
@@ -98,8 +96,8 @@ public sealed record HiddenAssets(HiddenCursor? After, int Take) : IAssetSelecti
     public IQueryable<InteractedAsset> Page(IQueryable<InteractedAsset> rows)
     {
         var after = After is { } cursor
-            ? rows.Where(r => r.Interaction!.HiddenAt < cursor.HiddenAt
-                || (r.Interaction.HiddenAt == cursor.HiddenAt && r.Asset.Id.CompareTo(cursor.AssetId) < 0))
+            ? rows.Where(r => r.Interaction!.HiddenAt < cursor.At
+                || (r.Interaction.HiddenAt == cursor.At && r.Asset.Id.CompareTo(cursor.AssetId) < 0))
             : rows;
         return after.OrderByDescending(r => r.Interaction!.HiddenAt).ThenByDescending(r => r.Asset.Id).Take(Take);
     }

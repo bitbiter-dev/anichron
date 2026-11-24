@@ -33,15 +33,15 @@ public static class MediaEndpoints
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Results.Unauthorized();
 
-        HiddenCursor? cursor = null;
-        if (after is not null && (cursor = HiddenCursors.Parse(after)) is null)
+        AssetCursor? cursor = null;
+        if (after is not null && (cursor = AssetCursors.Parse(after)) is null)
             return ApiProblems.FieldProblem(StatusCodes.Status400BadRequest, ErrorCodes.InvalidCursor, nameof(after), InvalidCursorMessage);
 
         var views = await reader.ReadAsync(userId, new HiddenAssets(cursor, HiddenPageSize + 1), ct);
         var page = views.Take(HiddenPageSize).ToList();
         return Results.Ok(new HiddenAssetsPageDto(
-            [.. page.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), HiddenCursors.FormatHiddenAt(view.HiddenAt!.Value)))],
-            views.Count > HiddenPageSize ? HiddenCursors.Format(page[^1]) : null));
+            [.. page.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), AssetCursors.FormatInstant(view.HiddenAt!.Value)))],
+            views.Count > HiddenPageSize ? AssetCursors.Format(new AssetCursor(page[^1].HiddenAt!.Value, page[^1].Id)) : null));
     }
 
     internal static async Task<IResult> PatchInteractionAsync(

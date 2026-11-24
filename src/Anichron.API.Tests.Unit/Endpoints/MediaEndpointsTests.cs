@@ -254,7 +254,7 @@ public sealed class MediaEndpointsTests
         page.Items.Select(i => i.Asset.Id).Should().Equal(views[..60].Select(v => v.Id));
         second.StatusCode.Should().Be(HttpStatusCode.OK);
         await fixture.Reader.Received(1).ReadAsync(
-            UserId, new HiddenAssets(new HiddenCursor(views[59].HiddenAt!.Value, views[59].Id), 61), Arg.Any<CancellationToken>());
+            UserId, new HiddenAssets(new AssetCursor(views[59].HiddenAt!.Value, views[59].Id), 61), Arg.Any<CancellationToken>());
     }
 
     public static TheoryData<string> MalformedCursors { get; } =
