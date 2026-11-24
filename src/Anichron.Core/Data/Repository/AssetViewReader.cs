@@ -3,6 +3,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Data.Repository;
 
+/// <summary>What an asset view carries to show the asset's media.</summary>
+public interface IAssetMedia
+{
+    Guid Id { get; }
+    string ContentHash { get; }
+    MediaType MediaType { get; }
+    int? Width { get; }
+    int? Height { get; }
+    int? Orientation { get; }
+    int? DurationInSeconds { get; }
+    string? Blurhash { get; }
+    bool HasThumbnail { get; }
+    bool HasPreview { get; }
+    bool HasCompactPreview { get; }
+    bool HasVideo { get; }
+    Guid? PairedMovId { get; }
+    string? PairedMovContentHash { get; }
+    bool PairedMovHasVideo { get; }
+}
+
 public sealed record AssetView(
     Guid Id,
     string ContentHash,
@@ -26,7 +46,7 @@ public sealed record AssetView(
     bool IsStarred,
     bool IsLiked,
     Guid? BurstId,
-    Instant? HiddenAt);
+    Instant? HiddenAt) : IAssetMedia;
 
 public enum AssetSet
 {

@@ -194,4 +194,103 @@ public sealed class AssetDtoMapperTests
     public void EveryMediaType_HasAPublishedValue()
         => Enum.GetValues<MediaType>().Select(t => ToDto(WithLiveVideo(t)).MediaType)
             .Should().OnlyHaveUniqueItems().And.HaveCount(Enum.GetValues<MediaType>().Length);
+
+    // ==========================================================================
+    // Soft-deleted assets (#341)
+    // ==========================================================================
+
+    private static readonly Instant LastSeen = Instant.FromUtc(2026, 11, 3, 18, 4, 5);
+
+    private static SoftDeletedAssetView SoftDeletedPhoto => AssetViews.SoftDeleted(AssetId, LastSeen) with
+    {
+        Width = 4032,
+        Height = 3024,
+        Orientation = ExifOrientation.RotateClockwise,
+        DurationInSeconds = 3,
+        HasThumbnail = true,
+        HasPreview = true,
+        HasCompactPreview = true,
+        Blurhash = "LEHV6nWB2yk8",
+        Reason = SoftDeleteReason.Overwritten,
+    };
+
+    [Fact]
+    public void SoftDeletedPhoto_MapsTheMediaFieldsWithThePathWhenLastSeenAndWhy()
+    {
+        AssetDtoMapper.ToDto(SoftDeletedPhoto).Should().BeEquivalentTo(new SoftDeletedAssetDto(
+            AssetId,
+            "Image",
+            2019,
+            11,
+            12,
+            3024,
+            4032,
+            null,
+            new AssetProxyUrls(
+                "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/thumbnail?v=0123456789abcdef",
+                "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/preview?v=0123456789abcdef",
+                "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/compact-preview?v=0123456789abcdef",
+                null),
+            "LEHV6nWB2yk8",
+            null,
+            "2019/IMG_0001.HEIC",
+            "2026-11-03T18:04:05Z",
+            "Overwritten"));
+    }
+
+    [Fact]
+    public void SoftDeletedUndatedAsset_HasNoDate()
+    {
+        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen) with { Year = null, Month = null, Day = null });
+
+        (dto.Year, dto.Month, dto.Day).Should().Be((null, null, null));
+    }
+
+    [Fact]
+    public void SoftDeletedLivePhotoWithItsVideo_IsALivePhotoThatPlaysIt()
+    {
+        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen) with
+        {
+            MediaType = MediaType.LivePhoto,
+            PairedMovId = MovId,
+            PairedMovContentHash = MovHash,
+            PairedMovHasVideo = true,
+        });
+
+        (dto.MediaType, dto.LivePhotoVideoUrl).Should().Be(
+            ("LivePhoto", "proxies/0199a1b2-c3d4-7e5f-8a9b-ffffffffffff/video?v=cafebabecafebabe"));
+    }
+
+    [Fact]
+    public void SoftDeletedLivePhotoWithoutAPlayableVideo_IsAnImage()
+    {
+        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen) with
+        {
+            MediaType = MediaType.LivePhoto,
+            PairedMovId = MovId,
+            PairedMovContentHash = MovHash,
+        });
+
+        (dto.MediaType, dto.LivePhotoVideoUrl).Should().Be(("Image", null));
+    }
+
+    [Fact]
+    public void SupersededVideo_IsAVideoWithItsDurationAndNoPicture()
+    {
+        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen) with
+        {
+            MediaType = MediaType.Video,
+            DurationInSeconds = 3,
+            HasVideo = true,
+            Reason = SoftDeleteReason.Superseded,
+        });
+
+        dto.Should().BeEquivalentTo(new
+        {
+            MediaType = "Video",
+            DurationSeconds = 3,
+            Proxies = new AssetProxyUrls(null, null, null, "proxies/0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b/video?v=0123456789abcdef"),
+            Reason = "Superseded",
+        });
+    }
 }

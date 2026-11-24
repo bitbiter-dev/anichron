@@ -52,6 +52,7 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
         { "GET /api/v1/proxies/{assetId}/{type}", Of(["200 image/jpeg Stream", "200 image/jxl Stream", "200 video/mp4 Stream", "206 image/jpeg Stream", "206 image/jxl Stream", "206 video/mp4 Stream", "304", $"404 {Problem}", $"412 {Problem}", "416"], User) },
         { "PATCH /api/v1/assets/{assetId}/interaction", Of(["200 application/json AssetInteractionDto", $"404 {Problem}"], User, Body) },
         { "GET /api/v1/assets/hidden", Of(["200 application/json HiddenAssetsPageDto", $"400 {Invalid}"], User) },
+        { "GET /api/v1/assets/soft-deleted", Of(["200 application/json SoftDeletedAssetsPageDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/flashbacks/on-this-day", Of(["200 application/json OnThisDayDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/bursts/{burstId}/assets", Of(["200 application/json AssetDto[]", $"404 {Problem}"], User) },
         { "GET /api/v1/admin/work-items", Of(["200 application/json WorkItemPageDto", $"400 {Invalid}"], User) },

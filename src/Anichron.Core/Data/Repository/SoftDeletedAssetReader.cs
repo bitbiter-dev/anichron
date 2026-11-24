@@ -24,7 +24,7 @@ public sealed record SoftDeletedAssetView(
     bool PairedMovHasVideo,
     string FilePath,
     Instant LastSeenOnNas,
-    SoftDeleteReason Reason);
+    SoftDeleteReason Reason) : IAssetMedia;
 
 /// <summary>A page of soft-deleted assets.</summary>
 /// <param name="Items">The page's assets, newest last seen first.</param>

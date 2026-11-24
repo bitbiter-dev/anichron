@@ -14,6 +14,8 @@ internal sealed class EnumDocumentTransformer : IOpenApiDocumentTransformer
         Name<WorkKind>(document, nameof(WorkItemDto), "kind");
         Name<WorkItemStatus>(document, nameof(WorkItemDto), "status");
         Name<PublishedMediaType>(document, nameof(AssetDto), "mediaType");
+        Name<PublishedMediaType>(document, nameof(SoftDeletedAssetDto), "mediaType");
+        Name<SoftDeleteReason>(document, nameof(SoftDeletedAssetDto), "reason");
         return Task.CompletedTask;
     }
 
