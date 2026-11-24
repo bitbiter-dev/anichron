@@ -148,7 +148,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "Soft rather than hard so the user's interactions survive, and a crawl that finds the "
                 + "file again clears it (auto-restore). SoftDeleteReason says which.");
             entity.Property(m => m.SoftDeleteReason).HasConversion<string>().HasComment(
-                "Why the row is soft-deleted: Missing, Overwritten or Superseded. Set with IsSoftDeleted and "
+                "Why the row is soft-deleted, a SoftDeleteReason name. Set with IsSoftDeleted and "
                 + "cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of "
                 + "soft-deleted assets.");
 

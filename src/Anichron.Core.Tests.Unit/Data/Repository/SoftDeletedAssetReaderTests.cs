@@ -196,6 +196,21 @@ public sealed class SoftDeletedAssetReaderTests
     }
 
     [Fact]
+    public async Task ReadPageAsync_BurstMembers_AreEachListed()
+    {
+        var library = new Library();
+        var burstId = Guid.NewGuid();
+        var first = library.Asset(lastSeen: Monday);
+        var second = library.Asset(lastSeen: Monday.Minus(Duration.FromSeconds(1)));
+        first.BurstId = burstId;
+        second.BurstId = burstId;
+
+        var page = await ReadPageAsync(library);
+
+        page.Items.Select(view => view.Id).Should().Equal(first.Id, second.Id);
+    }
+
+    [Fact]
     public async Task ReadPageAsync_HiddenAsset_IsListed()
     {
         var library = new Library();

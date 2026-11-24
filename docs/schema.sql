@@ -186,7 +186,7 @@ COMMENT ON COLUMN "MediaAssets"."CaptureZone" IS 'IANA time zone at the asset''s
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';
 COMMENT ON COLUMN "MediaAssets"."Day" IS 'See Month — the pair backs IX_MediaAsset_Flashback.';
 COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, when its path now holds content stored at another path, or when its Live Photo''s photo lets go of it. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore). SoftDeleteReason says which.';
-COMMENT ON COLUMN "MediaAssets"."SoftDeleteReason" IS 'Why the row is soft-deleted: Missing, Overwritten or Superseded. Set with IsSoftDeleted and cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of soft-deleted assets.';
+COMMENT ON COLUMN "MediaAssets"."SoftDeleteReason" IS 'Why the row is soft-deleted, a SoftDeleteReason name. Set with IsSoftDeleted and cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of soft-deleted assets.';
 
 
 CREATE TABLE "Interactions" (

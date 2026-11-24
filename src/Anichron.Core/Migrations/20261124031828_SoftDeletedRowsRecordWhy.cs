@@ -25,7 +25,7 @@ namespace Anichron.Core.Migrations
                 table: "MediaAssets",
                 type: "text",
                 nullable: true,
-                comment: "Why the row is soft-deleted: Missing, Overwritten or Superseded. Set with IsSoftDeleted and cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of soft-deleted assets.");
+                comment: "Why the row is soft-deleted, a SoftDeleteReason name. Set with IsSoftDeleted and cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of soft-deleted assets.");
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_MediaAssets_SoftDeleteReason",

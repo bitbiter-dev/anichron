@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { HttpResponse } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeResults } from '../../test/axe';
 import { refreshSucceeds } from '../../test/handlers/auth';
 import { hold, proxyPath, proxyUrl } from '../../test/handlers/flashbacks';
@@ -177,6 +177,33 @@ describe('the list', () => {
     await waitFor(() => {
       expect(rowNames().map((text) => text.slice(0, name(1).length))).toEqual([name(2), name(1)]);
     });
+  });
+
+  it('shows a thumbnail over its BlurHash until it decodes, and loads a broken one again', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createImageData: (width: number, height: number) => ({
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4),
+      }),
+      putImageData: () => undefined,
+    } as unknown as CanvasRenderingContext2D);
+    server.use(onePage(removed(1, { blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj' }), removed(2)));
+    await openRemoved();
+
+    const thumbnail = (n: number) =>
+      within(row(n)).getByRole('img').querySelector('img') as HTMLImageElement;
+    expect(row(1).querySelector('canvas')).not.toBeNull();
+    fireEvent.load(thumbnail(1));
+    await advance(0);
+    expect(row(1).querySelector('canvas')).toBeNull();
+
+    const broken = thumbnail(2);
+    fireEvent.error(broken);
+    await waitFor(() => {
+      expect(thumbnail(2)).not.toBe(broken);
+    });
+    expect(thumbnail(2)).toHaveAttribute('src', proxyUrl(id(2), 'thumbnail'));
   });
 
   it('says Nothing removed, with what shows up here, when there are none', async () => {
