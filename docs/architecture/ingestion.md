@@ -22,7 +22,9 @@ An item is one file, or both halves of a Live Photo.
 3. **Process new content** (`New`, `ContentChanged`, `AutoRestoredContentChanged`): metadata, proxies, then the `IOutcomeWriter` for that outcome. Every other outcome stops after `LivePhotoPairer` and `KnownFileReconciler`.
 4. **Save once.** Steps only stage changes; `IngestionSaver.TrySaveItemAsync` commits the item in one save, so an item is atomic and a failed one is redone whole on the next crawl. A lost uniqueness race (`LostIngestionRace`) skips the item until the next crawl.
 
-One home per rule: a row takes new content only through `StoredContent.TakeAsync`, is auto-restored only through `ReactivateAsync`, and is retired only through `RetireAsync`.
+One home per rule: a row takes new content only through `StoredContent.TakeAsync`, is auto-restored only through `ReactivateAsync` (which clears its reason), and is retired only through `RetireAsync`.
+
+`RetireAsync` records why: `Overwritten` for a path another file took, `Missing` for the row a move left, `Superseded` for a video its photo lets go of. A photo's video goes with the photo's reason, and `IngestionSaver` soft-deletes retired-first rows grouped by reason.
 
 **Adding an outcome:** a classifier branch, a `FileOutcome` value and its handler or writer. Its writes go into the item's one save.
 
@@ -46,7 +48,7 @@ For a file with content H at path P, first match wins (ADR 0011 for the path-hol
 - A row that takes content keeps its `Id`, interactions and `PairedAssetId`; its burst check is cleared.
 - An edit keeps the stored capture date unless the new content records its own.
 - Auto-restore leaves interactions alone, so a hidden asset stays hidden.
-- After the walk, `MissingFileSweep` soft-deletes the active rows whose path was not found, plus the video of every missing Live Photo. It does nothing when the walk was incomplete (`IncompleteWalk`) or found no media while rows exist (`EmptyRoot`).
+- After the walk, `MissingFileSweep` soft-deletes, as `Missing`, the active rows whose path was not found, plus the video of every missing Live Photo. It does nothing when the walk was incomplete (`IncompleteWalk`) or found no media while rows exist (`EmptyRoot`).
 - Swapping the contents of two paths can soft-delete both rows for one crawl; the next crawl restores them.
 
 ## Live Photos

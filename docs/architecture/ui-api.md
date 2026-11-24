@@ -12,7 +12,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 - An area module sends each call through `authorized`, which `createSession` hands to `client.ts`: the bearer token, and on a `401` one refresh and one retry. A token renewed meanwhile is retried without refreshing; a second `401` signs out.
 - A refresh that fails without signing out throws `SessionNotRenewed`, and the query retry predicate (`src/app/query-client.ts`) stops on it.
-- An area module returning memories maps each asset through the `ShowMemories` that `client.ts` hands it (`memories.ts`): it resolves proxy URLs, relative to `/api/v1/`, and picks the compact preview.
+- An area module returning memories maps each asset through the `ShowMemories` that `client.ts` hands it (`memories.ts`): it resolves proxy URLs, relative to `/api/v1/`, and picks the compact preview. It maps an `AssetDto` or a `SoftDeletedAssetDto`; shared views read only `MemoryMedia`.
 - A lapsed media session is renewed once, then the failure stands (`media.renewOnce` in `src/api/media.ts`). An `<img>` or `<video>` cannot see a `401`, so its error renews and loads the source once more. One showing an object URL fails at once. See "The refresh rules".
 - `src/api/media.ts` decodes a thumbnail with `new Image()` (`loadImage`), which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above.
 - `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once, by the same rule. What arrived stays for the session, within the limits in `createDownloads`.
