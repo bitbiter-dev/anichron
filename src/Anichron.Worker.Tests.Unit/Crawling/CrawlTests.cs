@@ -304,7 +304,7 @@ public sealed class CrawlTests
         var repository = Substitute.For<IMediaAssetRepository>();
         repository.GetActivePathsAsync(config.Id, Ct)
             .Returns([new AssetPath(kept, "kept.jpg"), new AssetPath(throughLink, "alice/x.jpg"), new AssetPath(removed, "removed.jpg")]);
-        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Ct).Returns(2);
+        repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Ct).Returns(2);
         var handler = new CrawlHandler(
             new ActiveStorageConfigs(configs, activeLogger), configs,
             FileIngestionPipelines.Build(
@@ -321,7 +321,7 @@ public sealed class CrawlTests
             && r.SkippedLinks == 1
             && r.Reconciliation == new ReconciliationCounts(2, 0, null));
         await repository.Received(1).SoftDeleteAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { throughLink, removed })), Ct);
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { throughLink, removed })), SoftDeleteReason.Missing, Ct);
     }
 
     [Fact]

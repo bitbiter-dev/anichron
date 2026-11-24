@@ -9,7 +9,7 @@ public sealed record PatchInteractionRequest(bool? Starred = null, bool? Liked =
 
 public static class MediaEndpoints
 {
-    internal const int HiddenPageSize = 60;
+    internal const int PageSize = 60;
     internal const string InvalidCursorMessage = "after must be the next cursor of an earlier page.";
 
     public static IEndpointRouteBuilder MapMediaEndpoints(this IEndpointRouteBuilder app)
@@ -21,8 +21,33 @@ public static class MediaEndpoints
         assets.MapGet(ApiPaths.Assets.Hidden, GetHiddenAsync)
               .Produces<HiddenAssetsPageDto>()
               .ProducesValidationProblem();
+        assets.MapGet(ApiPaths.Assets.SoftDeleted, GetSoftDeletedAsync)
+              .Produces<SoftDeletedAssetsPageDto>()
+              .ProducesValidationProblem();
         return app;
     }
+
+    internal static async Task<IResult> GetSoftDeletedAsync(
+        string? after,
+        ClaimsPrincipal user,
+        [FromServices] ISoftDeletedAssetReader reader,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Results.Unauthorized();
+
+        AssetCursor? cursor = null;
+        if (after is not null && (cursor = AssetCursors.Parse(after)) is null)
+            return InvalidCursor();
+
+        var page = await reader.ReadPageAsync(userId, cursor, PageSize, ct);
+        return Results.Ok(new SoftDeletedAssetsPageDto(
+            [.. page.Items.Select(AssetDtoMapper.ToDto)],
+            page.Next is { } next ? AssetCursors.Format(next) : null));
+    }
+
+    private static IResult InvalidCursor()
+        => ApiProblems.FieldProblem(StatusCodes.Status400BadRequest, ErrorCodes.InvalidCursor, "after", InvalidCursorMessage);
 
     internal static async Task<IResult> GetHiddenAsync(
         string? after,
@@ -33,15 +58,15 @@ public static class MediaEndpoints
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Results.Unauthorized();
 
-        HiddenCursor? cursor = null;
-        if (after is not null && (cursor = HiddenCursors.Parse(after)) is null)
-            return ApiProblems.FieldProblem(StatusCodes.Status400BadRequest, ErrorCodes.InvalidCursor, nameof(after), InvalidCursorMessage);
+        AssetCursor? cursor = null;
+        if (after is not null && (cursor = AssetCursors.Parse(after)) is null)
+            return InvalidCursor();
 
-        var views = await reader.ReadAsync(userId, new HiddenAssets(cursor, HiddenPageSize + 1), ct);
-        var page = views.Take(HiddenPageSize).ToList();
+        var views = await reader.ReadAsync(userId, new HiddenAssets(cursor, PageSize + 1), ct);
+        var page = views.Take(PageSize).ToList();
         return Results.Ok(new HiddenAssetsPageDto(
-            [.. page.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), HiddenCursors.FormatHiddenAt(view.HiddenAt!.Value)))],
-            views.Count > HiddenPageSize ? HiddenCursors.Format(page[^1]) : null));
+            [.. page.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), AssetCursors.FormatInstant(view.HiddenAt!.Value)))],
+            views.Count > PageSize ? AssetCursors.Format(new AssetCursor(page[^1].HiddenAt!.Value, page[^1].Id)) : null));
     }
 
     internal static async Task<IResult> PatchInteractionAsync(

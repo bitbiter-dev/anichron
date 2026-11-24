@@ -23,6 +23,7 @@ import {
 } from '../features/on-this-day/day';
 import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
 import { hiddenKey } from '../features/hidden/hidden';
+import { removedKey } from '../features/removed/removed';
 import { listSearch, workItemsKey } from '../features/work-items/route';
 import { createThemeChoice, type ThemeChoice } from '../shared/theme';
 import { createToasts, type Toasts } from '../shared/toasts';
@@ -135,6 +136,16 @@ function routeTree() {
     staticData: { screen: { title: 'hidden.title', parent: '/settings' } },
   });
 
+  const removedRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: '/removed',
+    onLeave: ({ context }) => {
+      context.queryClient.removeQueries({ queryKey: removedKey() });
+    },
+    component: lazyRouteComponent(() => import('../features/removed/RemovedPage'), 'RemovedPage'),
+    staticData: { screen: { title: 'removed.title', parent: '/settings' } },
+  });
+
   const passwordRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: '/settings/password',
@@ -213,6 +224,7 @@ function routeTree() {
         onThisDayRoute.addChildren([homeRoute, storyRoute]),
         settingsRoute,
         hiddenRoute,
+        removedRoute,
         passwordRoute,
         adminRoute.addChildren([workItemsRoute.addChildren([workItemListRoute, workItemRoute])]),
       ]),

@@ -1,18 +1,10 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { HiddenMemory } from '../../api/hidden';
-import { listen } from '../../shared/listen';
 import { burstsKey, daysKey } from '../../shared/memory-queries';
+import { usePaging } from '../../shared/use-paging';
 import { failureOf, hiddenQuery, sectionsOf } from './hidden';
-
-const loadAheadPixels = 800;
-const loadAheadMemories = 3;
-
-function nearBottom() {
-  const { scrollHeight } = document.documentElement;
-  return window.scrollY + window.innerHeight >= scrollHeight - loadAheadPixels;
-}
 
 function without(ids: ReadonlySet<string>, id: string) {
   const left = new Set(ids);
@@ -29,17 +21,9 @@ export function useHidden() {
     ({ memory }) => !unhidden.has(memory.id),
   );
 
-  function more() {
+  const { nearing } = usePaging(() => {
     if (query.hasNextPage) void query.fetchNextPage({ cancelRefetch: false });
-  }
-
-  useEffect(() => {
-    const check = () => {
-      if (nearBottom()) more();
-    };
-    check();
-    return listen(window, 'scroll', check);
-  });
+  }, items.length);
 
   function send(id: string, hidden: boolean, rollBack: () => void) {
     api.assets.interact(id, { hidden }).then(
@@ -96,9 +80,7 @@ export function useHidden() {
       setOpened(null);
     },
     unhide,
-    nearing: (current: number) => {
-      if (current >= items.length - loadAheadMemories) more();
-    },
+    nearing,
   };
 }
 

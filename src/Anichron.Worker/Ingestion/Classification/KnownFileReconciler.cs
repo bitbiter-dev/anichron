@@ -62,7 +62,7 @@ internal sealed partial class KnownFileReconciler(
         IngestionContext context, MediaAsset copied, MediaAsset atPath, string relativePath, CancellationToken ct)
     {
         SkipDuplicate(copied, relativePath);
-        await storedContent.RetireAsync(context, atPath, ct);
+        await storedContent.RetireAsync(context, atPath, SoftDeleteReason.Overwritten, ct);
         Log.OverwrittenByCopy(logger, atPath.Id, relativePath, copied.FilePath);
         return true;
     }
@@ -76,7 +76,7 @@ internal sealed partial class KnownFileReconciler(
             return false;
         }
 
-        await storedContent.RetireAsync(context, atPath, ct);
+        await storedContent.RetireAsync(context, atPath, SoftDeleteReason.Overwritten, ct);
         Log.OverwrittenByLivePhotoVideo(logger, atPath.Id, relativePath, video.Id, video.FilePath);
         return true;
     }
@@ -91,7 +91,7 @@ internal sealed partial class KnownFileReconciler(
         if (photo is not null)
             PairedMovResolver.DateFromPhoto(atPath, photo.Row);
 
-        await storedContent.RetireAsync(context, moved, ct);
+        await storedContent.RetireAsync(context, moved, SoftDeleteReason.Missing, ct);
         Log.OverwrittenByMove(logger, atPath.Id, relativePath, moved.Id, moved.FilePath);
         return true;
     }

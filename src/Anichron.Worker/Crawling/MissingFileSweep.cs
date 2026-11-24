@@ -61,7 +61,9 @@ internal sealed partial class MissingFileSweep(
         }
 
         return new MissingFiles(
-            await repository.SoftDeleteAsync([.. missing.Concat(videosLeftBehind).Select(row => row.Id)], ct), null);
+            await repository.SoftDeleteAsync(
+                [.. missing.Concat(videosLeftBehind).Select(row => row.Id)], SoftDeleteReason.Missing, ct),
+            null);
     }
 
     private static partial class Log

@@ -743,14 +743,14 @@ public sealed partial class AssetViewReaderTests
         await using var db = new AnichronDbContext(options);
         var reader = new EfAssetViewReader(db);
         var all = new List<AssetView>();
-        HiddenCursor? after = null;
+        AssetCursor? after = null;
         for (var pages = 0; pages < 10; pages++)
         {
             var page = await reader.ReadAsync(caller.Id, new HiddenAssets(after, take), TestContext.Current.CancellationToken);
             all.AddRange(page);
             if (page.Count < take)
                 return all;
-            after = new HiddenCursor(page[^1].HiddenAt!.Value, page[^1].Id);
+            after = new AssetCursor(page[^1].HiddenAt!.Value, page[^1].Id);
         }
 
         throw new InvalidOperationException("The pages never ended.");
@@ -816,7 +816,7 @@ public sealed partial class AssetViewReaderTests
             library.Interaction(library.Mira, asset, hiddenAt: n == 4 ? Monday - Duration.FromHours(1) : Monday);
         }
 
-        var views = await ReadAsync(library, library.Mira, new HiddenAssets(new HiddenCursor(Monday, Id(2)), Take: 10));
+        var views = await ReadAsync(library, library.Mira, new HiddenAssets(new AssetCursor(Monday, Id(2)), Take: 10));
 
         views.Select(v => v.Id).Should().Equal(Id(1), Id(4));
     }
@@ -925,9 +925,9 @@ public sealed partial class AssetViewReaderTests
     {
         using var db = AnichronDbContexts.NpgsqlModel();
 
-        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new HiddenAssets(new HiddenCursor(Monday, Id(1)), 61)).ToQueryString();
+        var sql = EfAssetViewReader.Query(db, Guid.NewGuid(), new HiddenAssets(new AssetCursor(Monday, Id(1)), 61)).ToQueryString();
 
-        sql.Should().MatchRegex(@"\.""HiddenAt"" < @cursor_HiddenAt OR \(\w+\.""HiddenAt"" = @cursor_HiddenAt AND \w+\.""Id"" < @cursor_AssetId\)")
+        sql.Should().MatchRegex(@"\.""HiddenAt"" < @cursor_At OR \(\w+\.""HiddenAt"" = @cursor_At AND \w+\.""Id"" < @cursor_AssetId\)")
             .And.MatchRegex(@"ORDER BY \w+\.""HiddenAt"" DESC, \w+\.""Id"" DESC\s+LIMIT @p")
             .And.MatchRegex(@"ORDER BY \w+\.""HiddenAt"" DESC, \w+\.""Id"" DESC$", "the joins around the page must not lose its order")
             .And.Contain("\"HiddenAt\" IS NOT NULL")

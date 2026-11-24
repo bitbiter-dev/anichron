@@ -74,6 +74,7 @@ internal sealed partial class StoredContent(
         if (wasSoftDeleted)
             context.StageAutoRestored();
         asset.IsSoftDeleted = false;
+        asset.SoftDeleteReason = null;
         asset.LastSeenOnNas = clock.GetCurrentInstant();
         await bursts.RemoveCheckAsync(asset.Id, ct);
         return wasSoftDeleted;
@@ -85,22 +86,24 @@ internal sealed partial class StoredContent(
     /// </summary>
     /// <param name="context">The item that stages the soft-delete counts.</param>
     /// <param name="asset">A tracked row.</param>
+    /// <param name="reason">Why the row goes; its video goes for the same reason.</param>
     /// <param name="ct">Cancels the lookup of the video.</param>
-    public async Task RetireAsync(IngestionContext context, MediaAsset asset, CancellationToken ct)
+    public async Task RetireAsync(IngestionContext context, MediaAsset asset, SoftDeleteReason reason, CancellationToken ct)
     {
-        if (!SoftDelete(context, asset) || asset.PairedAssetId is not { } videoId)
+        if (!SoftDelete(context, asset, reason) || asset.PairedAssetId is not { } videoId)
             return;
 
-        if (await repository.FindAsync(videoId, ct) is { } video && SoftDelete(context, video))
+        if (await repository.FindAsync(videoId, ct) is { } video && SoftDelete(context, video, reason))
             Log.RetiredWithItsPhoto(logger, video.Id, video.FilePath, asset.Id);
     }
 
-    private static bool SoftDelete(IngestionContext context, MediaAsset asset)
+    private static bool SoftDelete(IngestionContext context, MediaAsset asset, SoftDeleteReason reason)
     {
         if (asset.IsSoftDeleted)
             return false;
 
         asset.IsSoftDeleted = true;
+        asset.SoftDeleteReason = reason;
         context.StageSoftDeleted();
         return true;
     }

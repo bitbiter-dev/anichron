@@ -32,8 +32,8 @@ public sealed class ProxyEndpointsTests
 
         public void HasProxy(ProxyType type, string proxyPath, byte[]? bytes)
         {
-            Assets.FindVisibleProxyAsync(AssetId, UserId, type, Arg.Any<CancellationToken>())
-                .Returns(new VisibleProxy(proxyPath, ContentHash));
+            Assets.FindOwnedProxyAsync(AssetId, UserId, type, Arg.Any<CancellationToken>())
+                .Returns(new OwnedProxy(proxyPath, ContentHash));
             if (bytes is not null)
                 Proxies.Files[proxyPath] = bytes;
         }
@@ -204,11 +204,11 @@ public sealed class ProxyEndpointsTests
         using var _ = await client.SendAsync(Get("thumbnail"), TestContext.Current.CancellationToken);
 
         await fixture.Assets.Received(1)
-            .FindVisibleProxyAsync(AssetId, UserId, ProxyType.Thumbnail, Arg.Any<CancellationToken>());
+            .FindOwnedProxyAsync(AssetId, UserId, ProxyType.Thumbnail, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task GetProxy_NotVisibleToTheCaller_ReturnsNotFoundAsync()
+    public async Task GetProxy_NotOwnedByTheCaller_ReturnsNotFoundAsync()
     {
         var fixture = new TestFixture();
         fixture.HasProxy(ProxyType.Thumbnail, "01/thumbnail.jpg", [1]);
@@ -233,7 +233,7 @@ public sealed class ProxyEndpointsTests
         using var response = await client.SendAsync(Get(type), TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        await fixture.Assets.DidNotReceive().FindVisibleProxyAsync(
+        await fixture.Assets.DidNotReceive().FindOwnedProxyAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<ProxyType>(), Arg.Any<CancellationToken>());
     }
 

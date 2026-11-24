@@ -69,7 +69,7 @@ internal sealed partial class PairedMovResolver(
         if (await repository.FindAsync(previousId, ct) is not { IsSoftDeleted: false } previous)
             return;
 
-        await storedContent.RetireAsync(context, previous, ct);
+        await storedContent.RetireAsync(context, previous, SoftDeleteReason.Superseded, ct);
         Log.LetGo(logger, previous.Id, previous.FilePath, photo.Id, mov.Id);
     }
 
