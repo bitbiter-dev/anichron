@@ -1,17 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { expectAccessible } from './accessibility';
-import { createAccount, type Account } from './accounts';
+import { createAccount, signInPage } from './accounts';
 import { surface } from './surfaces';
 
 const signedIn = { level: 1, name: 'On This Day' } as const;
-
-async function signIn(page: Page, account: Account) {
-  await page.goto('/login');
-  await page.getByLabel('Username or email').fill(account.username);
-  await page.getByLabel('Password').fill(account.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', signedIn)).toBeVisible();
-}
 
 test('the start-up theme script is served unhashed and never cached stale', async ({ request }) => {
   const response = await request.get('/theme-init.js');
@@ -25,7 +17,7 @@ test('a stored Dark choice paints dark from the first frame on a light device', 
   page,
   request,
 }) => {
-  await signIn(page, await createAccount(request));
+  await signInPage(page, await createAccount(request));
   await page.emulateMedia({ colorScheme: 'light' });
   await page.addInitScript(() => {
     localStorage.setItem('anichron.theme', 'dark');
@@ -56,7 +48,7 @@ test('the bottom bar floats inside the screen, with items at least 44 px tall', 
   page,
   request,
 }) => {
-  await signIn(page, await createAccount(request));
+  await signInPage(page, await createAccount(request));
   const viewport = page.viewportSize() ?? { width: 0, height: 0 };
 
   const bar = await page.getByRole('navigation').boundingBox();
@@ -74,7 +66,7 @@ test('choosing a theme in Settings applies it and sets the theme colour', async 
   page,
   request,
 }) => {
-  await signIn(page, await createAccount(request));
+  await signInPage(page, await createAccount(request));
   await page.emulateMedia({ colorScheme: 'light' });
   await page.getByRole('link', { name: 'Settings' }).click();
   const body = page.locator('body');
@@ -96,7 +88,7 @@ test('choosing a theme in Settings applies it and sets the theme colour', async 
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`Home and Settings are captured in ${colorScheme}`, async ({ page, request }, testInfo) => {
     await page.emulateMedia({ colorScheme });
-    await signIn(page, await createAccount(request));
+    await signInPage(page, await createAccount(request));
     await expectAccessible(page);
     await page.emulateMedia({ colorScheme });
     await page.screenshot({
