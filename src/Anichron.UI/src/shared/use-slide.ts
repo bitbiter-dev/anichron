@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import type { Memory } from '../../api/memories';
-import { kindOf, type Load, loadView, memoryKind, soundLabel } from '../../shared/memory-kinds';
-import { useRecovering } from '../../shared/use-recovering';
+import type { MemoryMedia } from '../api/memories';
+import { kindOf, type Load, loadView, memoryKind, soundLabel } from './memory-kinds';
+import { useRecovering } from './use-recovering';
 
 export interface Slide {
-  memory: Memory;
+  memory: MemoryMedia;
   shown: boolean;
   current: boolean;
 }

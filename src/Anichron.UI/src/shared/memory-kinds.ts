@@ -1,4 +1,4 @@
-import type { Memory } from '../api/memories';
+import type { MemoryMedia } from '../api/memories';
 import { blurhashOf } from './blurhash';
 
 export type Load = 'loading' | 'shown' | 'failed';
@@ -10,7 +10,7 @@ type ImageShown = 'picture' | 'poster' | null;
 type Name = 'story.photo' | 'story.video' | 'story.livePhoto' | 'story.burst';
 
 interface Video {
-  source: (memory: Memory, load: Load) => string | null;
+  source: (memory: MemoryMedia, load: Load) => string | null;
   live: boolean;
 }
 
@@ -21,10 +21,10 @@ export interface MemoryKind {
   failure: boolean;
   liveButton: boolean;
   sound: boolean;
-  name: (memory: Memory) => Name;
+  name: (memory: MemoryMedia) => Name;
 }
 
-export function kindOf({ proxies, livePhotoVideoUrl, burst }: Memory): Kind {
+export function kindOf({ proxies, livePhotoVideoUrl, burst }: MemoryMedia): Kind {
   if (proxies.video) return 'video';
   if (!proxies.preview) return 'unready';
   if (burst) return 'burst';
@@ -32,8 +32,8 @@ export function kindOf({ proxies, livePhotoVideoUrl, burst }: Memory): Kind {
   return 'picture';
 }
 
-function nameOf({ mediaType }: Memory) {
-  const names: Record<Memory['mediaType'], Name> = {
+function nameOf({ mediaType }: MemoryMedia) {
+  const names: Record<MemoryMedia['mediaType'], Name> = {
     Image: 'story.photo',
     Video: 'story.video',
     LivePhoto: 'story.livePhoto',
@@ -75,7 +75,7 @@ export function memoryKind(kind: Kind): MemoryKind {
   return kinds[kind];
 }
 
-export function loadView(kind: MemoryKind, memory: Memory, load: Load) {
+export function loadView(kind: MemoryKind, memory: MemoryMedia, load: Load) {
   return {
     blurhash: load === 'shown' ? null : blurhashOf(memory),
     failed: kind.failure && load === 'failed',
