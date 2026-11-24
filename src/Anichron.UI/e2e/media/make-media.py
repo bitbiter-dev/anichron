@@ -1,4 +1,4 @@
-"""Writes the made-up E2E library into mira/. Needs Pillow, pillow-heif, NumPy and ffmpeg on PATH."""
+"""Writes the made-up E2E library into mira/ (README.md)."""
 
 import subprocess
 from pathlib import Path

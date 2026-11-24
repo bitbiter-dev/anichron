@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { expect, type APIRequestContext } from '@playwright/test';
+import type { components } from '../src/api/generated/v1';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export const bootstrapAdmin = { username: 'admin', password: 'end-to-end bootstrap passphrase' };
 export const admin = { username: 'admin', password: 'end-to-end admin passphrase' };
@@ -15,6 +16,10 @@ export interface Account {
   password: string;
 }
 
+type StorageConfig = components['schemas']['AdminStorageConfigResponse'];
+
+type Credentials = Pick<Account, 'username' | 'password'>;
+
 export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 export async function signIn(
@@ -27,6 +32,14 @@ export async function signIn(
   });
   expect(response.status(), await response.text()).toBe(200);
   return ((await response.json()) as { accessToken: string }).accessToken;
+}
+
+export async function signInPage(page: Page, { username, password }: Credentials) {
+  await page.goto('/login');
+  await page.getByLabel('Username or email').fill(username);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
 }
 
 export async function changePassword(
@@ -45,15 +58,17 @@ export async function changePassword(
 export async function createAccount(request: APIRequestContext): Promise<Account> {
   const username = `user-${randomUUID().slice(0, 8)}`;
   const password = `${username} passphrase`;
-  const { id } = await createUser(request, username, password, `/data/originals/${username}`);
+  const { id } = await createUser(request, {
+    username,
+    password,
+    rootPath: `/data/originals/${username}`,
+  });
   return { id, username, password };
 }
 
 export async function createUser(
   request: APIRequestContext,
-  username: string,
-  password: string,
-  rootPath: string,
+  { username, password, rootPath }: Credentials & { rootPath: string },
 ) {
   const adminToken = await signIn(request, admin.username, admin.password);
   const created = await request.post('/api/v1/users', {
@@ -72,7 +87,8 @@ export async function createUser(
   expect(storage.status(), await storage.text()).toBe(201);
   const token = await signIn(request, username, temporaryPassword);
   await changePassword(request, token, temporaryPassword, password);
-  return { id, storageConfigId: ((await storage.json()) as { id: string }).id, adminToken };
+  const { id: storageConfigId } = (await storage.json()) as StorageConfig;
+  return { id, storageConfigId };
 }
 
 export async function disable(request: APIRequestContext, account: Account) {
@@ -91,7 +107,8 @@ async function failSignIn(request: APIRequestContext, account: Account) {
   expect(response.status()).toBe(401);
 }
 
-const pause = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+export const pause = (seconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
 // Failures 4, 5 and 6 lock for 2, 4 and 8 s; one during a lock is not counted.
 export async function lockOut(request: APIRequestContext, account: Account) {

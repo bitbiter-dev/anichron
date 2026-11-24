@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { expectAccessible } from './accessibility';
-import { mediaUser } from './accounts';
+import { mediaUser, signInPage } from './accounts';
 
 const today = new Date('2026-06-15T09:00:00Z');
 const memoryMilliseconds = 5000;
@@ -15,11 +15,7 @@ const button = (page: Page, name: string) => story(page).getByRole('button', { n
 
 async function signIn(page: Page) {
   await page.clock.install({ time: today });
-  await page.goto('/login');
-  await page.getByLabel('Username or email').fill(mediaUser.username);
-  await page.getByLabel('Password').fill(mediaUser.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
+  await signInPage(page, mediaUser);
 }
 
 async function open(page: Page, group: string) {
@@ -73,6 +69,7 @@ test('the story advances on its own, a burst shows as its cover, and taps skip',
   await open(page, '1 year ago · 2025');
 
   await expect(story(page).getByRole('status')).toHaveText('1 year ago · 2025');
+  await expect(button(page, 'Pause')).toBeFocused();
   await expectShown(memory(page, 'Photo, 2025, 1 of 2'));
   await freezeClock(page);
   await page.clock.runFor(memoryMilliseconds);
@@ -143,7 +140,7 @@ test('a swipe changes year group and a swipe down closes the story', async ({ pa
   await open(page, '1 year ago · 2025');
   await expectShown(memory(page, 'Photo, 2025, 1 of 2'));
   await button(page, 'Pause').click();
-  await expectAccessible(page, { settled: false });
+  await expectAccessible(page, { waitForAnimations: false });
 
   await swipe(page, -150, 0);
   await expectShown(memory(page, 'Live Photo, 2024, 1 of 2'));

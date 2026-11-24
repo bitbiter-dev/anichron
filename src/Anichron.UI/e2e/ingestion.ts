@@ -1,23 +1,20 @@
 import type { APIRequestContext } from '@playwright/test';
-import { bearer } from './accounts';
+import type { components } from '../src/api/generated/v1';
+import { bearer, pause } from './accounts';
 
-interface WorkItem {
-  kind: 'Crawl' | 'BurstDetection';
-  storageConfigId: string | null;
-  status: 'Queued' | 'Running' | 'Succeeded' | 'Failed' | 'Cancelled';
-  startedAt: string | null;
-  finishedAt: string | null;
-  result: Record<string, number> | null;
-  error: string | null;
-}
+type Schemas = components['schemas'];
+type WorkItem = Omit<Schemas['WorkItemDto'], 'result'> & {
+  result: Record<string, unknown> | null;
+};
+type WorkItemPage = Omit<Schemas['WorkItemPageDto'], 'items'> & { items: WorkItem[] };
 
 const waitSeconds = 300;
-const logs = 'docker compose -f src/docker-compose.e2e.yml logs anichron-worker';
+const logs = 'docker compose -f src/docker-compose.e2e.yml logs';
 
 async function itemsOf(
   request: APIRequestContext,
   token: string,
-  kind: WorkItem['kind'],
+  kind: Schemas['WorkKind'],
   storageConfigId: string,
 ) {
   const response = await request.get('/api/v1/admin/work-items', {
@@ -25,7 +22,7 @@ async function itemsOf(
     params: { kind, pageSize: 200 },
   });
   if (response.status() !== 200) throw new Error(await response.text());
-  const { items } = (await response.json()) as { items: WorkItem[] };
+  const { items } = (await response.json()) as WorkItemPage;
   const ours = items.filter((item) => item.storageConfigId === storageConfigId);
   const failed = ours.find((item) => item.status === 'Failed' || item.status === 'Cancelled');
   if (failed) throw new Error(`${kind} ${failed.status}: ${failed.error ?? ''}. See ${logs}.`);
@@ -60,6 +57,6 @@ export async function waitForIngestion(
       throw new Error(
         `The media library was not ingested in ${String(waitSeconds)} s. See ${logs}.`,
       );
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await pause(1);
   }
 }

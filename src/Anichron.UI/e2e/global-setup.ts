@@ -1,5 +1,5 @@
 import { request, type FullConfig } from '@playwright/test';
-import { admin, bootstrapAdmin, changePassword, createUser, mediaUser } from './accounts';
+import { admin, bootstrapAdmin, changePassword, createUser, mediaUser, signIn } from './accounts';
 import { waitForIngestion } from './ingestion';
 
 export default async function globalSetup(config: FullConfig) {
@@ -15,12 +15,8 @@ export default async function globalSetup(config: FullConfig) {
     );
   const { accessToken } = (await response.json()) as { accessToken: string };
   await changePassword(context, accessToken, bootstrapAdmin.password, admin.password);
-  const { storageConfigId, adminToken } = await createUser(
-    context,
-    mediaUser.username,
-    mediaUser.password,
-    mediaUser.rootPath,
-  );
+  const { storageConfigId } = await createUser(context, mediaUser);
+  const adminToken = await signIn(context, admin.username, admin.password);
   await waitForIngestion(context, adminToken, storageConfigId);
   await context.dispose();
 }
