@@ -8,4 +8,5 @@ public enum WorkKind
     BurstDetection = 4,
     ProxySweep = 5,
     ProxyDeletion = 6,
+    CompactPreview = 7,
 }

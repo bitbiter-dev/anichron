@@ -56,6 +56,7 @@ The directive stays bare; the reason lives here.
 | `FileIngestionPipeline`: the `"*"` search pattern | .NET treats `""` as match-all too. |
 | `ServiceCollectionExtensions.AddAuthServices`: `AddSingleton(TimeProvider.System)` | The resilience handler `TryAdd`s the same instance. |
 | `BurstDetectionHandler.Thumbnail`: `First` | Only candidates reach it, and a candidate always has a thumbnail. |
+| `CompactPreviewHandler.ConvertAsync`: `Single` | Its query loads only assets with a `FullPreview`, and the unique index allows one. |
 | `AnichronDbContext`: relationships and indexes that restate EF conventions, and `base.OnModelCreating` | Removing them leaves the DDL unchanged; the `docs/schema.sql` test catches convention drift. |
 
 ## Members that need real PostgreSQL (`// Stryker disable all` on each member)

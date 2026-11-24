@@ -1,6 +1,7 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { render } from '@testing-library/react';
 import { createApiClient } from '../api/client';
+import type { Display } from '../api/display';
 import type { Tabs } from '../api/tabs';
 import { App } from '../app/App';
 import { createQueryClient } from '../app/query-client';
@@ -8,6 +9,7 @@ import { createAppRouter } from '../app/router';
 import { keepInstallPrompt } from '../app/install';
 import { createI18n } from '../i18n/i18n';
 import { inAct } from './act';
+import { fakeDisplay } from './display';
 import { memoryUrls } from './object-urls';
 import { loadImage } from './pictures';
 import { settled, track } from './query-clients';
@@ -16,9 +18,13 @@ import { fakeUpdates } from './updates';
 
 import.meta.glob(['../features/*/*Page.tsx', '../api/event-stream.ts'], { eager: true });
 
-export function renderApp(path: string, tabs: Tabs = sharedTabs().tab()) {
+export function renderApp(
+  path: string,
+  tabs: Tabs = sharedTabs().tab(),
+  display: Display = fakeDisplay(),
+) {
   const updates = fakeUpdates();
-  const api = createApiClient(tabs, memoryUrls());
+  const api = createApiClient(tabs, display, memoryUrls());
   const { downloads, renewOnce } = api.media;
   const router = createAppRouter(
     {

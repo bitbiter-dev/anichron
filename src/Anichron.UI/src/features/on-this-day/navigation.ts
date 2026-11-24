@@ -1,3 +1,4 @@
+import { createTapGuard, type Point, type Swipe, swipeOf } from '../../shared/frames';
 import { listen } from '../../shared/listen';
 import type { Move, Story, Tap } from './story';
 
@@ -30,38 +31,14 @@ export function listenToInput(story: Story) {
   };
 }
 
-const swipePixels = 60;
-const flickPixelsPerSecond = 800;
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-function swipeMove({ x, y }: Point, velocity: Point, height: number): Move | 'close' | undefined {
-  if (Math.abs(x) > Math.abs(y)) {
-    if (x <= -swipePixels) return 'nextGroup';
-    return x >= swipePixels ? 'previousGroup' : undefined;
-  }
-  const flicked = y >= swipePixels && velocity.y >= flickPixelsPerSecond;
-  return flicked || y >= height / 3 ? 'close' : undefined;
-}
-
-export function closesOnSwipe(offset: Point, velocity: Point, height: number) {
-  return swipeMove(offset, velocity, height) === 'close';
-}
-
-export function createTapGuard() {
-  let dragging: boolean | undefined;
-  return {
-    pressStart: () => {
-      dragging = false;
-    },
-    dragStart: () => {
-      dragging = true;
-    },
-    tapped: () => !dragging,
+function swipeMove(offset: Point, velocity: Point, height: number) {
+  const moves: Record<Swipe, Move | 'close'> = {
+    left: 'nextGroup',
+    right: 'previousGroup',
+    down: 'close',
   };
+  const swipe = swipeOf(offset, velocity, height);
+  return swipe && moves[swipe];
 }
 
 export function createGestures(story: Story) {

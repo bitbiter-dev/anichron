@@ -36,6 +36,10 @@ _Avoid_: Pair, HEIC+MOV, motion photo
 The still frame that stands for a video wherever it is shown before it plays. Only a video that is a memory of its own has one; a Live Photo's photo is already its image.
 _Avoid_: Cover, thumbnail, preview frame
 
+**Hidden**:
+A memory, or one frame of a burst, that the user took out of their own stories. It stays in the library, listed in Hidden memories newest hidden first, and the user can bring it back from there.
+_Avoid_: Archived, removed, deleted
+
 **Capture date**:
 The date and time on the clock where a photo or video was taken, as its camera or app recorded it, with the offset from UTC when one was recorded and the time zone where it was taken when its location is known. A moment recorded only in UTC is read in that zone, or in the library's time zone without a location. A capture date recorded without a time names the day only, and its asset is never part of a burst.
 _Avoid_: Date taken, timestamp, creation date
@@ -75,3 +79,7 @@ _Avoid_: Replaced, clobbered
 **Superseded**:
 A Live Photo's video whose photo now has another video. It stays soft-deleted even while its file is still on the NAS, because it is never a memory of its own.
 _Avoid_: Replaced, orphaned video, let-go video
+
+**Forced password change**:
+The state of an account whose user can only change their password or sign out until the change succeeds. It is set when an admin creates the account or resets its password, and for the first admin until they choose their own.
+_Avoid_: Temporary password, must-change, password reset

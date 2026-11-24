@@ -1,5 +1,4 @@
 import { useRouter } from '@tanstack/react-router';
-import { useState } from 'react';
 import { z } from 'zod/mini';
 import type { ValidationCode } from '../../api/problem';
 import { useProblemForm } from '../../shared/use-problem-form';
@@ -23,20 +22,18 @@ function passwordSchema() {
 
 export type PasswordForm = ReturnType<typeof usePasswordForm>;
 
-export function usePasswordForm() {
-  const { api } = useRouter().options.context;
-  const [changed, setChanged] = useState(false);
-  const form = useProblemForm({
+export function usePasswordForm(afterChange: 'home' | 'requested') {
+  const router = useRouter();
+  const { api, toasts } = router.options.context;
+  return useProblemForm({
     schema: passwordSchema(),
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
     messages: passwordMessages(),
     sentFields: ['currentPassword', 'newPassword'],
-    submit: async ({ currentPassword, newPassword }, { reset }) => {
-      setChanged(false);
+    submit: async ({ currentPassword, newPassword }) => {
       await api.session.changePassword({ currentPassword, newPassword });
-      reset();
-      setChanged(true);
+      toasts.show({ message: 'password.changed' });
+      if (afterChange === 'home') await router.navigate({ to: '/', replace: true });
     },
   });
-  return { ...form, changed };
 }

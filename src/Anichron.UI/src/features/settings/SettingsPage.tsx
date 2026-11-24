@@ -35,6 +35,9 @@ export function SettingsPage() {
           onChange={theme.choose}
         />
       </Card>
+      <Card padded={false}>
+        <RowLink to="/hidden">{t('hidden.title')}</RowLink>
+      </Card>
       <InstallRow />
       {account.isAdmin && <Administration />}
       <Card padded={false}>

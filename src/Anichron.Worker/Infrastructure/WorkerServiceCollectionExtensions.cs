@@ -4,6 +4,7 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Work;
 using Anichron.Infrastructure.Configuration;
 using Anichron.Worker.Bursts;
+using Anichron.Worker.CompactPreviews;
 using Anichron.Worker.Crawling;
 using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Classification;
@@ -65,12 +66,14 @@ internal static class WorkerServiceCollectionExtensions
             services.AddWorkHandler<WorkItemRetentionPayload, WorkItemRetentionHandler>();
             services.AddWorkHandler<CrawlPayload, CrawlHandler>();
             services.AddWorkHandler<BurstDetectionPayload, BurstDetectionHandler>();
+            services.AddWorkHandler<CompactPreviewPayload, CompactPreviewHandler>();
             services.AddWorkHandler<ProxySweepPayload, ProxySweepHandler>();
             services.AddWorkHandler<ProxyDeletionPayload, ProxyDeletionHandler>();
             services.AddSingleton<IWorkScheduleSource, TokenCleanupSchedule>();
             services.AddSingleton<IWorkScheduleSource, WorkItemRetentionSchedule>();
             services.AddSingleton<IWorkScheduleSource, StorageConfigSchedules<CrawlPayload>>();
             services.AddSingleton<IWorkScheduleSource, StorageConfigSchedules<BurstDetectionPayload>>();
+            services.AddSingleton<IWorkScheduleSource, StorageConfigSchedules<CompactPreviewPayload>>();
             return services;
         }
 
@@ -135,6 +138,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<IImageProxyGenerator, ThumbnailGenerator>();
             services.AddSingleton<IImageProxyGenerator, FullPreviewGenerator>();
             services.AddSingleton<BlurhashEncoder>();
+            services.AddSingleton<ICompactPreviewEncoder, MagickCompactPreviewEncoder>();
         }
 
         internal IServiceCollection AddWorkerHostedServices()

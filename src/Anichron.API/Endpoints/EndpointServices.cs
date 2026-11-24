@@ -6,7 +6,8 @@ public static class EndpointServices
     {
         public IServiceCollection AddEndpointServices()
             => services
-                .AddSingleton<ISessionResponseMapper, SessionResponseMapper>()
+                .AddScoped<ISessionResponseMapper, SessionResponseMapper>()
+                .AddScoped<IUserProfiles, UserProfiles>()
                 .AddSingleton<IAdminResponseMapper, AdminResponseMapper>()
                 .AddScoped<WorkItemEvents>();
     }

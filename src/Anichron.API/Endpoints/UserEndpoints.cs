@@ -1,7 +1,6 @@
 using Anichron.API.Infrastructure;
 using Anichron.API.Services;
 using Anichron.Core.Data.Repository;
-using Anichron.Core.Domain;
 using System.Security.Claims;
 
 namespace Anichron.API.Endpoints;
@@ -27,7 +26,7 @@ public static class UserEndpoints
     internal static async Task<IResult> GetMeAsync(
         ClaimsPrincipal user,
         IUserRepository users,
-        IUserStorageConfigRepository storageConfigs,
+        IUserProfiles profiles,
         CancellationToken ct)
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
@@ -37,7 +36,7 @@ public static class UserEndpoints
         if (found is null)
             return Results.NotFound();
 
-        return Results.Ok(UserProfileResponse.From(found, await storageConfigs.AnyActiveByUserIdAsync(userId, ct)));
+        return Results.Ok(await profiles.OfAsync(found, ct));
     }
 
     internal static async Task<IResult> ChangePasswordAsync(
@@ -52,14 +51,10 @@ public static class UserEndpoints
             return Results.Unauthorized();
 
         var result = await auth.ChangePasswordAsync(userId, req.CurrentPassword, req.NewPassword, ct);
-        return mapper.GetChangePasswordResult(result, http);
+        return await mapper.GetChangePasswordResultAsync(result, http);
     }
 }
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public sealed record UserProfileResponse(
-    Guid Id, string Username, string Email, bool IsAdmin, bool MustChangePassword, bool HasStorageConfig)
-{
-    internal static UserProfileResponse From(User user, bool hasStorageConfig)
-        => new(user.Id, user.Username, user.Email, user.IsAdmin, user.MustChangePassword, hasStorageConfig);
-}
+    Guid Id, string Username, string Email, bool IsAdmin, bool MustChangePassword, bool HasStorageConfig);

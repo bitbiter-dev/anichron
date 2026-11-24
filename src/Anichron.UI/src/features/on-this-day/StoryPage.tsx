@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
-import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { Pause, Play } from 'lucide-react';
 import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import type { ComponentProps } from 'react';
 import { Button } from 'react-aria-components';
@@ -9,18 +9,17 @@ import type { Day, YearGroup } from '../../api/flashbacks';
 import { Toasts } from '../../shared/ui/Toast';
 import { BurstDetails } from './BurstDetails';
 import { otherFrames } from './burst';
-import { CloseButton, roundButton } from './CloseButton';
+import { CloseButton, roundButton } from '../../shared/ui/CloseButton';
 import { dayQuery, interactionOf, utcDay, yearsAgo } from './day';
 import type { DayView } from './day-view';
 import { Failed } from '../../shared/ui/Failed';
-import { LivePhotoIcon } from './LivePhotoIcon';
+import { LiveButton, Sound } from '../../shared/ui/PlayerControls';
 import { focusOnMount } from './focus';
 import { MemoryActions } from './MemoryActions';
-import { MemoryImage } from './MemoryImage';
-import { PlayerDialog } from './PlayerDialog';
+import { MemoryImage } from '../../shared/ui/MemoryImage';
+import { PlayerDialog } from '../../shared/ui/PlayerDialog';
 import type { Gestures } from './navigation';
 import { type Move, segmentState, type Tap } from './story';
-import type { LiveState } from './story-view';
 import { useCover } from './use-cover';
 import { useInteractions } from './use-interactions';
 import { usePlayedDayView } from './use-played-day-view';
@@ -251,64 +250,6 @@ function OtherFrames({ count }: { count: number }) {
     <p className="pointer-events-none absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1.75rem)] rounded-full px-2 py-0.5 text-small font-semibold player-glass">
       {t('story.otherFrames', { count })}
     </p>
-  );
-}
-
-interface LiveButtonProps {
-  shown: boolean;
-  live: LiveState;
-  play: () => void;
-}
-
-function LiveButton({ shown, live, play }: LiveButtonProps) {
-  const { t } = useTranslation();
-  if (!shown) return null;
-  return (
-    <Button
-      aria-label={t('story.playLivePhoto')}
-      onPress={play}
-      data-live={live}
-      className="group pointer-events-auto flex h-11 items-center outline-none"
-    >
-      <span className="relative flex items-center gap-1 rounded-full py-0.5 pr-2 pl-1.5 text-small font-semibold player-glass group-data-focus-visible:focus-ring">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -inset-px hidden live-ring rounded-full group-data-[live=loading]:block"
-        />
-        <LivePhotoIcon className="size-4 group-data-[live=playing]:animate-live-blink motion-reduce:group-data-[live=playing]:opacity-50" />
-        {t('story.live')}
-      </span>
-    </Button>
-  );
-}
-
-const soundIcons = { 'story.soundOn': VolumeX, 'story.soundOff': Volume2 };
-
-interface SoundProps {
-  shown: boolean;
-  hint: boolean;
-  label: keyof typeof soundIcons;
-  toggle: () => void;
-}
-
-function Sound({ shown, hint, label, toggle }: SoundProps) {
-  const { t } = useTranslation();
-  const Icon = soundIcons[label];
-  if (!shown) return null;
-  return (
-    <m.div
-      layout
-      data-hint={hint}
-      className="group absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] size-11 data-[hint=true]:inset-0 data-[hint=true]:m-auto data-[hint=true]:size-32"
-    >
-      <Button
-        aria-label={t(label)}
-        onPress={toggle}
-        className="flex size-full items-center justify-center rounded-full bg-player/40 outline-none focus-visible:focus-ring"
-      >
-        <Icon aria-hidden className="size-1/2 group-data-[hint=true]:opacity-60" />
-      </Button>
-    </m.div>
   );
 }
 

@@ -49,8 +49,9 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
         { "GET /api/v1/users/{userId}/storage-configs", Of(["200 application/json AdminStorageConfigResponse[]", $"404 {Problem}"], User) },
         { "POST /api/v1/users/{userId}/storage-configs", Of(["201 application/json AdminStorageConfigResponse", $"404 {Problem}", $"409 {Invalid}", $"422 {Invalid}"], User, Body, RateLimited) },
         { "DELETE /api/v1/users/{userId}/storage-configs/{configId}", Of(["204", $"404 {Problem}"], User, RateLimited) },
-        { "GET /api/v1/proxies/{assetId}/{type}", Of(["200 image/jpeg Stream", "200 video/mp4 Stream", "206 image/jpeg Stream", "206 video/mp4 Stream", "304", $"404 {Problem}", $"412 {Problem}", "416"], User) },
+        { "GET /api/v1/proxies/{assetId}/{type}", Of(["200 image/jpeg Stream", "200 image/jxl Stream", "200 video/mp4 Stream", "206 image/jpeg Stream", "206 image/jxl Stream", "206 video/mp4 Stream", "304", $"404 {Problem}", $"412 {Problem}", "416"], User) },
         { "PATCH /api/v1/assets/{assetId}/interaction", Of(["200 application/json AssetInteractionDto", $"404 {Problem}"], User, Body) },
+        { "GET /api/v1/assets/hidden", Of(["200 application/json HiddenAssetsPageDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/flashbacks/on-this-day", Of(["200 application/json OnThisDayDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/bursts/{burstId}/assets", Of(["200 application/json AssetDto[]", $"404 {Problem}"], User) },
         { "GET /api/v1/admin/work-items", Of(["200 application/json WorkItemPageDto", $"400 {Invalid}"], User) },
@@ -111,6 +112,7 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
             "cannot_modify_self",
             "email_taken",
             "invalid_credentials",
+            "invalid_cursor",
             "invalid_date",
             "invalid_email",
             "invalid_orphan_count",
@@ -142,7 +144,7 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     [Fact]
     public void WorkKind_IsItsNames()
         => EnumNames("WorkKind").Should().Equal(
-            "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion");
+            "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion", "CompactPreview");
 
     [Fact]
     public void PublishedMediaType_IsItsNames()

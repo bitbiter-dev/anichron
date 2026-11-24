@@ -192,7 +192,7 @@ CREATE TABLE "Interactions" (
     "AssetId" uuid NOT NULL,
     "IsStarred" boolean NOT NULL,
     "IsLiked" boolean NOT NULL,
-    "IsHidden" boolean NOT NULL,
+    "HiddenAt" timestamp with time zone,
     "LastViewed" timestamp with time zone,
     "ViewCount" integer NOT NULL,
     CONSTRAINT "PK_Interactions" PRIMARY KEY ("Id"),
@@ -200,6 +200,7 @@ CREATE TABLE "Interactions" (
     CONSTRAINT "FK_Interactions_Users_UserId" FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "Interactions" IS 'Per-user state for one asset. Never shared between users: two people looking at the same file each get their own row. Drives flashback weighting — hidden excludes, starred always includes and sorts first, liked raises DisplayWeight.';
+COMMENT ON COLUMN "Interactions"."HiddenAt" IS 'When the user last hid the asset; NULL while it is shown. Orders the user''s hidden memories, newest first.';
 
 
 CREATE TABLE "Metadata" (
@@ -234,7 +235,7 @@ CREATE TABLE "ProxyFiles" (
 );
 COMMENT ON TABLE "ProxyFiles" IS 'One row per generated artefact on the local SSD. An asset has several, but at most one per ProxyType, so of two attempts racing to add the same proxy only one row lands. Written only by ProxyStagingWriter, at the moment the file reaches its final name.';
 COMMENT ON COLUMN "ProxyFiles"."ProxyPath" IS 'Path relative to the proxy root, sharded by CONTENT rather than by ingestion attempt so a retry overwrites its own debris instead of stranding it. IProxyDirectoryStrategy is the single place that rule lives.';
-COMMENT ON COLUMN "ProxyFiles"."ProxyType" IS 'Thumbnail, WebVideo or FullPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.';
+COMMENT ON COLUMN "ProxyFiles"."ProxyType" IS 'Thumbnail, WebVideo, FullPreview or CompactPreview, persisted as text. The BlurHash placeholder is not a proxy: it is the Metadata.Blurhash column.';
 
 
 CREATE INDEX "IX_BurstChecks_CameraBurstId" ON "BurstChecks" ("CameraBurstId");

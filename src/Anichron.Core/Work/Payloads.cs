@@ -38,6 +38,20 @@ public sealed record BurstDetectionPayload(Guid StorageConfigId) : IStorageConfi
     Guid? IWorkPayload.StorageConfigId => StorageConfigId;
 }
 
+/// <summary>Makes the config's missing compact previews, one chunk per item.</summary>
+/// <param name="StorageConfigId">The config whose assets get one.</param>
+/// <param name="After">Only assets whose id comes after this one; null starts at the first.</param>
+public sealed record CompactPreviewPayload(Guid StorageConfigId, Guid? After) : IStorageConfigPayload<CompactPreviewPayload>
+{
+    public static WorkKind Kind => WorkKind.CompactPreview;
+
+    public static CompactPreviewPayload For(Guid storageConfigId) => new(storageConfigId, null);
+
+    string IWorkPayload.DedupKey => $"compact-preview:{StorageConfigId}";
+
+    Guid? IWorkPayload.StorageConfigId => StorageConfigId;
+}
+
 public sealed record ProxySweepPayload : IWorkPayload
 {
     public static WorkKind Kind => WorkKind.ProxySweep;

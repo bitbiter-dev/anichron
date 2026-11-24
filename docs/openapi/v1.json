@@ -1452,6 +1452,11 @@
                   "$ref": "#/components/schemas/Stream"
                 }
               },
+              "image/jxl": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              },
               "video/mp4": {
                 "schema": {
                   "$ref": "#/components/schemas/Stream"
@@ -1463,6 +1468,11 @@
             "description": "Partial Content",
             "content": {
               "image/jpeg": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              },
+              "image/jxl": {
                 "schema": {
                   "$ref": "#/components/schemas/Stream"
                 }
@@ -1608,6 +1618,74 @@
           },
           "415": {
             "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/hidden": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HiddenAssetsPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2595,6 +2673,7 @@
         "required": [
           "thumbnail",
           "preview",
+          "compactPreview",
           "video"
         ],
         "type": "object",
@@ -2606,6 +2685,12 @@
             ]
           },
           "preview": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "compactPreview": {
             "type": [
               "null",
               "string"
@@ -2667,6 +2752,7 @@
           "cannot_modify_self",
           "email_taken",
           "invalid_credentials",
+          "invalid_cursor",
           "invalid_date",
           "invalid_email",
           "invalid_orphan_count",
@@ -2708,6 +2794,42 @@
             "items": {
               "$ref": "#/components/schemas/AssetDto"
             }
+          }
+        }
+      },
+      "HiddenAssetDto": {
+        "required": [
+          "asset",
+          "hiddenAt"
+        ],
+        "type": "object",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetDto"
+          },
+          "hiddenAt": {
+            "type": "string"
+          }
+        }
+      },
+      "HiddenAssetsPageDto": {
+        "required": [
+          "items",
+          "next"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HiddenAssetDto"
+            }
+          },
+          "next": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -2794,10 +2916,6 @@
         }
       },
       "PatchAdminUserRequest": {
-        "required": [
-          "isAdmin",
-          "isDisabled"
-        ],
         "type": "object",
         "properties": {
           "isAdmin": {
@@ -2815,11 +2933,6 @@
         }
       },
       "PatchInteractionRequest": {
-        "required": [
-          "starred",
-          "liked",
-          "hidden"
-        ],
         "type": "object",
         "properties": {
           "starred": {
@@ -2885,10 +2998,6 @@
         "type": "integer"
       },
       "ProxyDeletionRequest": {
-        "required": [
-          "orphanIds",
-          "all"
-        ],
         "type": "object",
         "properties": {
           "orphanIds": {
@@ -2902,7 +3011,8 @@
             }
           },
           "all": {
-            "type": "boolean"
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -3303,7 +3413,8 @@
           "Crawl",
           "BurstDetection",
           "ProxySweep",
-          "ProxyDeletion"
+          "ProxyDeletion",
+          "CompactPreview"
         ],
         "type": "string"
       },

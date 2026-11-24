@@ -1,4 +1,4 @@
-import { type Kind, type Load, memoryKind } from './memory-kinds';
+import { type Kind, type Load, memoryKind } from '../../shared/memory-kinds';
 
 const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
@@ -165,7 +165,7 @@ export function createStory(
       memory,
       visit,
       kind,
-      load: memoryKind(kind).firstLoad(() => decoded({ group, memory })),
+      load: memoryKind(kind).firstLoad(decoded({ group, memory })),
       shown: shown(group),
       playId: visit,
       play: still(),

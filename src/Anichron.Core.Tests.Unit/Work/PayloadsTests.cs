@@ -33,12 +33,31 @@ public sealed class PayloadsTests
     }
 
     [Fact]
+    public void CompactPreview_CoalescesEveryCursorOfAConfigScopedToIt()
+    {
+        var configId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var chunk = new CompactPreviewPayload(configId, Guid.Parse("00000000-0000-0000-0000-000000000001"));
+
+        Describe(chunk).Should().Be(
+            (WorkKind.CompactPreview, "compact-preview:77777777-7777-7777-7777-777777777777"));
+        ScopeOf(chunk).Should().Be(configId);
+    }
+
+    [Fact]
+    public void CompactPreview_RoundTripsWithItsCursor()
+    {
+        var chunk = new CompactPreviewPayload(Guid.NewGuid(), Guid.Parse("00000000-0000-0000-0000-000000000001"));
+
+        WorkJson.Deserialize<CompactPreviewPayload>(WorkJson.Serialize(chunk)).Should().Be(chunk);
+    }
+
+    [Fact]
     public void PerConfigPayloads_AreBuiltForTheirConfig()
     {
         var configId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
-        (For<CrawlPayload>(configId), For<BurstDetectionPayload>(configId)).Should().Be(
-            (new CrawlPayload(configId), new BurstDetectionPayload(configId)));
+        (For<CrawlPayload>(configId), For<BurstDetectionPayload>(configId), For<CompactPreviewPayload>(configId)).Should().Be(
+            (new CrawlPayload(configId), new BurstDetectionPayload(configId), new CompactPreviewPayload(configId, null)));
     }
 
     private static TPayload For<TPayload>(Guid configId)

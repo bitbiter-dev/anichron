@@ -1,4 +1,5 @@
 import { Link, Outlet } from '@tanstack/react-router';
+import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { YearGroup } from '../../api/flashbacks';
 import { yearsAgo } from './day';
@@ -6,24 +7,40 @@ import { type DayView, thumbnailOf } from './day-view';
 import { useDayView } from './use-day-view';
 import { Failed } from '../../shared/ui/Failed';
 import { Skeleton } from '../../shared/ui/Skeleton';
-import { ProxyImage } from './ProxyImage';
+import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { RecentDays } from './RecentDays';
 import { Ring } from '../../shared/ui/Ring';
 import { useOpening } from './use-opening';
-import { useToday } from './use-today';
+import { useOnThisDay } from './use-on-this-day';
 
 export function OnThisDayPage() {
   const { t } = useTranslation();
-  const today = useToday();
+  const page = useOnThisDay();
   return (
     <>
       <main className="flex flex-col gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
         <h1 className="text-title font-semibold">{t('onThisDay.title')}</h1>
-        <Today key={today} date={today} />
-        <RecentDays key={today} today={today} />
+        {page.shows === 'day' ? (
+          <Fragment key={page.today}>
+            <Today date={page.today} />
+            <RecentDays today={page.today} />
+          </Fragment>
+        ) : (
+          <NoPhotos hint={page.hint} />
+        )}
       </main>
       <Outlet />
     </>
+  );
+}
+
+function NoPhotos({ hint }: { hint: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-semibold">{t('onThisDay.noPhotos')}</p>
+      {hint && <p className="text-small text-fg-muted">{t('onThisDay.noPhotosHint')}</p>}
+    </div>
   );
 }
 

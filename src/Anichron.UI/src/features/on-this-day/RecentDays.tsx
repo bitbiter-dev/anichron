@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import { Skeleton } from '../../shared/ui/Skeleton';
-import { ProxyImage } from './ProxyImage';
+import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { Ring } from '../../shared/ui/Ring';
 import {
   type DayWithMemories,

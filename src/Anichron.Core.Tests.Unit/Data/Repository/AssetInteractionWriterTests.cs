@@ -3,16 +3,20 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Anichron.Testing.Domain;
+using Anichron.Testing.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Time.Testing;
 using NodaTime;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
 
 public sealed class AssetInteractionWriterTests
 {
-    private sealed class Library
+    private sealed class Library : IAsyncDisposable
     {
+        private readonly Timeline timeline = new();
+
         public Library()
         {
             MiraConfig = new UserStorageConfig { Id = Guid.NewGuid(), UserId = Mira.Id, RootPath = "/data/originals/mira", IsActive = true };
@@ -33,6 +37,9 @@ public sealed class AssetInteractionWriterTests
         public User Alice { get; } = new() { Id = Guid.NewGuid(), Username = "alice", Email = "alice@example.com" };
         public UserStorageConfig MiraConfig { get; }
         public MediaAsset Photo { get; }
+        public FakeTimeProvider Clock => timeline.Clock;
+
+        public ValueTask DisposeAsync() => timeline.DisposeAsync();
 
         public async Task SeedAsync(params AssetInteraction[] interactions)
         {
@@ -51,7 +58,7 @@ public sealed class AssetInteractionWriterTests
                 ? Options
                 : new DbContextOptionsBuilder<AnichronDbContext>(Options).AddInterceptors(interceptor).Options;
             await using var db = new AnichronDbContext(options);
-            return await new EfAssetInteractionWriter(db)
+            return await new EfAssetInteractionWriter(db, Clock)
                 .ApplyAsync(caller.Id, assetId ?? Photo.Id, change, TestContext.Current.CancellationToken);
         }
 
@@ -75,7 +82,7 @@ public sealed class AssetInteractionWriterTests
     [InlineData(null, null, true)]
     public async Task ApplyAsync_FirstWrite_CreatesTheCallersRowAndReturnsItsState(bool? starred, bool? liked, bool? hidden)
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
 
         var state = await library.ApplyAsync(library.Mira, new InteractionChange(starred, liked, hidden));
@@ -85,7 +92,7 @@ public sealed class AssetInteractionWriterTests
         var row = (await library.StoredAsync()).Should().ContainSingle().Which;
         row.UserId.Should().Be(library.Mira.Id);
         row.AssetId.Should().Be(library.Photo.Id);
-        new InteractionState(row.IsStarred, row.IsLiked, row.IsHidden).Should().Be(expected);
+        new InteractionState(row.IsStarred, row.IsLiked, row.HiddenAt is not null).Should().Be(expected);
     }
 
     private sealed class ConcurrentFirstWrite(Library library, string indexName, int losses = 1) : SaveChangesInterceptor
@@ -114,51 +121,51 @@ public sealed class AssetInteractionWriterTests
             AssetId = library.Photo.Id,
             IsStarred = starred,
             IsLiked = liked,
-            IsHidden = hidden,
+            HiddenAt = hidden ? Instant.FromUtc(2026, 11, 1, 12, 0) : null,
         };
 
     [Fact]
     public async Task ApplyAsync_PartialChange_KeepsTheOtherFlags()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync(MirasRow(library, starred: true, hidden: true));
 
         var state = await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: true, Hidden: null));
 
         state.Should().Be(new InteractionState(Starred: true, Liked: true, Hidden: true));
         var row = (await library.StoredAsync()).Should().ContainSingle().Which;
-        (row.IsStarred, row.IsLiked, row.IsHidden).Should().Be((true, true, true));
+        (row.IsStarred, row.IsLiked, row.HiddenAt is not null).Should().Be((true, true, true));
     }
 
     [Fact]
     public async Task ApplyAsync_FalseFlag_ClearsOnlyThatFlag()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync(MirasRow(library, starred: true, liked: true));
 
         var state = await library.ApplyAsync(library.Mira, new InteractionChange(Starred: false, Liked: null, Hidden: null));
 
         state.Should().Be(new InteractionState(Starred: false, Liked: true, Hidden: false));
         var row = (await library.StoredAsync()).Should().ContainSingle().Which;
-        (row.IsStarred, row.IsLiked, row.IsHidden).Should().Be((false, true, false));
+        (row.IsStarred, row.IsLiked, row.HiddenAt is not null).Should().Be((false, true, false));
     }
 
     [Fact]
     public async Task ApplyAsync_HiddenAsset_CanBeUnhidden()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync(MirasRow(library, hidden: true));
 
         var state = await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: null, Hidden: false));
 
         state.Should().Be(new InteractionState(Starred: false, Liked: false, Hidden: false));
-        (await library.StoredAsync()).Should().ContainSingle().Which.IsHidden.Should().BeFalse();
+        (await library.StoredAsync()).Should().ContainSingle().Which.HiddenAt.Should().BeNull();
     }
 
     [Fact]
     public async Task ApplyAsync_EmptyChangeWithoutARow_ReturnsTheDefaultStateAndStoresNothing()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
 
         var state = await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: null, Hidden: null));
@@ -170,7 +177,7 @@ public sealed class AssetInteractionWriterTests
     [Fact]
     public async Task ApplyAsync_EmptyChangeWithARow_ReturnsTheStoredState()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync(MirasRow(library, liked: true));
 
         var state = await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: null, Hidden: null));
@@ -181,7 +188,7 @@ public sealed class AssetInteractionWriterTests
     [Fact]
     public async Task ApplyAsync_AnotherUsersAsset_ReturnsNullAndLeavesTheOwnersRowAlone()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync(MirasRow(library));
 
         var state = await library.ApplyAsync(library.Alice, new InteractionChange(Starred: true, Liked: true, Hidden: true));
@@ -189,13 +196,13 @@ public sealed class AssetInteractionWriterTests
         state.Should().BeNull();
         var row = (await library.StoredAsync()).Should().ContainSingle().Which;
         row.UserId.Should().Be(library.Mira.Id);
-        (row.IsStarred, row.IsLiked, row.IsHidden).Should().Be((false, false, false));
+        (row.IsStarred, row.IsLiked, row.HiddenAt is not null).Should().Be((false, false, false));
     }
 
     [Fact]
     public async Task ApplyAsync_UnknownAsset_ReturnsNullAndStoresNothing()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
 
         var state = await library.ApplyAsync(
@@ -224,7 +231,7 @@ public sealed class AssetInteractionWriterTests
     [Fact]
     public async Task ApplyAsync_SoftDeletedAsset_ReturnsNull()
     {
-        var library = new Library();
+        await using var library = new Library();
         library.Photo.IsSoftDeleted = true;
         await library.SeedAsync();
 
@@ -237,7 +244,7 @@ public sealed class AssetInteractionWriterTests
     [Fact]
     public async Task ApplyAsync_AssetOfAnInactiveConfig_ReturnsNull()
     {
-        var library = new Library();
+        await using var library = new Library();
         library.MiraConfig.IsActive = false;
         await library.SeedAsync();
 
@@ -250,7 +257,7 @@ public sealed class AssetInteractionWriterTests
     [Fact]
     public async Task ApplyAsync_LosingTheFirstWriteRace_AppliesTheChangeToTheWinnersRow()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
         var race = new ConcurrentFirstWrite(library, InteractionIndexNames.OnePerUserAndAsset);
 
@@ -258,14 +265,14 @@ public sealed class AssetInteractionWriterTests
 
         state.Should().Be(new InteractionState(Starred: true, Liked: true, Hidden: false));
         var row = (await library.StoredAsync()).Should().ContainSingle().Which;
-        (row.IsStarred, row.IsLiked, row.IsHidden).Should().Be((true, true, false));
+        (row.IsStarred, row.IsLiked, row.HiddenAt is not null).Should().Be((true, true, false));
         race.Saves.Should().Be(2);
     }
 
     [Fact]
     public async Task ApplyAsync_LosingTwice_Throws()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
         var race = new ConcurrentFirstWrite(library, InteractionIndexNames.OnePerUserAndAsset, losses: 2);
 
@@ -278,7 +285,7 @@ public sealed class AssetInteractionWriterTests
     [Fact]
     public async Task ApplyAsync_UniqueViolationOfAnotherIndex_IsNotRetried()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
         var race = new ConcurrentFirstWrite(library, "ix_some_other_index");
 
@@ -289,13 +296,71 @@ public sealed class AssetInteractionWriterTests
     }
 
     // ==========================================================================
+    // When it was hidden (#558)
+    // ==========================================================================
+
+    [Fact]
+    public async Task ApplyAsync_Hide_StampsTheCurrentTime()
+    {
+        await using var library = new Library();
+        await library.SeedAsync();
+        library.Clock.SetUtcNow(new DateTimeOffset(2026, 11, 20, 8, 15, 0, TimeSpan.Zero));
+
+        await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: null, Hidden: true));
+
+        (await library.StoredAsync()).Should().ContainSingle().Which.HiddenAt.Should().Be(Instant.FromUtc(2026, 11, 20, 8, 15));
+    }
+
+    [Fact]
+    public async Task ApplyAsync_HideAgain_RestampsAHiddenAsset()
+    {
+        await using var library = new Library();
+        await library.SeedAsync(MirasRow(library, hidden: true));
+        library.Clock.SetUtcNow(new DateTimeOffset(2026, 11, 21, 7, 0, 0, TimeSpan.Zero));
+
+        var state = await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: null, Hidden: true));
+
+        state.Should().Be(new InteractionState(Starred: false, Liked: false, Hidden: true));
+        (await library.StoredAsync()).Should().ContainSingle().Which.HiddenAt.Should().Be(Instant.FromUtc(2026, 11, 21, 7, 0));
+    }
+
+    [Fact]
+    public async Task ApplyAsync_HideUnhideHide_ClearsThenStampsTheLaterTime()
+    {
+        await using var library = new Library();
+        await library.SeedAsync();
+        var hide = new InteractionChange(Starred: null, Liked: null, Hidden: true);
+        library.Clock.SetUtcNow(new DateTimeOffset(2026, 11, 20, 8, 0, 0, TimeSpan.Zero));
+        await library.ApplyAsync(library.Mira, hide);
+
+        await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: null, Hidden: false));
+        (await library.StoredAsync()).Should().ContainSingle().Which.HiddenAt.Should().BeNull();
+
+        library.Clock.Advance(TimeSpan.FromHours(3));
+        await library.ApplyAsync(library.Mira, hide);
+        (await library.StoredAsync()).Should().ContainSingle().Which.HiddenAt.Should().Be(Instant.FromUtc(2026, 11, 20, 11, 0));
+    }
+
+    [Fact]
+    public async Task ApplyAsync_ChangeWithoutHidden_KeepsWhenItWasHidden()
+    {
+        await using var library = new Library();
+        await library.SeedAsync(MirasRow(library, hidden: true));
+        library.Clock.SetUtcNow(new DateTimeOffset(2026, 11, 21, 7, 0, 0, TimeSpan.Zero));
+
+        await library.ApplyAsync(library.Mira, new InteractionChange(Starred: true, Liked: null, Hidden: null));
+
+        (await library.StoredAsync()).Should().ContainSingle().Which.HiddenAt.Should().Be(Instant.FromUtc(2026, 11, 1, 12, 0));
+    }
+
+    // ==========================================================================
     // Read back On This Day
     // ==========================================================================
 
     [Fact]
     public async Task ApplyAsync_StarAndLike_AreReadBackOnThisDay()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
 
         await library.ApplyAsync(library.Mira, new InteractionChange(Starred: true, Liked: true, Hidden: null));
@@ -308,7 +373,7 @@ public sealed class AssetInteractionWriterTests
     [Fact]
     public async Task ApplyAsync_Hide_DropsTheAssetFromOnThisDayAndUnhideBringsItBack()
     {
-        var library = new Library();
+        await using var library = new Library();
         await library.SeedAsync();
 
         await library.ApplyAsync(library.Mira, new InteractionChange(Starred: null, Liked: null, Hidden: true));

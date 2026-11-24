@@ -14,7 +14,9 @@
     "yesterday": "Yesterday",
     "earlier": "Earlier days",
     "nothingEarlier": "Nothing in these days",
-    "recentDay": "{{weekdayOf, datetime}} {{dayOf, datetime}} {{monthOf, datetime}}"
+    "recentDay": "{{weekdayOf, datetime}} {{dayOf, datetime}} {{monthOf, datetime}}",
+    "noPhotos": "No photos are set up for you yet.",
+    "noPhotosHint": "An admin can add a storage folder for you."
   },
   "story": {
     "title": "Memories of {{date, datetime}}",
@@ -64,10 +66,7 @@
     "back": "Back",
     "newVersion": "A new version is available",
     "reload": "Reload",
-    "later": "Later",
-    "noPhotos": "No photos are set up for you yet.",
-    "noPhotosHint": "An admin can add a storage folder for you.",
-    "ok": "OK"
+    "later": "Later"
   },
   "settings": {
     "title": "Settings",
@@ -97,6 +96,22 @@
     "changePassword": "Change password",
     "admin": "Admin"
   },
+  "hidden": {
+    "title": "Hidden memories",
+    "today": "Today",
+    "thisWeek": "This week",
+    "thisMonth": "This month",
+    "month": "{{month, datetime}}",
+    "memory": "{{kind}}, taken {{taken, datetime}}",
+    "empty": "Nothing hidden",
+    "emptyHint": "Memories you hide from a story show up here.",
+    "failed": "Couldn't load your hidden memories.",
+    "caption": "Taken {{taken, datetime}} · Hidden {{hidden, relativetime}}",
+    "previous": "Previous memory",
+    "next": "Next memory",
+    "unhide": "Unhide",
+    "unhidden": "Memory unhidden"
+  },
   "password": {
     "title": "Change password",
     "forcedTitle": "Choose a new password",
@@ -105,7 +120,7 @@
     "new": "New password",
     "confirm": "Confirm new password",
     "submit": "Change password",
-    "changed": "Your password is changed. Your other devices will need to sign in again.",
+    "changed": "Password changed.",
     "errors": {
       "mismatch": "The new passwords don't match.",
       "currentWrong": "The current password is wrong.",
@@ -148,7 +163,8 @@
       "Crawl": "Crawl",
       "BurstDetection": "Burst detection",
       "ProxySweep": "Proxy sweep",
-      "ProxyDeletion": "Proxy deletion"
+      "ProxyDeletion": "Proxy deletion",
+      "CompactPreview": "Compact previews"
     },
     "statuses": {
       "Queued": "Queued",

@@ -21,6 +21,7 @@ internal static class ProxyKinds
         [
             new(ProxyType.Thumbnail, "thumbnail", "image/jpeg"),
             new(ProxyType.FullPreview, "preview", "image/jpeg"),
+            new(ProxyType.CompactPreview, "compact-preview", "image/jxl"),
             new(ProxyType.WebVideo, "video", "video/mp4"),
         ];
     }
