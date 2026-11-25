@@ -26,7 +26,7 @@ public sealed record ProxyDeletionResult(int Deleted, int SkippedReferenced, int
 internal sealed partial class ProxyDeletionHandler(
     IProxyOrphanStore store,
     IUnitOfWork unitOfWork,
-    IProxyDirectoryStrategy directories,
+    ProxyFileRemover remover,
     IFileSystem fileSystem,
     IClock clock,
     ILogger<ProxyDeletionHandler> logger) : IWorkHandler<ProxyDeletionPayload>
@@ -72,39 +72,7 @@ internal sealed partial class ProxyDeletionHandler(
         if (ProxyFileStamp.Of(fileSystem.FileInfo.New(file)) != new ProxyFileStamp(orphan.SizeBytes, orphan.LastWriteTime))
             return ProxyDeletionOutcome.SkippedChanged;
 
-        try
-        {
-            fileSystem.File.Delete(file);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Log.DeleteFailed(logger, orphan.ProxyPath, ex);
-            return ProxyDeletionOutcome.Failed;
-        }
-
-        RemoveContentDirectoryIfEmpty(orphan.ProxyPath);
-        return ProxyDeletionOutcome.Deleted;
-    }
-
-    private void RemoveContentDirectoryIfEmpty(string proxyPath)
-    {
-        if (directories.ContentDirectoryOf(proxyPath) is not { } content)
-            return;
-        if (StoragePath.ResolveProxy(content) is not { } directory)
-        {
-            Log.DirectoryOutsideRoot(logger, content);
-            return;
-        }
-
-        try
-        {
-            if (!fileSystem.Directory.EnumerateFileSystemEntries(directory).Any())
-                fileSystem.Directory.Delete(directory);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Log.DirectoryKept(logger, directory, ex);
-        }
+        return remover.Delete(orphan.ProxyPath, file) ? ProxyDeletionOutcome.Deleted : ProxyDeletionOutcome.Failed;
     }
 
     private static partial class Log
@@ -116,16 +84,7 @@ internal sealed partial class ProxyDeletionHandler(
         public static partial void Finished(
             ILogger logger, Guid sweepId, int deleted, int skippedReferenced, int skippedChanged, int missing, int failed);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Could not delete orphaned proxy file {ProxyPath}.")]
-        public static partial void DeleteFailed(ILogger logger, string proxyPath, Exception ex);
-
         [LoggerMessage(Level = LogLevel.Warning, Message = "Did not delete orphaned proxy file {ProxyPath}: it resolves outside the proxy root.")]
         public static partial void OutsideRoot(ILogger logger, string proxyPath);
-
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Kept proxy directory {Directory}: it resolves outside the proxy root.")]
-        public static partial void DirectoryOutsideRoot(ILogger logger, string directory);
-
-        [LoggerMessage(Level = LogLevel.Debug, Message = "Kept proxy directory {Directory}: it could not be removed.")]
-        public static partial void DirectoryKept(ILogger logger, string directory, Exception ex);
     }
 }

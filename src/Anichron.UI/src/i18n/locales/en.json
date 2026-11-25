@@ -179,7 +179,8 @@
       "BurstDetection": "Burst detection",
       "ProxySweep": "Proxy sweep",
       "ProxyDeletion": "Proxy deletion",
-      "CompactPreview": "Compact previews"
+      "CompactPreview": "Compact previews",
+      "AssetPurge": "Purge"
     },
     "statuses": {
       "Queued": "Queued",

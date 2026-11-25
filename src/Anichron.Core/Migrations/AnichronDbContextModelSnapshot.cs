@@ -563,7 +563,7 @@ namespace Anichron.Core.Migrations
 
                     b.Property<Guid?>("RequestedBy")
                         .HasColumnType("uuid")
-                        .HasComment("The admin who asked for the work; null when a Worker's scheduler enqueued it.");
+                        .HasComment("The user who asked for the work: an admin, or the owner of the assets a purge forgets; null when a Worker's scheduler enqueued it.");
 
                     b.Property<string>("Result")
                         .HasColumnType("jsonb")

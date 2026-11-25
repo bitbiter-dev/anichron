@@ -361,6 +361,118 @@ public sealed class SoftDeletedAssetReaderTests
     }
 
     // ==========================================================================
+    // Purge rule
+    // ==========================================================================
+
+    private static async Task<IReadOnlyList<PurgeTarget>> ResolvePurgeAsync(Library library, params MediaAsset[] requested)
+    {
+        var options = await library.SeedAsync();
+        await using var db = new AnichronDbContext(options);
+        return await new EfSoftDeletedAssetReader(db).ResolvePurgeAsync(
+            library.Mira.Id, [.. requested.Select(a => a.Id)], TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_AcceptsOnlyTheCallersSoftDeletedAssetsInActiveConfigs()
+    {
+        var library = new Library();
+        var gone = library.Asset();
+        var active = library.Asset(reason: null);
+        var alices = library.Asset(library.AliceConfig);
+        var archived = library.Asset(library.MiraArchive);
+        var unknown = new MediaAsset { Id = Guid.NewGuid() };
+
+        var accepted = await ResolvePurgeAsync(library, gone, active, alices, archived, unknown);
+
+        accepted.Should().Equal(new PurgeTarget(gone.Id, library.MiraConfig.Id));
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_IdNotRequested_IsNotAccepted()
+    {
+        var library = new Library();
+        var requested = library.Asset();
+        library.Asset();
+
+        var accepted = await ResolvePurgeAsync(library, requested);
+
+        accepted.Should().Equal(new PurgeTarget(requested.Id, library.MiraConfig.Id));
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_SoftDeletedLivePhoto_TakesItsVideoAlong()
+    {
+        var library = new Library();
+        var video = library.Asset(type: MediaType.Video);
+        var photo = library.LivePhoto(video);
+
+        var accepted = await ResolvePurgeAsync(library, photo);
+
+        accepted.Select(t => t.AssetId).Should().BeEquivalentTo([photo.Id, video.Id]);
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_LivePhotoAndItsVideoBothRequested_AcceptsEachOnce()
+    {
+        var library = new Library();
+        var video = library.Asset(type: MediaType.Video);
+        var photo = library.LivePhoto(video);
+
+        var accepted = await ResolvePurgeAsync(library, photo, video);
+
+        accepted.Select(t => t.AssetId).Should().BeEquivalentTo([photo.Id, video.Id]);
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_VideoOfASoftDeletedLivePhotoAlone_IsNotAccepted()
+    {
+        var library = new Library();
+        var video = library.Asset(type: MediaType.Video);
+        library.LivePhoto(video);
+
+        var accepted = await ResolvePurgeAsync(library, video);
+
+        accepted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_SoftDeletedVideoOfAnActivePhoto_IsNotAccepted()
+    {
+        var library = new Library();
+        var video = library.Asset(type: MediaType.Video);
+        library.LivePhoto(video, reason: null);
+
+        var accepted = await ResolvePurgeAsync(library, video);
+
+        accepted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_SoftDeletedPhotoWithAnActiveVideo_LeavesTheVideo()
+    {
+        var library = new Library();
+        var video = library.Asset(reason: null, type: MediaType.Video);
+        var photo = library.LivePhoto(video);
+
+        var accepted = await ResolvePurgeAsync(library, photo);
+
+        accepted.Should().Equal(new PurgeTarget(photo.Id, library.MiraConfig.Id));
+    }
+
+    [Fact]
+    public async Task ResolvePurgeAsync_SupersededVideo_IsAcceptedOnItsOwn()
+    {
+        var library = new Library();
+        var superseded = library.Asset(reason: SoftDeleteReason.Superseded, type: MediaType.Video);
+        superseded.IsLivePhotoVideo = true;
+        library.LivePhoto(library.Asset(reason: null, type: MediaType.Video), reason: null);
+
+        var accepted = await ResolvePurgeAsync(library, superseded);
+
+        accepted.Should().Equal(new PurgeTarget(superseded.Id, library.MiraConfig.Id));
+    }
+
+    // ==========================================================================
     // Generated SQL
     // ==========================================================================
 
@@ -374,5 +486,16 @@ public sealed class SoftDeletedAssetReaderTests
         sql.Should().MatchRegex(@"\.""LastSeenOnNas"" < @cursor_At OR \(\w+\.""LastSeenOnNas"" = @cursor_At AND \w+\.""Id"" < @cursor_AssetId\)")
             .And.MatchRegex(@"ORDER BY \w+\.""LastSeenOnNas"" DESC, \w+\.""Id"" DESC\s+LIMIT @p");
         sql.Split("\"IsSoftDeleted\"").Should().HaveCount(2, "only the base predicate names it; no soft-delete filter reaches the joins");
+    }
+
+    [Fact]
+    public void PurgeQuery_ReadsTheRequestedIdsInOneQueryWithoutTheSoftDeleteFilter()
+    {
+        using var db = AnichronDbContexts.NpgsqlModel();
+
+        var sql = EfSoftDeletedAssetReader.PurgeQuery(db, Guid.NewGuid(), [Guid.NewGuid()]).ToQueryString();
+
+        sql.Should().Contain("= ANY (@ids)");
+        sql.Split("\"IsSoftDeleted\"").Should().HaveCount(3, "the accepted row and the requested row each name it once; no filter reaches the joins");
     }
 }

@@ -1,5 +1,7 @@
 using Anichron.API.Infrastructure;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Work;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -7,10 +9,17 @@ namespace Anichron.API.Endpoints;
 
 public sealed record PatchInteractionRequest(bool? Starred = null, bool? Liked = null, bool? Hidden = null);
 
+public sealed record PurgeRequest(IReadOnlyList<Guid> AssetIds);
+
+/// <summary>What a purge request queued.</summary>
+/// <param name="Accepted">The requested ids that will be purged, plus the videos of accepted Live Photos.</param>
+public sealed record PurgeAcceptedDto(IReadOnlyList<Guid> Accepted);
+
 public static class MediaEndpoints
 {
     internal const int PageSize = 60;
     internal const string InvalidCursorMessage = "after must be the next cursor of an earlier page.";
+    internal const int MaxPurgedAssets = 1000;
 
     public static IEndpointRouteBuilder MapMediaEndpoints(this IEndpointRouteBuilder app)
     {
@@ -24,7 +33,35 @@ public static class MediaEndpoints
         assets.MapGet(ApiPaths.Assets.SoftDeleted, GetSoftDeletedAsync)
               .Produces<SoftDeletedAssetsPageDto>()
               .ProducesValidationProblem();
+        assets.MapPost(ApiPaths.Assets.Purges, RequestPurgeAsync);
         return app;
+    }
+
+    /// <summary>Queues a purge of the caller's soft-deleted assets, one work item per storage config.</summary>
+    /// <param name="request">The assets to purge.</param>
+    /// <param name="user">The caller.</param>
+    /// <param name="reader">Decides which ids are accepted.</param>
+    /// <param name="queue">Takes the purges.</param>
+    /// <param name="ct">Cancels the request.</param>
+    /// <returns>202 with the accepted ids; ids outside the caller's soft-deleted assets are left out without a trace.</returns>
+    internal static async Task<Results<Accepted<PurgeAcceptedDto>, ValidationProblem, UnauthorizedHttpResult>> RequestPurgeAsync(
+        PurgeRequest request,
+        ClaimsPrincipal user,
+        [FromServices] ISoftDeletedAssetReader reader,
+        [FromServices] IWorkQueue queue,
+        CancellationToken ct)
+    {
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return TypedResults.Unauthorized();
+        var requested = request.AssetIds.Distinct().ToList();
+        if (requested is { Count: 0 or > MaxPurgedAssets })
+            return ApiProblems.InvalidField(ErrorCodes.InvalidAssetCount, "assetIds", $"assetIds must hold from 1 to {MaxPurgedAssets} ids.");
+
+        var accepted = await reader.ResolvePurgeAsync(userId, requested, ct);
+        foreach (var config in accepted.GroupBy(target => target.StorageConfigId))
+            await queue.EnqueueAsync(new AssetPurgePayload(config.Key, [.. config.Select(target => target.AssetId)]), userId, ct);
+
+        return TypedResults.Accepted((string?)null, new PurgeAcceptedDto([.. accepted.Select(target => target.AssetId)]));
     }
 
     internal static async Task<IResult> GetSoftDeletedAsync(

@@ -67,5 +67,6 @@ internal static class ErrorCodes
     public const string OrphanIdsOrAll = "orphan_ids_or_all";
     public const string InvalidOrphanCount = "invalid_orphan_count";
     public const string UnknownOrphans = "unknown_orphans";
+    public const string InvalidAssetCount = "invalid_asset_count";
     public const string ServiceUnavailable = "service_unavailable";
 }

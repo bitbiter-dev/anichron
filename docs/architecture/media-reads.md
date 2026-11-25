@@ -19,6 +19,7 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 - **`ISoftDeletedAssetReader`**, separate from `IAssetViewReader`, so no selection can widen `VisibleTo`. It reads `SoftDeletedFor` and leaves out any row another of the owner's rows points at through `PairedAssetId`, whatever that row's status: a Live Photo's video folds into its photo, a video whose photo is active is left out, and a superseded video is an item of its own.
 - Hidden and undated assets are listed, and bursts are not collapsed.
 - `GET /api/v1/assets/soft-deleted` pages it newest `LastSeenOnNas` first, then id, by keyset in SQL (`AssetCursor`). Each item carries the media fields, the path, `lastSeenOnNas` and `reason`, and no interaction state.
+- `POST /api/v1/assets/purges` accepts the requested ids the list holds, plus each accepted Live Photo's soft-deleted video (`ResolvePurgeAsync`). Any other id is left out without a trace. It enqueues one `AssetPurge` per storage config, with no dedup key, and nothing when nothing is accepted (`work-queue.md`, "Purges").
 
 ## Proxy URLs
 
