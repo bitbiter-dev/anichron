@@ -186,7 +186,7 @@ describe('the grid', () => {
     await advance(0);
     expect(photo.querySelector('canvas')).toBeNull();
     const live = tile(tileName(2, 'Live Photo'));
-    expect(live.querySelector('svg')).not.toBeNull();
+    expect(live.querySelector('svg')).toHaveClass('text-on-player', 'player-glass');
     expect(tile(tileName(1)).querySelector('svg')).toBeNull();
     const video = tile(tileName(3, 'Video'));
     expect(video.querySelector('img')).toHaveAttribute('src', proxyUrl(id(3), 'thumbnail'));

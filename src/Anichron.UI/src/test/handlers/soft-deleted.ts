@@ -7,7 +7,7 @@ type Schemas = components['schemas'];
 const http = createOpenApiHttp<paths>();
 
 type Item = Schemas['SoftDeletedAssetDto'];
-type Page = Schemas['SoftDeletedAssetsPageDto'];
+type Page = Omit<Schemas['SoftDeletedAssetsPageDto'], 'total'> & { total?: number };
 type Answer = Page | Response | Promise<Page | Response>;
 
 export function removedMemory(id: string, path: string, overrides: Partial<Item> = {}): Item {
@@ -38,7 +38,9 @@ export function removedMemory(id: string, path: string, overrides: Partial<Item>
 export function softDeletedAnswers(answer: (after: string | null) => Answer) {
   return http.get('/api/v1/assets/soft-deleted', async ({ request, response }) => {
     const page = await answer(new URL(request.url).searchParams.get('after'));
-    return page instanceof Response ? response.untyped(page) : response(200).json(page);
+    return page instanceof Response
+      ? response.untyped(page)
+      : response(200).json({ total: page.items.length, ...page });
   });
 }
 

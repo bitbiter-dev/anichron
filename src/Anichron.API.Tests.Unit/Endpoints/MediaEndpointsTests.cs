@@ -27,7 +27,7 @@ public sealed class MediaEndpointsTests
         {
             Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>()).Returns([]);
             SoftDeleted.ReadPageAsync(Arg.Any<Guid>(), Arg.Any<AssetCursor?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-                .Returns(new SoftDeletedPage([], null));
+                .Returns(new SoftDeletedPage([], null, 0));
         }
 
         public Task<AuthenticatedTestApp> StartAsync()
@@ -342,7 +342,7 @@ public sealed class MediaEndpointsTests
     {
         var fixture = new TestFixture();
         var view = AssetViews.SoftDeleted(AssetId, LastSeen) with { Reason = SoftDeleteReason.Superseded };
-        fixture.SoftDeleted.ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>()).Returns(new SoftDeletedPage([view], null));
+        fixture.SoftDeleted.ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>()).Returns(new SoftDeletedPage([view], null, 1));
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
 
@@ -358,11 +358,24 @@ public sealed class MediaEndpointsTests
     }
 
     [Fact]
+    public async Task GetSoftDeleted_ReturnsTheTotalOfTheWholeListAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.SoftDeleted.ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>()).Returns(new SoftDeletedPage([], null, 1240));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(GetSoftDeleted(), TestContext.Current.CancellationToken);
+
+        (await ReadSoftDeletedPageAsync(response)).Total.Should().Be(1240);
+    }
+
+    [Fact]
     public async Task GetSoftDeleted_NextCursor_ResumesAfterTheLastRowOfThePageAsync()
     {
         var fixture = new TestFixture();
         var last = new AssetCursor(LastSeen, AssetId);
-        fixture.SoftDeleted.ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>()).Returns(new SoftDeletedPage([], last));
+        fixture.SoftDeleted.ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>()).Returns(new SoftDeletedPage([], last, 0));
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
 

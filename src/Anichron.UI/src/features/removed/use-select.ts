@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useState } from 'react';
+import { useState } from 'react';
 import {
   allOf,
   holdsAll,
@@ -23,6 +23,7 @@ export function useSelect(ids: readonly string[]) {
   return {
     selecting,
     count: selection.ids.size,
+    holdsAll: holdsAll(selection, ids),
     selected: [...selection.ids],
     isSelected: (index: number) => selection.ids.has(ids[index] as string),
     start: () => {
@@ -35,13 +36,11 @@ export function useSelect(ids: readonly string[]) {
     toggle: (index: number, range: boolean) => {
       setStored(range ? ranged(selection, ids, index) : toggled(selection, ids, index));
     },
-    toggleAll: () => {
-      setStored(holdsAll(selection, ids) ? noSelection() : allOf(ids));
+    selectAll: (all: readonly string[] = ids) => {
+      setStored(allOf(all));
     },
-    selectAllKey: (event: KeyboardEvent) => {
-      if (!selecting || event.key !== 'a' || !(event.ctrlKey || event.metaKey)) return;
-      event.preventDefault();
-      setStored(allOf(ids));
+    clear: () => {
+      setStored(noSelection());
     },
     begin: (index: number): Painting => ({
       selection,

@@ -3590,7 +3590,8 @@
       "SoftDeletedAssetsPageDto": {
         "required": [
           "items",
-          "next"
+          "next",
+          "total"
         ],
         "type": "object",
         "properties": {
@@ -3605,6 +3606,10 @@
               "null",
               "string"
             ]
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
