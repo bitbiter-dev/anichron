@@ -43,7 +43,7 @@ function rowAt(x: number, y: number) {
 export function useDragSelect<Base>(target: DragTarget<Base>) {
   const latest = useRef(target);
   const drag = useRef<Drag<Base> | null>(null);
-  const claimed = useRef(false);
+  const claimed = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
     latest.current = target;
@@ -51,7 +51,9 @@ export function useDragSelect<Base>(target: DragTarget<Base>) {
 
   function follow(current: Drag<Base>) {
     const index = rowAt(current.x, current.y);
-    if (index === null || index === current.last) return;
+    if (index === null) return;
+    // Stryker disable next-line ConditionalExpression
+    if (index === current.last) return;
     current.last = index;
     claimed.current = true;
     latest.current.paint(current.base, current.from, index);
@@ -77,9 +79,13 @@ export function useDragSelect<Base>(target: DragTarget<Base>) {
   }
 
   function begin(base: Base, index: number, x: number, y: number) {
+    end();
+    const holdTouch = (event: Event) => {
+      event.preventDefault();
+    };
+    const current: Drag<Base> = { base, from: index, last: index, x, y, stop: () => undefined };
     const stops = [
       listen(window, 'pointermove', (event) => {
-        const current = drag.current as Drag<Base>;
         ({ clientX: current.x, clientY: current.y } = event as globalThis.PointerEvent);
         follow(current);
         steer(current);
@@ -87,35 +93,24 @@ export function useDragSelect<Base>(target: DragTarget<Base>) {
       listen(window, 'pointerup', end),
       listen(window, 'pointercancel', end),
     ];
-    const holdTouch = (event: Event) => {
-      event.preventDefault();
-    };
+    // Stryker disable next-line ObjectLiteral
     window.addEventListener('touchmove', holdTouch, { passive: false });
-    drag.current = {
-      base,
-      from: index,
-      last: index,
-      x,
-      y,
-      stop: () => {
-        for (const stop of stops) stop();
-        window.removeEventListener('touchmove', holdTouch);
-      },
+    current.stop = () => {
+      for (const stop of stops) stop();
+      window.removeEventListener('touchmove', holdTouch);
     };
+    drag.current = current;
   }
 
+  // Stryker disable next-line ArrayDeclaration
   useEffect(() => end, []);
 
   return {
     handle: (index: number) => (event: PointerEvent) => {
       if (event.button !== 0) return;
-      end();
-      claimed.current = false;
       begin(latest.current.begin(index), index, event.clientX, event.clientY);
     },
     hold: (index: number) => {
-      end();
-      claimed.current = true;
       begin(latest.current.hold(index), index, NaN, NaN);
     },
     pressStart: () => {

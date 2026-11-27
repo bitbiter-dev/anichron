@@ -487,18 +487,16 @@ public sealed class MediaEndpointsTests
     }
 
     [Fact]
-    public async Task PostPurge_AThousandDistinctIdsWithRepeats_IsAcceptedAsync()
+    public async Task PostPurge_AThousandDistinctIdsAndARepeat_ReturnsBadRequestAsync()
     {
         var fixture = new TestFixture();
-        fixture.SoftDeleted.ResolvePurgeAsync(UserId, Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns([]);
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
         var ids = Enumerable.Range(1, 1000).Select(Asset).ToList();
 
         using var response = await client.SendAsync(PostPurge([.. ids, ids[0]]), TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     public static TheoryData<int> InvalidPurgeCounts { get; } = [0, 1001];

@@ -1,7 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../shared/ui/Button';
 import { Modal } from '../../shared/ui/Modal';
-import { useFocusOnOpen } from './use-focus-on-open';
 import type { RemovedScreen } from './use-removed';
 
 interface ForgetDialogProps {
@@ -14,7 +14,10 @@ export function ForgetDialog({ forget }: ForgetDialogProps) {
 
 function Confirmation({ forget }: ForgetDialogProps) {
   const { t } = useTranslation();
-  const cancel = useFocusOnOpen<HTMLButtonElement>();
+  const cancel = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    cancel.current?.focus();
+  }, []);
   const count = forget.asked;
   return (
     <Modal alert title={t('removed.confirm.title', { count })} onClose={forget.cancel}>

@@ -26,17 +26,19 @@ export async function forgetInChunks(
   return { sent: ids, accepted, unsent: [] };
 }
 
+function sentToast(forgot: number, back: number): ToastMessage | null {
+  if (back === 0)
+    return forgot === 0 ? null : { message: 'removed.forgot', values: { count: forgot } };
+  return forgot === 0
+    ? { message: 'removed.notForgotten', values: { count: back } }
+    : { message: 'removed.forgotSomeBack', values: { forgot, count: back } };
+}
+
 export function toastsOf({ sent, accepted, unsent }: Forgotten): ToastMessage[] {
   const forgot = sent.filter((id) => accepted.has(id)).length;
-  const back = sent.length - forgot;
-  const toasts: ToastMessage[] = [];
-  if (back === 0 && forgot > 0)
-    toasts.push({ message: 'removed.forgot', values: { count: forgot } });
-  else if (forgot === 0 && back > 0)
-    toasts.push({ message: 'removed.notForgotten', values: { count: back } });
-  else if (back > 0)
-    toasts.push({ message: 'removed.forgotSomeBack', values: { forgot, count: back } });
-  if (unsent.length > 0)
-    toasts.push({ message: 'removed.forgetFailed', values: { count: unsent.length } });
-  return toasts;
+  const failed: ToastMessage | null =
+    unsent.length === 0
+      ? null
+      : { message: 'removed.forgetFailed', values: { count: unsent.length } };
+  return [sentToast(forgot, sent.length - forgot), failed].filter((toast) => toast !== null);
 }

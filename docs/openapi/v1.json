@@ -3301,6 +3301,8 @@
         "type": "object",
         "properties": {
           "assetIds": {
+            "maxItems": 1000,
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",

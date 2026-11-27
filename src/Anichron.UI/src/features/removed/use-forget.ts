@@ -1,18 +1,22 @@
 import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 import { forgetInChunks, toastsOf } from './forget';
-import { removedKey } from './removed';
 
-export function useForget(onSent: (sent: readonly string[]) => void, onDone: () => void) {
-  const { api, queryClient, toasts } = useRouter().options.context;
+interface ForgetEvents {
+  sent: (ids: readonly string[]) => void;
+  refused: () => void;
+  done: () => void;
+}
+
+export function useForget(on: ForgetEvents) {
+  const { api, toasts } = useRouter().options.context;
   const [asked, setAsked] = useState<readonly string[] | null>(null);
 
   async function forget(ids: readonly string[]) {
-    const outcome = await forgetInChunks(ids, (chunk) => api.softDeleted.purge(chunk), onSent);
+    const outcome = await forgetInChunks(ids, (chunk) => api.softDeleted.purge(chunk), on.sent);
     for (const toast of toastsOf(outcome)) toasts.show(toast);
-    if (outcome.sent.some((id) => !outcome.accepted.has(id)))
-      void queryClient.invalidateQueries({ queryKey: removedKey() });
-    if (outcome.unsent.length === 0) onDone();
+    if (outcome.sent.some((id) => !outcome.accepted.has(id))) on.refused();
+    if (outcome.unsent.length === 0) on.done();
   }
 
   return {
@@ -25,7 +29,7 @@ export function useForget(onSent: (sent: readonly string[]) => void, onDone: () 
     },
     confirm: () => {
       setAsked(null);
-      void forget(asked ?? []);
+      void forget(asked as readonly string[]);
     },
   };
 }

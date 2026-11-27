@@ -520,6 +520,18 @@ describe('selecting', () => {
     expect(selectionBar()).toBeNull();
   });
 
+  it('starts afresh after Cancel', async () => {
+    server.use(onePage(removed(1), removed(2)));
+    await openRemoved();
+    await startSelecting();
+    await user().click(checkbox(1));
+
+    await user().click(within(topBar()).getByRole('button', { name: 'Cancel' }));
+    await startSelecting();
+
+    expect(checkedRows()).toEqual([]);
+  });
+
   it('ends when the screen is left', async () => {
     server.use(onePage(removed(1)));
     const { router } = await openRemoved();
@@ -554,24 +566,47 @@ describe('selecting', () => {
     expect(selectionBar()).toHaveTextContent('Forget 1');
   });
 
+  it('selects a lone row with Shift once the last toggled one has left the list', async () => {
+    let items = [removed(1), removed(2), removed(3), removed(4)];
+    server.use(softDeletedAnswers(() => ({ items, next: null })));
+    const { router } = await openRemoved();
+    await startSelecting();
+    await user().click(checkbox(3));
+    await user().click(checkbox(2));
+    items = [removed(1), removed(3), removed(4)];
+    act(() => {
+      void router.options.context.queryClient.invalidateQueries({ queryKey: ['removed'] });
+    });
+    await waitFor(() => {
+      expect(screen.queryByText(name(2))).toBeNull();
+    });
+
+    const typing = user();
+    await typing.keyboard('{Shift>}');
+    await typing.click(checkbox(4));
+    await typing.keyboard('{/Shift}');
+
+    expect(checkedRows()).toEqual([name(3), name(4)]);
+  });
+
   describe('from the keyboard', () => {
     it('toggles the focused row with Space, and selects a range from the last toggled one with Shift', async () => {
       server.use(onePage(...[1, 2, 3, 4, 5].map((n) => removed(n))));
       await openRemoved();
       await startSelecting();
       act(() => {
-        checkbox(2).focus();
+        checkbox(1).focus();
       });
 
       await user().keyboard(' ');
-      expect(checkedRows()).toEqual([name(2)]);
+      expect(checkedRows()).toEqual([name(1)]);
       act(() => {
-        checkbox(4).focus();
+        checkbox(3).focus();
       });
       await user().keyboard('{Shift>} {/Shift}');
-      expect(checkedRows()).toEqual([name(2), name(3), name(4)]);
+      expect(checkedRows()).toEqual([name(1), name(2), name(3)]);
       await user().keyboard(' ');
-      expect(checkedRows()).toEqual([name(2), name(3)]);
+      expect(checkedRows()).toEqual([name(1), name(2)]);
     });
 
     it('selects a range with Shift and a click', async () => {
@@ -589,7 +624,7 @@ describe('selecting', () => {
     });
 
     it('selects a lone row with Shift when nothing was toggled yet', async () => {
-      server.use(onePage(removed(1), removed(2)));
+      server.use(onePage(removed(1), removed(2), removed(3)));
       await openRemoved();
       await startSelecting();
       act(() => {
@@ -612,6 +647,16 @@ describe('selecting', () => {
       await user().keyboard(`{${modifier}>}a{/${modifier}}`);
 
       expect(checkedRows()).toEqual([name(1), name(2), name(3)]);
+    });
+
+    it('keeps Ctrl+A from selecting the page text in select mode only', async () => {
+      server.use(onePage(removed(1), removed(2)));
+      await openRemoved();
+      expect(fireEvent.keyDown(row(1), { key: 'a', ctrlKey: true })).toBe(true);
+
+      await startSelecting();
+
+      expect(fireEvent.keyDown(checkbox(1), { key: 'a', ctrlKey: true })).toBe(false);
     });
 
     it('leaves Ctrl+A and a plain A alone outside select mode', async () => {
@@ -707,7 +752,7 @@ describe('forgetting', () => {
     const sent: string[][] = [];
     const answer = hold();
     server.use(
-      onePage(removed(1), removed(2), removed(3)),
+      pages([removed(1), removed(2), removed(3)]),
       purgeAnswers(sent, async (ids) => {
         await answer.until;
         return ids;
@@ -724,6 +769,9 @@ describe('forgetting', () => {
     answer.release();
 
     await toast('Forgot 2 memories');
+    await advance(1000);
+    expect(asked).toEqual([null]);
+    expect(screen.queryByText(/Couldn't forget/)).toBeNull();
     expect(screen.queryByText(name(1))).toBeNull();
     expect(screen.queryByText(name(3))).toBeNull();
     expect(row(2)).toBeVisible();
@@ -791,7 +839,7 @@ describe('forgetting', () => {
 
   it('says only that none could be forgotten when none is accepted', async () => {
     server.use(
-      onePage(removed(1), removed(2)),
+      pages([removed(1), removed(2)]),
       purgeAnswers([], () => []),
     );
     await openRemoved();
@@ -802,6 +850,9 @@ describe('forgetting', () => {
 
     expect(await toast("1 couldn't be forgotten; it may be back in your stories.")).toBeVisible();
     expect(screen.queryByText(/Forgot/)).toBeNull();
+    await waitFor(() => {
+      expect(asked).toEqual([null, null]);
+    });
   });
 
   it('keeps a forgotten memory out of the list for the session, though the list still has it', async () => {
@@ -812,6 +863,7 @@ describe('forgetting', () => {
     await forgetSelected();
     await toast('Forgot 1 memory');
 
+    await advance(miraSession.expiresIn * 1000);
     await act(() => router.navigate({ to: '/settings' }));
     await act(() => router.navigate({ to: '/removed' }));
 
@@ -1038,6 +1090,73 @@ describe('dragging', () => {
     expect(checkedRows()).toEqual([]);
   });
 
+  const touchMoveHeld = () => {
+    const touch = new Event('touchmove', { cancelable: true });
+    window.dispatchEvent(touch);
+    return touch.defaultPrevented;
+  };
+  const overTarget = { ...at(0), clientX: 0 };
+
+  it('holds touch scrolling only while dragging', async () => {
+    await selectingFive();
+    expect(touchMoveHeld()).toBe(false);
+
+    const drag = dragFrom(2);
+    expect(touchMoveHeld()).toBe(true);
+    drag.release();
+
+    expect(touchMoveHeld()).toBe(false);
+  });
+
+  it('lets go of touch scrolling when the screen is left mid-drag', async () => {
+    server.use(onePage(removed(1), removed(2)));
+    const { router } = await openRemoved();
+    await startSelecting();
+    dragFrom(2);
+
+    await act(() => router.navigate({ to: '/settings' }));
+
+    expect(touchMoveHeld()).toBe(false);
+  });
+
+  it('keeps the range it ended on when released over its own checkbox', async () => {
+    await selectingFive();
+
+    const drag = dragFrom(2);
+    drag.to(3);
+    drag.to(2);
+    fireEvent.pointerUp(tick(2), overTarget);
+    fireEvent.click(tick(2), { ...overTarget, detail: 1 });
+
+    expect(checkedRows()).toEqual([name(2)]);
+  });
+
+  it('ranges with Shift from where the last drag started', async () => {
+    await selectingFive();
+    const drag = dragFrom(2);
+    drag.to(3);
+    drag.release(3);
+
+    const typing = user();
+    await typing.keyboard('{Shift>}');
+    await typing.click(checkbox(5));
+    await typing.keyboard('{/Shift}');
+
+    expect(checkedRows()).toEqual([name(2), name(3), name(4), name(5)]);
+  });
+
+  it('starts over when a new drag begins before the last one was released', async () => {
+    await selectingFive();
+
+    dragFrom(1);
+    const drag = dragFrom(4);
+    drag.to(5);
+    drag.release(5);
+    fireEvent.pointerMove(document.body, onRow(2));
+
+    expect(checkedRows()).toEqual([name(4), name(5)]);
+  });
+
   it('stops following once released or cancelled', async () => {
     await selectingFive();
 
@@ -1138,9 +1257,10 @@ describe('dragging', () => {
       server.use(onePage(removed(1), removed(2)));
       await openRemoved();
 
-      fireEvent.pointerDown(row(1), onRow(1));
+      fireEvent.pointerDown(row(1), overTarget);
       await advance(500);
-      fireEvent.pointerUp(checkbox(1), onRow(1));
+      fireEvent.pointerUp(checkbox(1), overTarget);
+      fireEvent.click(checkbox(1), { ...overTarget, detail: 1 });
       await advance(100);
 
       expect(checkedRows()).toEqual([name(1)]);

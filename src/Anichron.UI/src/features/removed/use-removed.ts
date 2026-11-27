@@ -17,10 +17,14 @@ export function useRemoved() {
     .map(rowOf);
   const select = useSelect(rows.map(({ memory }) => memory.id));
   const drag = useDragSelect(select);
-  const forget = useForget((sent) => {
-    if (rows.length === sent.length) setOpened(null);
-    setLeft((ids) => new Set([...ids, ...sent]));
-  }, select.cancel);
+  const forget = useForget({
+    sent: (sent) => {
+      if (rows.length === sent.length) setOpened(null);
+      setLeft((ids) => new Set([...ids, ...sent]));
+    },
+    refused: () => void query.refetch(),
+    done: select.cancel,
+  });
   const moreFailed = query.isFetchNextPageError && !query.isFetchingNextPage;
   const { nearing } = usePaging(() => {
     if (query.hasNextPage && !query.isFetchNextPageError)
@@ -37,9 +41,6 @@ export function useRemoved() {
     moreFailed,
     retryMore: () => void query.fetchNextPage(),
     opened,
-    open: (index: number) => () => {
-      setOpened(index);
-    },
     close: () => {
       setOpened(null);
     },
@@ -51,9 +52,6 @@ export function useRemoved() {
       if (drag.claimed()) return;
       if (select.selecting) select.toggle(index, range);
       else setOpened(index);
-    },
-    hold: (index: number) => {
-      if (!select.selecting) drag.hold(index);
     },
   };
 }

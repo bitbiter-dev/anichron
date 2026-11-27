@@ -19,7 +19,7 @@ export function useRow(
   const { longPressProps } = useLongPress({
     isDisabled: select.selecting,
     onLongPress: () => {
-      screen.hold(index);
+      drag.hold(index);
     },
   });
   const role = select.selecting

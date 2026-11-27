@@ -15,9 +15,9 @@ export function toggled({ ids }: Selection, all: readonly string[], index: numbe
 }
 
 export function ranged(selection: Selection, all: readonly string[], index: number): Selection {
-  const from = selection.anchor === null ? -1 : all.indexOf(selection.anchor);
-  if (from < 0) return toggled(selection, all, index);
-  return { ...painted(selection, all, from, index, true), anchor: selection.anchor };
+  const { anchor } = selection;
+  if (anchor === null) return toggled(selection, all, index);
+  return { ...painted(selection, all, all.indexOf(anchor), index, true), anchor };
 }
 
 export function painted(
@@ -32,7 +32,7 @@ export function painted(
     if (select) next.add(id);
     else next.delete(id);
   }
-  return { ids: next, anchor: all[from] ?? null };
+  return { ids: next, anchor: all[from] as string };
 }
 
 export function allOf(all: readonly string[]): Selection {
@@ -43,10 +43,10 @@ export function kept({ ids, anchor }: Selection, all: readonly string[]): Select
   const present = new Set(all);
   return {
     ids: new Set([...ids].filter((id) => present.has(id))),
-    anchor: anchor !== null && present.has(anchor) ? anchor : null,
+    anchor: all.find((id) => id === anchor) ?? null,
   };
 }
 
 export function holdsAll({ ids }: Selection, all: readonly string[]) {
-  return all.length > 0 && all.every((id) => ids.has(id));
+  return all.every((id) => ids.has(id));
 }

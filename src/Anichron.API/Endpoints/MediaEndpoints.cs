@@ -3,13 +3,14 @@ using Anichron.Core.Data.Repository;
 using Anichron.Core.Work;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 
 namespace Anichron.API.Endpoints;
 
 public sealed record PatchInteractionRequest(bool? Starred = null, bool? Liked = null, bool? Hidden = null);
 
-public sealed record PurgeRequest(IReadOnlyList<Guid> AssetIds);
+public sealed record PurgeRequest([property: Length(1, MediaEndpoints.MaxPurgedAssets)] IReadOnlyList<Guid> AssetIds);
 
 /// <summary>What a purge request queued.</summary>
 /// <param name="Accepted">The requested ids that will be purged, plus the videos of accepted Live Photos.</param>
@@ -53,9 +54,10 @@ public static class MediaEndpoints
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return TypedResults.Unauthorized();
-        var requested = request.AssetIds.Distinct().ToList();
-        if (requested is { Count: 0 or > MaxPurgedAssets })
+        if (request.AssetIds is { Count: 0 or > MaxPurgedAssets })
             return ApiProblems.InvalidField(ErrorCodes.InvalidAssetCount, "assetIds", $"assetIds must hold from 1 to {MaxPurgedAssets} ids.");
+
+        var requested = request.AssetIds.Distinct().ToList();
 
         var accepted = await reader.ResolvePurgeAsync(userId, requested, ct);
         foreach (var config in accepted.GroupBy(target => target.StorageConfigId))
