@@ -154,7 +154,10 @@ function SelectionBar({ screen }: { screen: RemovedScreen }) {
   const { select, forget } = screen;
   if (!select.selecting || select.count === 0) return null;
   return (
-    <div className="fixed inset-x-4 bottom-[calc(max(env(safe-area-inset-bottom),0.75rem)+4rem)] z-10 mx-auto flex max-w-xs justify-center rounded-full bg-surface-raised p-1 shadow-(--shadow-glass)">
+    <div
+      data-floating="page"
+      className="fixed inset-x-4 above-bottom-bar z-10 mx-auto flex max-w-xs justify-center rounded-full bg-surface-raised p-1 shadow-(--shadow-glass)"
+    >
       <TextButton variant="danger" onPress={forget.ask(select.selected)}>
         {t('removed.forgetCount', { count: select.count })}
       </TextButton>
