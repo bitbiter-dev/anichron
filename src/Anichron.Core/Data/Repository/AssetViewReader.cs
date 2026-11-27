@@ -73,27 +73,12 @@ public interface IAssetSelection
     IQueryable<InteractedAsset> Page(IQueryable<InteractedAsset> rows) => rows;
 }
 
-public sealed record OnThisDay(LocalDate Date) : IAssetSelection
+public sealed record AssetsById(IReadOnlyCollection<Guid> Ids) : IAssetSelection
 {
     public AssetSet Set => AssetSet.Shown;
 
-    private int LastDay
-        => Date is { Month: 2, Day: 28 } && !CalendarSystem.Iso.IsLeapYear(Date.Year) ? 29 : Date.Day;
-
-    public bool FallsOnTheDay(AssetView view)
-        => view.Month == Date.Month && view.Day >= Date.Day && view.Day <= LastDay;
-
     public IQueryable<MediaAsset> Apply(IQueryable<MediaAsset> assets)
-    {
-        var lastDay = LastDay;
-        var onTheDay = assets.Where(a => a.Month == Date.Month && a.Day >= Date.Day && a.Day <= lastDay && a.Year < Date.Year);
-        return onTheDay.Union(
-            from d in onTheDay
-            where d.BurstId != null
-            from a in assets
-            where a.BurstId == d.BurstId
-            select a);
-    }
+        => assets.Where(a => Ids.Contains(a.Id));
 }
 
 public sealed record BurstMembers(Guid BurstId) : IAssetSelection
@@ -137,11 +122,16 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
     public async Task<IReadOnlyList<AssetView>> ReadAsync(Guid userId, IAssetSelection selection, CancellationToken ct)
         => await Query(db, userId, selection).ToListAsync(ct);
 
-    internal static IQueryable<AssetView> Query(AnichronDbContext db, Guid userId, IAssetSelection selection)
+    internal static IQueryable<MediaAsset> Listed(AnichronDbContext db, Guid userId, AssetSet set)
     {
         var visible = db.MediaAssets.VisibleTo(userId);
-        var set = selection.Set == AssetSet.Hidden ? visible.HiddenFor(userId) : visible.NotHiddenFor(userId);
-        var rows = from a in selection.Apply(set.NotPairedMovOf(visible).Where(a => a.DateCaptured != null))
+        var inSet = set == AssetSet.Hidden ? visible.HiddenFor(userId) : visible.NotHiddenFor(userId);
+        return inSet.NotPairedMovOf(visible).Where(a => a.DateCaptured != null);
+    }
+
+    internal static IQueryable<AssetView> Query(AnichronDbContext db, Guid userId, IAssetSelection selection)
+    {
+        var rows = from a in selection.Apply(Listed(db, userId, selection.Set))
                    join i in db.Interactions.Where(i => i.UserId == userId) on a.Id equals i.AssetId into interactions
                    from i in interactions.DefaultIfEmpty()
                    select new InteractedAsset { Asset = a, Interaction = i };

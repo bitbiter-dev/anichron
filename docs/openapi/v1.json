@@ -1833,6 +1833,88 @@
         }
       }
     },
+    "/api/v1/flashbacks/days": {
+      "get": {
+        "tags": [
+          "Flashbacks"
+        ],
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentDaysDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/bursts/{burstId}/assets": {
       "get": {
         "tags": [
@@ -2823,6 +2905,7 @@
           "invalid_cursor",
           "invalid_date",
           "invalid_email",
+          "invalid_limit",
           "invalid_orphan_count",
           "invalid_page",
           "invalid_page_size",
@@ -3194,6 +3277,40 @@
           "LivePhoto"
         ],
         "type": "string"
+      },
+      "RecentDayDto": {
+        "required": [
+          "date",
+          "year",
+          "memory"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "memory": {
+            "$ref": "#/components/schemas/AssetDto"
+          }
+        }
+      },
+      "RecentDaysDto": {
+        "required": [
+          "days"
+        ],
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentDayDto"
+            }
+          }
+        }
       },
       "RefreshRequest": {
         "required": [
