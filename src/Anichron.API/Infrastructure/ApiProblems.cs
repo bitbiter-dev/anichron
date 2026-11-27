@@ -60,6 +60,7 @@ internal static class ErrorCodes
     public const string PathAlreadyAssigned = "path_already_assigned";
     public const string PathOverlaps = "path_overlaps";
     public const string InvalidDate = "invalid_date";
+    public const string InvalidLimit = "invalid_limit";
     public const string InvalidPage = "invalid_page";
     public const string InvalidPageSize = "invalid_page_size";
     public const string InvalidCursor = "invalid_cursor";
