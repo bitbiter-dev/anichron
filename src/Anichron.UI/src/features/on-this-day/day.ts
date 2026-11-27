@@ -4,6 +4,7 @@ import type { ApiClient } from '../../api/client';
 import type { Day, RecentDay, RecentWindow, YearGroup } from '../../api/flashbacks';
 import type { Memory } from '../../api/memories';
 import type { User } from '../../api/session';
+import { kindOf, memoryKind, type Load } from '../../shared/memory-kinds';
 import { burstsKey, daysKey } from '../../shared/memory-queries';
 import { burstIdOf, coverOf } from './burst';
 
@@ -142,7 +143,9 @@ export async function loadStory(
     ? day.years[startGroup(day.years, year)]?.memories[0]
     : recentMemoryOf(queryClient, date);
   const first = memory && previewOf(api, queryClient, memory);
-  if (first) await api.media.downloads.picture(first);
+  if (!first) return;
+  const download = api.media.downloads.picture(first);
+  if (!standInOf(api, queryClient, memory, 'loading')) await download;
 }
 
 function recentMemoryOf(queryClient: QueryClient, date: string) {
@@ -158,8 +161,23 @@ export function framesOf(api: ApiClient, queryClient: QueryClient, memory: Memor
   return memory.burst ? queryClient.getQueryData(burstQuery(api, memory).queryKey) : undefined;
 }
 
+function coverProxiesOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
+  return coverOf(memory, framesOf(api, queryClient, memory)).proxies;
+}
+
 export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
-  return coverOf(memory, framesOf(api, queryClient, memory)).proxies.preview;
+  return coverProxiesOf(api, queryClient, memory).preview;
+}
+
+function pictureDecoded(api: ApiClient, queryClient: QueryClient, url: string | null) {
+  // Stryker disable next-line StringLiteral
+  return queryClient.getQueryData(pictureQuery(api, url ?? '').queryKey) === true;
+}
+
+export function standInOf(api: ApiClient, queryClient: QueryClient, memory: Memory, load: Load) {
+  const { thumbnail } = coverProxiesOf(api, queryClient, memory);
+  const loadsPicture = load === 'loading' && memoryKind(kindOf(memory)).image(load) === 'picture';
+  return loadsPicture && pictureDecoded(api, queryClient, thumbnail) ? thumbnail : null;
 }
 
 const mostPages = 61;

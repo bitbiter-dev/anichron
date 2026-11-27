@@ -19,3 +19,16 @@ export function proxyAnswers(
     );
   });
 }
+
+export function holdProxy(url: string, received: string[] = []) {
+  let answer: (value: undefined) => void = () => undefined;
+  const held = new Promise<undefined>((resolve) => {
+    answer = resolve;
+  });
+  return {
+    handler: proxyAnswers(received, (asked) => (asked === url ? held : undefined)),
+    release: () => {
+      answer(undefined);
+    },
+  };
+}
