@@ -789,6 +789,21 @@ describe('forgetting', () => {
     ).toBeVisible();
   });
 
+  it('says only that none could be forgotten when none is accepted', async () => {
+    server.use(
+      onePage(removed(1), removed(2)),
+      purgeAnswers([], () => []),
+    );
+    await openRemoved();
+    await startSelecting();
+    await user().click(checkbox(1));
+
+    await forgetSelected();
+
+    expect(await toast("1 couldn't be forgotten; it may be back in your stories.")).toBeVisible();
+    expect(screen.queryByText(/Forgot/)).toBeNull();
+  });
+
   it('keeps a forgotten memory out of the list for the session, though the list still has it', async () => {
     server.use(onePage(removed(1), removed(2)), purgeAnswers([]));
     const { router } = await openRemoved();

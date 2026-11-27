@@ -137,8 +137,9 @@
     },
     "forgot_one": "Forgot {{count}} memory",
     "forgot_other": "Forgot {{count}} memories",
-    "forgotSomeBack_one": "$t(removed.forgot, {\"count\": {{forgot}} }). {{count}} couldn't be forgotten; it may be back in your stories.",
-    "forgotSomeBack_other": "$t(removed.forgot, {\"count\": {{forgot}} }). {{count}} couldn't be forgotten; they may be back in your stories.",
+    "notForgotten_one": "{{count}} couldn't be forgotten; it may be back in your stories.",
+    "notForgotten_other": "{{count}} couldn't be forgotten; they may be back in your stories.",
+    "forgotSomeBack": "$t(removed.forgot, {\"count\": {{forgot}} }). $t(removed.notForgotten, {\"count\": {{count}} })",
     "forgetFailed_one": "Couldn't forget {{count}} memory. Try again.",
     "forgetFailed_other": "Couldn't forget {{count}} memories. Try again."
   },

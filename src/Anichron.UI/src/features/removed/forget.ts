@@ -30,12 +30,12 @@ export function toastsOf({ sent, accepted, unsent }: Forgotten): ToastMessage[] 
   const forgot = sent.filter((id) => accepted.has(id)).length;
   const back = sent.length - forgot;
   const toasts: ToastMessage[] = [];
-  if (sent.length > 0)
-    toasts.push(
-      back === 0
-        ? { message: 'removed.forgot', values: { count: forgot } }
-        : { message: 'removed.forgotSomeBack', values: { forgot, count: back } },
-    );
+  if (back === 0 && forgot > 0)
+    toasts.push({ message: 'removed.forgot', values: { count: forgot } });
+  else if (forgot === 0 && back > 0)
+    toasts.push({ message: 'removed.notForgotten', values: { count: back } });
+  else if (back > 0)
+    toasts.push({ message: 'removed.forgotSomeBack', values: { forgot, count: back } });
   if (unsent.length > 0)
     toasts.push({ message: 'removed.forgetFailed', values: { count: unsent.length } });
   return toasts;
