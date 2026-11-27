@@ -19,6 +19,7 @@ using Microsoft.Extensions.Time.Testing;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Anichron.API.Tests.Unit.Infrastructure;
 
@@ -47,6 +48,21 @@ public sealed class ApiServiceRegistrationTests
         return services;
     }
 
+    [Fact]
+    public void AddApiSurface_SetsTheApiJsonOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddApiSurface(Configuration());
+        using var provider = services.BuildServiceProvider();
+
+        var json = provider.GetRequiredService<IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions;
+
+        json.NumberHandling.Should().Be(JsonNumberHandling.Strict);
+        json.RespectNullableAnnotations.Should().BeTrue();
+        json.RespectRequiredConstructorParameters.Should().BeTrue();
+    }
+
     // ==========================================================================
     // Service registrations
     // ==========================================================================
@@ -62,6 +78,7 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IUserStorageConfigRepository), typeof(EfUserStorageConfigRepository), ServiceLifetime.Scoped },
         { typeof(IMediaAssetReadRepository), typeof(EfMediaAssetReadRepository), ServiceLifetime.Scoped },
         { typeof(IAssetViewReader), typeof(EfAssetViewReader), ServiceLifetime.Scoped },
+        { typeof(ISoftDeletedAssetReader), typeof(EfSoftDeletedAssetReader), ServiceLifetime.Scoped },
         { typeof(IAssetInteractionWriter), typeof(EfAssetInteractionWriter), ServiceLifetime.Scoped },
         { typeof(IProxyStore), typeof(ProxyStore), ServiceLifetime.Singleton },
         { typeof(IOriginalStore), typeof(OriginalStore), ServiceLifetime.Singleton },

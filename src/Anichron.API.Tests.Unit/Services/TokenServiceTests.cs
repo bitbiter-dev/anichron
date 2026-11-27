@@ -28,7 +28,6 @@ public sealed class TokenServiceTests : IAsyncDisposable
     {
         public IRefreshTokenRepository Tokens { get; } = Substitute.For<IRefreshTokenRepository>();
         public IUnitOfWork UnitOfWork { get; } = Substitute.For<IUnitOfWork>();
-        private readonly IUserStorageConfigRepository _storageConfigs = Substitute.For<IUserStorageConfigRepository>();
         private readonly IClock _clock = Substitute.For<IClock>();
         private readonly IGuidFactory _guidFactory = Substitute.For<IGuidFactory>();
         private readonly IJwtFactory _jwtFactory = Substitute.For<IJwtFactory>();
@@ -56,12 +55,6 @@ public sealed class TokenServiceTests : IAsyncDisposable
             return this;
         }
 
-        public TestFixture WithStorageConfigFor(Guid userId)
-        {
-            _storageConfigs.AnyActiveByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(true);
-            return this;
-        }
-
         public TestFixture LosingRotationsOf(Guid tokenId)
         {
             Tokens.RotateAsync(tokenId, Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>()).Returns(TokenRotation.Lost);
@@ -75,7 +68,7 @@ public sealed class TokenServiceTests : IAsyncDisposable
         }
 
         public TokenService CreateTestee() => new(
-            Tokens, _storageConfigs, UnitOfWork, _clock, _guidFactory,
+            Tokens, UnitOfWork, _clock, _guidFactory,
             Options.Create(new JwtSettings { AccessTokenMinutes = 20, RefreshTokenDays = 30 }),
             _jwtFactory);
     }
@@ -177,47 +170,9 @@ public sealed class TokenServiceTests : IAsyncDisposable
         await fixture.UnitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task IssueAsync_UserWithAStorageConfig_SaysSo()
-    {
-        var user = new User { Id = Guid.Parse("11111111-1111-1111-1111-111111111111") };
-        var testee = new TestFixture().WithStorageConfigFor(user.Id).CreateTestee();
-
-        var result = await testee.IssueAsync(user, CancellationToken.None);
-
-        result.HasStorageConfig.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task IssueAsync_UserWithoutAStorageConfig_SaysSo()
-    {
-        var user = new User { Id = Guid.Parse("11111111-1111-1111-1111-111111111111") };
-        var testee = new TestFixture().WithStorageConfigFor(Guid.NewGuid()).CreateTestee();
-
-        var result = await testee.IssueAsync(user, CancellationToken.None);
-
-        result.HasStorageConfig.Should().BeFalse();
-    }
-
     // ==========================================================================
     // RefreshAsync
     // ==========================================================================
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task RefreshAsync_ValidToken_SaysWhetherTheUserHasAStorageConfig(bool hasStorageConfig)
-    {
-        var user = new User { Id = Guid.Parse("22222222-2222-2222-2222-222222222222") };
-        var fixture = new TestFixture().WithToken(ActiveToken(user));
-        if (hasStorageConfig)
-            fixture.WithStorageConfigFor(user.Id);
-        var testee = fixture.CreateTestee();
-
-        var result = await testee.RefreshAsync(ValidRawToken, CancellationToken.None);
-
-        result.Value().HasStorageConfig.Should().Be(hasStorageConfig);
-    }
 
     [Fact]
     public async Task RefreshAsync_TokenNotFound_ReturnsTokenInvalid()

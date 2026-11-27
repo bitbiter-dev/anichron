@@ -11,7 +11,7 @@ Fluent API only (`domain-has-no-data-annotations`). Columns are PascalCase. Tabl
 
 | Entity | What it is |
 |---|---|
-| `MediaAsset` | One file under a storage config: path, `ContentHash`, capture date (ADR 0015), media type, soft-delete flag, `PairedAssetId` (Live Photo → its MOV), `IsLivePhotoVideo` (ADR 0019) |
+| `MediaAsset` | One file under a storage config: path, `ContentHash`, capture date (ADR 0015), media type, soft-delete flag and `SoftDeleteReason`, `PairedAssetId` (Live Photo → its MOV), `IsLivePhotoVideo` (ADR 0019) |
 | `Metadata` | 1:1 with an asset: the owned `MediaDescription` (size, GPS, orientation, camera, duration) and the BlurHash |
 | `ProxyFile` | One generated file per asset and `ProxyType` |
 | `Burst` | Photos of one config taken moments apart; `PrimaryAssetId` is the cover |
@@ -26,6 +26,7 @@ Fluent API only (`domain-has-no-data-annotations`). Columns are PascalCase. Tabl
 
 - **Dedup is per storage config.** One *active* asset per `(StorageConfigId, ContentHash)`: a partial unique index, which is how a moved file finds its row again. The same bytes under two configs are two assets. A global unique `ContentHash` would break multi-user (`ModelInvariantsTests`).
 - **One asset per path** within a config, soft-deleted rows included, so auto-restore finds a row at its path.
+- **A soft-deleted row always has a `SoftDeleteReason` and an active row never does** (check constraint `CK_MediaAssets_SoftDeleteReason`).
 - **`RootPath` is canonical, globally unique, strictly inside `/data/originals`, and never nests** in another config's root (`StoragePath.Canonicalize`, `Overlaps`).
 - **`Month`/`Day` are columns** with a composite index, so On This Day is an index lookup rather than an `EXTRACT()` scan.
 - **The soft-delete filter is the only global query filter.** It covers `MediaAsset` and everything hanging off it. Per-user rules (hidden, ownership) are query-level, because the Worker shares the context and has no user (`ModelInvariantsTests`).

@@ -16,6 +16,7 @@ internal static class ApiTestHost
         builder.Services.AddHealthChecks();
         builder.Services.AddSingleton(Substitute.For<IAuthService>());
         builder.Services.AddSingleton(Substitute.For<ISessionResponseMapper>());
+        builder.Services.AddSingleton(Substitute.For<IUserProfiles>());
         builder.Services.AddSingleton(Substitute.For<IAdminResponseMapper>());
         builder.Services.AddSingleton(Substitute.For<IAdminResetService>());
         builder.Services.AddSingleton(Substitute.For<IAdminUserService>());
@@ -36,7 +37,7 @@ internal static class ApiTestHost
         var builder = CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddAuthorizationPolicies();
-        builder.Services.AddApiProblems();
+        builder.Services.AddApiProblems().AddApiJson();
         if (rateLimited)
             builder.Services.AddRateLimiting(builder.Configuration);
         configure(builder);

@@ -96,10 +96,15 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
 
         modelBuilder.Entity<MediaAsset>(entity =>
         {
-            entity.ToTable(t => t.HasComment(
+            entity.ToTable(t =>
+            {
+                t.HasComment(
                     "One row per media file, scoped to a storage config. Written ONLY by the Worker — "
-                    + "the API never writes media data."
-                ));
+                    + "the API never writes media data.");
+                t.HasCheckConstraint(
+                    MediaAssetIndexNames.SoftDeleteReasonSetWhenSoftDeleted,
+                    @"""IsSoftDeleted"" = (""SoftDeleteReason"" IS NOT NULL)");
+            });
             entity.Property(m => m.ContentHash).HasComment(
                 "XXHash64 of the file contents. Dedup is deliberately CONFIG-SCOPED: the same "
                 + "bytes under two storage configs are two assets, which is what makes multi-user "
@@ -138,9 +143,14 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "when the photo lets go of it or is purged. Pairing soft-deletes a video its photo lets go of, and "
                 + "a flagged video crawled alone follows only its photo, so it is never a memory of its own (ADR 0019).");
             entity.Property(m => m.IsSoftDeleted).HasComment(
-                "Set by reconciliation when a complete crawl did not find the file, or when its path "
-                + "now holds content stored at another path. Soft rather than hard so the user's "
-                + "interactions survive, and a crawl that finds the file again clears it (auto-restore).");
+                "Set by reconciliation when a complete crawl did not find the file, when its path "
+                + "now holds content stored at another path, or when its Live Photo's photo lets go of it. "
+                + "Soft rather than hard so the user's interactions survive, and a crawl that finds the "
+                + "file again clears it (auto-restore). SoftDeleteReason says which.");
+            entity.Property(m => m.SoftDeleteReason).HasConversion<string>().HasComment(
+                "Why the row is soft-deleted, a SoftDeleteReason name. Set with IsSoftDeleted and "
+                + "cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of "
+                + "soft-deleted assets.");
 
             // Composite Index for "On This Day" (Optimized for Flashbacks)
             entity.HasIndex(m => new { m.Month, m.Day }).HasDatabaseName("IX_MediaAsset_Flashback");
@@ -212,7 +222,8 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .HasDefaultValue(ExifOrientation.Upright)
                   .HasComment(
                       "EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): "
-                      + "from the container's irot for a HEIC, the video track's rotation for a video, "
+                      + "from the container's irot and imir for a HEIC, composed in the order its ipma lists them, "
+                      + "the video track's rotation for a video, "
                       + "and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a "
                       + "rotation with a mirror and cannot be expressed as degrees; a reader converts, "
                       + "and for 5-8 swaps Width/Height. Proxies are already upright and a video's "

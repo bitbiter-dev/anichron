@@ -56,6 +56,7 @@ public sealed class StoredContentTests
         MediaType = MediaType.Image,
         Captured = Recorded.At(new LocalDateTime(2019, 3, 4, 5, 6)),
         IsSoftDeleted = softDeleted,
+        SoftDeleteReason = softDeleted ? SoftDeleteReason.Missing : null,
         LastSeenOnNas = FirstSeen,
         BurstId = Guid.NewGuid(),
     };
@@ -260,7 +261,14 @@ public sealed class StoredContentTests
         var wasSoftDeleted = await fx.Build().ReactivateAsync(fx.Context, asset, CancellationToken.None);
 
         wasSoftDeleted.Should().BeTrue();
-        asset.Should().BeEquivalentTo(new { IsSoftDeleted = false, LastSeenOnNas = Now, BurstId = burstId, ContentHash = "0ld" });
+        asset.Should().BeEquivalentTo(new
+        {
+            IsSoftDeleted = false,
+            SoftDeleteReason = (SoftDeleteReason?)null,
+            LastSeenOnNas = Now,
+            BurstId = burstId,
+            ContentHash = "0ld",
+        });
         fx.Context.StagedAutoRestored.Should().Be(1);
         await fx.Bursts.Received(1).RemoveCheckAsync(AssetId, Arg.Any<CancellationToken>());
     }
@@ -296,6 +304,7 @@ public sealed class StoredContentTests
         ContentHash = "m0v",
         MediaType = MediaType.Video,
         IsSoftDeleted = softDeleted,
+        SoftDeleteReason = softDeleted ? SoftDeleteReason.Missing : null,
         LastSeenOnNas = FirstSeen,
     };
 
@@ -305,9 +314,15 @@ public sealed class StoredContentTests
         var fx = new TestFixture();
         var asset = Row();
 
-        await fx.Build().RetireAsync(fx.Context, asset, CancellationToken.None);
+        await fx.Build().RetireAsync(fx.Context, asset, SoftDeleteReason.Overwritten, CancellationToken.None);
 
-        asset.Should().BeEquivalentTo(new { IsSoftDeleted = true, LastSeenOnNas = FirstSeen, ContentHash = "0ld" });
+        asset.Should().BeEquivalentTo(new
+        {
+            IsSoftDeleted = true,
+            SoftDeleteReason = SoftDeleteReason.Overwritten,
+            LastSeenOnNas = FirstSeen,
+            ContentHash = "0ld",
+        });
         fx.Context.StagedSoftDeleted.Should().Be(1);
         await fx.Repository.DidNotReceive().FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         fx.Logger.Collector.Count.Should().Be(0);
@@ -320,10 +335,16 @@ public sealed class StoredContentTests
         var video = Video();
         var photo = LivePhoto(fx, video);
 
-        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+        await fx.Build().RetireAsync(fx.Context, photo, SoftDeleteReason.Superseded, CancellationToken.None);
 
-        (photo.IsSoftDeleted, photo.PairedAssetId).Should().Be((true, VideoId));
-        video.Should().BeEquivalentTo(new { IsSoftDeleted = true, LastSeenOnNas = FirstSeen, FilePath = "a.mov" });
+        (photo.IsSoftDeleted, photo.SoftDeleteReason, photo.PairedAssetId).Should().Be((true, SoftDeleteReason.Superseded, VideoId));
+        video.Should().BeEquivalentTo(new
+        {
+            IsSoftDeleted = true,
+            SoftDeleteReason = SoftDeleteReason.Superseded,
+            LastSeenOnNas = FirstSeen,
+            FilePath = "a.mov",
+        });
         fx.Context.StagedSoftDeleted.Should().Be(2);
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().BeEquivalentTo(new
         {
@@ -337,11 +358,13 @@ public sealed class StoredContentTests
     public async Task RetireAsync_VideoAlreadySoftDeleted_CountsOnlyThePhotoAsync()
     {
         var fx = new TestFixture();
-        var photo = LivePhoto(fx, Video(softDeleted: true));
+        var video = Video(softDeleted: true);
+        var photo = LivePhoto(fx, video);
 
-        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+        await fx.Build().RetireAsync(fx.Context, photo, SoftDeleteReason.Overwritten, CancellationToken.None);
 
         photo.IsSoftDeleted.Should().BeTrue();
+        video.SoftDeleteReason.Should().Be(SoftDeleteReason.Missing, "a row already soft-deleted keeps why it went");
         fx.Context.StagedSoftDeleted.Should().Be(1);
         fx.Logger.Collector.Count.Should().Be(0);
     }
@@ -352,7 +375,7 @@ public sealed class StoredContentTests
         var fx = new TestFixture();
         var photo = LivePhoto(fx, video: null);
 
-        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+        await fx.Build().RetireAsync(fx.Context, photo, SoftDeleteReason.Missing, CancellationToken.None);
 
         photo.IsSoftDeleted.Should().BeTrue();
         fx.Context.StagedSoftDeleted.Should().Be(1);
@@ -364,10 +387,11 @@ public sealed class StoredContentTests
         var fx = new TestFixture();
         var video = Video();
         var photo = LivePhoto(fx, video);
-        photo.IsSoftDeleted = true;
+        (photo.IsSoftDeleted, photo.SoftDeleteReason) = (true, SoftDeleteReason.Missing);
 
-        await fx.Build().RetireAsync(fx.Context, photo, CancellationToken.None);
+        await fx.Build().RetireAsync(fx.Context, photo, SoftDeleteReason.Overwritten, CancellationToken.None);
 
+        photo.SoftDeleteReason.Should().Be(SoftDeleteReason.Missing);
         video.IsSoftDeleted.Should().BeFalse();
         fx.Context.StagedSoftDeleted.Should().Be(0);
         await fx.Repository.DidNotReceive().FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());

@@ -45,6 +45,7 @@ public sealed class MediaAssetReadRepositoryTests
                     Proxy(MirasPhoto, ProxyType.Thumbnail),
                     Proxy(MirasPhoto, ProxyType.FullPreview),
                     Proxy(MirasTrashedPhoto, ProxyType.Thumbnail),
+                    Proxy(MirasArchivedPhoto, ProxyType.Thumbnail),
                     Proxy(AlicesPhoto, ProxyType.Thumbnail),
                 ];
             }
@@ -71,6 +72,7 @@ public sealed class MediaAssetReadRepositoryTests
                 FileName = name,
                 ContentHash = name,
                 IsSoftDeleted = softDeleted,
+                SoftDeleteReason = softDeleted ? SoftDeleteReason.Missing : null,
             };
     }
 
@@ -100,41 +102,75 @@ public sealed class MediaAssetReadRepositoryTests
         visible.Should().Equal(library.MirasPhoto.Id);
     }
 
+    [Fact]
+    public async Task OwnedBy_WithQueryFiltersIgnored_IncludesSoftDeletedAndExcludesInactiveAndOthersAssets()
+    {
+        var (options, library) = await SeedAsync();
+        await using var db = new AnichronDbContext(options);
+
+        var owned = await db.MediaAssets.IgnoreQueryFilters().OwnedBy(library.Mira.Id)
+            .Select(a => a.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        owned.Should().BeEquivalentTo([library.MirasPhoto.Id, library.MirasTrashedPhoto.Id]);
+    }
+
+    [Fact]
+    public async Task SoftDeletedFor_WithQueryFiltersIgnored_IsOnlyTheOwnersSoftDeletedAssetsInActiveConfigs()
+    {
+        var (options, library) = await SeedAsync();
+        await using var db = new AnichronDbContext(options);
+
+        var softDeleted = await db.MediaAssets.IgnoreQueryFilters().SoftDeletedFor(library.Mira.Id)
+            .Select(a => a.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        softDeleted.Should().Equal(library.MirasTrashedPhoto.Id);
+    }
+
     // ==========================================================================
-    // FindVisibleProxyAsync
+    // FindOwnedProxyAsync
     // ==========================================================================
 
-    private static async Task<(VisibleProxy? Found, Library Library)> FindProxyAsync(
+    private static async Task<(OwnedProxy? Found, Library Library)> FindProxyAsync(
         Func<Library, Guid> assetId, Func<Library, Guid> caller, ProxyType type)
     {
         var (options, library) = await SeedAsync();
         await using var db = new AnichronDbContext(options);
         var found = await new EfMediaAssetReadRepository(db)
-            .FindVisibleProxyAsync(assetId(library), caller(library), type, TestContext.Current.CancellationToken);
+            .FindOwnedProxyAsync(assetId(library), caller(library), type, TestContext.Current.CancellationToken);
         return (found, library);
     }
 
     [Theory]
     [InlineData(ProxyType.Thumbnail)]
     [InlineData(ProxyType.FullPreview)]
-    public async Task FindVisibleProxyAsync_OwnAssetWithThatProxy_ReturnsItsPathAndContentHash(ProxyType type)
+    public async Task FindOwnedProxyAsync_OwnAssetWithThatProxy_ReturnsItsPathAndContentHash(ProxyType type)
     {
         var (found, library) = await FindProxyAsync(l => l.MirasPhoto.Id, l => l.Mira.Id, type);
 
-        found.Should().Be(new VisibleProxy(Library.PathOf(library.MirasPhoto, type), library.MirasPhoto.ContentHash));
+        found.Should().Be(new OwnedProxy(Library.PathOf(library.MirasPhoto, type), library.MirasPhoto.ContentHash));
     }
 
     [Fact]
-    public async Task FindVisibleProxyAsync_OwnAssetWithoutThatProxy_ReturnsNull()
+    public async Task FindOwnedProxyAsync_OwnAssetWithoutThatProxy_ReturnsNull()
         => (await FindProxyAsync(l => l.MirasPhoto.Id, l => l.Mira.Id, ProxyType.WebVideo)).Found.Should().BeNull();
 
     [Fact]
-    public async Task FindVisibleProxyAsync_AnotherUsersAsset_ReturnsNull()
+    public async Task FindOwnedProxyAsync_AnotherUsersAsset_ReturnsNull()
         => (await FindProxyAsync(l => l.AlicesPhoto.Id, l => l.Mira.Id, ProxyType.Thumbnail)).Found.Should().BeNull();
 
     [Fact]
-    public async Task FindVisibleProxyAsync_SoftDeletedOwnAsset_ReturnsNull()
-        => (await FindProxyAsync(l => l.MirasTrashedPhoto.Id, l => l.Mira.Id, ProxyType.Thumbnail)).Found.Should().BeNull();
+    public async Task FindOwnedProxyAsync_SoftDeletedOwnAsset_ReturnsItsProxy()
+    {
+        var (found, library) = await FindProxyAsync(l => l.MirasTrashedPhoto.Id, l => l.Mira.Id, ProxyType.Thumbnail);
+
+        found.Should().Be(new OwnedProxy(Library.PathOf(library.MirasTrashedPhoto, ProxyType.Thumbnail), "b.jpg"));
+    }
+
+    [Fact]
+    public async Task FindOwnedProxyAsync_OwnAssetInAnInactiveConfig_ReturnsNull()
+        => (await FindProxyAsync(l => l.MirasArchivedPhoto.Id, l => l.Mira.Id, ProxyType.Thumbnail)).Found.Should().BeNull();
 
     // ==========================================================================
     // Generated SQL
@@ -165,13 +201,14 @@ public sealed class MediaAssetReadRepositoryTests
     }
 
     [Fact]
-    public void FindVisibleProxy_TranslatesThroughTheVisibilityRule()
+    public void FindOwnedProxy_TranslatesThroughTheOwnershipRuleWithoutTheSoftDeleteFilter()
     {
         using var db = AnichronDbContexts.NpgsqlModel();
 
-        var sql = EfMediaAssetReadRepository.VisibleProxyQuery(db, Guid.NewGuid(), Guid.NewGuid(), ProxyType.Thumbnail)
+        var sql = EfMediaAssetReadRepository.OwnedProxyQuery(db, Guid.NewGuid(), Guid.NewGuid(), ProxyType.Thumbnail)
             .ToQueryString();
 
+        sql.Should().NotContain("IsSoftDeleted");
         sql.Should().Contain("JOIN \"StorageConfigs\"")
             .And.Contain("\"UserId\" = @")
             .And.Contain("\"ProxyType\" = @")

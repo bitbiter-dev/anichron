@@ -1,5 +1,5 @@
 import { decode } from 'blurhash';
-import type { Memory } from '../api/flashbacks';
+import type { MemoryMedia } from '../api/memories';
 
 const longSide = 32;
 
@@ -9,7 +9,7 @@ function blurhashSize(width: number | null, height: number | null) {
   return { width: Math.ceil(across * scale), height: Math.ceil(down * scale) };
 }
 
-export function blurhashOf({ blurhash, width, height }: Memory) {
+export function blurhashOf({ blurhash, width, height }: MemoryMedia) {
   return blurhash ? { hash: blurhash, ...blurhashSize(width, height) } : null;
 }
 

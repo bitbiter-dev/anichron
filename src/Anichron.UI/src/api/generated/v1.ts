@@ -1687,6 +1687,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assets/soft-deleted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    after?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SoftDeletedAssetsPageDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/flashbacks/on-this-day": {
         parameters: {
             query?: never;
@@ -2534,13 +2607,13 @@ export interface components {
             years: components["schemas"]["FlashbackYearDto"][];
         };
         PatchAdminUserRequest: {
-            isAdmin: null | boolean;
-            isDisabled: null | boolean;
+            isAdmin?: null | boolean;
+            isDisabled?: null | boolean;
         };
         PatchInteractionRequest: {
-            starred: null | boolean;
-            liked: null | boolean;
-            hidden: null | boolean;
+            starred?: null | boolean;
+            liked?: null | boolean;
+            hidden?: null | boolean;
         };
         ProblemDetails: {
             type?: null | string;
@@ -2553,7 +2626,8 @@ export interface components {
         };
         ProxyDeletionOutcome: number;
         ProxyDeletionRequest: {
-            orphanIds: null | string[];
+            orphanIds?: null | string[];
+            /** @default false */
             all: boolean;
         };
         ProxyDeletionsRequestedDto: {
@@ -2609,6 +2683,35 @@ export interface components {
             /** @description The refresh token, for a client that keeps it itself. */
             refreshToken?: null | string;
         };
+        SoftDeletedAssetDto: {
+            /** Format: uuid */
+            id: string;
+            mediaType: components["schemas"]["PublishedMediaType"];
+            /** Format: int32 */
+            year: null | number;
+            /** Format: int32 */
+            month: null | number;
+            /** Format: int32 */
+            day: null | number;
+            /** Format: int32 */
+            width: null | number;
+            /** Format: int32 */
+            height: null | number;
+            /** Format: int32 */
+            durationSeconds: null | number;
+            proxies: components["schemas"]["AssetProxyUrls"];
+            blurhash: null | string;
+            livePhotoVideoUrl: null | string;
+            path: string;
+            lastSeenOnNas: string;
+            reason: components["schemas"]["SoftDeleteReason"];
+        };
+        SoftDeletedAssetsPageDto: {
+            items: components["schemas"]["SoftDeletedAssetDto"][];
+            next: null | string;
+        };
+        /** @enum {string} */
+        SoftDeleteReason: "Missing" | "Overwritten" | "Superseded";
         SseItemOfWorkItemDto: {
             data?: components["schemas"]["WorkItemDto"];
             eventType?: null | string;

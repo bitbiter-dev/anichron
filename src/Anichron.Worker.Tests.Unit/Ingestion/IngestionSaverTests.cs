@@ -49,10 +49,13 @@ public sealed class IngestionSaverTests
     private static readonly Guid RetiredId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static readonly Guid RetiredVideoId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
 
-    private static void RetireFirst(IngestionContext context)
+    private static MediaAsset Retired(Guid id, SoftDeleteReason reason)
+        => new() { Id = id, IsSoftDeleted = true, SoftDeleteReason = reason };
+
+    private static void RetireFirst(IngestionContext context, SoftDeleteReason videoReason = SoftDeleteReason.Missing)
         => context.Classification = new(
-            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: new MediaAsset { Id = RetiredId }),
-            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: new MediaAsset { Id = RetiredVideoId }),
+            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: Retired(RetiredId, SoftDeleteReason.Missing)),
+            new FileClassification(FileOutcome.OverwrittenByMove, new MediaAsset(), Retired: Retired(RetiredVideoId, videoReason)),
             PairingAction.None);
 
     private static List<string> RecordSteps(TestFixture fx)
@@ -65,10 +68,10 @@ public sealed class IngestionSaverTests
                 await call.Arg<Func<Task>>()();
                 steps.Add("commit");
             });
-        fx.Repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+        fx.Repository.SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                steps.Add($"soft-delete {string.Join(',', call.Arg<IReadOnlyCollection<Guid>>())}");
+                steps.Add($"soft-delete {call.Arg<SoftDeleteReason>()} {string.Join(',', call.Arg<IReadOnlyCollection<Guid>>())}");
                 return 1;
             });
         fx.UnitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(_ =>
@@ -172,7 +175,7 @@ public sealed class IngestionSaverTests
         await fx.Build().TrySaveItemAsync(fx.Context, NewAsset, CancellationToken.None);
 
         await fx.UnitOfWork.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>());
-        await fx.Repository.DidNotReceive().SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+        await fx.Repository.DidNotReceive().SoftDeleteAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<SoftDeleteReason>(), Arg.Any<CancellationToken>());
         await fx.UnitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -260,7 +263,7 @@ public sealed class IngestionSaverTests
 
         saved.Should().BeTrue();
         steps.Should().Equal(
-            "begin", "soft-delete dddddddd-dddd-dddd-dddd-dddddddddddd,eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "save", "commit");
+            "begin", "soft-delete Missing dddddddd-dddd-dddd-dddd-dddddddddddd,eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "save", "commit");
     }
 
     [Fact]
@@ -284,6 +287,23 @@ public sealed class IngestionSaverTests
     // ==========================================================================
 
     [Fact]
+    public async Task TrySaveItemAsync_RowsRetiredFirstForTwoReasons_SoftDeletesEachWithItsOwnBeforeSaving()
+    {
+        var fx = new TestFixture();
+        RetireFirst(fx.Context, videoReason: SoftDeleteReason.Superseded);
+        var steps = RecordSteps(fx);
+
+        await fx.Build().TrySaveItemAsync(fx.Context, null, CancellationToken.None);
+
+        steps.Should().Equal(
+            "begin",
+            "soft-delete Missing dddddddd-dddd-dddd-dddd-dddddddddddd",
+            "soft-delete Superseded eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+            "save",
+            "commit");
+    }
+
+    [Fact]
     public async Task TrySaveItemAsync_RowsRetiredFirst_SoftDeletesEveryRetiredRowBeforeSavingInOneTransaction()
     {
         var fx = new TestFixture();
@@ -294,7 +314,7 @@ public sealed class IngestionSaverTests
 
         saved.Should().BeTrue();
         steps.Should().Equal(
-            "begin", "soft-delete dddddddd-dddd-dddd-dddd-dddddddddddd,eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "save", "commit");
+            "begin", "soft-delete Missing dddddddd-dddd-dddd-dddd-dddddddddddd,eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "save", "commit");
     }
 
     [Fact]

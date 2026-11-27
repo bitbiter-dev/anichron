@@ -1697,6 +1697,74 @@
         }
       }
     },
+    "/api/v1/assets/soft-deleted": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoftDeletedAssetsPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flashbacks/on-this-day": {
       "get": {
         "tags": [
@@ -2916,10 +2984,6 @@
         }
       },
       "PatchAdminUserRequest": {
-        "required": [
-          "isAdmin",
-          "isDisabled"
-        ],
         "type": "object",
         "properties": {
           "isAdmin": {
@@ -2937,11 +3001,6 @@
         }
       },
       "PatchInteractionRequest": {
-        "required": [
-          "starred",
-          "liked",
-          "hidden"
-        ],
         "type": "object",
         "properties": {
           "starred": {
@@ -3007,10 +3066,6 @@
         "type": "integer"
       },
       "ProxyDeletionRequest": {
-        "required": [
-          "orphanIds",
-          "all"
-        ],
         "type": "object",
         "properties": {
           "orphanIds": {
@@ -3024,7 +3079,8 @@
             }
           },
           "all": {
-            "type": "boolean"
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -3203,6 +3259,129 @@
           }
         },
         "description": "A new or renewed session, with the refresh token only when it is not set as a cookie."
+      },
+      "SoftDeletedAssetDto": {
+        "required": [
+          "id",
+          "mediaType",
+          "year",
+          "month",
+          "day",
+          "width",
+          "height",
+          "durationSeconds",
+          "proxies",
+          "blurhash",
+          "livePhotoVideoUrl",
+          "path",
+          "lastSeenOnNas",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/PublishedMediaType"
+          },
+          "year": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "month": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "day": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "width": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "durationSeconds": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "proxies": {
+            "$ref": "#/components/schemas/AssetProxyUrls"
+          },
+          "blurhash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "livePhotoVideoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "lastSeenOnNas": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SoftDeleteReason"
+          }
+        }
+      },
+      "SoftDeletedAssetsPageDto": {
+        "required": [
+          "items",
+          "next"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SoftDeletedAssetDto"
+            }
+          },
+          "next": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SoftDeleteReason": {
+        "enum": [
+          "Missing",
+          "Overwritten",
+          "Superseded"
+        ],
+        "type": "string"
       },
       "SseItemOfWorkItemDto": {
         "type": "object",

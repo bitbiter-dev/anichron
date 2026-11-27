@@ -166,8 +166,10 @@ CREATE TABLE "MediaAssets" (
     "Year" integer,
     "MediaType" text NOT NULL,
     "IsSoftDeleted" boolean NOT NULL,
+    "SoftDeleteReason" text,
     "LastSeenOnNas" timestamp with time zone NOT NULL,
     CONSTRAINT "PK_MediaAssets" PRIMARY KEY ("Id"),
+    CONSTRAINT "CK_MediaAssets_SoftDeleteReason" CHECK ("IsSoftDeleted" = ("SoftDeleteReason" IS NOT NULL)),
     CONSTRAINT "FK_MediaAssets_Bursts_BurstId" FOREIGN KEY ("BurstId") REFERENCES "Bursts" ("Id") ON DELETE SET NULL,
     CONSTRAINT "FK_MediaAssets_MediaAssets_PairedAssetId" FOREIGN KEY ("PairedAssetId") REFERENCES "MediaAssets" ("Id") ON DELETE SET NULL,
     CONSTRAINT "FK_MediaAssets_StorageConfigs_StorageConfigId" FOREIGN KEY ("StorageConfigId") REFERENCES "StorageConfigs" ("Id") ON DELETE CASCADE
@@ -183,7 +185,8 @@ COMMENT ON COLUMN "MediaAssets"."CaptureSource" IS 'Which kind of source DateCap
 COMMENT ON COLUMN "MediaAssets"."CaptureZone" IS 'IANA time zone at the asset''s position when it was ingested, looked up offline; NULL without a position. Never changes DateCaptured or CaptureOffset.';
 COMMENT ON COLUMN "MediaAssets"."Month" IS 'Stored apart from DateCaptured so "On This Day" is an index lookup on (Month, Day) rather than an EXTRACT() scan over every row.';
 COMMENT ON COLUMN "MediaAssets"."Day" IS 'See Month — the pair backs IX_MediaAsset_Flashback.';
-COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, or when its path now holds content stored at another path. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore).';
+COMMENT ON COLUMN "MediaAssets"."IsSoftDeleted" IS 'Set by reconciliation when a complete crawl did not find the file, when its path now holds content stored at another path, or when its Live Photo''s photo lets go of it. Soft rather than hard so the user''s interactions survive, and a crawl that finds the file again clears it (auto-restore). SoftDeleteReason says which.';
+COMMENT ON COLUMN "MediaAssets"."SoftDeleteReason" IS 'Why the row is soft-deleted, a SoftDeleteReason name. Set with IsSoftDeleted and cleared with it (CK_MediaAssets_SoftDeleteReason), and shown to the owner in the list of soft-deleted assets.';
 
 
 CREATE TABLE "Interactions" (
@@ -219,7 +222,7 @@ CREATE TABLE "Metadata" (
     CONSTRAINT "FK_Metadata_MediaAssets_AssetId" FOREIGN KEY ("AssetId") REFERENCES "MediaAssets" ("Id") ON DELETE CASCADE
 );
 COMMENT ON TABLE "Metadata" IS 'What a file records in its EXIF, XMP, IPTC, QuickTime or AVI metadata, 1:1 with MediaAsset and keyed by it — there is no separate Id. Populated by MetadataExtractionMiddleware; every field is best-effort, because a file may record none of it.';
-COMMENT ON COLUMN "Metadata"."Description_Orientation" IS 'EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container''s irot for a HEIC, the video track''s rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video''s player applies its own rotation, so rotate neither by it.';
+COMMENT ON COLUMN "Metadata"."Description_Orientation" IS 'EXIF orientation value, 1-8 (1 = upright, also used when absent or invalid): from the container''s irot and imir for a HEIC, composed in the order its ipma lists them, the video track''s rotation for a video, and the EXIF tag otherwise. Kept as an EXIF value because 5 and 7 combine a rotation with a mirror and cannot be expressed as degrees; a reader converts, and for 5-8 swaps Width/Height. Proxies are already upright and a video''s player applies its own rotation, so rotate neither by it.';
 COMMENT ON COLUMN "Metadata"."Blurhash" IS 'BlurHash placeholder string (4x3 components), computed by the Worker from the upright image. Kept here rather than as a proxy file so a response needs no disk read for it. A video''s is computed from its poster. Null for assets ingested before the column existed, which are not backfilled.';
 
 

@@ -12,7 +12,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 - An area module sends each call through `authorized`, which `createSession` hands to `client.ts`: the bearer token, and on a `401` one refresh and one retry. A token renewed meanwhile is retried without refreshing; a second `401` signs out.
 - A refresh that fails without signing out throws `SessionNotRenewed`, and the query retry predicate (`src/app/query-client.ts`) stops on it.
-- Proxy URLs in a response are relative to `/api/v1/`; the area module resolves them (`flashbacks.ts`, reused by `bursts.ts`).
+- An area module returning memories maps each asset through the `ShowMemories` that `client.ts` hands it (`memories.ts`): it resolves proxy URLs, relative to `/api/v1/`, and picks the compact preview. It maps an `AssetDto` or a `SoftDeletedAssetDto`; shared views read only `MemoryMedia`.
 - A lapsed media session is renewed once, then the failure stands (`media.renewOnce` in `src/api/media.ts`). An `<img>` or `<video>` cannot see a `401`, so its error renews and loads the source once more. One showing an object URL fails at once. See "The refresh rules".
 - `src/api/media.ts` decodes a thumbnail with `new Image()` (`loadImage`), which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above.
 - `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once, by the same rule. What arrived stays for the session, within the limits in `createDownloads`.
@@ -21,16 +21,17 @@ How the UI (`src/Anichron.UI`) calls the API.
 ## The event stream
 
 - `src/api/event-stream.ts` reads a Server-Sent Events response with `fetch`, so the request carries the bearer token through `authorized`. An area module imports it lazily (`work-items.ts`).
-- It reconnects from the last event id after a clean end, a network failure or a refusal, waiting `Retry-After` or its backoff. A `403` or `404` ends it for good.
+- It reconnects from the last event id after a clean end, a network failure or a refusal, waiting `Retry-After` or its backoff (`createBackoff`, `src/shared/backoff.ts`, shared with the session and the start screen's retry). A `403` or `404` ends it for good.
 - The caller owns the `AbortSignal`: the work queue closes its stream on unmount and while the tab is hidden (`features/work-items/use-stream.ts`).
 
 ## The signed-in user
 
 - The session holds the `user` from every session response and clears it with the session.
-- A change of user, signing out included, in this tab or from another, clears the query cache (`createAppRouter`), and `SignedIn` remounts its views per user, so the next user never sees the previous one's data.
+- A change of user, signing out included, in this tab or from another, clears the query cache and the shell's toasts (`createAppRouter`), and `SignedIn` remounts its views per user, so the next user never sees the previous one's data.
 - `session.user()` is synchronous and stable between changes. Views read it through `useUser()` (`src/shared/use-user.ts`).
 - Signed in means a user is held. The `signed-in` route's `beforeLoad` puts it in the route context, so a guard below it reads `context.user`; the login route calls `isSignedIn()`.
-- A user without a storage config (`hasStorageConfig`) gets no flashback request: the home screen shows only its frame and the notice (`src/app/use-home.ts`), and the day route redirects to `/`.
+- A user without photos (`hasPhotos` in `src/features/on-this-day/day.ts`) gets no flashback request: Today shows the no-photos message in place of the memories, and the day route redirects to `/`.
+- A user in a forced password change (`mustChangePassword`) reaches no shell route: the `shell` route's `beforeLoad` redirects to `/change-password`, carrying the address in `redirect`. Once the flag is clear, that route redirects to `returnPath`. The API enforces the rule on its own.
 
 ## Failures
 
@@ -41,7 +42,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 
 ## The refresh rules
 
-The single-flight refresh, its schedule and backoff, the `401` handling and the tab messages are in `session.ts` and written once. CLAUDE.md, "Session" and "Tabs", states them.
+The single-flight refresh, its schedule, the `401` handling and the tab messages are in `session.ts` and written once. CLAUDE.md, "Session" and "Tabs", states them.
 
 - A media error refreshes only when the media cookie may have lapsed (`renewMedia()`). A lapsed cookie is the only `401` a proxy gives a signed-in user (ADR 0013), and refresh is rate-limited.
 - A device clock fast enough to lose the cookie before `renewAt` keeps its media broken until the scheduled refresh.

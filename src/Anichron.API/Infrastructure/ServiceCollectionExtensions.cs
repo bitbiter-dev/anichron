@@ -15,6 +15,7 @@ using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using System.Net;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Anichron.API.Infrastructure;
 
@@ -24,6 +25,15 @@ public static class ServiceCollectionExtensions
     {
         public IServiceCollection AddApiProblems()
             => services.AddProblemDetails().AddExceptionHandler<DatabaseUnavailableHandler>();
+
+        /// <summary>The API's JSON: numbers only as numbers, and a request body missing a non-nullable field, or holding <c>null</c> in one, is a bad request.</summary>
+        public IServiceCollection AddApiJson()
+            => services.ConfigureHttpJsonOptions(options =>
+            {
+                options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+                options.SerializerOptions.RespectNullableAnnotations = true;
+                options.SerializerOptions.RespectRequiredConstructorParameters = true;
+            });
 
         public IServiceCollection AddDatabase(IConfiguration configuration)
         {
@@ -111,6 +121,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IUserStorageConfigRepository, EfUserStorageConfigRepository>();
             services.AddScoped<IMediaAssetReadRepository, EfMediaAssetReadRepository>();
             services.AddScoped<IAssetViewReader, EfAssetViewReader>();
+            services.AddScoped<ISoftDeletedAssetReader, EfSoftDeletedAssetReader>();
             services.AddScoped<IAssetInteractionWriter, EfAssetInteractionWriter>();
             services.AddSingleton<IProxyStore, ProxyStore>();
             services.AddSingleton<IOriginalStore, OriginalStore>();

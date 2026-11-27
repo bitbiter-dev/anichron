@@ -44,7 +44,7 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         var result = await auth.RegisterAsync(request.Username, request.Email, request.Password, request.InviteToken, ct);
-        return mapper.GetRegistrationResult(result, http);
+        return await mapper.GetRegistrationResultAsync(result, http);
     }
 
     internal static Task<IResult> LoginWebAsync(
@@ -59,7 +59,7 @@ public static class AuthEndpoints
         LoginRequest request, IAuthService auth, ISessionResponseMapper mapper, HttpContext http, bool setCookie, CancellationToken ct)
     {
         var result = await auth.LoginAsync(request.UsernameOrEmail, request.Password, ct);
-        return mapper.GetLoginResult(result, http, setCookie);
+        return await mapper.GetLoginResultAsync(result, http, setCookie);
     }
 
     internal static async Task<IResult> RefreshAsync(
@@ -79,7 +79,7 @@ public static class AuthEndpoints
         }
 
         var result = await auth.RefreshAsync(rawToken, ct);
-        return mapper.GetRefreshResult(result, http);
+        return await mapper.GetRefreshResultAsync(result, http);
     }
 
     internal static async Task<IResult> LogoutAsync(

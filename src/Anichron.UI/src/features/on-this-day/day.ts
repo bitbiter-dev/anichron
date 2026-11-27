@@ -1,7 +1,9 @@
 import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
-import type { Day, Memory, YearGroup } from '../../api/flashbacks';
+import type { Day, YearGroup } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
+import type { User } from '../../api/session';
 import { burstsKey, daysKey } from '../../shared/memory-queries';
 import { burstIdOf, coverOf } from './burst';
 
@@ -21,6 +23,10 @@ export function daysBefore(date: string, count: number) {
   const day = utcDay(date);
   day.setUTCDate(day.getUTCDate() - count);
   return day.toISOString().slice(0, 10);
+}
+
+export function hasPhotos(user: User) {
+  return user.hasStorageConfig;
 }
 
 export function isCalendarDate(text: string) {
