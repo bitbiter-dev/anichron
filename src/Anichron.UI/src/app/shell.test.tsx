@@ -68,6 +68,18 @@ describe('the bottom bar while scrolling', () => {
     expect(bar()).toHaveAttribute('data-hidden');
   });
 
+  it('lets what floats above it move down into its place while it is hidden', async () => {
+    await openHome();
+    const shell = () => bar().parentElement;
+    expect(shell()).not.toHaveAttribute('data-bar-hidden');
+
+    scrollTo(9);
+    expect(shell()).toHaveAttribute('data-bar-hidden');
+
+    scrollTo(0);
+    expect(shell()).not.toHaveAttribute('data-bar-hidden');
+  });
+
   it('stays hidden while the page keeps scrolling down, or stays where it is', async () => {
     await openHome();
 
@@ -161,6 +173,22 @@ describe('Settings', () => {
     );
     expect(within(bar()).getByRole('link', { name: 'Today' })).not.toHaveAttribute('aria-current');
     expect(await axeResults(container)).toHaveNoViolations();
+  });
+
+  it('has a top bar in the page colour at rest, turning to glass once content scrolls under it', async () => {
+    const { router } = await openHome();
+    await openSettings(router);
+    const banner = () => screen.getByRole('banner');
+    expect(banner()).not.toHaveAttribute('data-scrolled');
+
+    scrollTo(1);
+    expect(banner()).toHaveAttribute('data-scrolled');
+
+    scrollTo(0);
+    expect(banner()).not.toHaveAttribute('data-scrolled');
+
+    scrollTo(-20);
+    expect(banner()).not.toHaveAttribute('data-scrolled');
   });
 
   it('leads back to Home through the bottom bar', async () => {

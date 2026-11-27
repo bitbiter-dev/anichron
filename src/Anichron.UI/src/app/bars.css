@@ -1,0 +1,31 @@
+@layer base {
+  :root {
+    --bottom-bar-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+    --pill-height: 3.25rem;
+    --floating-gap: 0.75rem;
+    --above-bottom-bar: calc(var(--bottom-bar-bottom) + var(--pill-height) + var(--floating-gap));
+    --player-pill-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
+
+  [data-bar-hidden] {
+    --above-bottom-bar: var(--bottom-bar-bottom);
+  }
+}
+
+@utility above-bottom-bar {
+  bottom: var(--above-bottom-bar);
+  transition: bottom var(--duration-base) var(--default-transition-timing-function);
+}
+
+@utility toast-region {
+  bottom: var(--above-bottom-bar);
+  transition: bottom var(--duration-base) var(--default-transition-timing-function);
+
+  :root:has([data-floating='page']) & {
+    bottom: calc(var(--above-bottom-bar) + var(--pill-height) + var(--floating-gap));
+  }
+
+  :root:has([data-floating='player']) & {
+    bottom: calc(var(--player-pill-bottom) + var(--pill-height) + var(--floating-gap));
+  }
+}

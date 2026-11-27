@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import type { ParseKeys } from 'i18next';
 import { ChevronRight } from 'lucide-react';
+import { Fragment } from 'react';
 import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import { Skeleton } from '../../shared/ui/Skeleton';
@@ -15,7 +16,7 @@ import {
 import { useOpening } from './use-opening';
 
 const item =
-  'group flex w-18 flex-col items-center gap-1 rounded-card text-small outline-none focus-visible:focus-ring';
+  'group flex min-w-18 flex-col items-center gap-1 rounded-card text-center text-small whitespace-nowrap outline-none focus-visible:focus-ring';
 const circle = 'relative flex size-16 items-center justify-center rounded-full';
 const ring = '-inset-1 hidden group-aria-busy:block group-data-pending:block';
 
@@ -26,7 +27,7 @@ export function RecentDays({ today }: { today: string }) {
     <ul
       aria-label={t('onThisDay.recentDays')}
       aria-busy={loading}
-      className="-mx-4 flex snap-x gap-4 overflow-x-auto border-t border-border px-4 pt-4 pb-2"
+      className="-mx-4 flex snap-x scroll-px-4 gap-4 overflow-x-auto border-t border-border px-4 pt-4 pb-2"
     >
       {loading ? <DaysSkeleton /> : <Days {...tray} />}
     </ul>
@@ -66,16 +67,17 @@ function Days({ days, empty, earlierLabel, exhausted, loadingEarlier, showEarlie
 
 function DaysSkeleton() {
   return [0, 1, 2, 3, 4, 5].map((day) => (
-    <li key={day} aria-hidden className="flex w-18 shrink-0 flex-col items-center gap-1">
+    <li key={day} aria-hidden className="flex min-w-18 shrink-0 flex-col items-center gap-1">
       <Skeleton className="size-16 rounded-full" />
-      <div className="flex h-5 items-center">
+      <div className="flex h-10 flex-col items-center justify-around">
         <Skeleton className="h-3 w-12 rounded-full" />
+        <Skeleton className="h-3 w-8 rounded-full" />
       </div>
     </li>
   ));
 }
 
-function DayLink({ date, label, newestYear, thumbnail }: DayWithMemories) {
+function DayLink({ date, lines, newestYear, thumbnail }: DayWithMemories) {
   const opening = useOpening(date, newestYear);
   return (
     <Link
@@ -90,7 +92,14 @@ function DayLink({ date, label, newestYear, thumbnail }: DayWithMemories) {
         <ProxyImage src={thumbnail} className="size-full rounded-full object-cover" />
         <Ring className={ring} />
       </span>
-      {label}
+      <span>
+        {lines.map((line, index) => (
+          <Fragment key={line}>
+            {index > 0 && ' '}
+            <span className="block">{line}</span>
+          </Fragment>
+        ))}
+      </span>
     </Link>
   );
 }

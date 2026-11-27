@@ -45,6 +45,9 @@ test('a password changed from settings goes home with a toast', async ({ page, r
 
   await expect(page.getByRole('heading', { level: 1, name: 'On This Day' })).toBeVisible();
   await expect(page.getByText(toast)).toBeVisible();
+  const shown = await page.getByText(toast).boundingBox();
+  const bar = await page.getByRole('navigation').boundingBox();
+  expect((shown?.y ?? 0) + (shown?.height ?? 0)).toBeLessThanOrEqual((bar?.y ?? 0) - 12);
   await expect(page).toHaveURL('/');
   await page.goBack();
   await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();

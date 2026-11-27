@@ -1,12 +1,15 @@
 import { Link } from '@tanstack/react-router';
 import { CalendarHeart, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useHidesOnScroll } from './use-hides-on-scroll';
 import { useLastHomeSearch } from './use-last-home-search';
 
-export function BottomBar() {
+interface BottomBarProps {
+  hidden: boolean;
+  show: () => void;
+}
+
+export function BottomBar({ hidden, show }: BottomBarProps) {
   const { t } = useTranslation();
-  const { hidden, show } = useHidesOnScroll();
   const barItems = [
     { to: '/', search: useLastHomeSearch(), label: 'shell.today', icon: CalendarHeart },
     { to: '/settings', search: {}, label: 'shell.settings', icon: Settings },
@@ -14,7 +17,7 @@ export function BottomBar() {
   return (
     <nav
       data-hidden={hidden || undefined}
-      className="fixed inset-x-4 bottom-[max(env(safe-area-inset-bottom),0.75rem)] mx-auto flex max-w-xs justify-around rounded-full p-1 glass-card transition-transform duration-(--duration-base) data-hidden:translate-y-[calc(100%+max(env(safe-area-inset-bottom),0.75rem)+0.25rem)]"
+      className="fixed inset-x-4 bottom-(--bottom-bar-bottom) mx-auto flex max-w-xs justify-around rounded-full p-1 glass-card transition-transform duration-(--duration-base) data-hidden:translate-y-[calc(100%+var(--bottom-bar-bottom)+0.25rem)]"
     >
       {barItems.map(({ to, search, label, icon: Icon }) => (
         <Link

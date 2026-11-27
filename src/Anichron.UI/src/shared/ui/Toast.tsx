@@ -28,7 +28,7 @@ export function Toasts({ toasts }: ToastsProps) {
   return (
     <ToastRegion
       queue={toasts.queue}
-      className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 flex flex-col items-center gap-2 px-4 outline-none"
+      className="fixed inset-x-0 toast-region z-30 flex flex-col items-center gap-2 px-4 outline-none"
     >
       {({ toast }) => (
         <Toast toast={toast} className={toastStyles}>
