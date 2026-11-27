@@ -59,7 +59,7 @@ internal static class ImageCompleteness
     {
         var size = BinaryPrimitives.ReadUInt32LittleEndian(webp[4..]);
         if ((ulong)size + 8 > (ulong)webp.Length)
-            throw new IncompleteImageException("The image data is incomplete: the file ends before the size its RIFF header gives.");
+            throw WebpEndsEarly();
     }
 
     private static IncompleteImageException HeifEndsEarly()
@@ -67,4 +67,7 @@ internal static class ImageCompleteness
 
     private static IncompleteImageException JpegEndsEarly()
         => new("The image data is incomplete: the file ends before the JPEG's end-of-image marker.");
+
+    private static IncompleteImageException WebpEndsEarly()
+        => new("The image data is incomplete: the file ends before the size its RIFF header gives.");
 }

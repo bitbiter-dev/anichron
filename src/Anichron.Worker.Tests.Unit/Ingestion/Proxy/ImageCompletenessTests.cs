@@ -144,7 +144,8 @@ public sealed class ImageCompletenessTests
 
     [Fact]
     public void EnsureWebp_RiffSizeOneBytePastTheEnd_Throws()
-        => CheckWebp([.. Hex("52494646 4D000000"), .. ExifWebp()[8..]]).Should().Throw<IncompleteImageException>();
+        => CheckWebp([.. Hex("52494646 4D000000"), .. ExifWebp()[8..]])
+            .Should().Throw<IncompleteImageException>().WithMessage(WebpEndsEarly);
 
     [Fact]
     public void EnsureWebp_BytesAfterTheRiffSize_Pass()
