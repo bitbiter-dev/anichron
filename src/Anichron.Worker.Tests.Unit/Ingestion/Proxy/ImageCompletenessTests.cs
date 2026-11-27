@@ -6,6 +6,7 @@ public sealed class ImageCompletenessTests
 {
     private const string HeifEndsEarly = "The image data is incomplete: the file ends inside a HEIF box.";
     private const string JpegEndsEarly = "The image data is incomplete: the file ends before the JPEG's end-of-image marker.";
+    private const string WebpEndsEarly = "The image data is incomplete: the file ends before the size its RIFF header gives.";
 
     private static byte[] Hex(string hex) => Convert.FromHexString(hex.Replace(" ", "", StringComparison.Ordinal));
 
@@ -120,4 +121,36 @@ public sealed class ImageCompletenessTests
     [InlineData("FFDA 0003 00 11 FFC4 0003 00 FFDA 0003 00 22")]
     public void EnsureJpeg_DataThatEndsBeforeTheEndOfImage_Throws(string afterStartOfImage)
         => CheckJpeg(Hex("FFD8 " + afterStartOfImage)).Should().Throw<IncompleteImageException>().WithMessage(JpegEndsEarly);
+
+    // ==========================================================================
+    // WebP
+    // ==========================================================================
+
+    // RIFF size 76, so the whole file is 84 bytes.
+    private static byte[] ExifWebp() => EmbeddedFixtures.Read("exif-image.webp");
+
+    private static Action CheckWebp(byte[] webp) => () => ImageCompleteness.EnsureWebp(webp);
+
+    [Fact]
+    public void EnsureWebp_WholeWebp_Passes()
+        => CheckWebp(ExifWebp()).Should().NotThrow();
+
+    [Theory]
+    [InlineData(12)]
+    [InlineData(42)]
+    [InlineData(83)]
+    public void EnsureWebp_WebpCutShort_Throws(int length)
+        => CheckWebp(ExifWebp()[..length]).Should().Throw<IncompleteImageException>().WithMessage(WebpEndsEarly);
+
+    [Fact]
+    public void EnsureWebp_RiffSizeOneBytePastTheEnd_Throws()
+        => CheckWebp([.. Hex("52494646 4D000000"), .. ExifWebp()[8..]]).Should().Throw<IncompleteImageException>();
+
+    [Fact]
+    public void EnsureWebp_BytesAfterTheRiffSize_Pass()
+        => CheckWebp([.. ExifWebp(), .. Hex("00 52494646")]).Should().NotThrow();
+
+    [Fact]
+    public void EnsureWebp_RiffSizeAtTheTopOfItsRange_Throws()
+        => CheckWebp([.. Hex("52494646 FFFFFFFF"), .. ExifWebp()[8..]]).Should().Throw<IncompleteImageException>();
 }

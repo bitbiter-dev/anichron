@@ -21,6 +21,8 @@ internal sealed class UprightImageDecoder(MagickHeifDecoder heif, ImageSharpUpri
 
         if (original is [0xFF, 0xD8, ..])
             ImageCompleteness.EnsureJpeg(original);
+        if (original is [(byte)'R', (byte)'I', (byte)'F', (byte)'F', _, _, _, _, (byte)'W', (byte)'E', (byte)'B', (byte)'P', ..])
+            ImageCompleteness.EnsureWebp(original);
         return imageSharp.DecodeAsync(original, ct);
     }
 

@@ -798,6 +798,7 @@ public sealed class ImageProxyMiddlewareTests
     [InlineData("iphone-4732.heic", 4096)]
     [InlineData("iphone-4732.heic", 1_258_027)]
     [InlineData("burst-4386.jpg", 28_941)]
+    [InlineData("exif-image.webp", 42)]
     public async Task InvokeAsync_TruncatedPhoto_FailsWithoutProxiesOrTheNextStepAsync(string fixtureName, int length)
     {
         var fixture = new TestFixture();

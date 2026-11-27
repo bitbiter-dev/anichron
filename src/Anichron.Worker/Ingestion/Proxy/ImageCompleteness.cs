@@ -55,6 +55,13 @@ internal static class ImageCompleteness
     private static ushort SegmentLength(ReadOnlySpan<byte> segment)
         => BinaryPrimitives.TryReadUInt16BigEndian(segment, out var length) ? length : (ushort)0;
 
+    public static void EnsureWebp(ReadOnlySpan<byte> webp)
+    {
+        var size = BinaryPrimitives.ReadUInt32LittleEndian(webp[4..]);
+        if ((ulong)size + 8 > (ulong)webp.Length)
+            throw new IncompleteImageException("The image data is incomplete: the file ends before the size its RIFF header gives.");
+    }
+
     private static IncompleteImageException HeifEndsEarly()
         => new("The image data is incomplete: the file ends inside a HEIF box.");
 
