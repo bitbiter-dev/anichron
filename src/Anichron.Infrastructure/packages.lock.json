@@ -99,17 +99,6 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
         }
       },
-      "Npgsql.EntityFrameworkCore.PostgreSQL": {
-        "type": "Direct",
-        "requested": "[10.0.4, )",
-        "resolved": "10.0.4",
-        "contentHash": "KRFbmHOn260bgSSQTKZsKtvEFW1k1AaZUtb/IPmW31M47qMkzAOglP7FHQgMeqpZeMJ2rjRwczfEUP5lyWUAdA==",
-        "dependencies": {
-          "Microsoft.EntityFrameworkCore": "[10.0.15, 11.0.0)",
-          "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, 11.0.0)",
-          "Npgsql": "10.0.4"
-        }
-      },
       "Roslynator.Analyzers": {
         "type": "Direct",
         "requested": "[5.0.1, )",
@@ -457,6 +446,17 @@
         "contentHash": "jGe0WLNAoRb3efOgsa5iecmMuzP+LNdtw2Rs4N9+2pS4YN+kg8e9Z48Jk47WWebcpqF81YdWT2KNInbXZXTS7w==",
         "dependencies": {
           "NodaTime": "[3.0.0, 4.0.0)"
+        }
+      },
+      "Npgsql.EntityFrameworkCore.PostgreSQL": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.4, )",
+        "resolved": "10.0.4",
+        "contentHash": "KRFbmHOn260bgSSQTKZsKtvEFW1k1AaZUtb/IPmW31M47qMkzAOglP7FHQgMeqpZeMJ2rjRwczfEUP5lyWUAdA==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.15, 11.0.0)",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, 11.0.0)",
+          "Npgsql": "10.0.4"
         }
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime": {

@@ -573,7 +573,6 @@
           "Microsoft.Extensions.Hosting": "[10.0.15, )",
           "NodaTime": "[3.3.7, )",
           "Npgsql": "[10.0.4, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.4, )",
           "System.IO.Abstractions": "[22.3.0, )"
         }
       },
