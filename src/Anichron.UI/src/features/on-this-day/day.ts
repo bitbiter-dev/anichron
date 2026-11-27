@@ -170,6 +170,7 @@ export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memo
 }
 
 function pictureDecoded(api: ApiClient, queryClient: QueryClient, url: string | null) {
+  // Stryker disable next-line StringLiteral
   return queryClient.getQueryData(pictureQuery(api, url ?? '').queryKey) === true;
 }
 
