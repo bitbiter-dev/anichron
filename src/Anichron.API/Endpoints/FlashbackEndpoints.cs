@@ -66,9 +66,9 @@ public static class FlashbackEndpoints
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return Results.Unauthorized();
-        if (LocalDatePattern.Iso.Parse(before ?? "") is not { Success: true } end)
+        if (Date(before) is not { Success: true } end)
             return InvalidDate(nameof(before));
-        var start = since is null ? null : LocalDatePattern.Iso.Parse(since);
+        var start = Date(since);
         if (start is { Success: false })
             return InvalidDate(nameof(since));
         if (!int.TryParse(limit, NumberStyles.None, CultureInfo.InvariantCulture, out var most) || most is < 1 or > MostRecentDays)
@@ -84,6 +84,9 @@ public static class FlashbackEndpoints
         return Results.Ok(new RecentDaysDto(
             [.. days.Select(day => new RecentDayDto(LocalDatePattern.Iso.Format(day.Date), day.Year, AssetDtoMapper.ToDto(day.Memory)))]));
     }
+
+    private static ParseResult<LocalDate>? Date(string? text)
+        => text is null ? null : LocalDatePattern.Iso.Parse(text);
 
     private static IResult InvalidDate(string field)
         => ApiProblems.FieldProblem(

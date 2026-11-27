@@ -1,15 +1,14 @@
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, useRouter } from '@tanstack/react-router';
-import type { TFunction } from 'i18next';
-import { useEffect, useState } from 'react';
+import type { ParseKeys, TFunction } from 'i18next';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { YearGroup } from '../../api/flashbacks';
-import { dayQuery, daysBefore, utcDay } from './day';
-import { dayView, thumbnailOf } from './day-view';
+import type { RecentDay as Summary } from '../../api/flashbacks';
+import { daysBefore, recentDaysQuery, utcDay } from './day';
 import { useGroupsShown } from './use-groups-shown';
 
 const daysPerPage = 6;
-const nothingMilliseconds = 2000;
+const dayMilliseconds = 86_400_000;
 
 export interface DayWithMemories {
   date: string;
@@ -18,13 +17,12 @@ export interface DayWithMemories {
   thumbnail: string | null;
 }
 
-export interface FailedDay {
-  date: string;
-  label: string;
+export interface FailedPage {
+  page: number;
   retry: () => void;
 }
 
-export type RecentDay = DayWithMemories | FailedDay;
+export type RecentDay = DayWithMemories | FailedPage;
 
 export function hasMemories(day: RecentDay): day is DayWithMemories {
   return 'newestYear' in day;
@@ -34,9 +32,9 @@ function inUtc(options: Intl.DateTimeFormatOptions) {
   return { ...options, timeZone: 'UTC' };
 }
 
-function label(t: TFunction, date: string, ago: number) {
-  if (ago === 1) return t('onThisDay.yesterday');
+function label(t: TFunction, today: string, date: string) {
   const day = utcDay(date);
+  if (utcDay(today).getTime() - day.getTime() === dayMilliseconds) return t('onThisDay.yesterday');
   return t('onThisDay.recentDay', {
     weekdayOf: day,
     dayOf: day,
@@ -49,67 +47,67 @@ function label(t: TFunction, date: string, ago: number) {
   });
 }
 
-function withMemories(date: string, label: string, newest: YearGroup): DayWithMemories {
-  return {
-    date,
-    label,
-    newestYear: newest.year,
-    thumbnail: thumbnailOf(newest),
-  };
+function thumbnails(days: readonly Summary[]) {
+  return days.map(({ memory }) => memory.proxies.thumbnail);
+}
+
+function earlierLabel(exhausted: boolean): ParseKeys {
+  return exhausted ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier';
 }
 
 export function useRecentDays(today: string) {
   const { t } = useTranslation();
   const { api } = useRouter().options.context;
   const home = getRouteApi('/signed-in/shell/on-this-day');
-  const { earlier = 1 } = home.useSearch();
+  const { earlier: pages = 1 } = home.useSearch();
   const navigate = home.useNavigate();
-  const [{ tappedFor, wasNothing }, setTapped] = useState({ tappedFor: 0, wasNothing: false });
-  const pages = Math.max(earlier, tappedFor);
-  const tapped = tappedFor === pages;
-  const dates = Array.from({ length: pages * daysPerPage }, (_, index) =>
-    daysBefore(today, index + 1),
+  const before = daysBefore(today, daysPerPage);
+  const limit = (pages - 1) * daysPerPage;
+  const first = useQuery(
+    recentDaysQuery(api, { before: today, since: before, limit: daysPerPage }),
   );
-  const todayView = dayView(useQuery(dayQuery(api, today)));
-  const days = useQueries({ queries: dates.map((date) => dayQuery(api, date)) });
-  const added = days.slice(-daysPerPage);
-  const addedNothing = tapped && added.every(({ data }) => data?.years.length === 0);
-  const nothing = addedNothing || (wasNothing && added.some(({ isPending }) => isPending));
-  useEffect(() => {
-    if (!addedNothing) return undefined;
-    const timer = setTimeout(() => {
-      setTapped((current) => ({ ...current, tappedFor: 0 }));
-    }, nothingMilliseconds);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [addedNothing]);
-  const shownPages = useGroupsShown(
-    Array.from({ length: pages }, (_, page) => {
-      const onPage = days.slice(page * daysPerPage, (page + 1) * daysPerPage);
+  const later = useQuery({ ...recentDaysQuery(api, { before, limit }), enabled: pages > 1 });
+  const fewer = useQuery({
+    ...recentDaysQuery(api, { before, limit: limit - daysPerPage }),
+    enabled: false,
+  });
+  const laterDays = later.data ?? fewer.data ?? [];
+  const [exhausted, setExhausted] = useState(false);
+  if (!exhausted && later.data && later.data.length < limit) setExhausted(true);
+  const shownPages = useGroupsShown([
+    { settled: !first.isPending, pictures: thumbnails(first.data ?? []) },
+    ...Array.from({ length: pages - 1 }, (_, page) => {
+      const onPage = laterDays.slice(page * daysPerPage, (page + 1) * daysPerPage);
       return {
-        settled: onPage.every(({ isPending, failureCount }) => !isPending || failureCount > 0),
-        pictures: onPage.map(({ data }) => (data?.years[0] ? thumbnailOf(data.years[0]) : null)),
+        settled: !later.isPending || onPage.length === daysPerPage,
+        pictures: thumbnails(onPage),
       };
     }),
-  );
-  const recent = dates.slice(0, shownPages * daysPerPage).flatMap((date, index): RecentDay[] => {
-    const { data, error, refetch } = days[index] as (typeof days)[number];
-    const dayLabel = label(t, date, index + 1);
-    if (error) return [{ date, label: dayLabel, retry: () => void refetch() }];
-    const newest = data?.years[0];
-    return newest ? [withMemories(date, dayLabel, newest)] : [];
+  ]);
+  const toDay = ({ date, year, memory }: Summary): DayWithMemories => ({
+    date,
+    label: label(t, today, date),
+    newestYear: year,
+    thumbnail: memory.proxies.thumbnail,
   });
-  const todaySettled = Boolean(todayView.years ?? todayView.empty ?? todayView.failure);
-  const loading = recent.length === 0 && (shownPages === 0 || !todaySettled);
+  const failed = (page: number, retry: () => unknown): FailedPage[] => [
+    { page, retry: () => void retry() },
+  ];
+  const firstDays: RecentDay[] = first.isError
+    ? failed(1, first.refetch)
+    : (first.data ?? []).map(toDay);
+  const shownLater = laterDays.slice(0, Math.max(0, shownPages - 1) * daysPerPage).map(toDay);
+  const laterFailed = later.isError;
+  const days = [...firstDays, ...shownLater, ...(laterFailed ? failed(2, later.refetch) : [])];
+  const loading = shownPages === 0;
   return {
-    days: recent,
+    days: loading ? [] : days,
     loading,
-    visible: loading || recent.length > 0 || Boolean(todayView.years ?? todayView.failure),
-    earlierLabel: nothing ? 'onThisDay.nothingEarlier' : 'onThisDay.earlier',
-    loadingEarlier: tapped && shownPages < pages,
+    empty: !loading && days.length === 0,
+    earlierLabel: earlierLabel(exhausted),
+    exhausted,
+    loadingEarlier: !loading && shownPages < pages,
     showEarlier: () => {
-      setTapped({ tappedFor: pages + 1, wasNothing: nothing });
       void navigate({
         to: '/',
         search: (current) => ({ ...current, earlier: pages + 1 }),

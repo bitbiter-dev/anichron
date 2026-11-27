@@ -1,6 +1,6 @@
 # Media reads
 
-How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetViewReader.cs`, `SoftDeletedAssetReader.cs`, `MediaAssetVisibility.cs`, `Anichron.API`.
+How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetViewReader.cs`, `FlashbackReader.cs`, `SoftDeletedAssetReader.cs`, `MediaAssetVisibility.cs`, `Anichron.API`.
 
 ## Asset lists
 
@@ -9,10 +9,17 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 - Each selection declares the set it reads: **shown** (`NotHiddenFor`) or **hidden** (`HiddenFor`). The reader applies `VisibleTo` and that set's rule for the caller, and leaves out:
   - a Live Photo's paired MOV, which reaches the client only as the photo's `PairedMovId`;
   - undated assets.
-- **A new list view is a new `IAssetSelection`** (e.g. `OnThisDay`, `BurstMembers`, `HiddenAssets`): its set, its filter on entity columns (`Apply`), and optionally its order and page over the joined rows (`Page`). The reader never changes.
-- Grouping and ordering happen in memory, except `HiddenAssets`, which orders by `HiddenAt` then id, newest first, and pages by keyset on that pair in SQL (`AssetCursor`, encoded by `AssetCursors`). `FlashbackYears` collapses each burst to its cover (`Bursts.Cover`) and orders years newest first, starred first, then by capture time.
-- On This Day for 28 February also matches 29 February in years without one. 29 February matches only itself.
+- **A new list view is a new `IAssetSelection`** (e.g. `AssetsById`, `BurstMembers`, `HiddenAssets`): its set, its filter on entity columns (`Apply`), and optionally its order and page over the joined rows (`Page`). The reader never changes.
+- Grouping and ordering happen in memory, except `HiddenAssets`, which orders by `HiddenAt` then id, newest first, and pages by keyset on that pair in SQL (`AssetCursor`, encoded by `AssetCursors`).
 - The published `mediaType` is `LivePhoto` only when the paired video is visible and has a `WebVideo`; otherwise `Image` (`AssetDtoMapper`, for every view through `IAssetMedia`).
+
+## Flashbacks
+
+- **`IFlashbackReader`**, separate from `IAssetViewReader` but on the same base (`EfAssetViewReader.Listed`), reads narrow keys first (`FlashbackItem`), then full views only for the memories it returns (`AssetsById`).
+- A burst is one key: its cover, chosen in SQL over all its shown members, found by burst id, with the burst's starred and liked state and count.
+- On This Day's rule is one predicate, `OnThisDay.Includes`: the same month and day in an earlier year. For 28 February it also matches 29 February in years without one; 29 February matches only itself.
+- A day's memories run years newest first, then starred first, by capture time and id. A recent day shows the first of them.
+- `GET /api/v1/flashbacks/days` (`ReadRecentDaysAsync`): SQL narrows the keys to the window's day ranges (`DayWindow.Covering`). `WalkAsync` reads the 31 days before `before` first, the rest of the year only when those are short, and takes each date's first key by `Includes` and the day's order.
 
 ## Soft-deleted assets
 

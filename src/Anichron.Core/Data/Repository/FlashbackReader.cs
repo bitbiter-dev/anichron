@@ -74,7 +74,7 @@ internal sealed record DayWindow(LocalDate Start, LocalDate End)
 
     public Expression<Func<MediaAsset, bool>> Covering()
     {
-        var asset = Expression.Parameter(typeof(MediaAsset), "a");
+        var asset = Expression.Parameter(typeof(MediaAsset));
         var lastYear = End.PlusDays(-1).Year;
         Expression<Func<MediaAsset, bool>> earlier = a => a.Year < lastYear;
         var days = MonthRanges()
@@ -93,12 +93,7 @@ internal sealed record DayWindow(LocalDate Start, LocalDate End)
             .Select(month => (month.Key, month.Min(day => day.Day), month.Max(day => day.Last)));
 
     private static Expression Bind(Expression<Func<MediaAsset, bool>> lambda, ParameterExpression asset)
-        => new Rebinding(lambda.Parameters[0], asset).Visit(lambda.Body);
-
-    private sealed class Rebinding(ParameterExpression from, ParameterExpression to) : ExpressionVisitor
-    {
-        protected override Expression VisitParameter(ParameterExpression node) => node == from ? to : node;
-    }
+        => Expression.Invoke(lambda, asset);
 }
 
 /// <summary>
@@ -141,7 +136,7 @@ public sealed class EfFlashbackReader(AnichronDbContext db) : IFlashbackReader
         Guid userId, LocalDate before, LocalDate? since, int limit, CancellationToken ct)
     {
         var firsts = await WalkAsync(
-            before, since, limit, async window => await FirstOfEachDay(db, userId, window).ToListAsync(ct));
+            before, since, limit, async window => await Items(db, userId, window).ToListAsync(ct));
         var memories = (await MemoriesAsync(userId, firsts.Select(first => first.First).DistinctBy(item => item.Id), ct))
             .ToDictionary(memory => memory.View.Id);
         return [.. firsts.Join(
@@ -158,21 +153,21 @@ public sealed class EfFlashbackReader(AnichronDbContext db) : IFlashbackReader
     /// <param name="before">The day after the newest day read.</param>
     /// <param name="since">The oldest day read, or <c>null</c> for a year back.</param>
     /// <param name="limit">The most days returned.</param>
-    /// <param name="read">Reads the first item of each day and year in a window.</param>
+    /// <param name="read">Reads the items of a window.</param>
     internal static async Task<IReadOnlyList<(LocalDate Date, FlashbackItem First)>> WalkAsync(
         LocalDate before, LocalDate? since, int limit, Func<DayWindow, Task<IReadOnlyList<FlashbackItem>>> read)
     {
         var yearBack = before.PlusDays(-366);
-        var start = since > yearBack ? since.Value : yearBack;
+        var start = LocalDate.Max(since ?? yearBack, yearBack);
         var split = LocalDate.Max(start, before.PlusDays(-31));
         var found = new List<(LocalDate, FlashbackItem)>();
         foreach (var window in new[] { new DayWindow(split, before), new DayWindow(start, split) })
         {
             if (found.Count == limit || window.IsEmpty)
                 break;
-            var firsts = await read(window);
+            var byMonth = (await read(window)).ToLookup(item => item.Month);
             found.AddRange(window.NewestFirst()
-                .Select(date => (date, First: InStoryOrder(firsts.Where(new OnThisDay(date).Includes().Compile())).FirstOrDefault()))
+                .Select(date => (date, First: InStoryOrder(byMonth[date.Month].Where(new OnThisDay(date).Includes().Compile())).FirstOrDefault()))
                 .Where(day => day.First is not null)
                 .Take(limit - found.Count)!);
         }
@@ -201,15 +196,6 @@ public sealed class EfFlashbackReader(AnichronDbContext db) : IFlashbackReader
                 view with { IsStarred = item.IsStarred, IsLiked = item.IsLiked },
                 item.BurstId is { } burstId ? new FlashbackBurst(burstId, item.BurstCount) : null));
     }
-
-    internal static IQueryable<FlashbackItem> FirstOfEachDay(AnichronDbContext db, Guid userId, DayWindow window)
-        => Items(db, userId, window)
-            .GroupBy(item => new { item.Year, item.Month, item.Day })
-            .Select(day => day
-                .OrderByDescending(item => item.IsStarred)
-                .ThenBy(item => item.DateCaptured)
-                .ThenBy(item => item.Id)
-                .First());
 
     internal static IQueryable<FlashbackItem> Items(AnichronDbContext db, Guid userId, DayWindow window)
     {

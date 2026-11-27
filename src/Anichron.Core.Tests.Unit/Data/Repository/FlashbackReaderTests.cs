@@ -2,8 +2,10 @@ using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
+using Anichron.Testing.Domain;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using NodaTime.Text;
 
 namespace Anichron.Core.Tests.Unit.Data.Repository;
 
@@ -686,6 +688,18 @@ public sealed class FlashbackReaderTests
         found.Should().ContainSingle().Which.First.Id.Should().Be(Id(3));
     }
 
+    [Theory]
+    [InlineData("2026-12-25", "2027-01-01")]
+    [InlineData("2026-12-24", "2026-12-31")]
+    public void Covering_AnAssetOnAWindowDateInItsOwnYear_IsLeftOut(string start, string end)
+    {
+        var window = new DayWindow(LocalDatePattern.Iso.Parse(start).Value, LocalDatePattern.Iso.Parse(end).Value);
+        var covers = window.Covering().Compile();
+
+        covers(new MediaAsset { Captured = Recorded.At(new LocalDateTime(2026, 12, 28, 12, 0)) }).Should().BeFalse();
+        covers(new MediaAsset { Captured = Recorded.At(new LocalDateTime(2025, 12, 28, 12, 0)) }).Should().BeTrue();
+    }
+
     // ==========================================================================
     // Generated SQL
     // ==========================================================================
@@ -699,7 +713,7 @@ public sealed class FlashbackReaderTests
     private static string WindowSql(DayWindow window)
     {
         using var db = AnichronDbContexts.NpgsqlModel();
-        return EfFlashbackReader.FirstOfEachDay(db, Guid.NewGuid(), window).ToQueryString();
+        return EfFlashbackReader.Items(db, Guid.NewGuid(), window).ToQueryString();
     }
 
     [Fact]
@@ -724,16 +738,6 @@ public sealed class FlashbackReaderTests
             .And.MatchRegex(@"NOT EXISTS \(\s+SELECT 1\s+FROM ""MediaAssets"" AS \w+[\s\S]*\(\w+\.""DateCaptured"" < \w+\.""DateCaptured"" OR \(\w+\.""DateCaptured"" = \w+\.""DateCaptured"" AND \w+\.""Id"" < \w+\.""Id""\)\)")
             .And.MatchRegex(@"max\(CASE[\s\S]*""IsStarred""[\s\S]*max\(CASE[\s\S]*""IsLiked""")
             .And.Contain("count(*)::int");
-    }
-
-    [Fact]
-    public void Query_FirstOfEachDay_TakesTheFirstOfEachDayInTheDaysOrderInSql()
-    {
-        var sql = WindowSql(new DayWindow(new LocalDate(2026, 6, 13), July14));
-
-        sql.Should().MatchRegex(@"ROW_NUMBER\(\) OVER\(PARTITION BY \w+\.""Year"", \w+\.""Month"", \w+\.""Day"" ORDER BY \w+\.""IsStarred"" DESC, \w+\.""DateCaptured"", \w+\.""Id""\)")
-            .And.MatchRegex(@"\.row <= 1")
-            .And.NotContain(";");
     }
 
     [Fact]
