@@ -363,11 +363,11 @@
       },
       "Npgsql.NodaTime": {
         "type": "Transitive",
-        "resolved": "10.0.3",
-        "contentHash": "6ba1CM/zAoI7bTuBV7cFhTR3qqUsY5FqqqNoOh7dHoFHcyEEpIsMui3mC3Swyc+oyAJG0Zf8DCiXPnAf+sW09A==",
+        "resolved": "10.0.4",
+        "contentHash": "U8lqjtmkybxQlWsSvuO6uyS1+Sogr8MODCxopHTAYuzIPMp2IzIAQT1UJLcjsAhTmql2EYWheT47IAVkx+ubOQ==",
         "dependencies": {
           "NodaTime": "3.2.2",
-          "Npgsql": "10.0.3"
+          "Npgsql": "10.0.4"
         }
       },
       "Polly.Core": {
@@ -473,7 +473,7 @@
           "NodaTime.Serialization.SystemTextJson": "[1.4.0, )",
           "Npgsql": "[10.0.4, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.4, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime": "[10.0.3, )"
+          "Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime": "[10.0.4, )"
         }
       },
       "anichron.infrastructure": {
@@ -505,12 +505,12 @@
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime": {
         "type": "CentralTransitive",
-        "requested": "[10.0.3, )",
-        "resolved": "10.0.3",
-        "contentHash": "V84fTKMoEBsi5bAKVWrLDWimGqC6Dhn7ioBtoTpsfjpRmTcpv7FqhSqlqREO+6sHFH2sSXEZHEPWJTPsuKhfjA==",
+        "requested": "[10.0.4, )",
+        "resolved": "10.0.4",
+        "contentHash": "lDk3ZJgXayZPz4/cpORPoKMtxacgNv5GdfPmoEOggmu6TGPVr+rqzNY4OTvNcEVwhsnmMR7NKJKU8c8MBZmvdA==",
         "dependencies": {
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.3",
-          "Npgsql.NodaTime": "10.0.3"
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.4",
+          "Npgsql.NodaTime": "10.0.4"
         }
       }
     }
