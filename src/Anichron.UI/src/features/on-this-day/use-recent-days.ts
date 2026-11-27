@@ -11,7 +11,7 @@ const daysPerPage = 6;
 
 export interface DayWithMemories {
   date: string;
-  label: string;
+  lines: string[];
   newestYear: number;
   thumbnail: string | null;
 }
@@ -85,7 +85,7 @@ export function useRecentDays(today: string) {
   ]);
   const toDay = ({ date, year, memory }: Summary): DayWithMemories => ({
     date,
-    label: label(t, today, date),
+    lines: label(t, today, date).split('\n'),
     newestYear: year,
     thumbnail: memory.proxies.thumbnail,
   });

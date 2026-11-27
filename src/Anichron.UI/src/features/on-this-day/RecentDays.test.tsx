@@ -124,6 +124,21 @@ describe('the recent days', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
+  it('labels a day with its weekday and day on one line and its month on the next, Yesterday on one', async () => {
+    days = {
+      '2026-11-10': [onDay('2026-11-10', 2024)],
+      '2026-11-08': [onDay('2026-11-08', 2022)],
+    };
+    renderApp('/');
+
+    const day = await (await shownTray()).findByRole('link', { name: 'Sun 8 Nov' });
+    expect(within(day).getByText('Sun 8')).toHaveClass('block');
+    expect(within(day).getByText('Nov')).toHaveClass('block');
+    expect(
+      within((await shownTray()).getByRole('link', { name: 'Yesterday' })).getByText('Yesterday'),
+    ).toHaveClass('block');
+  });
+
   it.each(['load', 'fail'] as const)(
     'shows the days only once the last of their pictures %ss',
     async (outcome) => {
