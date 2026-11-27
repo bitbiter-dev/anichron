@@ -21,6 +21,8 @@
 #   docker compose -f src/docker-compose.e2e.yml down
 # ============================================================
 
+name: anichron-e2e
+
 services:
   anichron-db:
     extends:

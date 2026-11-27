@@ -14,6 +14,7 @@ internal sealed record ScriptedItem(
 
 internal sealed class ScriptedClassificationMiddleware(params ScriptedItem[] itemsInOrder) : IIngestionMiddleware
 {
+    private readonly Dictionary<string, ScriptedItem> failed = new(StringComparer.Ordinal);
     private int calls;
 
     public int Order => 10;
@@ -22,7 +23,8 @@ internal sealed class ScriptedClassificationMiddleware(params ScriptedItem[] ite
     public async Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
     {
         _ = next;
-        var item = itemsInOrder[calls++];
+        if (!failed.Remove(context.Item.RelativePath, out var item))
+            item = itemsInOrder[calls++];
         if (item.Cancels is { } cancel)
         {
             await cancel.CancelAsync();
@@ -36,6 +38,9 @@ internal sealed class ScriptedClassificationMiddleware(params ScriptedItem[] ite
             context.StageAutoRestored();
         context.CommitCounts();
         if (item.Fails)
+        {
+            failed[context.Item.RelativePath] = item;
             throw new InvalidOperationException("boom");
+        }
     }
 }

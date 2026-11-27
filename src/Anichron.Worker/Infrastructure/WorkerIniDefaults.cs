@@ -9,6 +9,7 @@ internal static class WorkerIniDefaults
         new IniEntry("Worker", "ExcludedDirectories", () => string.Empty),
         new IniEntry("Worker", "CrawlIntervalHours", () => "4"),
         new IniEntry("Worker", "MaxConcurrentFiles", () => "4"),
+        new IniEntry("Worker", "IngestionRetryMaxDays", () => "7"),
         new IniEntry("Worker", "TokenCleanupIntervalHours", () => "24"),
         new IniEntry("Worker", "WorkPollIntervalSeconds", () => "5"),
         new IniEntry("Worker", "WorkHeartbeatSeconds", () => "2"),

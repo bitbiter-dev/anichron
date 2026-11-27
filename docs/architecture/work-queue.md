@@ -37,7 +37,8 @@ Kinds: `Crawl`, `BurstDetection` and `CompactPreview` (one per storage config), 
 
 **Crawl result** (`CrawlResult`; a Live Photo is one item):
 
-- `found`: items the walk queued. `processed`: items handled without an error, unchanged ones included. `failed`: items whose ingestion failed. Progress is `processed + failed` of `found`.
+- `found`: items the walk queued. `processed`: items handled without an error, unchanged ones included. `failed`: items whose ingestion failed, on the retry pass too unless the file was broken. Progress is `processed + failed` of `found`.
+- `skippedFailing`: items that keep failing and are not due again (`ingestion.md`, "Failing files"). The result carries counts only, never paths.
 - `ingested`: processed items whose content was read: classified `New`, `ContentChanged` or `AutoRestoredContentChanged`.
 - `skippedLinks` and `skippedUnsupported`: links, and files with no media type, that the walk reached. Excluded entries are never counted.
 
