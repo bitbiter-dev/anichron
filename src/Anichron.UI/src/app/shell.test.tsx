@@ -163,6 +163,23 @@ describe('Settings', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
+  it('has a top bar in the page colour at rest, turning to glass once content scrolls under it', async () => {
+    const { router, container } = await openHome();
+    await openSettings(router);
+    const banner = () => screen.getByRole('banner');
+    expect(banner()).not.toHaveAttribute('data-scrolled');
+
+    scrollTo(1);
+    expect(banner()).toHaveAttribute('data-scrolled');
+
+    scrollTo(0);
+    expect(banner()).not.toHaveAttribute('data-scrolled');
+
+    scrollTo(-20);
+    expect(banner()).not.toHaveAttribute('data-scrolled');
+    expect(await axeResults(container)).toHaveNoViolations();
+  });
+
   it('leads back to Home through the bottom bar', async () => {
     const { router } = await openHome();
     await openSettings(router);
