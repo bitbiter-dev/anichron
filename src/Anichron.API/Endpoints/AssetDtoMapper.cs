@@ -28,6 +28,9 @@ internal static class AssetDtoMapper
             burst);
     }
 
+    internal static AssetDto ToDto(FlashbackMemory memory)
+        => ToDto(memory.View, memory.Burst is { } burst ? new AssetBurstDto(burst.BurstId, IsCover: true, burst.Count) : null);
+
     internal static SoftDeletedAssetDto ToDto(SoftDeletedAssetView view)
     {
         var media = MediaOf(view);

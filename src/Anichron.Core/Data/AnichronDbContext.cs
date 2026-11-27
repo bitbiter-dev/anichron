@@ -412,7 +412,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                 + "one config's files at once: the claim passes over a busy config, and a partial unique "
                 + "index rejects a racing second claim.");
             entity.Property(w => w.RequestedBy).HasComment(
-                "The admin who asked for the work; null when a Worker's scheduler enqueued it.");
+                "The user who asked for the work: an admin, or the owner of the assets a purge forgets; null when a Worker's scheduler enqueued it.");
             entity.Property(w => w.Status).HasConversion<string>().HasComment(
                 "Queued, Running, Succeeded, Failed or Cancelled, persisted as text.");
             entity.Property(w => w.Attempt).HasComment(

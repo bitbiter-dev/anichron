@@ -64,6 +64,59 @@ export function todayAnd(days: string[], answer: (date: string, bearer: string |
 
 export const nothingOnThisDay = () => onThisDayAnswers(() => []);
 
+export interface RecentWindow {
+  before: string;
+  since: string | null;
+  limit: number;
+}
+
+type RecentDays = Schemas['RecentDayDto'][];
+type RecentAnswer = RecentDays | Response | Promise<RecentDays | Response>;
+
+export function recentDaysAnswers(
+  answer: (window: RecentWindow, bearer: string | null) => RecentAnswer,
+) {
+  return http.get('/api/v1/flashbacks/days', async ({ request, response }) => {
+    const query = new URL(request.url).searchParams;
+    const days = await answer(
+      {
+        before: query.get('before') ?? '',
+        since: query.get('since'),
+        limit: Number(query.get('limit')),
+      },
+      request.headers.get('Authorization'),
+    );
+    return days instanceof Response ? response.untyped(days) : response(200).json({ days });
+  });
+}
+
+export const noRecentDays = () => recentDaysAnswers(() => []);
+
+const dayBefore = (date: string) => {
+  const day = new Date(`${date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - 1);
+  return day.toISOString().slice(0, 10);
+};
+
+export function recentDaysOf(yearsOn: (date: string) => Years) {
+  return ({ before, since, limit }: RecentWindow): RecentDays => {
+    let yearBack = before;
+    for (let day = 0; day < 366; day++) yearBack = dayBefore(yearBack);
+    const start = since !== null && since > yearBack ? since : yearBack;
+    const days: RecentDays = [];
+    for (
+      let date = dayBefore(before);
+      date >= start && days.length < limit;
+      date = dayBefore(date)
+    ) {
+      const newest = yearsOn(date)[0];
+      const memory = newest?.assets[0];
+      if (newest && memory) days.push({ date, year: newest.year, memory });
+    }
+    return days;
+  };
+}
+
 const yearOfUser = new Map([
   ['mira', 2023],
   ['noor', 2021],

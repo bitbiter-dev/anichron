@@ -134,6 +134,7 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
     [InlineData("PATCH", "/api/v1/assets/{assetId:guid}/interaction")]
     [InlineData("GET", "/api/v1/assets/hidden")]
     [InlineData("GET", "/api/v1/assets/soft-deleted")]
+    [InlineData("POST", "/api/v1/assets/purges")]
     public void MediaRoutes_RequireAnAuthenticatedUserButNotAdmin(string method, string pattern)
     {
         var route = Find(method, pattern);
@@ -150,10 +151,12 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
         => Routes.Where(r => r.Pattern.StartsWith(prefix, StringComparison.Ordinal))
             .Should().NotBeEmpty().And.OnlyContain(r => r.Tags.SequenceEqual(new[] { "Media" }));
 
-    [Fact]
-    public void OnThisDayRoute_RequiresAnAuthenticatedUserButNotAdmin()
+    [Theory]
+    [InlineData("/api/v1/flashbacks/on-this-day")]
+    [InlineData("/api/v1/flashbacks/days")]
+    public void FlashbackRoute_RequiresAnAuthenticatedUserButNotAdmin(string pattern)
     {
-        var route = Find("GET", "/api/v1/flashbacks/on-this-day");
+        var route = Find("GET", pattern);
 
         route.Anonymous.Should().BeFalse();
         route.Authenticated.Should().BeTrue();
@@ -253,5 +256,5 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(32);
+        => Routes.Should().HaveCount(34);
 }

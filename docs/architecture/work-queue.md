@@ -2,7 +2,7 @@
 
 Durable Worker work in `WorkItems` (ADR 0008). Code: `Anichron.Core/Work`, `Anichron.Worker/Work`.
 
-Kinds: `Crawl`, `BurstDetection` and `CompactPreview` (one per storage config), `TokenCleanup` and `WorkItemRetention` (maintenance), `ProxySweep` and `ProxyDeletion` (admin-requested).
+Kinds: `Crawl`, `BurstDetection` and `CompactPreview` (one per storage config), `TokenCleanup` and `WorkItemRetention` (maintenance), `ProxySweep` and `ProxyDeletion` (admin-requested), `AssetPurge` (user-requested, scoped to a config).
 
 ## Lifecycle
 
@@ -49,3 +49,12 @@ Orphaned proxy files are reported, never deleted unattended.
 2. `GET .../{sweepId}/orphans` pages the report.
 3. `POST .../{sweepId}/deletions` enqueues one `ProxyDeletion` per live config the orphans name, plus one unscoped item for the rest. "Live" has one definition: `LiveStorageConfigs.LiveIds`.
 4. `ProxyDeletionHandler` re-checks each orphan just before deleting it (still unreferenced, present, same size and write time) and records the outcome. It removes an emptied content folder, never a shard folder.
+
+## Purges
+
+`AssetPurgeHandler` forgets a config's soft-deleted assets, in batches (`AssetPurge.cs`). A missing or inactive config is skipped.
+
+1. One statement deletes the rows still soft-deleted and returns their proxy paths (`EfAssetPurgeStore.DeleteSoftDeletedAsync`). Cascades remove the rest; a row restored meanwhile keeps its files.
+2. Ids still present were restored; the rest not purged are already gone, as on a retry.
+3. Each returned path that no `ProxyFile` row references is deleted with its emptied content folder (`ProxyFileRemover`, shared with `ProxyDeletionHandler`). A crash between the steps leaves orphans for the proxy sweep.
+4. The next `BurstDetection` repairs bursts.

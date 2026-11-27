@@ -8,6 +8,7 @@ export interface ToastAction {
 
 export interface ToastMessage {
   message: ParseKeys;
+  values?: Record<string, number>;
   action?: ToastAction;
 }
 

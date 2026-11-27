@@ -104,4 +104,25 @@ public sealed class PayloadsTests
         (read.SweepId, read.StorageConfigId).Should().Be((sweepId, null));
         read.OrphanIds.Should().Equal(orphanId);
     }
+
+    [Fact]
+    public void AssetPurge_IsScopedToItsConfigAndNeverCoalesced()
+    {
+        var configId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var purge = new AssetPurgePayload(configId, [Guid.NewGuid()]);
+
+        (Describe(purge), ScopeOf(purge)).Should().Be(((WorkKind.AssetPurge, null), configId));
+    }
+
+    [Fact]
+    public void AssetPurge_RoundTripsWithItsAssets()
+    {
+        var configId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var assetId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+        var read = WorkJson.Deserialize<AssetPurgePayload>(WorkJson.Serialize(new AssetPurgePayload(configId, [assetId])));
+
+        read.StorageConfigId.Should().Be(configId);
+        read.AssetIds.Should().Equal(assetId);
+    }
 }

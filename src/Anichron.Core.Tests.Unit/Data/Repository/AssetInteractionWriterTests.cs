@@ -65,8 +65,9 @@ public sealed class AssetInteractionWriterTests
         public async Task<IReadOnlyList<AssetView>> OnThisDayAsync(User caller)
         {
             await using var db = new AnichronDbContext(Options);
-            return await new EfAssetViewReader(db)
-                .ReadAsync(caller.Id, new OnThisDay(new LocalDate(2026, 7, 14)), TestContext.Current.CancellationToken);
+            var years = await new EfFlashbackReader(db)
+                .ReadDayAsync(caller.Id, new LocalDate(2026, 7, 14), TestContext.Current.CancellationToken);
+            return [.. years.SelectMany(year => year.Memories).Select(memory => memory.View)];
         }
 
         public async Task<List<AssetInteraction>> StoredAsync()

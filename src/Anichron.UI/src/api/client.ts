@@ -33,7 +33,7 @@ export function createApiClient(tabs: Tabs, display: Display, objectUrls?: Objec
     assets: createAssets(client, authorized),
     bursts: createBursts(client, authorized, show),
     hidden: createHidden(client, authorized, show),
-    softDeleted: createSoftDeleted(client, authorized, show),
+    softDeleted: createSoftDeleted(client, authorized, show, session),
     media: createMedia(() => session.renewMedia(), objectUrls),
     workItems: createWorkItems(client, authorized),
   };

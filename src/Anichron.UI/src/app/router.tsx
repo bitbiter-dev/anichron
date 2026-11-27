@@ -19,6 +19,7 @@ import {
   homeSearch,
   isCalendarDate,
   loadStory,
+  recentDaysKey,
   storySearch,
 } from '../features/on-this-day/day';
 import { OnThisDayPage } from '../features/on-this-day/OnThisDayPage';
@@ -111,8 +112,10 @@ function routeTree() {
           )
         : undefined,
     gcTime: 0,
-    onLeave: ({ context, params }) =>
-      void context.queryClient.invalidateQueries({ queryKey: dayKey(params.date) }),
+    onLeave: ({ context, params }) => {
+      void context.queryClient.invalidateQueries({ queryKey: dayKey(params.date) });
+      void context.queryClient.invalidateQueries({ queryKey: recentDaysKey() });
+    },
     component: lazyRouteComponent(() => import('../features/on-this-day/StoryPage'), 'StoryPage'),
   });
 
