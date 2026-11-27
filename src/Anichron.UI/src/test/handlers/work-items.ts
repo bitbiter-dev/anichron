@@ -98,6 +98,7 @@ export function workItemEvents(refusals: ((() => Response) | undefined)[] = []) 
       return response.untyped(refusal());
     }
     let controller!: ReadableStreamDefaultController<Uint8Array>;
+    let cancelled = false;
     const connection: Connection = {
       lastEventId: request.headers.get('Last-Event-ID'),
       bearer: request.headers.get('Authorization'),
@@ -105,18 +106,21 @@ export function workItemEvents(refusals: ((() => Response) | undefined)[] = []) 
         this.write(`event: work-item\nid: ${id}\ndata: ${JSON.stringify(item)}\n\n`);
       },
       write(text) {
-        controller.enqueue(encoder.encode(text));
+        if (!cancelled) controller.enqueue(encoder.encode(text));
       },
       end() {
-        controller.close();
+        if (!cancelled) controller.close();
       },
       drop() {
-        controller.error(new TypeError('network error'));
+        if (!cancelled) controller.error(new TypeError('network error'));
       },
     };
     const body = new ReadableStream<Uint8Array>({
       start(started) {
         controller = started;
+      },
+      cancel() {
+        cancelled = true;
       },
     });
     connections.push(connection);
