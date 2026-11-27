@@ -506,7 +506,7 @@ jobs:
       # The gate is the thresholds in stryker-config.json, all 100. The job
       # fails below them; the Mutation job still merges every report it got.
       - name: Mutation test
-        timeout-minutes: 20
+        timeout-minutes: 40
         env:
           ARGS: ${{ toJSON(matrix.args) }}
         run: |

@@ -11,7 +11,7 @@ export function Shell() {
   const { toasts } = useRouter().options.context;
   const { slots, ...bar } = useTopBarSlots();
   return (
-    <div className="mx-auto min-h-dvh max-w-5xl pb-24">
+    <div className="mx-auto min-h-dvh max-w-(--shell-width) pb-24 [--shell-width:var(--container-5xl)] bottom-bar-host">
       <TopBarSlotsContext value={slots}>
         {screen && <TopBar {...screen} {...bar} />}
         <Outlet />

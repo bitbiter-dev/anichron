@@ -62,6 +62,23 @@ test('the bottom bar floats inside the screen, with items at least 44 px tall', 
     expect((await item.boundingBox())?.height).toBeGreaterThanOrEqual(44);
 });
 
+test('the top bar runs flat across the full width from the top edge, in the page colour at rest', async ({
+  page,
+  request,
+}) => {
+  await signInPage(page, await createAccount(request));
+  await page.getByRole('link', { name: 'Settings' }).click();
+  const banner = page.getByRole('banner');
+  const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+
+  expect(await banner.boundingBox()).toMatchObject({ x: 0, y: 0, width: viewport.width });
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await expect(banner).toHaveCSS('background-color', surface[scheme]);
+    await expect(banner).toHaveCSS('border-bottom-left-radius', '0px');
+  }
+});
+
 test('choosing a theme in Settings applies it and sets the theme colour', async ({
   page,
   request,

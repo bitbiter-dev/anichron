@@ -16,7 +16,7 @@
     "earlier": "Earlier days",
     "nothingEarlier": "Nothing earlier",
     "nothingRecent": "Nothing in recent days",
-    "recentDay": "{{weekdayOf, datetime}} {{dayOf, datetime}} {{monthOf, datetime}}",
+    "recentDay": "{{weekdayOf, datetime}} {{dayOf, datetime}}\n{{monthOf, datetime}}",
     "noPhotos": "No photos are set up for you yet.",
     "noPhotosHint": "An admin can add a storage folder for you."
   },
