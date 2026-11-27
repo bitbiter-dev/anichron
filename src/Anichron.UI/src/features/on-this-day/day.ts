@@ -161,16 +161,20 @@ export function framesOf(api: ApiClient, queryClient: QueryClient, memory: Memor
   return memory.burst ? queryClient.getQueryData(burstQuery(api, memory).queryKey) : undefined;
 }
 
-export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
-  return coverOf(memory, framesOf(api, queryClient, memory)).proxies.preview;
+function coverProxiesOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
+  return coverOf(memory, framesOf(api, queryClient, memory)).proxies;
 }
 
-export function pictureDecoded(api: ApiClient, queryClient: QueryClient, url: string | null) {
-  return url !== null && queryClient.getQueryData(pictureQuery(api, url).queryKey) === true;
+export function previewOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {
+  return coverProxiesOf(api, queryClient, memory).preview;
+}
+
+function pictureDecoded(api: ApiClient, queryClient: QueryClient, url: string | null) {
+  return queryClient.getQueryData(pictureQuery(api, url ?? '').queryKey) === true;
 }
 
 export function standInOf(api: ApiClient, queryClient: QueryClient, memory: Memory, load: Load) {
-  const { thumbnail } = coverOf(memory, framesOf(api, queryClient, memory)).proxies;
+  const { thumbnail } = coverProxiesOf(api, queryClient, memory);
   const loadsPicture = load === 'loading' && memoryKind(kindOf(memory)).image(load) === 'picture';
   return loadsPicture && pictureDecoded(api, queryClient, thumbnail) ? thumbnail : null;
 }

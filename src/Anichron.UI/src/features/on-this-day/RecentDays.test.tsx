@@ -15,7 +15,7 @@ import {
 } from '../../test/handlers/flashbacks';
 import { keptSource } from '../../test/object-urls';
 import { holdPicture } from '../../test/pictures';
-import { proxyAnswers } from '../../test/handlers/proxies';
+import { holdProxy } from '../../test/handlers/proxies';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
@@ -56,22 +56,9 @@ const together = (...windows: RecentWindow[]) => {
 };
 
 function holdPreview(assetId: string) {
-  const url = proxyUrl(assetId, 'preview');
-  let answer: (value: undefined) => void = () => undefined;
-  server.use(
-    proxyAnswers([], (asked) =>
-      asked === url
-        ? new Promise<undefined>((resolve) => {
-            answer = resolve;
-          })
-        : undefined,
-    ),
-  );
-  return {
-    load: () => {
-      answer(undefined);
-    },
-  };
+  const { handler, release } = holdProxy(proxyUrl(assetId, 'preview'));
+  server.use(handler);
+  return { load: release };
 }
 
 beforeEach(() => {

@@ -24,7 +24,7 @@ import {
   yearGroup,
 } from '../../test/handlers/flashbacks';
 import { burstAnswers } from '../../test/handlers/bursts';
-import { proxyAnswers } from '../../test/handlers/proxies';
+import { holdProxy, proxyAnswers } from '../../test/handlers/proxies';
 import { freedSources, keptSource as fromMemoryOf } from '../../test/object-urls';
 import { fakeDisplay } from '../../test/display';
 import { renderApp } from '../../test/render-app';
@@ -196,22 +196,12 @@ describe('opening a story', () => {
   });
 
   function holdFirstPreview(received: string[] = []) {
-    let answerFirst: (answer: undefined) => void = () => undefined;
-    server.use(
-      proxyAnswers(received, (url) =>
-        url === preview(ids.a2023)
-          ? new Promise<undefined>((resolve) => {
-              answerFirst = resolve;
-            })
-          : undefined,
-      ),
-    );
-    return () => {
-      answerFirst(undefined);
-    };
+    const { handler, release } = holdProxy(preview(ids.a2023), received);
+    server.use(handler);
+    return release;
   }
 
-  it('keeps the tapped year busy until its first picture is loaded when its thumbnail was not', async () => {
+  it('keeps the tapped year busy until its first picture is loaded when its thumbnail was not decoded', async () => {
     const received: string[] = [];
     const answerFirst = holdFirstPreview(received);
     holdPicture(thumbnail(ids.a2023)).fail();
@@ -4472,16 +4462,8 @@ describe('a burst', () => {
 
   it('keeps a tapped year busy when its cover changed to a frame whose thumbnail was not shown', async () => {
     const newCover = preview(frameIds[1] as string);
-    let answerCover: (answer: undefined) => void = () => undefined;
-    server.use(
-      proxyAnswers([], (url) =>
-        url === newCover
-          ? new Promise<undefined>((resolve) => {
-              answerCover = resolve;
-            })
-          : undefined,
-      ),
-    );
+    const { handler, release: answerCover } = holdProxy(newCover);
+    server.use(handler);
     await openLanding();
     fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
     await screen.findByRole('dialog', { name: storyName });
@@ -4495,7 +4477,7 @@ describe('a burst', () => {
     await advance(5000);
 
     expect(screen.queryByRole('dialog')).toBeNull();
-    answerCover(undefined);
+    answerCover();
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
     expect(await shown()).toBe(newCover);
   });
