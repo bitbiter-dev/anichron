@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useState } from 'react';
+import { useState } from 'react';
 import {
   allOf,
   holdsAll,
@@ -41,11 +41,6 @@ export function useSelect(ids: readonly string[]) {
     },
     clear: () => {
       setStored(noSelection());
-    },
-    selectAllKey: (event: KeyboardEvent) => {
-      if (!selecting || event.key !== 'a' || !(event.ctrlKey || event.metaKey)) return;
-      event.preventDefault();
-      setStored(allOf(ids));
     },
     begin: (index: number): Painting => ({
       selection,

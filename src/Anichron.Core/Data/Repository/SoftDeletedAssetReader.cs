@@ -29,7 +29,7 @@ public sealed record SoftDeletedAssetView(
 /// <summary>A page of soft-deleted assets.</summary>
 /// <param name="Items">The page's assets, newest last seen first.</param>
 /// <param name="Next">The cursor of the next page, or <c>null</c> on the last page.</param>
-/// <param name="Total">The assets on every page.</param>
+/// <param name="Total">The count of the whole list.</param>
 public sealed record SoftDeletedPage(IReadOnlyList<SoftDeletedAssetView> Items, AssetCursor? Next, int Total);
 
 /// <summary>An asset accepted for a purge.</summary>

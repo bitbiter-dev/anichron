@@ -1,5 +1,5 @@
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { RemovedPage } from '../../api/soft-deleted';
 import type { useSelect } from './use-select';
 
@@ -19,8 +19,7 @@ export function useSelectAll(
   useEffect(() => {
     selecting.current = select.selecting;
   });
-  const pages = query.data?.pages ?? [];
-  const remaining = Math.max((pages.at(-1)?.total ?? 0) - idsOf(query.data).length, 0);
+  const total = query.data?.pages.at(-1)?.total ?? 0;
 
   async function loadAll() {
     let result = await query.fetchNextPage({ cancelRefetch: false });
@@ -29,15 +28,24 @@ export function useSelectAll(
     if (selecting.current) select.selectAll(idsOf(result.data));
   }
 
+  function all() {
+    if (query.hasNextPage) setAsking(true);
+    else select.selectAll();
+  }
+
   const deselects = !query.hasNextPage && select.holdsAll;
   return {
     deselects,
     press: () => {
       if (deselects) select.clear();
-      else if (query.hasNextPage) setAsking(true);
-      else select.selectAll();
+      else all();
     },
-    asking: asking && { total: shown + remaining, remaining },
+    key: (event: KeyboardEvent) => {
+      if (!select.selecting || event.key !== 'a' || !(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      all();
+    },
+    asking: asking && { total, remaining: Math.max(total - shown, 0) },
     cancel: () => {
       setAsking(false);
     },

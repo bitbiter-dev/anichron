@@ -537,8 +537,8 @@ describe('selecting', () => {
     });
 
     it('asks first, with the total and how many more need to load', async () => {
-      const all = Array.from({ length: 1240 }, (_, index) => removed(index + 1));
-      server.use(pages(all.slice(0, 50), all.slice(50)));
+      const first = Array.from({ length: 50 }, (_, index) => removed(index + 1));
+      server.use(softDeletedAnswers(() => ({ items: first, next: 'page1', total: 1240 })));
       const { container } = await openRemoved();
       await startSelecting();
 
@@ -552,7 +552,17 @@ describe('selecting', () => {
           .map((button) => button.textContent),
       ).toEqual(['Cancel', 'Load and select']);
       expect(await axeResults(container.ownerDocument.body)).toHaveNoViolations();
-    }, 30_000);
+    });
+
+    it('asks first on Ctrl+A too', async () => {
+      server.use(pages([removed(1), removed(2)], [removed(3)]));
+      await openRemoved();
+      await startSelecting();
+
+      fireEvent.keyDown(checkbox(1), { key: 'a', ctrlKey: true });
+
+      expect(await screen.findByRole('dialog', { name: 'Select all 3?' })).toBeVisible();
+    });
 
     it('says one more needs to load', async () => {
       server.use(pages([removed(1), removed(2)], [removed(3)]));
@@ -623,13 +633,11 @@ describe('selecting', () => {
     });
 
     it('selects nothing when select mode ends while the rest loads', async () => {
-      let release = () => {};
+      const rest = hold();
       server.use(
         softDeletedAnswers(async (after) => {
           if (after === null) return { items: [removed(1)], next: 'page1', total: 2 };
-          await new Promise<void>((resolve) => {
-            release = resolve;
-          });
+          await rest.until;
           return { items: [removed(2)], next: null, total: 2 };
         }),
       );
@@ -641,7 +649,7 @@ describe('selecting', () => {
       );
 
       await user().click(within(topBar()).getByRole('button', { name: 'Cancel' }));
-      release();
+      rest.release();
       expect(await screen.findByText(name(2))).toBeVisible();
       await startSelecting();
 
@@ -798,6 +806,20 @@ describe('selecting', () => {
       await user().keyboard('a{Control>}a{/Control}');
 
       expect(screen.queryByRole('checkbox')).toBeNull();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('selects every row on Ctrl+A or Cmd+A when all are loaded', async () => {
+      server.use(onePage(removed(1), removed(2)));
+      await openRemoved();
+      await startSelecting();
+
+      fireEvent.keyDown(checkbox(1), { key: 'a', ctrlKey: true });
+      expect(checkedRows()).toEqual([name(1), name(2)]);
+
+      await user().click(within(topBar()).getByRole('button', { name: 'Deselect all' }));
+      fireEvent.keyDown(checkbox(1), { key: 'a', metaKey: true });
+      expect(checkedRows()).toEqual([name(1), name(2)]);
       expect(screen.queryByRole('dialog')).toBeNull();
     });
 
