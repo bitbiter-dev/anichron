@@ -23,6 +23,7 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
     public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
     public DbSet<ProxyOrphan> ProxyOrphans => Set<ProxyOrphan>();
+    public DbSet<IngestionFailure> IngestionFailures => Set<IngestionFailure>();
 
     // Stryker disable all
     public async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken ct = default)
@@ -466,6 +467,35 @@ public class AnichronDbContext(DbContextOptions<AnichronDbContext> options) : Db
                   .WithMany()
                   .HasForeignKey(w => w.RequestedBy)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<IngestionFailure>(entity =>
+        {
+            entity.ToTable(t => t.HasComment(
+                    "A file of a storage config whose ingestion failed on its last attempted crawl. Written only "
+                    + "by the Worker's crawl, once per crawl: a success or a complete walk that no longer finds "
+                    + "the file deletes the row. The API never reads it, since its paths are media data."
+                ));
+            entity.Property(f => f.FilePath).HasComment(
+                "The item's primary path relative to the storage config root, as MediaAssets.FilePath: a Live "
+                + "Photo's photo.");
+            entity.Property(f => f.Fingerprint).HasComment(
+                "Length and last-write time of each of the item's files, taken before the failed attempt read "
+                + "them. A crawl that sees another fingerprint tries the file at once.");
+            entity.Property(f => f.Failures).HasComment(
+                "Consecutive crawls whose attempt failed on this fingerprint; a changed fingerprint starts again at 1.");
+            entity.Property(f => f.Reason).HasMaxLength(IngestionFailure.ReasonMaxLength).HasComment(
+                "The last failure's exception type and message, truncated.");
+            entity.Property(f => f.RetryAfter).HasComment(
+                "A crawl before this time skips the file while its fingerprint holds. The delay doubles with "
+                + "each failure, up to Worker:IngestionRetryMaxDays.");
+
+            entity.HasKey(f => new { f.StorageConfigId, f.FilePath });
+
+            entity.HasOne<UserStorageConfig>()
+                  .WithMany()
+                  .HasForeignKey(f => f.StorageConfigId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProxyOrphan>(entity =>

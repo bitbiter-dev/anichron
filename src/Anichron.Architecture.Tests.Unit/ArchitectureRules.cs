@@ -63,10 +63,11 @@ internal static class ArchitectureRules
                 .Should().NotDependOnAny(typeof(AnichronDbContext))),
         new(OnlyWorkerWritesMedia,
             Types().That().ResideInAssembly(ApiAssembly, InfrastructureAssembly)
-                .Should().NotDependOnAny(typeof(IMediaAssetRepository))),
+                .Should().NotDependOnAny(typeof(IMediaAssetRepository), typeof(IIngestionFailureRepository))),
         new(ApiReadsMediaThroughViews,
             Types().That().ResideInAssembly(ApiAssembly)
-                .Should().NotDependOnAny(typeof(MediaAsset), typeof(Metadata), typeof(ProxyFile), typeof(AssetInteraction))),
+                .Should().NotDependOnAny(
+                    typeof(MediaAsset), typeof(Metadata), typeof(ProxyFile), typeof(AssetInteraction), typeof(IngestionFailure))),
         new(ProxiesReachFinalNameOnlyInStagingWriter,
             Types().That().ResideInAssembly(WorkerAssembly).And().DoNotHaveFullName(StagingWriter)
                 .Should().NotCallAny(MethodMembers().That().AreDeclaredIn(typeof(IFile))

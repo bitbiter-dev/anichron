@@ -82,6 +82,22 @@ public sealed class WorkerSettingsTests
     }
 
     // ==========================================================================
+    // IngestionRetryMaxDays
+    // ==========================================================================
+
+    [Fact]
+    public void Defaults_IngestionRetryMaxDays_IsAWeek()
+        => new WorkerSettings().IngestionRetryMaxDays.Should().Be(7);
+
+    [Theory]
+    [InlineData(0.0, false)]
+    [InlineData(0.01, true)]
+    [InlineData(3650.0, true)]
+    [InlineData(3650.01, false)]
+    public void Validate_IngestionRetryMaxDays_MustBeAboveZeroAndAtMostTenYears(double days, bool valid)
+        => IsValid(ValidSettings with { IngestionRetryMaxDays = days }).Should().Be(valid);
+
+    // ==========================================================================
     // Burst detection
     // ==========================================================================
 

@@ -8,6 +8,7 @@ using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using NodaTime;
 using SixLabors.ImageSharp;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
@@ -375,19 +376,63 @@ public sealed class FileIngestionPipelineTests
     }
 
     [Fact]
-    public async Task RunAsync_ItemFails_StillIngestsTheRemainingFilesAsync()
+    public async Task RunAsync_ItemFails_StillIngestsTheRemainingFilesAndTriesItAgainAfterTheWalkAsync()
     {
         var fixture = new TestFixture();
         fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]));
         fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
         var seen = new List<IngestionContext>();
 
-        var pipeline = fixture.BuildWithMiddlewares(
-            [new FailingOnFirstItemMiddleware(seen)], maxConcurrentFiles: 1);
-        var act = async () => await pipeline.RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
+        var run = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware(seen)], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig("/nas"), NoProgress, CancellationToken.None);
 
-        await act.Should().NotThrowAsync();
-        seen.Should().HaveCount(2);
+        seen.Select(c => c.Item.RelativePath).Should().Equal("a.jpg", "b.jpg", "a.jpg");
+        run.Result.Should().Be(new CrawlResult(Found: 2, Processed: 2, Failed: 0));
+        run.Failures.Should().BeEmpty();
+        run.SucceededPaths.Should().BeEquivalentTo("a.jpg", "b.jpg");
+    }
+
+    [Fact]
+    public async Task RunAsync_ItemFailsOnTheRetryToo_CountsAsFailedWithItsReasonAndTheFingerprintTakenBeforeTheRetryAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([1]) { LastWriteTime = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc) });
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        var attempts = new List<string>();
+
+        var run = await fixture.BuildWithMiddlewares([new GrowingAndFailingMiddleware(fixture.FileSystem, "a.jpg", attempts)], maxConcurrentFiles: 1)
+            .RunAsync(MakeConfig("/nas"), FileIngestionPipelines.NoFailures(fixture.FileSystem), NoProgress, CancellationToken.None);
+
+        attempts.Should().Equal("a.jpg", "b.jpg", "a.jpg");
+        run.Result.Should().Be(new CrawlResult(Found: 2, Processed: 1, Failed: 1));
+        run.Failures.Should().Equal(new FailedItem("a.jpg", $"10:{GrowingAndFailingMiddleware.GrownAt.Ticks}", "IOException: locked"));
+        run.SucceededPaths.Should().BeEquivalentTo("b.jpg");
+        fixture.Logger.Collector.GetSnapshot().Select(e => (e.Level, e.Message)).Should().Equal(
+            (LogLevel.Information, "Failed to ingest /nas/a.jpg, trying again after the walk: locked"),
+            (LogLevel.Error, "Failed to ingest /nas/a.jpg."));
+    }
+
+    [Fact]
+    public async Task RunAsync_BrokenFile_IsNotTriedAgainWithinTheCrawlAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/a.jpg", new MockFileData([]) { LastWriteTime = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc) });
+        var attempts = 0;
+        var middleware = Substitute.For<IIngestionMiddleware>();
+        middleware.CanInvoke(Arg.Any<IngestionContext>()).Returns(true);
+        middleware.InvokeAsync(Arg.Any<IngestionContext>(), Arg.Any<IngestionDelegate>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                attempts++;
+                return Task.FromException(new IncompleteImageException("The image data is incomplete."));
+            });
+
+        var run = await fixture.BuildWithMiddlewares([middleware])
+            .RunAsync(MakeConfig(), FileIngestionPipelines.NoFailures(fixture.FileSystem), NoProgress, CancellationToken.None);
+
+        attempts.Should().Be(1);
+        run.Failures.Should().Equal(new FailedItem(
+            "a.jpg", $"0:{new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc).Ticks}", "IncompleteImageException: The image data is incomplete."));
     }
 
     private static Exception BrokenFileFailure(string decoder) => decoder switch
@@ -433,10 +478,56 @@ public sealed class FileIngestionPipelineTests
             .RunAsync(MakeConfig(), NoProgress, CancellationToken.None);
 
         run.Result.Failed.Should().Be(1);
-        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle()
-            .Which.Should().Match<FakeLogRecord>(e => e.Level == LogLevel.Error
-                && e.Message == "Failed to ingest /nas/a.jpg."
-                && e.Exception == failure);
+        fixture.Logger.Collector.GetSnapshot().Should().Satisfy(
+            e => e.Level == LogLevel.Information && e.Message == "Failed to ingest /nas/a.jpg, trying again after the walk: boom"
+                && e.Exception == null,
+            e => e.Level == LogLevel.Error && e.Message == "Failed to ingest /nas/a.jpg." && e.Exception == failure);
+    }
+
+    // ==========================================================================
+    // Files that keep failing
+    // ==========================================================================
+
+    private static readonly DateTime Written = new(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    private static IngestionFailure FailureRow(string path, string fingerprint) => new()
+    {
+        FilePath = path,
+        Fingerprint = fingerprint,
+        Failures = 3,
+        Reason = "IOException: locked",
+        FirstFailedAt = Instant.FromUtc(2026, 11, 1, 0, 0),
+        LastFailedAt = Instant.FromUtc(2026, 11, 2, 0, 0),
+        RetryAfter = Instant.FromUtc(2026, 11, 3, 0, 0),
+    };
+
+    [Fact]
+    public async Task RunAsync_FailingLivePhotoNotDueAndUnchanged_IsSkippedLoggedAndKeptFoundButNotCountedInFoundAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.FileSystem.AddFile("/nas/live.heic", new MockFileData([1, 2]) { LastWriteTime = Written });
+        fixture.FileSystem.AddFile("/nas/live.mov", new MockFileData([1, 2, 3]) { LastWriteTime = Written });
+        fixture.FileSystem.AddFile("/nas/b.jpg", new MockFileData([]));
+        var clock = Substitute.For<IClock>();
+        clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 11, 2, 12, 0));
+        var failing = new FailingFiles(
+            new Dictionary<string, IngestionFailure> { ["live.heic"] = FailureRow("live.heic", $"2:{Written.Ticks}|3:{Written.Ticks}") },
+            fixture.FileSystem,
+            clock);
+        var progress = new RecordingProgress();
+
+        var run = await fixture.Build(maxConcurrentFiles: 1).RunAsync(MakeConfig(), failing, progress, CancellationToken.None);
+
+        ProcessedRelativePaths(fixture).Should().Equal("b.jpg");
+        run.Result.Should().Be(new CrawlResult(Found: 1, Processed: 1, Failed: 0) { SkippedFailing = 1 });
+        run.FoundPaths.Should().BeEquivalentTo("live.heic", "live.mov", "b.jpg");
+        run.ReachedPaths.Should().BeEquivalentTo("live.heic", "b.jpg");
+        run.SucceededPaths.Should().BeEquivalentTo("b.jpg");
+        progress.Reports[^1].Should().Be(new WorkProgress(1, 1, "1 found, 1 processed, 0 failed"));
+        fixture.Logger.Collector.GetSnapshot().Should().ContainSingle(e => e.Level == LogLevel.Warning)
+            .Which.Message.Should().Be(
+                "Skipping /nas/live.heic: it failed on 3 crawls in a row since 2026-11-01T00:00:00Z, last with IOException: locked. "
+                + "It is tried again from 2026-11-03T00:00:00Z, or as soon as it changes.");
     }
 
     // ==========================================================================
@@ -455,7 +546,7 @@ public sealed class FileIngestionPipelineTests
 
         var progress = new RecordingProgress();
 
-        var run = await fixture.BuildWithMiddlewares([new FailingOnFirstItemMiddleware([])], maxConcurrentFiles: 1)
+        var run = await fixture.BuildWithMiddlewares([new FailingOnPathMiddleware("a.jpg")], maxConcurrentFiles: 1)
             .RunAsync(MakeConfig(), progress, CancellationToken.None);
 
         run.Result.Should().Be(new CrawlResult(Found: 3, Processed: 2, Failed: 1) { SkippedUnsupported = 1 });
@@ -732,6 +823,37 @@ public sealed class FileIngestionPipelineTests
 
         public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
             => Task.FromException(failure);
+    }
+
+    private sealed class FailingOnPathMiddleware(string relativePath) : IIngestionMiddleware
+    {
+        public int Order => 10;
+        public bool CanInvoke(IngestionContext context) => true;
+
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+            => context.Item.RelativePath == relativePath
+                ? Task.FromException(new InvalidOperationException("boom"))
+                : Task.CompletedTask;
+    }
+
+    private sealed class GrowingAndFailingMiddleware(MockFileSystem fileSystem, string relativePath, List<string> attempts)
+        : IIngestionMiddleware
+    {
+        public static DateTime GrownAt { get; } = new(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+
+        public int Order => 10;
+        public bool CanInvoke(IngestionContext context) => true;
+
+        public Task InvokeAsync(IngestionContext context, IngestionDelegate next, CancellationToken ct)
+        {
+            attempts.Add(context.Item.RelativePath);
+            if (context.Item.RelativePath != relativePath)
+                return Task.CompletedTask;
+
+            var length = fileSystem.FileInfo.New(context.Item.AbsolutePath).Length;
+            fileSystem.AddFile(context.Item.AbsolutePath, new MockFileData(new byte[length < 10 ? 10 : 20]) { LastWriteTime = GrownAt });
+            return Task.FromException(new IOException("locked"));
+        }
     }
 
     private sealed class FailingOnFirstItemMiddleware(List<IngestionContext> seen) : IIngestionMiddleware
