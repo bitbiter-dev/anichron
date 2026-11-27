@@ -1,5 +1,5 @@
-import { Film } from 'lucide-react';
-import { Button } from 'react-aria-components';
+import { Check, Film } from 'lucide-react';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBlurhash } from '../../shared/use-blurhash';
 import { Blurhash } from '../../shared/ui/BlurhashCanvas';
@@ -8,9 +8,12 @@ import { Failed } from '../../shared/ui/Failed';
 import { LivePhotoIcon } from '../../shared/ui/LivePhotoIcon';
 import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { Skeleton } from '../../shared/ui/Skeleton';
+import { TopBarActions } from '../../shared/ui/TopBarActions';
+import { ForgetDialog } from './ForgetDialog';
 import type { RemovedRow } from './removed';
 import { RemovedViewer } from './RemovedViewer';
 import { type RemovedScreen, useRemoved } from './use-removed';
+import { useRow } from './use-row';
 
 export function RemovedPage() {
   const screen = useRemoved();
@@ -21,6 +24,10 @@ export function RemovedPage() {
       {screen.loadingMore && <RowSkeletons count={1} />}
       <MoreFailed screen={screen} />
       {screen.failure && <Failed message={screen.failure} onRetry={screen.retry} />}
+      <SelectControls screen={screen} />
+      <SelectionBar screen={screen} />
+      <Announcement screen={screen} />
+      <PageDialog screen={screen} />
       <RemovedViewer screen={screen} />
     </main>
   );
@@ -63,7 +70,7 @@ function Rows({ screen }: { screen: RemovedScreen }) {
     <ul className="flex flex-col">
       {screen.rows.map((row, index) => (
         <li key={row.memory.id}>
-          <RowView row={row} onPress={screen.open(index)} />
+          <RowView screen={screen} row={row} index={index} />
         </li>
       ))}
     </ul>
@@ -71,24 +78,100 @@ function Rows({ screen }: { screen: RemovedScreen }) {
 }
 
 interface RowViewProps {
+  screen: RemovedScreen;
   row: RemovedRow;
-  onPress: () => void;
+  index: number;
 }
 
-function RowView({ row, onPress }: RowViewProps) {
+function RowView({ screen, row, index }: RowViewProps) {
   const { t } = useTranslation();
+  const nameId = useId();
   return (
-    <Button
-      onPress={onPress}
-      className="rounded-sm flex w-full items-center gap-3 py-1 text-left outline-none focus-visible:focus-ring"
+    <div
+      {...useRow(screen, index, nameId)}
+      className="rounded-sm flex w-full cursor-default items-center gap-3 py-1 text-left outline-none select-none [-webkit-touch-callout:none] focus-visible:focus-ring"
     >
+      {screen.select.selecting && <Tick screen={screen} index={index} />}
       <Tile row={row} />
       <span className="flex min-w-0 flex-col">
-        <span className="truncate font-semibold">{row.name}</span>
+        <span id={nameId} className="truncate font-semibold">
+          {row.name}
+        </span>
         {row.folder && <span className="truncate text-small text-fg-muted">{row.folder}</span>}
         <span className="text-small text-fg-muted">{t(row.reason.key, row.reason)}</span>
       </span>
-    </Button>
+    </div>
+  );
+}
+
+function Tick({ screen, index }: { screen: RemovedScreen; index: number }) {
+  const selected = screen.select.isSelected(index);
+  return (
+    <span
+      aria-hidden
+      data-selected={selected || undefined}
+      onPointerDown={screen.drag.handle(index)}
+      className="group flex size-11 shrink-0 touch-none items-center justify-center"
+    >
+      <span className="flex size-6 items-center justify-center rounded-full border-2 border-fg-muted group-data-selected:border-accent group-data-selected:bg-accent">
+        {selected && <Check className="size-4 text-on-accent" />}
+      </span>
+    </span>
+  );
+}
+
+function SelectControls({ screen }: { screen: RemovedScreen }) {
+  const { t } = useTranslation();
+  const { select } = screen;
+  if (!select.selecting)
+    return (
+      screen.rows.length > 0 && (
+        <TopBarActions side="trailing">
+          <TextButton variant="secondary" onPress={select.start} className="px-3">
+            {t('removed.select')}
+          </TextButton>
+        </TopBarActions>
+      )
+    );
+  return (
+    <>
+      <TopBarActions side="leading">
+        <TextButton variant="secondary" onPress={select.toggleAll} className="px-3">
+          {t('removed.selectAll')}
+        </TextButton>
+      </TopBarActions>
+      <TopBarActions side="trailing">
+        <TextButton variant="secondary" onPress={select.cancel} className="px-3">
+          {t('removed.cancel')}
+        </TextButton>
+      </TopBarActions>
+    </>
+  );
+}
+
+function SelectionBar({ screen }: { screen: RemovedScreen }) {
+  const { t } = useTranslation();
+  const { select, forget } = screen;
+  if (!select.selecting || select.count === 0) return null;
+  return (
+    <div className="fixed inset-x-4 bottom-[calc(max(env(safe-area-inset-bottom),0.75rem)+4rem)] z-10 mx-auto flex max-w-xs justify-center rounded-full bg-surface-raised p-1 shadow-(--shadow-glass)">
+      <TextButton variant="danger" onPress={forget.ask(select.selected)}>
+        {t('removed.forgetCount', { count: select.count })}
+      </TextButton>
+    </div>
+  );
+}
+
+function PageDialog({ screen }: { screen: RemovedScreen }) {
+  return screen.opened === null && <ForgetDialog forget={screen.forget} />;
+}
+
+function Announcement({ screen: { select } }: { screen: RemovedScreen }) {
+  const { t } = useTranslation();
+  return (
+    <p aria-live="polite" className="sr-only">
+      {select.selecting ? t('removed.selected', { count: select.count }) : ''}
+    </p>
   );
 }
 
