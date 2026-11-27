@@ -41,7 +41,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 
 - **Every screen** has the bottom bar: a floating glass pill on `env(safe-area-inset-bottom)`, or just above the edge without one (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
 - **The bottom bar's space is its own:** nothing floats on it. A floating control sits at `--above-bottom-bar` (`above-bottom-bar`, `src/app/bars.css`), a gap above the bar, and glides into the bar's place while it hides, with the bar's duration.
-- **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it. `Shell` marks itself `data-bar-hidden` meanwhile.
+- **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.
 - **Every screen below Home** also has the top bar: its title, and a back control when it has a parent, from the route's `staticData.screen` (title key and parent path) in `router.tsx`. A bottom bar destination has no parent.
 - **The top bar's look:** flat and full-width, fixed with its height kept in the flow, running up under the status bar. At rest it is the page colour, like the `theme-color`; once content scrolls under it (`use-scrolled.ts`), it is nearly solid glass (`glass-bar`, `--glass-bar-opacity`).
 - **Actions:** a screen puts its own controls in the top bar through `TopBarActions` (`src/shared/top-bar.ts`), leading or trailing; a leading one takes the place of the back control while it is shown.
@@ -64,7 +64,7 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - States are `tv` variants named after React Aria's render props. A state that only interaction reaches gets an exported style function, so the design page can show it.
 - A caller's `className` goes on the outer element.
 - Toasts (`src/shared/toasts.ts`, `Toast.tsx`): one region per layer, because a full-screen modal makes everything outside it inert. The shell's queue is `toasts` in the router context, rendered by `Shell`, so a toast outlives a navigation; a full-screen modal (the story) owns its own. A toast is announced politely and lasts a few seconds.
-  - The region (`toast-region`, `bars.css`) sits above the bottom bar, or above the control a screen marks `data-floating`: `page` for a selection bar, `player` for a player's action pill.
+  - The region (`toast-region`, `bars.css`) sits above the bottom bar, or above the control a screen marks `data-floating` (`bars.css`).
 - Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out. An `alert` one (`alertdialog`) asks before an irreversible action: only Escape or its own buttons close it, and it focuses the safe choice.
 - Cards (`Card.tsx`): the glass panel, padded or, for rows, unpadded. `CentredPage.tsx` puts one, with a title and body, over the glow backdrop.
 - Form status (`FormStatus.tsx`): a form's alert and its retry countdown.

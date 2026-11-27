@@ -6,8 +6,10 @@
     --above-bottom-bar: calc(var(--bottom-bar-bottom) + var(--pill-height) + var(--floating-gap));
     --player-pill-bottom: calc(env(safe-area-inset-bottom) + 1rem);
   }
+}
 
-  [data-bar-hidden] {
+@utility bottom-bar-host {
+  &:has(> nav[data-hidden]) {
     --above-bottom-bar: var(--bottom-bar-bottom);
   }
 }

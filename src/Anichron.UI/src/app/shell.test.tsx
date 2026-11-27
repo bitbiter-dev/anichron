@@ -68,18 +68,6 @@ describe('the bottom bar while scrolling', () => {
     expect(bar()).toHaveAttribute('data-hidden');
   });
 
-  it('lets what floats above it move down into its place while it is hidden', async () => {
-    await openHome();
-    const shell = () => bar().parentElement;
-    expect(shell()).not.toHaveAttribute('data-bar-hidden');
-
-    scrollTo(9);
-    expect(shell()).toHaveAttribute('data-bar-hidden');
-
-    scrollTo(0);
-    expect(shell()).not.toHaveAttribute('data-bar-hidden');
-  });
-
   it('stays hidden while the page keeps scrolling down, or stays where it is', async () => {
     await openHome();
 
