@@ -5,10 +5,6 @@ import type { useSelect } from './use-select';
 
 type RemovedQuery = UseInfiniteQueryResult<InfiniteData<RemovedPage>>;
 
-function idsOf(data: InfiniteData<RemovedPage> | undefined) {
-  return data?.pages.flatMap((page) => page.items.map(({ id }) => id)) ?? [];
-}
-
 export function useSelectAll(
   query: RemovedQuery,
   select: ReturnType<typeof useSelect>,
@@ -19,13 +15,15 @@ export function useSelectAll(
   useEffect(() => {
     selecting.current = select.selecting;
   });
-  const total = query.data?.pages.at(-1)?.total ?? 0;
+  const total = query.data ? (query.data.pages.at(-1) as RemovedPage).total : 0;
 
   async function loadAll() {
-    let result = await query.fetchNextPage({ cancelRefetch: false });
-    while (result.hasNextPage && !result.isFetchNextPageError)
-      result = await query.fetchNextPage({ cancelRefetch: false });
-    if (selecting.current) select.selectAll(idsOf(result.data));
+    let result;
+    do result = await query.fetchNextPage({ cancelRefetch: false });
+    while (result.hasNextPage && !result.isFetchNextPageError);
+    const { pages } = result.data as InfiniteData<RemovedPage>;
+    if (selecting.current)
+      select.selectAll(pages.flatMap((page) => page.items.map(({ id }) => id)));
   }
 
   function all() {

@@ -632,6 +632,33 @@ describe('selecting', () => {
       expect(within(topBar()).getByRole('button', { name: 'Select all' })).toBeVisible();
     });
 
+    it('waits for a page already loading instead of asking for it again', async () => {
+      const next = hold();
+      server.use(
+        softDeletedAnswers(async (after) => {
+          asked.push(after);
+          if (after === null) return { items: [removed(1)], next: 'page1', total: 2 };
+          await next.until;
+          return { items: [removed(2)], next: null, total: 2 };
+        }),
+      );
+      await openRemoved();
+      await startSelecting();
+      await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
+      scrollTo(4000);
+      await advance(0);
+
+      await user().click(
+        within(selectAllDialog()).getByRole('button', { name: 'Load and select' }),
+      );
+      next.release();
+
+      await waitFor(() => {
+        expect(checkedRows()).toEqual([name(1), name(2)]);
+      });
+      expect(asked).toEqual([null, 'page1']);
+    });
+
     it('selects nothing when select mode ends while the rest loads', async () => {
       const rest = hold();
       server.use(
