@@ -19,6 +19,8 @@ How the UI (`src/Anichron.UI`) calls the API.
 - A story opens once its first picture has arrived (`loadStory` in `features/on-this-day/day.ts`, its memory from the cached day or the recent days) and renders only pictures from the store. A picture fails only once none of it has arrived for `loadMilliseconds` (`mediaProgressed` in `story.ts`). A Live Photo video the server refuses plays from the network instead.
 - The tray of recent days reads `recentDays` (`src/api/flashbacks.ts`): one request for the first page of days before today, and one for all the earlier pages shown (`features/on-this-day/use-recent-days.ts`). Closing a story reloads it.
 
+- `softDeleted.purge` (`src/api/soft-deleted.ts`) forgets removed memories; the caller sends them in chunks of `chunkSize`, one call after another (`features/removed/forget.ts`). The ids the server accepts stay out of every later page until the user changes, since the Worker deletes them later.
+
 ## The event stream
 
 - `src/api/event-stream.ts` reads a Server-Sent Events response with `fetch`, so the request carries the bearer token through `authorized`. An area module imports it lazily (`work-items.ts`).

@@ -1765,6 +1765,87 @@
         }
       }
     },
+    "/api/v1/assets/purges": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Queues a purge of the caller's soft-deleted assets, one work item per storage config.",
+        "requestBody": {
+          "description": "Cancels the request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeAcceptedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flashbacks/on-this-day": {
       "get": {
         "tags": [
@@ -2901,6 +2982,7 @@
           "account_locked",
           "cannot_modify_self",
           "email_taken",
+          "invalid_asset_count",
           "invalid_credentials",
           "invalid_cursor",
           "invalid_date",
@@ -3277,6 +3359,40 @@
           "LivePhoto"
         ],
         "type": "string"
+      },
+      "PurgeAcceptedDto": {
+        "required": [
+          "accepted"
+        ],
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The requested ids that will be purged, plus the videos of accepted Live Photos."
+          }
+        },
+        "description": "What a purge request queued."
+      },
+      "PurgeRequest": {
+        "required": [
+          "assetIds"
+        ],
+        "type": "object",
+        "properties": {
+          "assetIds": {
+            "maxItems": 1000,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
       },
       "RecentDayDto": {
         "required": [
@@ -3722,7 +3838,8 @@
           "BurstDetection",
           "ProxySweep",
           "ProxyDeletion",
-          "CompactPreview"
+          "CompactPreview",
+          "AssetPurge"
         ],
         "type": "string"
       },

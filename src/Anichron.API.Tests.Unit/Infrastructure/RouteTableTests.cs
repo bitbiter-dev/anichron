@@ -134,6 +134,7 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
     [InlineData("PATCH", "/api/v1/assets/{assetId:guid}/interaction")]
     [InlineData("GET", "/api/v1/assets/hidden")]
     [InlineData("GET", "/api/v1/assets/soft-deleted")]
+    [InlineData("POST", "/api/v1/assets/purges")]
     public void MediaRoutes_RequireAnAuthenticatedUserButNotAdmin(string method, string pattern)
     {
         var route = Find(method, pattern);
@@ -255,5 +256,5 @@ public sealed class RouteTableTests(RouteTableTests.RouteTable table) : IClassFi
 
     [Fact]
     public void EveryMappedRoute_IsCoveredByTheTestsAbove()
-        => Routes.Should().HaveCount(33);
+        => Routes.Should().HaveCount(34);
 }

@@ -123,7 +123,27 @@
       "Missing": "Not found on your NAS · last seen {{date, datetime}}",
       "Overwritten": "Another file took its place · last seen {{date, datetime}}",
       "Superseded": "Its Live Photo has a newer video · removed around {{date, datetime}}"
-    }
+    },
+    "select": "Select",
+    "selectAll": "Select all loaded",
+    "cancel": "Cancel",
+    "selected_one": "{{count}} memory selected",
+    "selected_other": "{{count}} memories selected",
+    "forgetCount": "Forget {{count}}",
+    "forget": "Forget",
+    "confirm": {
+      "title_one": "Forget {{count}} memory?",
+      "title_other": "Forget {{count}} memories?",
+      "body_one": "Anichron forgets it for good, with its stars, likes and hidden state. The file on your NAS is never touched; if it turns up again, it comes back as a new memory.",
+      "body_other": "Anichron forgets them for good, with their stars, likes and hidden state. Files on your NAS are never touched; a file that turns up again comes back as a new memory."
+    },
+    "forgot_one": "Forgot {{count}} memory",
+    "forgot_other": "Forgot {{count}} memories",
+    "notForgotten_one": "{{count}} couldn't be forgotten; it may be back in your stories.",
+    "notForgotten_other": "{{count}} couldn't be forgotten; they may be back in your stories.",
+    "forgotSomeBack": "$t(removed.forgot, {\"count\": {{forgot}} }). $t(removed.notForgotten, {\"count\": {{count}} })",
+    "forgetFailed_one": "Couldn't forget {{count}} memory. Try again.",
+    "forgetFailed_other": "Couldn't forget {{count}} memories. Try again."
   },
   "viewer": {
     "previous": "Previous memory",
@@ -181,7 +201,8 @@
       "BurstDetection": "Burst detection",
       "ProxySweep": "Proxy sweep",
       "ProxyDeletion": "Proxy deletion",
-      "CompactPreview": "Compact previews"
+      "CompactPreview": "Compact previews",
+      "AssetPurge": "Purge"
     },
     "statuses": {
       "Queued": "Queued",

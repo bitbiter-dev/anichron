@@ -45,6 +45,7 @@ internal static class ApiPaths
         internal const string Interaction = "{assetId:guid}/interaction";
         internal const string Hidden = "hidden";
         internal const string SoftDeleted = "soft-deleted";
+        internal const string Purges = "purges";
     }
 
     internal static class Proxies

@@ -33,7 +33,7 @@ export function Toasts({ toasts }: ToastsProps) {
       {({ toast }) => (
         <Toast toast={toast} className={toastStyles}>
           <ToastContent role="status" className="py-2">
-            <Text slot="title">{t(toast.content.message)}</Text>
+            <Text slot="title">{t(toast.content.message, { ...toast.content.values })}</Text>
           </ToastContent>
           <Action
             action={toast.content.action}

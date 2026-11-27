@@ -192,7 +192,7 @@ describe('the recent days', () => {
     expect(await (await shownTray()).findByText('Nothing in recent days')).toBeVisible();
     expect(items()).toEqual(['Nothing in recent days', 'Earlier days']);
     expect(tray()).toHaveAttribute('aria-busy', 'false');
-    expect(screen.getByText('Nothing from this day in earlier years')).toBeVisible();
+    expect(await screen.findByText('Nothing from this day in earlier years')).toBeVisible();
     expect(await axeResults(container)).toHaveNoViolations();
   });
 

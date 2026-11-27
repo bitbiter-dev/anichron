@@ -13,6 +13,7 @@ using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Maintenance;
 using Anichron.Worker.ProxySweeps;
+using Anichron.Worker.Purges;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Anichron.Worker.Work;
@@ -193,6 +194,11 @@ public sealed class WorkerServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddIngestionServices_RegistersProxyFileRemover_AsSingleton()
+        => new ServiceCollection().AddIngestionServices().Should().ContainSingle(d =>
+            d.ServiceType == typeof(ProxyFileRemover) && d.Lifetime == ServiceLifetime.Singleton);
+
+    [Fact]
     public void AddIngestionServices_RegistersProxyStagingWriter_AsSingleton()
     {
         var services = new ServiceCollection();
@@ -238,6 +244,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
                 (typeof(IWorkHandler<BurstDetectionPayload>), typeof(BurstDetectionHandler)),
                 (typeof(IWorkHandler<ProxySweepPayload>), typeof(ProxySweepHandler)),
                 (typeof(IWorkHandler<ProxyDeletionPayload>), typeof(ProxyDeletionHandler)),
+                (typeof(IWorkHandler<AssetPurgePayload>), typeof(AssetPurgeHandler)),
                 (typeof(IWorkHandler<CompactPreviewPayload>), typeof(CompactPreviewHandler)),
             ]);
     }
@@ -374,6 +381,7 @@ public sealed class WorkerServiceCollectionExtensionsTests
         { typeof(IMediaAssetRepository), typeof(EfMediaAssetRepository) },
         { typeof(IBurstRepository), typeof(EfBurstRepository) },
         { typeof(IProxyOrphanStore), typeof(EfProxyOrphanStore) },
+        { typeof(IAssetPurgeStore), typeof(EfAssetPurgeStore) },
         { typeof(ActiveStorageConfigs), typeof(ActiveStorageConfigs) },
         { typeof(IWorkQueue), typeof(EfWorkQueue) },
     };

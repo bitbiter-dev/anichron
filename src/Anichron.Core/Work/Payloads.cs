@@ -71,3 +71,13 @@ public sealed record ProxyDeletionPayload(Guid SweepId, Guid? StorageConfigId, I
 
     Guid? IWorkPayload.StorageConfigId => StorageConfigId;
 }
+
+/// <summary>Forgets soft-deleted assets of one config, each only if it is still soft-deleted.</summary>
+/// <param name="StorageConfigId">The config the assets belong to.</param>
+/// <param name="AssetIds">The assets to purge.</param>
+public sealed record AssetPurgePayload(Guid StorageConfigId, IReadOnlyList<Guid> AssetIds) : IWorkPayload
+{
+    public static WorkKind Kind => WorkKind.AssetPurge;
+
+    Guid? IWorkPayload.StorageConfigId => StorageConfigId;
+}
