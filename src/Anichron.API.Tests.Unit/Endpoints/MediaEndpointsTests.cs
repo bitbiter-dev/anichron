@@ -487,6 +487,21 @@ public sealed class MediaEndpointsTests
     }
 
     [Fact]
+    public async Task PostPurge_AThousandIds_IsAcceptedAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.SoftDeleted.ResolvePurgeAsync(UserId, Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(
+            PostPurge([.. Enumerable.Range(1, 1000).Select(Asset)]), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
     public async Task PostPurge_AThousandDistinctIdsAndARepeat_ReturnsBadRequestAsync()
     {
         var fixture = new TestFixture();
