@@ -2,6 +2,7 @@
 @import '../shared/ui/tokens.css';
 @import './base.css';
 @import './glass.css';
+@import './bars.css';
 @import './focus.css';
 
 @source not '../design';
