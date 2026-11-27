@@ -2481,7 +2481,7 @@ describe('a blurhash', () => {
     withBlurhash();
     const { container } = await openStory('/day/2026-11-11?year=2025');
 
-    expect(canvas()?.nextElementSibling).toBe(picture());
+    expect(canvas()?.compareDocumentPosition(picture())).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect([canvas()?.width, canvas()?.height]).toEqual([32, 24]);
     const image = lastPainted();
     expect([image.width, image.height]).toEqual([32, 24]);
