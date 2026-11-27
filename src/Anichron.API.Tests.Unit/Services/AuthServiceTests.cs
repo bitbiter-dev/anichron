@@ -32,7 +32,7 @@ public sealed class AuthServiceTests
             _guidFactory.NewGuid().Returns(Guid.Empty);
             PasswordHasher.Hash(Arg.Any<string>()).Returns("hashed_value");
             _clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 1, 1, 12, 0, 0));
-            TokenService.IssueAsync(Arg.Any<User>(), Arg.Any<CancellationToken>()).Returns(new AuthTokens("access_token", "refresh_token", TimeSpan.FromMinutes(15), new User(), false));
+            TokenService.IssueAsync(Arg.Any<User>(), Arg.Any<CancellationToken>()).Returns(new AuthTokens("access_token", "refresh_token", TimeSpan.FromMinutes(15), new User()));
             UnitOfWork
                 .ExecuteInTransactionAsync(Arg.Any<Func<Task>>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo => callInfo.Arg<Func<Task>>()());
@@ -155,7 +155,7 @@ public sealed class AuthServiceTests
     public async Task RegisterAsync_ValidInput_ReturnsOkWithTokens()
     {
         var fixture = new TestFixture()
-            .WithTokenIssued(new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User(), false));
+            .WithTokenIssued(new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User()));
         var testee = fixture.CreateTestee();
 
         var result = await testee.RegisterAsync("alice", "alice@example.com", "password", "invite_token", CancellationToken.None);
@@ -424,7 +424,7 @@ public sealed class AuthServiceTests
         var fixture = new TestFixture()
             .WithPasswordValid()
             .WithUser(user)
-            .WithTokenIssued(new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User(), false));
+            .WithTokenIssued(new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User()));
         var testee = fixture.CreateTestee();
 
         var result = await testee.LoginAsync("alice", "correct_password", CancellationToken.None);
@@ -720,7 +720,7 @@ public sealed class AuthServiceTests
     [Fact]
     public async Task RefreshAsync_DelegatesToTokenService_ReturnsItsResult()
     {
-        ServiceResult<AuthTokens, IRefreshError> expected = new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User(), false);
+        ServiceResult<AuthTokens, IRefreshError> expected = new AuthTokens("acc", "ref", TimeSpan.FromMinutes(15), new User());
         var fixture = new TestFixture()
             .WithTokenRefresh("raw_token", expected);
         var testee = fixture.CreateTestee();
@@ -827,7 +827,7 @@ public sealed class AuthServiceTests
     {
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var user = new User { Id = userId, PasswordHash = "stored_hash", MustChangePassword = true };
-        var issued = new AuthTokens("new_access", "new_refresh", TimeSpan.FromMinutes(15), user, false);
+        var issued = new AuthTokens("new_access", "new_refresh", TimeSpan.FromMinutes(15), user);
         var issuedWhileMustChange = new List<bool>();
         var fixture = new TestFixture()
             .WithUserById(userId, user)

@@ -14,6 +14,7 @@ using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Ingestion.Proxy;
 using Anichron.Worker.Maintenance;
 using Anichron.Worker.ProxySweeps;
+using Anichron.Worker.Purges;
 using Anichron.Worker.Settings;
 using Anichron.Worker.Startup;
 using Anichron.Worker.Work;
@@ -52,6 +53,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IMediaAssetRepository, EfMediaAssetRepository>();
             services.AddScoped<IBurstRepository, EfBurstRepository>();
             services.AddScoped<IProxyOrphanStore, EfProxyOrphanStore>();
+            services.AddScoped<IAssetPurgeStore, EfAssetPurgeStore>();
             services.AddScoped<ActiveStorageConfigs>();
             services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AnichronDbContext>());
             services.AddScoped<IWorkQueue, EfWorkQueue>();
@@ -69,6 +71,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddWorkHandler<CompactPreviewPayload, CompactPreviewHandler>();
             services.AddWorkHandler<ProxySweepPayload, ProxySweepHandler>();
             services.AddWorkHandler<ProxyDeletionPayload, ProxyDeletionHandler>();
+            services.AddWorkHandler<AssetPurgePayload, AssetPurgeHandler>();
             services.AddSingleton<IWorkScheduleSource, TokenCleanupSchedule>();
             services.AddSingleton<IWorkScheduleSource, WorkItemRetentionSchedule>();
             services.AddSingleton<IWorkScheduleSource, StorageConfigSchedules<CrawlPayload>>();
@@ -97,6 +100,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IThumbnailMatcher, OrbThumbnailMatcher>();
             services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();
             services.AddSingleton<ProxyStagingWriter>();
+            services.AddSingleton<ProxyFileRemover>();
             services.AddImageProxyServices();
             services.AddVideoProxyServices();
             services.AddScoped<PairedMovResolver>();

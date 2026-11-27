@@ -73,6 +73,7 @@ Tested in `Anichron.Tests.Integration`, which is outside the Stryker run. Never 
 | `EfWorkQueue.TryInsertAsync` | The partial unique index on `DedupKey` |
 | `EfWorkItemCanceller.CancelAsync` | Raw SQL and row locking |
 | `EfProxyOrphanStore.RecordAsync` | Raw SQL with `ON CONFLICT`; which files are orphans is `ProxySweepHandler`, in scope |
+| `EfAssetPurgeStore.DeleteSoftDeletedAsync` | A data-modifying CTE whose `SELECT` sees the rows the cascade removes; what the counts and files are is `AssetPurgeHandler`, in scope |
 | `EfWorkItemStore`, all but `IsDueAsync`, and its `Running`/`Expired` filters | `FOR UPDATE SKIP LOCKED`, fenced `ExecuteUpdate`/`ExecuteDelete` |
 
 ## Consequences

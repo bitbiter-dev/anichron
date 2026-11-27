@@ -44,10 +44,10 @@ public sealed class IngestionSaverTests(PostgresServer server)
         return connectionString;
     }
 
-    private static async Task<Dictionary<Guid, (string Hash, bool SoftDeleted)>> RowsAsync(string connectionString)
+    private static async Task<Dictionary<Guid, (string Hash, SoftDeleteReason? Reason)>> RowsAsync(string connectionString)
     {
         await using var db = PostgresServer.Context(connectionString);
-        return await db.MediaAssets.IgnoreQueryFilters().ToDictionaryAsync(a => a.Id, a => (a.ContentHash, a.IsSoftDeleted), Ct);
+        return await db.MediaAssets.IgnoreQueryFilters().ToDictionaryAsync(a => a.Id, a => (a.ContentHash, a.SoftDeleteReason), Ct);
     }
 
     private static IngestionContext Taking(params (MediaAsset AtPath, MediaAsset Moved)[] halves) => new()
@@ -66,7 +66,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
         await using var db = PostgresServer.Context(connectionString);
         var moved = await db.MediaAssets.SingleAsync(a => a.Id == Moved, Ct);
         var atPath = await db.MediaAssets.SingleAsync(a => a.Id == AtPath, Ct);
-        moved.IsSoftDeleted = true;
+        (moved.IsSoftDeleted, moved.SoftDeleteReason) = (true, SoftDeleteReason.Missing);
         atPath.ContentHash = hash;
         return await new IngestionSaver(db, new EfMediaAssetRepository(db)).TrySaveItemAsync(Taking((atPath, moved)), null, Ct);
     }
@@ -76,7 +76,8 @@ public sealed class IngestionSaverTests(PostgresServer server)
         await using var db = PostgresServer.Context(connectionString);
         var rows = await db.MediaAssets.ToDictionaryAsync(a => a.Id, Ct);
         var (moved, atPath, movedVideo, atPathVideo) = (rows[Moved], rows[AtPath], rows[MovedVideo], rows[AtPathVideo]);
-        (moved.IsSoftDeleted, movedVideo.IsSoftDeleted) = (true, true);
+        (moved.IsSoftDeleted, moved.SoftDeleteReason) = (true, SoftDeleteReason.Missing);
+        (movedVideo.IsSoftDeleted, movedVideo.SoftDeleteReason) = (true, SoftDeleteReason.Superseded);
         (atPath.ContentHash, atPathVideo.ContentHash) = ("abc123", videoHash);
         return await new IngestionSaver(db, new EfMediaAssetRepository(db))
             .TrySaveItemAsync(Taking((atPath, moved), (atPathVideo, movedVideo)), null, Ct);
@@ -90,13 +91,13 @@ public sealed class IngestionSaverTests(PostgresServer server)
         var saved = await TakeContentAsync(connectionString, "abc123");
 
         saved.Should().BeTrue();
-        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, bool)>
+        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, SoftDeleteReason?)>
         {
-            [Moved] = ("abc123", true),
-            [AtPath] = ("abc123", false),
-            [Other] = ("beef", false),
-            [MovedVideo] = ("cafebabe", false),
-            [AtPathVideo] = ("0ldm0v", false),
+            [Moved] = ("abc123", SoftDeleteReason.Missing),
+            [AtPath] = ("abc123", null),
+            [Other] = ("beef", null),
+            [MovedVideo] = ("cafebabe", null),
+            [AtPathVideo] = ("0ldm0v", null),
         });
     }
 
@@ -108,13 +109,13 @@ public sealed class IngestionSaverTests(PostgresServer server)
         var saved = await TakeContentAsync(connectionString, "beef");
 
         saved.Should().BeFalse();
-        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, bool)>
+        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, SoftDeleteReason?)>
         {
-            [Moved] = ("abc123", false),
-            [AtPath] = ("f00d", false),
-            [Other] = ("beef", false),
-            [MovedVideo] = ("cafebabe", false),
-            [AtPathVideo] = ("0ldm0v", false),
+            [Moved] = ("abc123", null),
+            [AtPath] = ("f00d", null),
+            [Other] = ("beef", null),
+            [MovedVideo] = ("cafebabe", null),
+            [AtPathVideo] = ("0ldm0v", null),
         });
     }
 
@@ -126,13 +127,13 @@ public sealed class IngestionSaverTests(PostgresServer server)
         var saved = await TakeLivePhotoAsync(connectionString, "cafebabe");
 
         saved.Should().BeTrue();
-        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, bool)>
+        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, SoftDeleteReason?)>
         {
-            [Moved] = ("abc123", true),
-            [AtPath] = ("abc123", false),
-            [Other] = ("beef", false),
-            [MovedVideo] = ("cafebabe", true),
-            [AtPathVideo] = ("cafebabe", false),
+            [Moved] = ("abc123", SoftDeleteReason.Missing),
+            [AtPath] = ("abc123", null),
+            [Other] = ("beef", null),
+            [MovedVideo] = ("cafebabe", SoftDeleteReason.Superseded),
+            [AtPathVideo] = ("cafebabe", null),
         });
     }
 
@@ -144,13 +145,13 @@ public sealed class IngestionSaverTests(PostgresServer server)
         var saved = await TakeLivePhotoAsync(connectionString, "beef");
 
         saved.Should().BeFalse();
-        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, bool)>
+        (await RowsAsync(connectionString)).Should().BeEquivalentTo(new Dictionary<Guid, (string, SoftDeleteReason?)>
         {
-            [Moved] = ("abc123", false),
-            [AtPath] = ("f00d", false),
-            [Other] = ("beef", false),
-            [MovedVideo] = ("cafebabe", false),
-            [AtPathVideo] = ("0ldm0v", false),
+            [Moved] = ("abc123", null),
+            [AtPath] = ("f00d", null),
+            [Other] = ("beef", null),
+            [MovedVideo] = ("cafebabe", null),
+            [AtPathVideo] = ("0ldm0v", null),
         });
     }
 
@@ -213,7 +214,7 @@ public sealed class IngestionSaverTests(PostgresServer server)
                     Substitute.For<IClock>(), Substitute.For<IGuidFactory>(),
                     NullLogger<PairedMovResolver>.Instance)
                 .PairAsync(context, atPath, Ct);
-            (moved.IsSoftDeleted, atPath.ContentHash, video.FilePath) = (true, "b0b0", "A.mov");
+            (moved.IsSoftDeleted, moved.SoftDeleteReason, atPath.ContentHash, video.FilePath) = (true, SoftDeleteReason.Missing, "b0b0", "A.mov");
 
             (await new IngestionSaver(db, repository).TrySaveItemAsync(context, null, Ct)).Should().BeTrue();
         }

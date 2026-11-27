@@ -47,12 +47,13 @@ export function problem<C extends string>(status: number, code: C, extra: object
 
 export function loginSucceeds(
   onRequest: (request: Schemas['LoginRequest']) => void = () => undefined,
+  session = miraSession,
 ) {
   return http.post('/api/v1/auth/login', async ({ request, response }) => {
     if (request.headers.get('Content-Type') !== 'application/json')
       return response(415).json({ status: 415 }, { headers: problemHeaders });
     onRequest(await request.json());
-    return response(200).json(miraSession);
+    return response(200).json(session);
   });
 }
 
@@ -109,6 +110,11 @@ export function logoutRespondsWith(respond: () => Response | Promise<Response>) 
 export const forcedSession: Schemas['SessionResponse'] = {
   ...miraSession,
   user: { ...miraSession.user, mustChangePassword: true },
+};
+
+export const forcedAdminSession: Schemas['SessionResponse'] = {
+  ...adminSession,
+  user: { ...adminSession.user, mustChangePassword: true },
 };
 
 export function passwordChangeSucceeds(

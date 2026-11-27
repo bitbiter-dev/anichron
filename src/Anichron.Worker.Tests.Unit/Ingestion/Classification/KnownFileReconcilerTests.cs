@@ -154,7 +154,13 @@ public sealed class KnownFileReconcilerTests
         var reconciled = await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByCopy, copied, Retired: atPath));
 
         reconciled.Should().BeTrue();
-        atPath.Should().BeEquivalentTo(new { IsSoftDeleted = true, ContentHash = "f00d", FilePath = "2024/taken.jpg" });
+        atPath.Should().BeEquivalentTo(new
+        {
+            IsSoftDeleted = true,
+            SoftDeleteReason = SoftDeleteReason.Overwritten,
+            ContentHash = "f00d",
+            FilePath = "2024/taken.jpg",
+        });
         copied.Should().BeEquivalentTo(new { IsSoftDeleted = false, FilePath = "2023/photo.jpg", LastSeenOnNas = FirstSeen });
         (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((1, 0));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information).Which.Message.Should().Be(
@@ -185,6 +191,7 @@ public sealed class KnownFileReconcilerTests
             new FileClassification(FileOutcome.OverwrittenByCopy, Row(MovedRowId, "2023/photo.jpg", "abc123"), Retired: atPath));
 
         (atPath.IsSoftDeleted, video.IsSoftDeleted).Should().Be((true, true));
+        video.SoftDeleteReason.Should().Be(SoftDeleteReason.Overwritten);
         fx.Context.StagedSoftDeleted.Should().Be(2);
     }
 
@@ -200,6 +207,7 @@ public sealed class KnownFileReconcilerTests
             new FileClassification(FileOutcome.LoneLivePhotoVideo, Row(MovedRowId, "LP/A.mov", "b1b1"), Retired: atPath), "X.heic");
 
         (atPath.IsSoftDeleted, video.IsSoftDeleted).Should().Be((true, true));
+        (atPath.SoftDeleteReason, video.SoftDeleteReason).Should().Be((SoftDeleteReason.Overwritten, SoftDeleteReason.Overwritten));
         fx.Context.StagedSoftDeleted.Should().Be(2);
     }
 
@@ -326,6 +334,7 @@ public sealed class KnownFileReconcilerTests
         await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
 
         (moved.IsSoftDeleted, moved.PairedAssetId, video.IsSoftDeleted).Should().Be((true, VideoId, true));
+        video.SoftDeleteReason.Should().Be(SoftDeleteReason.Missing);
         (atPath.IsSoftDeleted, atPath.PairedAssetId).Should().Be((false, null));
         fx.Context.StagedSoftDeleted.Should().Be(2);
     }
@@ -338,7 +347,14 @@ public sealed class KnownFileReconcilerTests
 
         await fx.ReconcileAsync(new FileClassification(FileOutcome.OverwrittenByMove, atPath, Retired: moved));
 
-        moved.Should().BeEquivalentTo(new { IsSoftDeleted = true, FilePath = "2023/photo.jpg", ContentHash = "abc123", LastSeenOnNas = FirstSeen });
+        moved.Should().BeEquivalentTo(new
+        {
+            IsSoftDeleted = true,
+            SoftDeleteReason = SoftDeleteReason.Missing,
+            FilePath = "2023/photo.jpg",
+            ContentHash = "abc123",
+            LastSeenOnNas = FirstSeen,
+        });
         (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((1, 0));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle(r => r.Level == LogLevel.Information).Which.Message.Should().Be(
             "Asset eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee at 2024/taken.jpg took the content of asset "
@@ -543,7 +559,13 @@ public sealed class KnownFileReconcilerTests
             new FileClassification(FileOutcome.LoneLivePhotoVideo, video, Retired: standalone), "X.mov");
 
         reconciled.Should().BeTrue();
-        standalone.Should().BeEquivalentTo(new { IsSoftDeleted = true, ContentHash = "f00d", FilePath = "X.mov" });
+        standalone.Should().BeEquivalentTo(new
+        {
+            IsSoftDeleted = true,
+            SoftDeleteReason = SoftDeleteReason.Overwritten,
+            ContentHash = "f00d",
+            FilePath = "X.mov",
+        });
         video.Should().BeEquivalentTo(new { IsSoftDeleted = false, FilePath = "LP/A.mov", LastSeenOnNas = FirstSeen });
         (fx.Context.StagedSoftDeleted, fx.Context.StagedAutoRestored).Should().Be((1, 0));
         fx.Logger.Collector.GetSnapshot().Should().ContainSingle().Which.Should().Match<FakeLogRecord>(r =>

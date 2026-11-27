@@ -1,6 +1,8 @@
 using Anichron.API.Endpoints;
 using Anichron.API.Tests.Unit.Infrastructure;
 using Anichron.Core.Data.Repository;
+using Anichron.Core.Domain;
+using Anichron.Core.Work;
 using Microsoft.Extensions.DependencyInjection;
 using System.Buffers.Text;
 using System.Net;
@@ -18,15 +20,23 @@ public sealed class MediaEndpointsTests
     {
         public IAssetInteractionWriter Interactions { get; } = Substitute.For<IAssetInteractionWriter>();
         public IAssetViewReader Reader { get; } = Substitute.For<IAssetViewReader>();
+        public ISoftDeletedAssetReader SoftDeleted { get; } = Substitute.For<ISoftDeletedAssetReader>();
+        public IWorkQueue Queue { get; } = Substitute.For<IWorkQueue>();
 
         public TestFixture()
-            => Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>()).Returns([]);
+        {
+            Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>()).Returns([]);
+            SoftDeleted.ReadPageAsync(Arg.Any<Guid>(), Arg.Any<AssetCursor?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns(new SoftDeletedPage([], null));
+        }
 
         public Task<AuthenticatedTestApp> StartAsync()
             => AuthenticatedTestApp.StartAsync(api => api.MapMediaEndpoints(), services =>
             {
                 services.AddSingleton(Interactions);
                 services.AddSingleton(Reader);
+                services.AddSingleton(SoftDeleted);
+                services.AddSingleton(Queue);
             });
     }
 
@@ -254,7 +264,7 @@ public sealed class MediaEndpointsTests
         page.Items.Select(i => i.Asset.Id).Should().Equal(views[..60].Select(v => v.Id));
         second.StatusCode.Should().Be(HttpStatusCode.OK);
         await fixture.Reader.Received(1).ReadAsync(
-            UserId, new HiddenAssets(new HiddenCursor(views[59].HiddenAt!.Value, views[59].Id), 61), Arg.Any<CancellationToken>());
+            UserId, new HiddenAssets(new AssetCursor(views[59].HiddenAt!.Value, views[59].Id), 61), Arg.Any<CancellationToken>());
     }
 
     public static TheoryData<string> MalformedCursors { get; } =
@@ -293,5 +303,246 @@ public sealed class MediaEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         await fixture.Reader.DidNotReceiveWithAnyArgs().ReadAsync(Guid.Empty, null!, CancellationToken.None);
+    }
+
+    // ==========================================================================
+    // GET soft-deleted (#341)
+    // ==========================================================================
+
+    private static readonly Instant LastSeen = Instant.FromUtc(2026, 11, 3, 18, 4, 5);
+
+    private static HttpRequestMessage GetSoftDeleted(string query = "")
+        => AuthenticatedTestApp.Get($"/api/v1/assets/soft-deleted{query}", UserId);
+
+    private static async Task<SoftDeletedAssetsPageDto> ReadSoftDeletedPageAsync(HttpResponseMessage response)
+    {
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page = await response.Content.ReadFromJsonAsync<SoftDeletedAssetsPageDto>(TestContext.Current.CancellationToken);
+        page.Should().NotBeNull();
+        return page;
+    }
+
+    [Fact]
+    public async Task GetSoftDeleted_WithoutACursor_ReadsTheCallersFirstPageOfSixtyAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(GetSoftDeleted(), TestContext.Current.CancellationToken);
+
+        var page = await ReadSoftDeletedPageAsync(response);
+        page.Items.Should().BeEmpty();
+        page.Next.Should().BeNull();
+        await fixture.SoftDeleted.Received(1).ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetSoftDeleted_ReturnsEachAssetWithItsPathWhenLastSeenAndWhyAsync()
+    {
+        var fixture = new TestFixture();
+        var view = AssetViews.SoftDeleted(AssetId, LastSeen) with { Reason = SoftDeleteReason.Superseded };
+        fixture.SoftDeleted.ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>()).Returns(new SoftDeletedPage([view], null));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(GetSoftDeleted(), TestContext.Current.CancellationToken);
+
+        (await ReadSoftDeletedPageAsync(response)).Items.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Id = AssetId,
+            Path = "2019/IMG_0001.HEIC",
+            LastSeenOnNas = "2026-11-03T18:04:05Z",
+            Reason = "Superseded",
+        });
+    }
+
+    [Fact]
+    public async Task GetSoftDeleted_NextCursor_ResumesAfterTheLastRowOfThePageAsync()
+    {
+        var fixture = new TestFixture();
+        var last = new AssetCursor(LastSeen, AssetId);
+        fixture.SoftDeleted.ReadPageAsync(UserId, null, 60, Arg.Any<CancellationToken>()).Returns(new SoftDeletedPage([], last));
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var first = await client.SendAsync(GetSoftDeleted(), TestContext.Current.CancellationToken);
+        var next = (await ReadSoftDeletedPageAsync(first)).Next;
+        using var second = await client.SendAsync(
+            GetSoftDeleted($"?after={Uri.EscapeDataString(next!)}"), TestContext.Current.CancellationToken);
+
+        second.StatusCode.Should().Be(HttpStatusCode.OK);
+        await fixture.SoftDeleted.Received(1).ReadPageAsync(UserId, last, 60, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [MemberData(nameof(MalformedCursors))]
+    public async Task GetSoftDeleted_MalformedCursor_ReturnsBadRequestWithoutReadingAsync(string after)
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(
+            GetSoftDeleted($"?after={Uri.EscapeDataString(after)}"), TestContext.Current.CancellationToken);
+
+        await ProblemAssertions.AssertFieldProblemAsync(
+            response, 400, "invalid_cursor", "after", "after must be the next cursor of an earlier page.");
+        await fixture.SoftDeleted.DidNotReceiveWithAnyArgs().ReadPageAsync(Guid.Empty, null, 0, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetSoftDeleted_Anonymous_ReturnsUnauthorizedWithoutReadingAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.GetAsync("/api/v1/assets/soft-deleted", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        await fixture.SoftDeleted.DidNotReceiveWithAnyArgs().ReadPageAsync(Guid.Empty, null, 0, CancellationToken.None);
+    }
+
+    // ==========================================================================
+    // POST purges (#342)
+    // ==========================================================================
+
+    private static readonly Guid ConfigA = Guid.Parse("cccccccc-0000-0000-0000-00000000000a");
+    private static readonly Guid ConfigB = Guid.Parse("cccccccc-0000-0000-0000-00000000000b");
+
+    private static Guid Asset(int n) => Guid.Parse($"bbbbbbbb-0000-0000-0000-{n:D12}");
+
+    private static HttpRequestMessage PostPurge(IEnumerable<Guid> assetIds, Guid? userId = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/assets/purges")
+        {
+            Content = JsonContent.Create(new { assetIds }),
+        };
+        request.Headers.Add(AuthenticatedTestApp.UserHeader, (userId ?? UserId).ToString());
+        return request;
+    }
+
+    private static async Task<IReadOnlyList<Guid>> ReadAcceptedAsync(HttpResponseMessage response)
+    {
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        response.Headers.Location.Should().BeNull();
+        var body = await response.Content.ReadFromJsonAsync<PurgeAcceptedDto>(TestContext.Current.CancellationToken);
+        return body!.Accepted;
+    }
+
+    [Fact]
+    public async Task PostPurge_ReturnsTheAcceptedIdsAndQueuesOnePurgePerConfigAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.SoftDeleted.ResolvePurgeAsync(UserId, Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns([new PurgeTarget(Asset(1), ConfigA), new PurgeTarget(Asset(2), ConfigB), new PurgeTarget(Asset(3), ConfigA)]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(PostPurge([Asset(1), Asset(2), Asset(4)]), TestContext.Current.CancellationToken);
+
+        (await ReadAcceptedAsync(response)).Should().Equal(Asset(1), Asset(2), Asset(3));
+        var queued = fixture.Queue.ReceivedCalls()
+            .Select(call => call.GetArguments())
+            .Select(args => ((AssetPurgePayload)args[0]!, (Guid?)args[1]))
+            .ToList();
+        queued.Should().HaveCount(2);
+        queued.Should().ContainSingle(q => q.Item1.StorageConfigId == ConfigA)
+            .Which.Should().Match<(AssetPurgePayload Payload, Guid? By)>(q =>
+                q.Payload.AssetIds.SequenceEqual(new[] { Asset(1), Asset(3) }) && q.By == UserId);
+        queued.Should().ContainSingle(q => q.Item1.StorageConfigId == ConfigB)
+            .Which.Item1.AssetIds.Should().Equal(Asset(2));
+    }
+
+    [Fact]
+    public async Task PostPurge_ResolvesTheDistinctRequestedIdsForTheCallerAsync()
+    {
+        var fixture = new TestFixture();
+        IReadOnlyCollection<Guid>? resolved = null;
+        fixture.SoftDeleted.ResolvePurgeAsync(UserId, Arg.Do<IReadOnlyCollection<Guid>>(ids => resolved = ids), Arg.Any<CancellationToken>())
+            .Returns([]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(PostPurge([Asset(1), Asset(2), Asset(1)]), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        resolved.Should().Equal(Asset(1), Asset(2));
+    }
+
+    [Fact]
+    public async Task PostPurge_NothingAccepted_QueuesNothingAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.SoftDeleted.ResolvePurgeAsync(UserId, Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(PostPurge([Asset(1)]), TestContext.Current.CancellationToken);
+
+        (await ReadAcceptedAsync(response)).Should().BeEmpty();
+        fixture.Queue.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PostPurge_AThousandIds_IsAcceptedAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.SoftDeleted.ResolvePurgeAsync(UserId, Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(
+            PostPurge([.. Enumerable.Range(1, 1000).Select(Asset)]), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
+    public async Task PostPurge_AThousandDistinctIdsAndARepeat_ReturnsBadRequestAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+        var ids = Enumerable.Range(1, 1000).Select(Asset).ToList();
+
+        using var response = await client.SendAsync(PostPurge([.. ids, ids[0]]), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    public static TheoryData<int> InvalidPurgeCounts { get; } = [0, 1001];
+
+    [Theory]
+    [MemberData(nameof(InvalidPurgeCounts))]
+    public async Task PostPurge_NoneOrMoreThanAThousandIds_ReturnsBadRequestWithoutResolvingAsync(int count)
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(PostPurge(Enumerable.Range(1, count).Select(Asset)), TestContext.Current.CancellationToken);
+
+        await ProblemAssertions.AssertFieldProblemAsync(
+            response, 400, "invalid_asset_count", "assetIds", "assetIds must hold from 1 to 1000 ids.");
+        fixture.SoftDeleted.ReceivedCalls().Should().BeEmpty();
+        fixture.Queue.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PostPurge_Anonymous_ReturnsUnauthorizedWithoutResolvingAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/assets/purges", new { assetIds = new[] { Asset(1) } }, TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        fixture.SoftDeleted.ReceivedCalls().Should().BeEmpty();
     }
 }

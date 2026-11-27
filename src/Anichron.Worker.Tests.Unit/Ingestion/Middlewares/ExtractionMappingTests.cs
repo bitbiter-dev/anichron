@@ -44,10 +44,13 @@ public sealed class ExtractionMappingTests
             (GpsDirectory.TagLongitudeRef, "E"), (GpsDirectory.TagLongitude, Dms(longitude)));
     }
 
-    private MediaDescription Map(params MetadataExtractor.Directory[] directories) => Middleware.Extract(directories, null, MediaType.Image).Description;
+    private MediaDescription Map(params MetadataExtractor.Directory[] directories) => Map([], directories);
+
+    private MediaDescription Map(IReadOnlyList<int> heifTransforms, params MetadataExtractor.Directory[] directories)
+        => Middleware.Extract(directories, null, heifTransforms, MediaType.Image).Description;
 
     private RecordedDate? Recorded(MediaType mediaType, params MetadataExtractor.Directory[] directories)
-        => Middleware.Extract(directories, null, mediaType).Recorded;
+        => Middleware.Extract(directories, null, [], mediaType).Recorded;
 
     private RecordedDate? Recorded(params MetadataExtractor.Directory[] directories) => Recorded(MediaType.Image, directories);
 
@@ -177,7 +180,7 @@ public sealed class ExtractionMappingTests
     // ==========================================================================
 
     private RecordedDate? AppleRecorded(string raw, MediaType mediaType = MediaType.Video, params MetadataExtractor.Directory[] directories)
-        => Middleware.Extract(directories, raw, mediaType).Recorded;
+        => Middleware.Extract(directories, raw, [], mediaType).Recorded;
 
     private static RecordedDate.ClockTime Taken(LocalDateTime at, int? offsetMinutes)
         => new(at, offsetMinutes is { } minutes ? Offset.FromSeconds(minutes * 60) : null);
@@ -507,7 +510,7 @@ public sealed class ExtractionMappingTests
     [Fact]
     public void Extract_VideoWithAnAppleCreationDate_KeepsItsPosition()
     {
-        var result = Middleware.Extract([Location("-36.8485+174.7633+012.000/")], "2026-10-30T19:10:45+1300", MediaType.Video);
+        var result = Middleware.Extract([Location("-36.8485+174.7633+012.000/")], "2026-10-30T19:10:45+1300", [], MediaType.Video);
 
         (result.Recorded, result.Description.Latitude, result.Description.Longitude)
             .Should().Be((Taken(new LocalDateTime(2026, 10, 30, 19, 10, 45), 13 * 60), -36.8485, 174.7633));
@@ -569,17 +572,26 @@ public sealed class ExtractionMappingTests
         => Map(SizedTrack(1920, 1080), TurnedExif()).Orientation.Should().Be(1);
 
     [Fact]
-    public void Extract_HeicWithoutIrot_IsUprightWhateverExifSays()
+    public void Extract_HeicWithoutTransforms_IsUprightWhateverExifSays()
         => Map(HeicPrimary(), TurnedExif()).Orientation.Should().Be(1);
 
     [Fact]
-    public void Extract_HeicIrot_WinsOverTheVideoTrack()
-        => Map(HeicPrimary((HeicImagePropertiesDirectory.TagRotation, 180u)), SizedTrack(1920, 1080)).Orientation.Should().Be(3);
+    public void Extract_HeicTransforms_AreComposedInOrder()
+        => Map([8, 4], HeicPrimary()).Orientation.Should().Be(5);
 
     [Fact]
-    public void Extract_HeicThumbnailIrot_IsIgnored()
-        => Map(With(new HeicImagePropertiesDirectory("HEIC Thumbnail Properties"), (HeicImagePropertiesDirectory.TagRotation, 270u)))
-            .Orientation.Should().Be(1);
+    public void Extract_HeicTransforms_WinOverTheVideoTrack()
+        => Map([3], HeicPrimary(), Track((QuickTimeTrackHeaderDirectory.TagWidth, 1920), (QuickTimeTrackHeaderDirectory.TagHeight, 1080),
+                (QuickTimeTrackHeaderDirectory.TagRotation, 270.0)))
+            .Orientation.Should().Be(3);
+
+    [Fact]
+    public void Extract_HeicRotationTagWithoutTransforms_IsIgnored()
+        => Map(HeicPrimary((HeicImagePropertiesDirectory.TagRotation, 270u))).Orientation.Should().Be(1);
+
+    [Fact]
+    public void Extract_OnlyAHeicThumbnail_IsNotAHeifSoExifOrientsIt()
+        => Map([3], With(new HeicImagePropertiesDirectory("HEIC Thumbnail Properties")), TurnedExif()).Orientation.Should().Be(6);
 
     // ==========================================================================
     // Video duration

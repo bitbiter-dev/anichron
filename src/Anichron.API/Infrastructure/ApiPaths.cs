@@ -44,6 +44,8 @@ internal static class ApiPaths
         internal const string Group = "assets";
         internal const string Interaction = "{assetId:guid}/interaction";
         internal const string Hidden = "hidden";
+        internal const string SoftDeleted = "soft-deleted";
+        internal const string Purges = "purges";
     }
 
     internal static class Proxies
@@ -83,5 +85,6 @@ internal static class ApiPaths
     {
         internal const string Group = "flashbacks";
         internal const string OnThisDay = "/on-this-day";
+        internal const string Days = "/days";
     }
 }

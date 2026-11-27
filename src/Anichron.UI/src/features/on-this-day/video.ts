@@ -1,4 +1,4 @@
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import type { Downloads, Renewal } from '../../api/media';
 import { shownSource } from '../../shared/media';
 import { memoryKind } from '../../shared/memory-kinds';

@@ -19,7 +19,7 @@ export function createAssets(client: Client<paths>, authorized: Authorized): Ass
         client.PATCH('/api/v1/assets/{assetId}/interaction', {
           ...init,
           params: { path: { assetId: id } },
-          body: change as Schemas['PatchInteractionRequest'],
+          body: change,
         }),
       );
     },

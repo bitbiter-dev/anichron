@@ -1,11 +1,7 @@
 import type { Client } from 'openapi-fetch';
-import type { components, paths } from './generated/v1';
+import type { paths } from './generated/v1';
+import type { Memory, ShowMemories } from './memories';
 import type { Authorized } from './session';
-
-type Schemas = components['schemas'];
-type Proxies = Omit<Schemas['AssetProxyUrls'], 'compactPreview'>;
-
-export type Memory = Omit<Schemas['AssetDto'], 'proxies'> & { proxies: Proxies };
 
 export interface YearGroup {
   year: number;
@@ -16,33 +12,27 @@ export interface Day {
   years: YearGroup[];
 }
 
+export interface RecentDay {
+  date: string;
+  year: number;
+  memory: Memory;
+}
+
+export interface RecentWindow {
+  before: string;
+  since?: string;
+  limit: number;
+}
+
 export interface Flashbacks {
   onThisDay(date: string, signal?: AbortSignal): Promise<Day>;
-}
-
-function fromApi(url: string | null) {
-  return url && `/api/v1/${url}`;
-}
-
-export function memoryOf(asset: Schemas['AssetDto'], compact: boolean): Memory {
-  const { compactPreview, ...proxies } = asset.proxies;
-  const shown = {
-    ...proxies,
-    preview: compact ? (compactPreview ?? proxies.preview) : proxies.preview,
-  };
-  return {
-    ...asset,
-    proxies: Object.fromEntries(
-      Object.entries(shown).map(([type, url]) => [type, fromApi(url)]),
-    ) as Proxies,
-    livePhotoVideoUrl: fromApi(asset.livePhotoVideoUrl),
-  };
+  recentDays(window: RecentWindow, signal?: AbortSignal): Promise<RecentDay[]>;
 }
 
 export function createFlashbacks(
   client: Client<paths>,
   authorized: Authorized,
-  compact: Promise<boolean>,
+  show: ShowMemories,
 ): Flashbacks {
   return {
     async onThisDay(date, signal) {
@@ -53,13 +43,21 @@ export function createFlashbacks(
           params: { query: { date } },
         }),
       );
-      const shown = await compact;
-      return {
-        years: day.years.map(({ year, assets }) => ({
-          year,
-          memories: assets.map((asset) => memoryOf(asset, shown)),
-        })),
-      };
+      return show((memoryOf) => ({
+        years: day.years.map(({ year, assets }) => ({ year, memories: assets.map(memoryOf) })),
+      }));
+    },
+    async recentDays({ before, since, limit }, signal) {
+      const recent = await authorized((init) =>
+        client.GET('/api/v1/flashbacks/days', {
+          ...init,
+          signal,
+          params: { query: { before, since, limit: String(limit) } },
+        }),
+      );
+      return show((memoryOf) =>
+        recent.days.map(({ date, year, memory }) => ({ date, year, memory: memoryOf(memory) })),
+      );
     },
   };
 }

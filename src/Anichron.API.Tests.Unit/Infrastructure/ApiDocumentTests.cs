@@ -52,7 +52,10 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
         { "GET /api/v1/proxies/{assetId}/{type}", Of(["200 image/jpeg Stream", "200 image/jxl Stream", "200 video/mp4 Stream", "206 image/jpeg Stream", "206 image/jxl Stream", "206 video/mp4 Stream", "304", $"404 {Problem}", $"412 {Problem}", "416"], User) },
         { "PATCH /api/v1/assets/{assetId}/interaction", Of(["200 application/json AssetInteractionDto", $"404 {Problem}"], User, Body) },
         { "GET /api/v1/assets/hidden", Of(["200 application/json HiddenAssetsPageDto", $"400 {Invalid}"], User) },
+        { "GET /api/v1/assets/soft-deleted", Of(["200 application/json SoftDeletedAssetsPageDto", $"400 {Invalid}"], User) },
+        { "POST /api/v1/assets/purges", Of(["202 application/json PurgeAcceptedDto", $"400 {Invalid}", $"415 {Problem}"], User) },
         { "GET /api/v1/flashbacks/on-this-day", Of(["200 application/json OnThisDayDto", $"400 {Invalid}"], User) },
+        { "GET /api/v1/flashbacks/days", Of(["200 application/json RecentDaysDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/bursts/{burstId}/assets", Of(["200 application/json AssetDto[]", $"404 {Problem}"], User) },
         { "GET /api/v1/admin/work-items", Of(["200 application/json WorkItemPageDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/admin/work-items/events", Of(["200 text/event-stream SseItemOfWorkItemDto"], User) },
@@ -111,10 +114,12 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
             "account_locked",
             "cannot_modify_self",
             "email_taken",
+            "invalid_asset_count",
             "invalid_credentials",
             "invalid_cursor",
             "invalid_date",
             "invalid_email",
+            "invalid_limit",
             "invalid_orphan_count",
             "invalid_page",
             "invalid_page_size",
@@ -144,16 +149,22 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     [Fact]
     public void WorkKind_IsItsNames()
         => EnumNames("WorkKind").Should().Equal(
-            "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion", "CompactPreview");
+            "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion", "CompactPreview", "AssetPurge");
 
     [Fact]
     public void PublishedMediaType_IsItsNames()
         => EnumNames("PublishedMediaType").Should().Equal("Image", "Video", "LivePhoto");
 
+    [Fact]
+    public void SoftDeleteReason_IsItsNames()
+        => EnumNames("SoftDeleteReason").Should().Equal("Missing", "Overwritten", "Superseded");
+
     [Theory]
     [InlineData("WorkItemDto", "kind", "WorkKind")]
     [InlineData("WorkItemDto", "status", "WorkItemStatus")]
     [InlineData("AssetDto", "mediaType", "PublishedMediaType")]
+    [InlineData("SoftDeletedAssetDto", "mediaType", "PublishedMediaType")]
+    [InlineData("SoftDeletedAssetDto", "reason", "SoftDeleteReason")]
     public void Dto_NamesItsEnums(string dto, string property, string schema)
         => composed.Value.Components!.Schemas![dto].Properties!.Should().ContainKey(property)
             .WhoseValue.Should().BeOfType<OpenApiSchemaReference>().Which.Reference.Id.Should().Be(schema);

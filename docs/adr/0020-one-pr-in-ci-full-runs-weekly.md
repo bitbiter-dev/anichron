@@ -5,6 +5,7 @@ Status: accepted (decided on #536 and #537)
 ## Decision
 
 - **Landing:** agents land their own PRs through `scripts/land.sh`, under a lock shared by every worktree on the machine. It merges master, marks the PR ready before pushing, so no draft run follows the ready one (unless the pushed head conflicts with master, which GitHub runs nothing on), waits for `CI gate` and `CodeQL`, and squash-merges without the maintainer's confirmation.
+- **Resuming:** a landing stopped after its head passed leaves the PR ready. Run again with nothing to merge in or push, it merges on that pass, since marking the PR ready again would start a new run.
 - **Drafts:** a draft PR runs no CI or CodeQL job. Its gate job passes under the name `Draft, no CI`, so a commit has no `CI gate` until its ready run reports one.
 - **Master:** a push whose tree passed `CI gate` on its PR only publishes images and the UI mutation baseline.
 - **Full runs:** the full backend and UI sweeps, the quality reports and the badges run weekly. A failed weekly run or master push opens an issue assigned to the maintainer.
@@ -31,4 +32,5 @@ Status: accepted (decided on #536 and #537)
 - A change that weakens the tests of a file nobody touched is caught by the weekly run, after the merge, unless its PR mutated the whole scope.
 - Badges and the Pages reports change weekly, not on every merge.
 - A draft's run still bills its gate job.
+- A passed PR can sit ready outside the lock, so a push to it starts CI unlocked. Only the landing convention keeps others from pushing it; the cost is one extra run.
 - Marking a PR ready before the push starts CI and CodeQL on the old head, which the push's runs cancel after they have billed a few minutes.

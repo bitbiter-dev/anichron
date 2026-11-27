@@ -47,9 +47,10 @@ public interface IMediaAssetRepository
 
     /// <summary>Soft-deletes the rows among <paramref name="ids"/> that are still active.</summary>
     /// <param name="ids">The rows to soft-delete.</param>
+    /// <param name="reason">Why they go.</param>
     /// <param name="ct">Cancels the update.</param>
     /// <returns>The number of rows soft-deleted.</returns>
-    Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
+    Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, SoftDeleteReason reason, CancellationToken ct);
 
     /// <summary>Loads the asset's metadata row, even when the asset is soft-deleted.</summary>
     /// <param name="asset">A tracked asset.</param>
@@ -175,8 +176,8 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
     public void RemoveProxyFile(ProxyFile proxyFile)
         => db.ProxyFiles.Remove(proxyFile);
 
-    public Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
-        => SoftDeleteAsync(ids, batchSize: 1000, ct);
+    public Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, SoftDeleteReason reason, CancellationToken ct)
+        => SoftDeleteAsync(ids, reason, batchSize: 1000, ct);
 
     internal static IQueryable<MediaAsset> StillActiveQuery(AnichronDbContext db, IReadOnlyCollection<Guid> ids)
         => db.MediaAssets
@@ -184,13 +185,13 @@ public sealed class EfMediaAssetRepository(AnichronDbContext db) : IMediaAssetRe
             .Where(a => ids.Contains(a.Id) && !a.IsSoftDeleted);
 
     // Stryker disable all
-    internal async Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, int batchSize, CancellationToken ct)
+    internal async Task<int> SoftDeleteAsync(IReadOnlyCollection<Guid> ids, SoftDeleteReason reason, int batchSize, CancellationToken ct)
     {
         var softDeleted = 0;
         foreach (var batch in ids.Chunk(batchSize))
         {
             softDeleted += await StillActiveQuery(db, batch)
-                .ExecuteUpdateAsync(set => set.SetProperty(a => a.IsSoftDeleted, true), ct);
+                .ExecuteUpdateAsync(set => set.SetProperty(a => a.IsSoftDeleted, true).SetProperty(a => a.SoftDeleteReason, reason), ct);
         }
 
         return softDeleted;

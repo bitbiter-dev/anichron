@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { Button as AriaButton, type ButtonProps as AriaButtonProps } from 'react-aria-components';
 import { focusVariant, tv } from './tv';
 
@@ -20,6 +21,7 @@ export const buttonStyles = tv({
 interface ButtonProps extends Omit<AriaButtonProps, 'className'> {
   variant?: 'primary' | 'secondary' | 'danger';
   className?: string;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function Button({ variant, className, ...props }: ButtonProps) {

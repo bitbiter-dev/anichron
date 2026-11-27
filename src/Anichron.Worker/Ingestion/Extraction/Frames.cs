@@ -18,11 +18,17 @@ internal static class Frames
 {
     private const string heicPrimaryItemProperties = "HEIC Primary Item Properties";
 
-    public static (int Width, int Height, int Orientation) Of(IReadOnlyList<Directory> directories)
+    /// <summary>Whether the file is a HEIF, whose orientation comes from <see cref="HeifTransforms"/>.</summary>
+    /// <param name="directories">The file's metadata directories.</param>
+    public static bool IsHeif(IReadOnlyList<Directory> directories) => HeicPrimaryOf(directories) is not null;
+
+    /// <summary>The stored size, and the orientation that shows it upright.</summary>
+    /// <param name="directories">The file's metadata directories.</param>
+    /// <param name="heifTransforms">A HEIF primary item's transforms as EXIF orientations, in the order they apply.</param>
+    public static (int Width, int Height, int Orientation) Of(IReadOnlyList<Directory> directories, IReadOnlyList<int> heifTransforms)
     {
         var cameraInfo = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
-        var heicPrimary = directories.OfType<HeicImagePropertiesDirectory>()
-            .FirstOrDefault(d => d.Name == heicPrimaryItemProperties);
+        var heicPrimary = HeicPrimaryOf(directories);
         var videoTrack = directories.OfType<QuickTimeTrackHeaderDirectory>().FirstOrDefault(HasSize);
 
         var (width, height) = GetSize(
@@ -36,8 +42,11 @@ internal static class Frames
             new SizeSource(videoTrack, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight),
             SizeSource.First<AviDirectory>(directories, AviDirectory.TagWidth, AviDirectory.TagHeight));
 
-        return (width, height, GetOrientation(heicPrimary, videoTrack, cameraInfo));
+        return (width, height, GetOrientation(heicPrimary is not null, heifTransforms, videoTrack, cameraInfo));
     }
+
+    private static HeicImagePropertiesDirectory? HeicPrimaryOf(IReadOnlyList<Directory> directories)
+        => directories.OfType<HeicImagePropertiesDirectory>().FirstOrDefault(d => d.Name == heicPrimaryItemProperties);
 
     private static bool HasSize(QuickTimeTrackHeaderDirectory track)
         => new SizeSource(track, QuickTimeTrackHeaderDirectory.TagWidth, QuickTimeTrackHeaderDirectory.TagHeight).Read() is not null;
@@ -46,12 +55,12 @@ internal static class Frames
         => sources.Select(source => source.Read()).FirstOrDefault(size => size is not null) ?? (0, 0);
 
     private static int GetOrientation(
-        HeicImagePropertiesDirectory? heicPrimary, QuickTimeTrackHeaderDirectory? videoTrack, ExifIfd0Directory? cameraInfo)
+        bool isHeif, IReadOnlyList<int> heifTransforms, QuickTimeTrackHeaderDirectory? videoTrack, ExifIfd0Directory? cameraInfo)
     {
-        if (heicPrimary is not null)
-            return ExifOrientation.OfDisplayRotation(RotationOf(heicPrimary, HeicImagePropertiesDirectory.TagRotation));
+        if (isHeif)
+            return ExifOrientation.Compose(heifTransforms);
         if (videoTrack is not null)
-            return ExifOrientation.OfDisplayRotation(RotationOf(videoTrack, QuickTimeTrackHeaderDirectory.TagRotation));
+            return ExifOrientation.OfDisplayRotation(videoTrack.TryGetDouble(QuickTimeTrackHeaderDirectory.TagRotation, out var degrees) ? degrees : 0);
         return cameraInfo is not null
            && cameraInfo.TryGetInt32(ExifDirectoryBase.TagOrientation, out var orientation)
            && orientation is
@@ -61,9 +70,6 @@ internal static class Frames
             ? orientation
             : ExifOrientation.Upright;
     }
-
-    private static double RotationOf(Directory directory, int rotationTag)
-        => directory.TryGetDouble(rotationTag, out var degrees) ? degrees : 0;
 
     private readonly record struct SizeSource(Directory? Directory, int WidthTag, int HeightTag)
     {

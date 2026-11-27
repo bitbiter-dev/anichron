@@ -8,6 +8,7 @@ export interface ToastAction {
 
 export interface ToastMessage {
   message: ParseKeys;
+  values?: Record<string, number>;
   action?: ToastAction;
 }
 
@@ -22,6 +23,9 @@ export function createToasts() {
     show: (toast: ToastMessage) => queue.add(toast, { timeout: toastMilliseconds }),
     close: (key: string) => {
       queue.close(key);
+    },
+    clear: () => {
+      queue.clear();
     },
   };
 }

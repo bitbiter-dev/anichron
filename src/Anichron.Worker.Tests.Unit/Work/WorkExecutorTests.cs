@@ -49,6 +49,11 @@ public sealed class WorkExecutorTests : IAsyncDisposable
         public static WorkKind Kind => WorkKind.CompactPreview;
     }
 
+    public sealed record Purge : IWorkPayload
+    {
+        public static WorkKind Kind => WorkKind.AssetPurge;
+    }
+
     private static readonly TimeSpan Heartbeat = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan Poll = TimeSpan.FromSeconds(5);
     private static readonly Duration Lease = Duration.FromSeconds(60);
@@ -130,8 +135,9 @@ public sealed class WorkExecutorTests : IAsyncDisposable
                 WorkHandlerRegistration.For<Crawl>(), WorkHandlerRegistration.For<Bursts>(),
                 WorkHandlerRegistration.For<Sweep>(), WorkHandlerRegistration.For<Deletion>(),
                 WorkHandlerRegistration.For<Compact>(),
+                WorkHandlerRegistration.For<Purge>(),
             ],
-            [typeof(Cleanup), typeof(Retention), typeof(Crawl), typeof(Bursts), typeof(Sweep), typeof(Deletion), typeof(Compact)]);
+            [typeof(Cleanup), typeof(Retention), typeof(Crawl), typeof(Bursts), typeof(Sweep), typeof(Deletion), typeof(Compact), typeof(Purge)]);
         executor = new WorkExecutor(
             store, registry, workerState, ScopeFactories.Providing(services => services.AddSingleton(handler)),
             timeline.Clock, Options.Create(settings), logger);

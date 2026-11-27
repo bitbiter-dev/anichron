@@ -9,12 +9,16 @@
     "yearsAgo_other": "{{count}} years ago · {{year}}",
     "nothing": "Nothing from this day in earlier years",
     "failed": "Couldn't load this day.",
-    "retryDay": "Try again, {{day}}",
+    "retryDays": "Try loading these days again",
+    "daysFailed": "Couldn't load",
     "recentDays": "Recent days",
     "yesterday": "Yesterday",
     "earlier": "Earlier days",
-    "nothingEarlier": "Nothing in these days",
-    "recentDay": "{{weekdayOf, datetime}} {{dayOf, datetime}} {{monthOf, datetime}}"
+    "nothingEarlier": "Nothing earlier",
+    "nothingRecent": "Nothing in recent days",
+    "recentDay": "{{weekdayOf, datetime}} {{dayOf, datetime}} {{monthOf, datetime}}",
+    "noPhotos": "No photos are set up for you yet.",
+    "noPhotosHint": "An admin can add a storage folder for you."
   },
   "story": {
     "title": "Memories of {{date, datetime}}",
@@ -64,10 +68,7 @@
     "back": "Back",
     "newVersion": "A new version is available",
     "reload": "Reload",
-    "later": "Later",
-    "noPhotos": "No photos are set up for you yet.",
-    "noPhotosHint": "An admin can add a storage folder for you.",
-    "ok": "OK"
+    "later": "Later"
   },
   "settings": {
     "title": "Settings",
@@ -95,7 +96,8 @@
     "administration": "Administration",
     "workItems": "Work queue",
     "changePassword": "Change password",
-    "admin": "Admin"
+    "admin": "Admin",
+    "library": "Library"
   },
   "hidden": {
     "title": "Hidden memories",
@@ -108,10 +110,44 @@
     "emptyHint": "Memories you hide from a story show up here.",
     "failed": "Couldn't load your hidden memories.",
     "caption": "Taken {{taken, datetime}} · Hidden {{hidden, relativetime}}",
-    "previous": "Previous memory",
-    "next": "Next memory",
     "unhide": "Unhide",
     "unhidden": "Memory unhidden"
+  },
+  "removed": {
+    "title": "Removed memories",
+    "empty": "Nothing removed",
+    "emptyHint": "Memories whose file went missing or was replaced on your NAS show up here.",
+    "failed": "Couldn't load your removed memories.",
+    "failedMore": "Couldn't load more removed memories.",
+    "reasons": {
+      "Missing": "Not found on your NAS · last seen {{date, datetime}}",
+      "Overwritten": "Another file took its place · last seen {{date, datetime}}",
+      "Superseded": "Its Live Photo has a newer video · removed around {{date, datetime}}"
+    },
+    "select": "Select",
+    "selectAll": "Select all loaded",
+    "cancel": "Cancel",
+    "selected_one": "{{count}} memory selected",
+    "selected_other": "{{count}} memories selected",
+    "forgetCount": "Forget {{count}}",
+    "forget": "Forget",
+    "confirm": {
+      "title_one": "Forget {{count}} memory?",
+      "title_other": "Forget {{count}} memories?",
+      "body_one": "Anichron forgets it for good, with its stars, likes and hidden state. The file on your NAS is never touched; if it turns up again, it comes back as a new memory.",
+      "body_other": "Anichron forgets them for good, with their stars, likes and hidden state. Files on your NAS are never touched; a file that turns up again comes back as a new memory."
+    },
+    "forgot_one": "Forgot {{count}} memory",
+    "forgot_other": "Forgot {{count}} memories",
+    "notForgotten_one": "{{count}} couldn't be forgotten; it may be back in your stories.",
+    "notForgotten_other": "{{count}} couldn't be forgotten; they may be back in your stories.",
+    "forgotSomeBack": "$t(removed.forgot, {\"count\": {{forgot}} }). $t(removed.notForgotten, {\"count\": {{count}} })",
+    "forgetFailed_one": "Couldn't forget {{count}} memory. Try again.",
+    "forgetFailed_other": "Couldn't forget {{count}} memories. Try again."
+  },
+  "viewer": {
+    "previous": "Previous memory",
+    "next": "Next memory"
   },
   "password": {
     "title": "Change password",
@@ -121,7 +157,7 @@
     "new": "New password",
     "confirm": "Confirm new password",
     "submit": "Change password",
-    "changed": "Your password is changed. Your other devices will need to sign in again.",
+    "changed": "Password changed.",
     "errors": {
       "mismatch": "The new passwords don't match.",
       "currentWrong": "The current password is wrong.",
@@ -165,7 +201,8 @@
       "BurstDetection": "Burst detection",
       "ProxySweep": "Proxy sweep",
       "ProxyDeletion": "Proxy deletion",
-      "CompactPreview": "Compact previews"
+      "CompactPreview": "Compact previews",
+      "AssetPurge": "Purge"
     },
     "statuses": {
       "Queued": "Queued",

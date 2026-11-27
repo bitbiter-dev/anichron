@@ -1697,6 +1697,155 @@
         }
       }
     },
+    "/api/v1/assets/soft-deleted": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoftDeletedAssetsPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/purges": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Queues a purge of the caller's soft-deleted assets, one work item per storage config.",
+        "requestBody": {
+          "description": "Cancels the request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeAcceptedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flashbacks/on-this-day": {
       "get": {
         "tags": [
@@ -1738,6 +1887,88 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OnThisDayDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flashbacks/days": {
+      "get": {
+        "tags": [
+          "Flashbacks"
+        ],
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentDaysDto"
                 }
               }
             }
@@ -2751,10 +2982,12 @@
           "account_locked",
           "cannot_modify_self",
           "email_taken",
+          "invalid_asset_count",
           "invalid_credentials",
           "invalid_cursor",
           "invalid_date",
           "invalid_email",
+          "invalid_limit",
           "invalid_orphan_count",
           "invalid_page",
           "invalid_page_size",
@@ -2916,10 +3149,6 @@
         }
       },
       "PatchAdminUserRequest": {
-        "required": [
-          "isAdmin",
-          "isDisabled"
-        ],
         "type": "object",
         "properties": {
           "isAdmin": {
@@ -2937,11 +3166,6 @@
         }
       },
       "PatchInteractionRequest": {
-        "required": [
-          "starred",
-          "liked",
-          "hidden"
-        ],
         "type": "object",
         "properties": {
           "starred": {
@@ -3007,10 +3231,6 @@
         "type": "integer"
       },
       "ProxyDeletionRequest": {
-        "required": [
-          "orphanIds",
-          "all"
-        ],
         "type": "object",
         "properties": {
           "orphanIds": {
@@ -3024,7 +3244,8 @@
             }
           },
           "all": {
-            "type": "boolean"
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -3139,6 +3360,74 @@
         ],
         "type": "string"
       },
+      "PurgeAcceptedDto": {
+        "required": [
+          "accepted"
+        ],
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The requested ids that will be purged, plus the videos of accepted Live Photos."
+          }
+        },
+        "description": "What a purge request queued."
+      },
+      "PurgeRequest": {
+        "required": [
+          "assetIds"
+        ],
+        "type": "object",
+        "properties": {
+          "assetIds": {
+            "maxItems": 1000,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "RecentDayDto": {
+        "required": [
+          "date",
+          "year",
+          "memory"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "memory": {
+            "$ref": "#/components/schemas/AssetDto"
+          }
+        }
+      },
+      "RecentDaysDto": {
+        "required": [
+          "days"
+        ],
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentDayDto"
+            }
+          }
+        }
+      },
       "RefreshRequest": {
         "required": [
           "refreshToken"
@@ -3203,6 +3492,129 @@
           }
         },
         "description": "A new or renewed session, with the refresh token only when it is not set as a cookie."
+      },
+      "SoftDeletedAssetDto": {
+        "required": [
+          "id",
+          "mediaType",
+          "year",
+          "month",
+          "day",
+          "width",
+          "height",
+          "durationSeconds",
+          "proxies",
+          "blurhash",
+          "livePhotoVideoUrl",
+          "path",
+          "lastSeenOnNas",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/PublishedMediaType"
+          },
+          "year": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "month": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "day": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "width": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "durationSeconds": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "proxies": {
+            "$ref": "#/components/schemas/AssetProxyUrls"
+          },
+          "blurhash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "livePhotoVideoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "lastSeenOnNas": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SoftDeleteReason"
+          }
+        }
+      },
+      "SoftDeletedAssetsPageDto": {
+        "required": [
+          "items",
+          "next"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SoftDeletedAssetDto"
+            }
+          },
+          "next": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SoftDeleteReason": {
+        "enum": [
+          "Missing",
+          "Overwritten",
+          "Superseded"
+        ],
+        "type": "string"
       },
       "SseItemOfWorkItemDto": {
         "type": "object",
@@ -3426,7 +3838,8 @@
           "BurstDetection",
           "ProxySweep",
           "ProxyDeletion",
-          "CompactPreview"
+          "CompactPreview",
+          "AssetPurge"
         ],
         "type": "string"
       },

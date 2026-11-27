@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import { shownSource } from '../../shared/media';
 import { useFrames } from '../../shared/use-frames';
 import { framesShown } from './burst';

@@ -1,7 +1,7 @@
 import { EyeOff, Heart, Star, type LucideIcon } from 'lucide-react';
 import { Button, ToggleButton } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
-import type { Memory } from '../../api/flashbacks';
+import type { Memory } from '../../api/memories';
 import type { Toggle } from './use-interactions';
 
 const controlStyles =

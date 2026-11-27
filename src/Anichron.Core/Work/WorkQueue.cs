@@ -12,7 +12,7 @@ public interface IWorkQueue
     /// </summary>
     /// <typeparam name="TPayload">The payload type, which names the kind.</typeparam>
     /// <param name="payload">What the handler receives.</param>
-    /// <param name="requestedBy">The requesting admin, or null when scheduled.</param>
+    /// <param name="requestedBy">The requesting user, or null when scheduled.</param>
     /// <param name="ct">Cancels the enqueue.</param>
     /// <returns>The id of the queued item.</returns>
     Task<Guid> EnqueueAsync<TPayload>(TPayload payload, Guid? requestedBy, CancellationToken ct)

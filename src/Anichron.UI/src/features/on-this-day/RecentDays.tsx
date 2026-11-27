@@ -8,7 +8,7 @@ import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { Ring } from '../../shared/ui/Ring';
 import {
   type DayWithMemories,
-  type FailedDay,
+  type FailedPage,
   hasMemories,
   useRecentDays,
 } from './use-recent-days';
@@ -21,8 +21,7 @@ const ring = '-inset-1 hidden group-aria-busy:block group-data-pending:block';
 
 export function RecentDays({ today }: { today: string }) {
   const { t } = useTranslation();
-  const { loading, visible, ...tray } = useRecentDays(today);
-  if (!visible) return null;
+  const { loading, ...tray } = useRecentDays(today);
   return (
     <ul
       aria-label={t('onThisDay.recentDays')}
@@ -34,18 +33,32 @@ export function RecentDays({ today }: { today: string }) {
   );
 }
 
-type DaysProps = Omit<ReturnType<typeof useRecentDays>, 'loading' | 'visible'>;
+type DaysProps = Omit<ReturnType<typeof useRecentDays>, 'loading'>;
 
-function Days({ days, earlierLabel, loadingEarlier, showEarlier }: DaysProps) {
+function Days({ days, empty, earlierLabel, exhausted, loadingEarlier, showEarlier }: DaysProps) {
+  const { t } = useTranslation();
   return (
     <>
       {days.map((day) => (
-        <li key={day.date} className="shrink-0 snap-start">
+        <li
+          key={hasMemories(day) ? day.date : `failed-${String(day.page)}`}
+          className="shrink-0 snap-start"
+        >
           {hasMemories(day) ? <DayLink {...day} /> : <Retry {...day} />}
         </li>
       ))}
+      {empty && (
+        <li className="flex shrink-0 items-center text-small text-fg-muted">
+          {t('onThisDay.nothingRecent')}
+        </li>
+      )}
       <li className="shrink-0 snap-start">
-        <Earlier label={earlierLabel} loading={loadingEarlier} onPress={showEarlier} />
+        <Earlier
+          label={earlierLabel}
+          disabled={exhausted}
+          loading={loadingEarlier}
+          onPress={showEarlier}
+        />
       </li>
     </>
   );
@@ -82,28 +95,34 @@ function DayLink({ date, label, newestYear, thumbnail }: DayWithMemories) {
   );
 }
 
-function Retry({ label, retry }: FailedDay) {
+function Retry({ retry }: FailedPage) {
   const { t } = useTranslation();
   return (
-    <Button onPress={retry} aria-label={t('onThisDay.retryDay', { day: label })} className={item}>
+    <Button onPress={retry} aria-label={t('onThisDay.retryDays')} className={item}>
       <span className={`${circle} bg-accent px-1 font-semibold text-on-accent`}>
         {t('failure.retry')}
       </span>
-      {label}
+      {t('onThisDay.daysFailed')}
     </Button>
   );
 }
 
 interface EarlierProps {
   label: ParseKeys;
+  disabled: boolean;
   loading: boolean;
   onPress: () => void;
 }
 
-function Earlier({ label, loading, onPress }: EarlierProps) {
+function Earlier({ label, disabled, loading, onPress }: EarlierProps) {
   const { t } = useTranslation();
   return (
-    <Button onPress={onPress} isPending={loading} className={item}>
+    <Button
+      onPress={onPress}
+      isDisabled={disabled}
+      isPending={loading}
+      className={`${item} disabled:text-fg-muted`}
+    >
       <span className={`${circle} bg-surface-raised`}>
         <ChevronRight aria-hidden className="size-6" />
         <Ring className={ring} />

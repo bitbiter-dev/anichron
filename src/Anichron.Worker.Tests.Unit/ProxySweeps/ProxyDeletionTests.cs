@@ -58,7 +58,12 @@ public sealed class ProxyDeletionTests
     private async Task<ProxyDeletionResult> RunAsync(IFileSystem fileSystem, IProxyDirectoryStrategy? directories = null)
     {
         var result = await new ProxyDeletionHandler(
-                store, unitOfWork, directories ?? new TwoLevelHexShardStrategy(), fileSystem, clock, logger)
+                store,
+                unitOfWork,
+                new ProxyFileRemover(directories ?? new TwoLevelHexShardStrategy(), fileSystem, new FakeLogger<ProxyFileRemover>(logger.Collector)),
+                fileSystem,
+                clock,
+                logger)
             .RunAsync(payload, new WorkRun(Guid.NewGuid(), progress), Ct);
         return result.Should().BeOfType<ProxyDeletionResult>().Subject;
     }
@@ -188,7 +193,7 @@ public sealed class ProxyDeletionTests
         (failing.DeletionOutcome, next.DeletionOutcome).Should().Be((ProxyDeletionOutcome.Failed, ProxyDeletionOutcome.Deleted));
         result.Should().Be(new ProxyDeletionResult(Deleted: 1, SkippedReferenced: 0, SkippedChanged: 0, Missing: 0, Failed: 1));
         logger.Collector.GetSnapshot().Should().Contain(r =>
-            r.Level == LogLevel.Warning && r.Message == $"Could not delete orphaned proxy file {Thumbnail}.");
+            r.Level == LogLevel.Warning && r.Message == $"Could not delete proxy file {Thumbnail}.");
     }
 
     // ==========================================================================

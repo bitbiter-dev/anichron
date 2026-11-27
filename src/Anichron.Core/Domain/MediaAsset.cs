@@ -50,6 +50,9 @@ public class MediaAsset
     // Metadata & State
     public MediaType MediaType { get; set; }
     public bool IsSoftDeleted { get; set; }
+
+    /// <summary>Why the row is soft-deleted; null exactly when it is active.</summary>
+    public SoftDeleteReason? SoftDeleteReason { get; set; }
     public Instant LastSeenOnNas { get; set; }
 
     // --- Navigation Properties ---

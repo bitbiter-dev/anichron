@@ -11,7 +11,7 @@ interface ProblemFormOptions<S extends z.ZodMiniObject> {
   schema: S;
   defaultValues: DefaultValues<z.input<S>>;
   messages: Messages;
-  submit: (values: z.infer<S>, form: { reset: () => void }) => Promise<void>;
+  submit: (values: z.infer<S>) => Promise<void>;
   sentFields?: readonly Field<S>[];
 }
 
@@ -23,13 +23,13 @@ export function useProblemForm<S extends z.ZodMiniObject>({
   sentFields = Object.keys(schema.shape),
 }: ProblemFormOptions<S>) {
   const countdown = useCountdown();
-  const { control, handleSubmit, setError, reset, formState } = useForm({
+  const { control, handleSubmit, setError, formState } = useForm({
     resolver: zodResolver(schema),
     defaultValues,
   });
 
   const onSubmit = handleSubmit(async (values) => {
-    const problem = await submit(values, { reset }).then(() => undefined, problemOf);
+    const problem = await submit(values).then(() => undefined, problemOf);
     if (!problem) return;
     const onFields = fieldCodes(problem, sentFields);
     for (const [field, code] of onFields) setError(field as Path<z.input<S>>, { message: code });

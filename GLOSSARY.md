@@ -12,6 +12,10 @@ _Avoid_: Item, asset (in the UI), card
 The user's memories whose capture date falls on a given day and month in an earlier year: today's, or one of the recent days the user picks. In a year without 29 February, memories from 29 February fall on 28 February.
 _Avoid_: Today's memories, anniversary
 
+**Recent day**:
+A day before today whose On This Day has memories. Today's recent days run newest first and reach back at most a year.
+_Avoid_: Earlier day, past day
+
 **Story**:
 The full-screen player that shows memories one after another, each for a set time, until the user moves on or pauses.
 _Avoid_: Slideshow, carousel, reel
@@ -79,3 +83,7 @@ _Avoid_: Replaced, clobbered
 **Superseded**:
 A Live Photo's video whose photo now has another video. It stays soft-deleted even while its file is still on the NAS, because it is never a memory of its own.
 _Avoid_: Replaced, orphaned video, let-go video
+
+**Forced password change**:
+The state of an account whose user can only change their password or sign out until the change succeeds. It is set when an admin creates the account or resets its password, and for the first admin until they choose their own.
+_Avoid_: Temporary password, must-change, password reset

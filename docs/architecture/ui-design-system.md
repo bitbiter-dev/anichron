@@ -42,13 +42,14 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - **Every screen** has the bottom bar: a floating glass pill on `env(safe-area-inset-bottom)`, or just above the edge without one (the viewport extends under the safe areas, `index.html`), a `<nav>` of links marked with `aria-current`. Its items are listed once, in `BottomBar.tsx`.
 - **Hiding:** `use-hides-on-scroll.ts` hides the bar past a short scroll down and shows it on any scroll up, at the top, on a page that cannot scroll, and when focus enters it.
 - **Every screen below Home** also has the top bar: its title, and a back control when it has a parent, from the route's `staticData.screen` (title key and parent path) in `router.tsx`. A bottom bar destination has no parent. It is fixed, with its height kept in the flow, and its glass is nearly solid (`--glass-bar-opacity`).
+- **Actions:** a screen puts its own controls in the top bar through `TopBarActions` (`src/shared/top-bar.ts`), leading or trailing; a leading one takes the place of the back control while it is shown.
 - **Back rule** (`back.ts`): when the previous history entry is the parent, back goes back in history; otherwise it replaces the current entry with the parent. So the back control, Android's back button and Safari's edge swipe agree.
 - On wide screens the same layout is centred at a readable width (`Shell.tsx`).
 
 ## Motion and focus
 
 - Transition durations are tokens that become `0ms` under `prefers-reduced-motion`; looping animations are `none` there, and the story's progress fill (`--animate-story-fill`) steps.
-- Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. The pull to close reads it itself (`reduced-motion.ts`) and only fades the backdrop. A Live Photo never plays by itself, only from its button or a hold.
+- Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. The pull to close reads it itself (`src/shared/reduced-motion.ts`) and only fades the backdrop; the removed list's drag-select jumps instead of gliding. A Live Photo never plays by itself, only from its button or a hold.
 - A loading ring stops spinning (`motion-reduce:`).
 - The Live pill and the years-ago line stay visible through a hold that hides the other controls. The pill shows a turning `player-accent` arc while its video loads (`live-ring`), faded in after `--delay-live-ring` so a quick load shows none, and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
 - A skeleton (`skeleton` utility) fades in after `--delay-skeleton`, so a quick load shows none, then pulses through `--animate-skeleton`; under reduced motion it stands still.
@@ -60,8 +61,8 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - They are form-agnostic: `FormField` connects react-hook-form through `Controller` and passes `field.ref` as `inputRef`, and `FormStatus` takes plain values (a message key, `retryIn`).
 - States are `tv` variants named after React Aria's render props. A state that only interaction reaches gets an exported style function, so the design page can show it.
 - A caller's `className` goes on the outer element.
-- Toasts: the screen that shows them owns a queue (`src/shared/toasts.ts`) and renders its region (`Toast.tsx`). A toast is announced politely and lasts a few seconds.
-- Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out.
+- Toasts (`src/shared/toasts.ts`, `Toast.tsx`): one region per layer, because a full-screen modal makes everything outside it inert. The shell's queue is `toasts` in the router context, rendered by `Shell`, so a toast outlives a navigation; a full-screen modal (the story) owns its own. A toast is announced politely and lasts a few seconds.
+- Modals (`Modal.tsx`): a titled dialog over a dimmed backdrop. Its caller renders it while open; Escape and a tap outside close it, so every modal has a way out. An `alert` one (`alertdialog`) asks before an irreversible action: only Escape or its own buttons close it, and it focuses the safe choice.
 - Cards (`Card.tsx`): the glass panel, padded or, for rows, unpadded. `CentredPage.tsx` puts one, with a title and body, over the glow backdrop.
 - Form status (`FormStatus.tsx`): a form's alert and its retry countdown.
 - Rows (`Row.tsx`): a full-width entry in a card: a link with a chevron, a button with an icon and a chevron, or a red button.

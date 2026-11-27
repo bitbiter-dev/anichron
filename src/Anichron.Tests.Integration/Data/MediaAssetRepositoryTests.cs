@@ -1,6 +1,8 @@
+using Anichron.Core.Data;
 using Anichron.Core.Data.Repository;
 using Anichron.Core.Domain;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Anichron.Tests.Integration.Data;
 
@@ -34,12 +36,13 @@ public sealed class MediaAssetRepositoryTests(PostgresServer server)
             ContentHash = path,
             MediaType = MediaType.Image,
             IsSoftDeleted = softDeleted,
+            SoftDeleteReason = softDeleted ? SoftDeleteReason.Overwritten : null,
         };
 
-    private static async Task<Dictionary<Guid, bool>> SoftDeletedByIdAsync(string connectionString)
+    private static async Task<Dictionary<Guid, SoftDeleteReason?>> ReasonByIdAsync(string connectionString)
     {
         await using var db = PostgresServer.Context(connectionString);
-        return await db.MediaAssets.IgnoreQueryFilters().ToDictionaryAsync(a => a.Id, a => a.IsSoftDeleted, Ct);
+        return await db.MediaAssets.IgnoreQueryFilters().ToDictionaryAsync(a => a.Id, a => a.SoftDeleteReason, Ct);
     }
 
     [Fact]
@@ -50,15 +53,15 @@ public sealed class MediaAssetRepositoryTests(PostgresServer server)
             Photo(gone, "a.jpg"), Photo(alsoGone, "b.jpg"), Photo(kept, "c.jpg"), Photo(alreadyTrashed, "d.jpg", softDeleted: true));
         await using var db = PostgresServer.Context(library.ConnectionString);
 
-        var softDeleted = await new EfMediaAssetRepository(db).SoftDeleteAsync([gone, alsoGone, alreadyTrashed], Ct);
+        var softDeleted = await new EfMediaAssetRepository(db).SoftDeleteAsync([gone, alsoGone, alreadyTrashed], SoftDeleteReason.Missing, Ct);
 
         softDeleted.Should().Be(2);
-        (await SoftDeletedByIdAsync(library.ConnectionString)).Should().BeEquivalentTo(new Dictionary<Guid, bool>
+        (await ReasonByIdAsync(library.ConnectionString)).Should().BeEquivalentTo(new Dictionary<Guid, SoftDeleteReason?>
         {
-            [gone] = true,
-            [alsoGone] = true,
-            [kept] = false,
-            [alreadyTrashed] = true,
+            [gone] = SoftDeleteReason.Missing,
+            [alsoGone] = SoftDeleteReason.Missing,
+            [kept] = null,
+            [alreadyTrashed] = SoftDeleteReason.Overwritten,
         });
     }
 
@@ -69,10 +72,10 @@ public sealed class MediaAssetRepositoryTests(PostgresServer server)
         var library = await LibraryAsync([.. ids.Select((id, index) => Photo(id, $"{index}.jpg"))]);
         await using var db = PostgresServer.Context(library.ConnectionString);
 
-        var softDeleted = await new EfMediaAssetRepository(db).SoftDeleteAsync(ids, batchSize: 2, Ct);
+        var softDeleted = await new EfMediaAssetRepository(db).SoftDeleteAsync(ids, SoftDeleteReason.Missing, batchSize: 2, Ct);
 
         softDeleted.Should().Be(5);
-        (await SoftDeletedByIdAsync(library.ConnectionString)).Values.Should().AllSatisfy(value => value.Should().BeTrue());
+        (await ReasonByIdAsync(library.ConnectionString)).Values.Should().AllSatisfy(value => value.Should().Be(SoftDeleteReason.Missing));
     }
 
     [Fact]
@@ -87,9 +90,26 @@ public sealed class MediaAssetRepositoryTests(PostgresServer server)
         }
 
         await using var db = PostgresServer.Context(library.ConnectionString);
-        await new EfMediaAssetRepository(db).SoftDeleteAsync([asset], Ct);
+        await new EfMediaAssetRepository(db).SoftDeleteAsync([asset], SoftDeleteReason.Missing, Ct);
 
         (await db.Interactions.IgnoreQueryFilters().SingleAsync(Ct)).IsStarred.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, SoftDeleteReason.Missing)]
+    public async Task SoftDeleteReason_IsSetExactlyOnSoftDeletedRowsAsync(bool softDeleted, SoftDeleteReason? reason)
+    {
+        var library = await LibraryAsync();
+        await using var db = PostgresServer.Context(library.ConnectionString);
+        var row = Photo(Guid.NewGuid(), "a.jpg")(library.Config, library.OtherConfig);
+        (row.IsSoftDeleted, row.SoftDeleteReason) = (softDeleted, reason);
+        db.MediaAssets.Add(row);
+
+        var save = () => db.SaveChangesAsync(Ct);
+
+        (await save.Should().ThrowAsync<DbUpdateException>()).WithInnerException<PostgresException>()
+            .Which.ConstraintName.Should().Be(MediaAssetIndexNames.SoftDeleteReasonSetWhenSoftDeleted);
     }
 
     [Fact]
@@ -99,9 +119,9 @@ public sealed class MediaAssetRepositoryTests(PostgresServer server)
         await using var db = PostgresServer.Context(library.ConnectionString);
         await db.Database.ExecuteSqlAsync($"""
             INSERT INTO "MediaAssets" ("Id", "StorageConfigId", "FilePath", "FileName", "ContentHash", "DateCaptured",
-                "Month", "Day", "Year", "MediaType", "IsSoftDeleted", "LastSeenOnNas")
+                "Month", "Day", "Year", "MediaType", "IsSoftDeleted", "SoftDeleteReason", "LastSeenOnNas")
             SELECT gen_random_uuid(), {library.Config}, n || '.jpg', n || '.jpg', 'hash' || n, '2024-01-01',
-                1, 1, 2024, 'Image', n % 50 = 0, now()
+                1, 1, 2024, 'Image', n % 50 = 0, CASE WHEN n % 50 = 0 THEN 'Missing' END, now()
             FROM generate_series(1, 5000) AS n
             """, Ct);
         await db.Database.ExecuteSqlRawAsync("""ANALYZE "MediaAssets" """, Ct);

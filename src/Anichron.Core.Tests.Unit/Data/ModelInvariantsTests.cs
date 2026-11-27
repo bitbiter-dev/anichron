@@ -2,6 +2,8 @@ using Anichron.Core.Data;
 using Anichron.Core.Domain;
 using Anichron.Testing.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace Anichron.Core.Tests.Unit.Data;
 
@@ -48,6 +50,20 @@ public sealed class ModelInvariantsTests
         index.IsUnique.Should().BeTrue("a Live Photo's video has at most one photo");
         index.Properties.Select(p => p.Name).Should().Equal(nameof(MediaAsset.PairedAssetId));
         index.GetFilter().Should().BeNull("a soft-deleted photo keeps its pointer, so it holds its video too");
+    }
+
+    [Fact]
+    public void SoftDeleteReason_IsStoredAsTextAndSetExactlyOnSoftDeletedRows()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var mediaAsset = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(MediaAsset))!;
+
+        var reason = mediaAsset.GetProperty(nameof(MediaAsset.SoftDeleteReason));
+        reason.IsNullable.Should().BeTrue();
+        reason.GetProviderClrType().Should().Be<string>();
+        var constraint = mediaAsset.GetCheckConstraints().Should().ContainSingle().Which;
+        constraint.Name.Should().Be(MediaAssetIndexNames.SoftDeleteReasonSetWhenSoftDeleted);
+        constraint.Sql.Should().Be("\"IsSoftDeleted\" = (\"SoftDeleteReason\" IS NOT NULL)");
     }
 
     [Fact]
