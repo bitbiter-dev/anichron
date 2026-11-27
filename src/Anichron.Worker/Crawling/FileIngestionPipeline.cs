@@ -5,6 +5,8 @@ using Anichron.Worker.Ingestion;
 using Anichron.Worker.Ingestion.Pipeline;
 using Anichron.Worker.Settings;
 using Microsoft.Extensions.Options;
+using NodaTime;
+using System.Collections.Concurrent;
 using System.IO.Abstractions;
 using System.Threading.Channels;
 
@@ -12,7 +14,7 @@ namespace Anichron.Worker.Crawling;
 
 internal interface IFileIngestionPipeline
 {
-    Task<CrawlRun> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct);
+    Task<CrawlRun> RunAsync(UserStorageConfig config, FailingFiles failing, IWorkProgress progress, CancellationToken ct);
 }
 
 internal sealed partial class FileIngestionPipeline(
@@ -26,9 +28,24 @@ internal sealed partial class FileIngestionPipeline(
 {
     private readonly WorkerSettings settings = workerOptions.Value;
 
-    public async Task<CrawlRun> RunAsync(UserStorageConfig config, IWorkProgress progress, CancellationToken ct)
+    public async Task<CrawlRun> RunAsync(
+        UserStorageConfig config, FailingFiles failing, IWorkProgress progress, CancellationToken ct)
     {
         var tally = new CrawlTally(progress);
+        var retries = new ConcurrentQueue<IngestionItem>();
+        await RunPassAsync(config, writer => ProduceAsync(config, failing, writer, tally, ct), failing, tally, retries, ct);
+        await RunPassAsync(config, writer => RequeueAsync(retries, writer, ct), failing, tally, null, ct);
+        return tally.Run;
+    }
+
+    private Task RunPassAsync(
+        UserStorageConfig config,
+        Func<ChannelWriter<IngestionItem>, Task> produce,
+        FailingFiles failing,
+        CrawlTally tally,
+        ConcurrentQueue<IngestionItem>? retryLater,
+        CancellationToken ct)
+    {
         var channel = Channel.CreateBounded<IngestionItem>(
             // Stryker disable once Arithmetic,Initializer
             new BoundedChannelOptions(settings.MaxConcurrentFiles * 2)
@@ -38,39 +55,52 @@ internal sealed partial class FileIngestionPipeline(
                 FullMode = BoundedChannelFullMode.Wait,
             });
 
-        var producer = ProduceAsync(config, channel.Writer, tally, ct);
+        var producer = CompleteAfterAsync(produce, channel.Writer);
         var consumers = Enumerable
             .Range(0, settings.MaxConcurrentFiles)
-            .Select(workerIndex => ConsumeAsync(config, channel.Reader, workerIndex, tally, ct))
+            .Select(workerIndex => ConsumeAsync(config, channel.Reader, workerIndex, failing, tally, retryLater, ct))
             .ToArray();
 
-        await Task.WhenAll([producer, .. consumers]);
-        return tally.Run;
+        return Task.WhenAll([producer, .. consumers]);
     }
 
-    private async Task ProduceAsync(
-        UserStorageConfig config,
-        ChannelWriter<IngestionItem> writer,
-        CrawlTally tally,
-        CancellationToken ct)
+    private static async Task CompleteAfterAsync(
+        Func<ChannelWriter<IngestionItem>, Task> produce, ChannelWriter<IngestionItem> writer)
     {
         try
         {
-            var pending = new Stack<string>([config.RootPath]);
-            while (pending.TryPop(out var directory))
-            {
-                var (files, subdirectories) = ListDirectory(directory, config.RootPath, tally);
-                await EnqueueDirectoryItemsAsync(files, config.RootPath, writer, tally, ct);
-                foreach (var subdirectory in subdirectories)
-                    pending.Push(subdirectory);
-            }
-
-            tally.Walked();
+            await produce(writer);
         }
         finally
         {
             writer.TryComplete();
         }
+    }
+
+    private static async Task RequeueAsync(
+        IEnumerable<IngestionItem> items, ChannelWriter<IngestionItem> writer, CancellationToken ct)
+    {
+        foreach (var item in items)
+            await writer.WriteAsync(item, ct);
+    }
+
+    private async Task ProduceAsync(
+        UserStorageConfig config,
+        FailingFiles failing,
+        ChannelWriter<IngestionItem> writer,
+        CrawlTally tally,
+        CancellationToken ct)
+    {
+        var pending = new Stack<string>([config.RootPath]);
+        while (pending.TryPop(out var directory))
+        {
+            var (files, subdirectories) = ListDirectory(directory, config.RootPath, tally);
+            await EnqueueDirectoryItemsAsync(files, config.RootPath, failing, writer, tally, ct);
+            foreach (var subdirectory in subdirectories)
+                pending.Push(subdirectory);
+        }
+
+        tally.Walked();
     }
 
     private (List<string> Files, List<string> Subdirectories) ListDirectory(string directory, string rootPath, CrawlTally tally)
@@ -106,6 +136,7 @@ internal sealed partial class FileIngestionPipeline(
     private async Task EnqueueDirectoryItemsAsync(
         IList<string> filesInDirectory,
         string rootPath,
+        FailingFiles failing,
         ChannelWriter<IngestionItem> writer,
         CrawlTally tally,
         CancellationToken ct)
@@ -113,10 +144,7 @@ internal sealed partial class FileIngestionPipeline(
         var linkResult = livePhotoLinker.Link(filesInDirectory, rootPath);
 
         foreach (var item in linkResult.Items)
-        {
-            tally.Found(item);
-            await writer.WriteAsync(item, ct);
-        }
+            await EnqueueAsync(item, failing, writer, tally, ct);
 
         foreach (var filePath in filesInDirectory)
         {
@@ -132,16 +160,32 @@ internal sealed partial class FileIngestionPipeline(
             }
 
             var item = new SingleFileItem(filePath, fileSystem.Path.GetRelativePath(rootPath, filePath), mediaType.Value);
-            tally.Found(item);
-            await writer.WriteAsync(item, ct);
+            await EnqueueAsync(item, failing, writer, tally, ct);
         }
+    }
+
+    private async Task EnqueueAsync(
+        IngestionItem item, FailingFiles failing, ChannelWriter<IngestionItem> writer, CrawlTally tally, CancellationToken ct)
+    {
+        if (failing.Skipping(item) is { } failure)
+        {
+            Log.SkippingFailing(
+                logger, item.AbsolutePath, failure.Failures, failure.FirstFailedAt, failure.Reason, failure.RetryAfter);
+            tally.SkippedFailing(item);
+            return;
+        }
+
+        tally.Found(item);
+        await writer.WriteAsync(item, ct);
     }
 
     private async Task ConsumeAsync(
         UserStorageConfig config,
         ChannelReader<IngestionItem> reader,
         int workerIndex,
+        FailingFiles failing,
         CrawlTally tally,
+        ConcurrentQueue<IngestionItem>? retryLater,
         CancellationToken ct)
     {
         await foreach (var item in reader.ReadAllAsync(ct))
@@ -152,6 +196,7 @@ internal sealed partial class FileIngestionPipeline(
             // Scoped services (e.g. DbContext) must not be shared across concurrent files.
             using var diScope = scopeFactory.CreateScope();
             var runner = diScope.ServiceProvider.GetRequiredService<IIngestionPipelineRunner>();
+            var fingerprint = failing.Fingerprint(item);
             try
             {
                 var context = new IngestionContext { Item = item, Config = config, AttemptId = guidFactory.NewGuid() };
@@ -166,12 +211,17 @@ internal sealed partial class FileIngestionPipeline(
             catch (Exception ex) when (BrokenFile.Rejected(ex))
             {
                 Log.ItemBroken(logger, item.AbsolutePath, ex.Message);
-                tally.Failed();
+                tally.Failed(FailedItem.Of(item, fingerprint, ex));
+            }
+            catch (Exception ex) when (retryLater is not null)
+            {
+                Log.ItemRetrying(logger, item.AbsolutePath, ex.Message);
+                retryLater.Enqueue(item);
             }
             catch (Exception ex)
             {
                 Log.ItemFailed(logger, item.AbsolutePath, ex);
-                tally.Failed();
+                tally.Failed(FailedItem.Of(item, fingerprint, ex));
             }
         }
     }
@@ -186,6 +236,16 @@ internal sealed partial class FileIngestionPipeline(
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to ingest {Path}: {Reason}")]
         public static partial void ItemBroken(ILogger logger, string path, string reason);
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Failed to ingest {Path}, trying again after the walk: {Reason}")]
+        public static partial void ItemRetrying(ILogger logger, string path, string reason);
+
+        [LoggerMessage(
+            Level = LogLevel.Warning,
+            Message = "Skipping {Path}: it failed on {Failures} crawls in a row since {FirstFailedAt}, last with {Reason}. "
+                + "It is tried again from {RetryAfter}, or as soon as it changes.")]
+        public static partial void SkippingFailing(
+            ILogger logger, string path, int failures, Instant firstFailedAt, string reason, Instant retryAfter);
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping link {Path}: a crawl never follows links.")]
         public static partial void LinkSkipped(ILogger logger, string path);

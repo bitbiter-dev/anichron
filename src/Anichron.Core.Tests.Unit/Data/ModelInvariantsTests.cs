@@ -133,4 +133,19 @@ public sealed class ModelInvariantsTests
         cover.DeleteBehavior.Should().Be(DeleteBehavior.SetNull,
             "a storage config's removal cascades to its assets and must not fail on a burst's cover");
     }
+
+    [Fact]
+    public void IngestionFailures_AreOnePerStorageConfigAndPathAndGoWithTheirConfig()
+    {
+        using var context = AnichronDbContexts.NpgsqlModel();
+        var failure = context.Model.FindEntityType(typeof(IngestionFailure))!;
+
+        failure.FindPrimaryKey()!.Properties.Select(p => p.Name)
+            .Should().Equal(nameof(IngestionFailure.StorageConfigId), nameof(IngestionFailure.FilePath));
+        var config = failure.GetForeignKeys().Should().ContainSingle().Which;
+        config.PrincipalEntityType.ClrType.Should().Be<UserStorageConfig>();
+        config.Properties.Select(p => p.Name).Should().Equal(nameof(IngestionFailure.StorageConfigId));
+        config.DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
+        failure.GetProperty(nameof(IngestionFailure.Reason)).GetMaxLength().Should().Be(500);
+    }
 }

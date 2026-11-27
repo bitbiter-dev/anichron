@@ -23,6 +23,9 @@ public sealed record CrawlResult(long Found, long Processed, long Failed)
 
     /// <summary>Links the walk skipped, to files or folders: a crawl never follows a link.</summary>
     public int SkippedLinks { get; init; }
+
+    /// <summary>Items the walk skipped because they keep failing and are not due again; not counted in found.</summary>
+    public int SkippedFailing { get; init; }
 }
 
 /// <summary>How a crawl brought the config's rows in line with its files.</summary>
@@ -46,12 +49,24 @@ internal sealed record CrawlRun(CrawlResult Result, int DuplicateCopies)
 
     /// <summary>Whether the walk read every folder under the root.</summary>
     public bool WalkComplete { get; init; }
+
+    /// <summary>Primary paths of the items the walk queued or skipped as failing.</summary>
+    public IReadOnlySet<string> ReachedPaths { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>Primary paths of the items handled without an error.</summary>
+    public IReadOnlySet<string> SucceededPaths { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>Items whose ingestion failed, on the retry pass too unless the file was broken.</summary>
+    public IReadOnlyList<FailedItem> Failures { get; init; } = [];
 }
 
 internal sealed class CrawlTally(IWorkProgress progress)
 {
     private readonly Lock gate = new();
     private readonly HashSet<string> foundPaths = new(StringComparer.Ordinal);
+    private readonly HashSet<string> reachedPaths = new(StringComparer.Ordinal);
+    private readonly HashSet<string> succeededPaths = new(StringComparer.Ordinal);
+    private readonly List<FailedItem> failures = [];
     private long found;
     private long processed;
     private long failed;
@@ -61,6 +76,7 @@ internal sealed class CrawlTally(IWorkProgress progress)
     private int autoRestored;
     private int skippedLinks;
     private int skippedUnsupported;
+    private int skippedFailing;
     private bool walked;
     private bool folderSkipped;
 
@@ -75,6 +91,7 @@ internal sealed class CrawlTally(IWorkProgress progress)
                     Ingested = ingested,
                     SkippedLinks = skippedLinks,
                     SkippedUnsupported = skippedUnsupported,
+                    SkippedFailing = skippedFailing,
                 };
                 return new CrawlRun(result, duplicateCopies)
                 {
@@ -82,6 +99,9 @@ internal sealed class CrawlTally(IWorkProgress progress)
                     AutoRestored = autoRestored,
                     FoundPaths = new HashSet<string>(foundPaths, StringComparer.Ordinal),
                     WalkComplete = walked && !folderSkipped,
+                    ReachedPaths = new HashSet<string>(reachedPaths, StringComparer.Ordinal),
+                    SucceededPaths = new HashSet<string>(succeededPaths, StringComparer.Ordinal),
+                    Failures = [.. failures],
                 };
             }
         }
@@ -90,10 +110,25 @@ internal sealed class CrawlTally(IWorkProgress progress)
     public void Found(IngestionItem item) => Update(() =>
     {
         found++;
+        Reached(item);
+    });
+
+    public void SkippedFailing(IngestionItem item)
+    {
+        lock (gate)
+        {
+            skippedFailing++;
+            Reached(item);
+        }
+    }
+
+    private void Reached(IngestionItem item)
+    {
+        reachedPaths.Add(item.RelativePath);
         foundPaths.Add(item.RelativePath);
         if (item.SecondaryFile is { } secondary)
             foundPaths.Add(secondary.RelativePath);
-    });
+    }
 
     public void FolderSkipped()
     {
@@ -118,6 +153,7 @@ internal sealed class CrawlTally(IWorkProgress progress)
     public void Processed(IngestionContext context) => Update(() =>
     {
         processed++;
+        succeededPaths.Add(context.Item.RelativePath);
         if (context.Classification?.NeedsProcessing == true)
             ingested++;
         duplicateCopies += context.Classification?.DuplicateCopies ?? 0;
@@ -125,7 +161,11 @@ internal sealed class CrawlTally(IWorkProgress progress)
         autoRestored += context.AutoRestored;
     });
 
-    public void Failed() => Update(() => failed++);
+    public void Failed(FailedItem failure) => Update(() =>
+    {
+        failed++;
+        failures.Add(failure);
+    });
 
     private void Update(Action change)
     {

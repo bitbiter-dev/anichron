@@ -21,12 +21,17 @@ public sealed class CrawlTests
     private readonly ISharedContentReporter reporter = Substitute.For<ISharedContentReporter>();
     private readonly IWorkQueue queue = Substitute.For<IWorkQueue>();
     private readonly IMissingFileSweep sweep = Substitute.For<IMissingFileSweep>();
+    private readonly IIngestionFailureLedger ledger = Substitute.For<IIngestionFailureLedger>();
+    private readonly FailingFiles failing = FileIngestionPipelines.NoFailures();
     private readonly FakeLogger<CrawlHandler> logger = new();
     private readonly FakeLogger<ActiveStorageConfigs> activeLogger = new();
 
     public CrawlTests()
-        => sweep.SweepAsync(Arg.Any<UserStorageConfig>(), Arg.Any<CrawlRun>(), Arg.Any<CancellationToken>())
+    {
+        sweep.SweepAsync(Arg.Any<UserStorageConfig>(), Arg.Any<CrawlRun>(), Arg.Any<CancellationToken>())
             .Returns(new MissingFiles(0, null));
+        ledger.LoadAsync(Arg.Any<UserStorageConfig>(), Arg.Any<CancellationToken>()).Returns(failing);
+    }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -39,7 +44,7 @@ public sealed class CrawlTests
     };
 
     private Task<object?> RunAsync(Guid configId)
-        => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, reporter, queue, logger).RunAsync(new CrawlPayload(configId), new WorkRun(Guid.NewGuid(), progress), Ct);
+        => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, ledger, reporter, queue, logger).RunAsync(new CrawlPayload(configId), new WorkRun(Guid.NewGuid(), progress), Ct);
 
     // ==========================================================================
     // CrawlHandler
@@ -54,7 +59,7 @@ public sealed class CrawlTests
         configs.GetActiveByUserIdAsync(MiraId, Ct).Returns([config, other]);
         var counted = new CrawlResult(5, 4, 1) { Ingested = 2, SkippedLinks = 6, SkippedUnsupported = 7 };
         var run = new CrawlRun(counted, DuplicateCopies: 2) { SoftDeleted = 1, AutoRestored = 3 };
-        pipeline.RunAsync(config, progress, Ct).Returns(run);
+        pipeline.RunAsync(config, failing, progress, Ct).Returns(run);
         sweep.SweepAsync(config, run, Ct).Returns(new MissingFiles(SoftDeleted: 4, SkippedBecause: null));
         reporter.ReportAsync(config, Arg.Is<IReadOnlyCollection<UserStorageConfig>>(c => c.SequenceEqual(new[] { config, other })), 2, Ct)
             .Returns(new DuplicateCounts(2, 1));
@@ -80,7 +85,7 @@ public sealed class CrawlTests
         var config = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
         var steps = new List<string>();
-        pipeline.RunAsync(config, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0), 0));
+        pipeline.RunAsync(config, failing, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0), 0));
         sweep.SweepAsync(config, Arg.Any<CrawlRun>(), Ct).Returns(_ =>
         {
             steps.Add("sweep");
@@ -93,10 +98,28 @@ public sealed class CrawlTests
                 return new DuplicateCounts(0, 0);
             });
         queue.When(q => q.EnqueueAsync(Arg.Any<BurstDetectionPayload>(), null, Ct)).Do(_ => steps.Add("enqueue"));
+        ledger.When(l => l.RecordAsync(config, Arg.Any<CrawlRun>(), Arg.Any<MissingFiles>(), Ct)).Do(_ => steps.Add("record"));
 
         await RunAsync(config.Id);
 
-        steps.Should().Equal("sweep", "report", "enqueue");
+        steps.Should().Equal("sweep", "record", "report", "enqueue");
+    }
+
+    [Fact]
+    public async Task RunAsync_RecordsWhatTheCrawlLearnedWithWhatTheSweepDidAsync()
+    {
+        var config = Config();
+        configs.FindByIdAsync(config.Id, Ct).Returns(config);
+        var run = new CrawlRun(new CrawlResult(1, 0, 1) { SkippedFailing = 2 }, 0);
+        pipeline.RunAsync(config, failing, progress, Ct).Returns(run);
+        var missing = new MissingFiles(0, MissingFileSkip.EmptyRoot);
+        sweep.SweepAsync(config, run, Ct).Returns(missing);
+
+        var result = await RunAsync(config.Id);
+
+        await ledger.Received(1).LoadAsync(config, Ct);
+        await ledger.Received(1).RecordAsync(config, run, missing, Ct);
+        result.Should().BeOfType<CrawlResult>().Which.SkippedFailing.Should().Be(2);
     }
 
     [Fact]
@@ -105,7 +128,7 @@ public sealed class CrawlTests
         var config = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
         var run = new CrawlRun(new CrawlResult(3, 3, 0), 0) { SoftDeleted = 1, AutoRestored = 2 };
-        pipeline.RunAsync(config, progress, Ct).Returns(run);
+        pipeline.RunAsync(config, failing, progress, Ct).Returns(run);
         sweep.SweepAsync(config, run, Ct).Returns(new MissingFiles(3, null));
 
         await RunAsync(config.Id);
@@ -121,7 +144,7 @@ public sealed class CrawlTests
         var config = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
         var run = new CrawlRun(new CrawlResult(0, 0, 0), 0) { AutoRestored = 1 };
-        pipeline.RunAsync(config, progress, Ct).Returns(run);
+        pipeline.RunAsync(config, failing, progress, Ct).Returns(run);
         sweep.SweepAsync(config, run, Ct).Returns(new MissingFiles(0, MissingFileSkip.EmptyRoot));
 
         var result = await RunAsync(config.Id);
@@ -148,7 +171,7 @@ public sealed class CrawlTests
     {
         var config = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
-        pipeline.RunAsync(config, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0) { Ingested = ingested }, 0));
+        pipeline.RunAsync(config, failing, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0) { Ingested = ingested }, 0));
         var steps = new List<string>();
         queue.When(q => q.EnqueueAsync(Arg.Any<BurstDetectionPayload>(), null, Ct)).Do(_ => steps.Add("bursts"));
         queue.When(q => q.EnqueueAsync(CompactPreviewPayload.For(config.Id), null, Ct)).Do(_ => steps.Add("compact"));
@@ -164,7 +187,7 @@ public sealed class CrawlTests
     {
         var config = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
-        pipeline.RunAsync(config, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0), 0));
+        pipeline.RunAsync(config, failing, progress, Ct).Returns(new CrawlRun(new CrawlResult(1, 1, 0), 0));
         reporter.ReportAsync(Arg.Any<UserStorageConfig>(), Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns<DuplicateCounts>(_ => throw new InvalidOperationException("db down"));
 
@@ -184,7 +207,7 @@ public sealed class CrawlTests
         var config = Config();
         using var shutdown = new CancellationTokenSource();
         configs.FindByIdAsync(config.Id, shutdown.Token).Returns(config);
-        pipeline.RunAsync(config, progress, shutdown.Token).Returns(new CrawlRun(new CrawlResult(1, 1, 0), 0));
+        pipeline.RunAsync(config, failing, progress, shutdown.Token).Returns(new CrawlRun(new CrawlResult(1, 1, 0), 0));
         reporter.ReportAsync(Arg.Any<UserStorageConfig>(), Arg.Any<IReadOnlyCollection<UserStorageConfig>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns<DuplicateCounts>(_ =>
         {
@@ -192,7 +215,7 @@ public sealed class CrawlTests
             throw new OperationCanceledException(shutdown.Token);
         });
 
-        var act = () => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, reporter, queue, logger)
+        var act = () => new CrawlHandler(new ActiveStorageConfigs(configs, activeLogger), configs, pipeline, sweep, ledger, reporter, queue, logger)
             .RunAsync(new CrawlPayload(config.Id), new WorkRun(Guid.NewGuid(), progress), shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
@@ -209,7 +232,7 @@ public sealed class CrawlTests
         var result = await RunAsync(config.Id);
 
         result.Should().Be(new StorageConfigSkipped("The storage config is missing or inactive."));
-        await pipeline.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, Ct);
+        await pipeline.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, default!, Ct);
         await queue.DidNotReceiveWithAnyArgs().EnqueueAsync<BurstDetectionPayload>(default!, default, Ct);
         activeLogger.Collector.GetSnapshot().Should().ContainSingle().Which.Message.Should().Be(
             $"Skipping Crawl of storage config {config.Id}: it is missing or inactive.");
@@ -221,7 +244,7 @@ public sealed class CrawlTests
         var result = await RunAsync(Guid.NewGuid());
 
         result.Should().BeOfType<StorageConfigSkipped>();
-        await pipeline.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, Ct);
+        await pipeline.DidNotReceiveWithAnyArgs().RunAsync(default!, default!, default!, Ct);
     }
 
     [Fact]
@@ -229,7 +252,7 @@ public sealed class CrawlTests
     {
         var config = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
-        pipeline.RunAsync(config, progress, Ct)
+        pipeline.RunAsync(config, failing, progress, Ct)
             .Returns<CrawlRun>(_ => throw new DirectoryNotFoundException("/data/originals/mira"));
 
         var act = () => RunAsync(config.Id);
@@ -244,12 +267,13 @@ public sealed class CrawlTests
     {
         var config = Config();
         configs.FindByIdAsync(config.Id, Ct).Returns(config);
-        pipeline.RunAsync(config, progress, Ct).Returns<CrawlRun>(_ => throw new OperationCanceledException());
+        pipeline.RunAsync(config, failing, progress, Ct).Returns<CrawlRun>(_ => throw new OperationCanceledException());
 
         var act = () => RunAsync(config.Id);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         await queue.DidNotReceiveWithAnyArgs().EnqueueAsync<BurstDetectionPayload>(default!, default, Ct);
+        await ledger.DidNotReceiveWithAnyArgs().RecordAsync(default!, default!, default!, Ct);
     }
 
     // ==========================================================================
@@ -273,7 +297,7 @@ public sealed class CrawlTests
             new ScriptedItem(FileOutcome.Unchanged));
         var realPipeline = FileIngestionPipelines.Build([middleware], fileSystem, new WorkerSettings { MaxConcurrentFiles = 1 });
         var handler = new CrawlHandler(
-            new ActiveStorageConfigs(configs, activeLogger), configs, realPipeline, sweep,
+            new ActiveStorageConfigs(configs, activeLogger), configs, realPipeline, sweep, ledger,
             new SharedContentReporter(Substitute.For<IMediaAssetRepository>(), new FakeLogger<SharedContentReporter>()),
             queue, logger);
 
@@ -312,6 +336,7 @@ public sealed class CrawlTests
                 fileSystem,
                 new WorkerSettings { MaxConcurrentFiles = 1 }),
             new MissingFileSweep(repository, new FakeLogger<MissingFileSweep>()),
+            ledger,
             new SharedContentReporter(Substitute.For<IMediaAssetRepository>(), new FakeLogger<SharedContentReporter>()),
             queue, logger);
 
@@ -328,6 +353,11 @@ public sealed class CrawlTests
     public void Result_NamesTheSkippedLinksInItsJson()
         => WorkJson.SerializeResult(new CrawlResult(0, 0, 0) { SkippedLinks = 3 })
             .Should().Contain("\"skippedLinks\":3");
+
+    [Fact]
+    public void Result_NamesTheSkippedFailingCountInItsJson()
+        => WorkJson.SerializeResult(new CrawlResult(0, 0, 0) { SkippedFailing = 3 })
+            .Should().Contain("\"skippedFailing\":3");
 
     [Fact]
     public void Result_NamesTheIngestedAndSkippedUnsupportedCountsInItsJson()
