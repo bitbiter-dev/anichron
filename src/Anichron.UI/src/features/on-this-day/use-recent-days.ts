@@ -8,7 +8,6 @@ import { daysBefore, recentDaysQuery, utcDay } from './day';
 import { useGroupsShown } from './use-groups-shown';
 
 const daysPerPage = 6;
-const dayMilliseconds = 86_400_000;
 
 export interface DayWithMemories {
   date: string;
@@ -34,7 +33,7 @@ function inUtc(options: Intl.DateTimeFormatOptions) {
 
 function label(t: TFunction, today: string, date: string) {
   const day = utcDay(date);
-  if (utcDay(today).getTime() - day.getTime() === dayMilliseconds) return t('onThisDay.yesterday');
+  if (date === daysBefore(today, 1)) return t('onThisDay.yesterday');
   return t('onThisDay.recentDay', {
     weekdayOf: day,
     dayOf: day,
@@ -67,11 +66,11 @@ export function useRecentDays(today: string) {
     recentDaysQuery(api, { before: today, since: before, limit: daysPerPage }),
   );
   const later = useQuery({ ...recentDaysQuery(api, { before, limit }), enabled: pages > 1 });
-  const fewer = useQuery({
+  const previous = useQuery({
     ...recentDaysQuery(api, { before, limit: limit - daysPerPage }),
     enabled: false,
   });
-  const laterDays = later.data ?? fewer.data ?? [];
+  const laterDays = later.data ?? previous.data ?? [];
   const [exhausted, setExhausted] = useState(false);
   if (!exhausted && later.data && later.data.length < limit) setExhausted(true);
   const shownPages = useGroupsShown([

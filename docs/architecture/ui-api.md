@@ -17,7 +17,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 - `src/api/media.ts` decodes a thumbnail with `new Image()` (`loadImage`), which reads the HTTP cache (proxy URLs are immutable). It settles even when refused; the `<img>` recovers as above.
 - `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once, by the same rule. What arrived stays for the session, within the limits in `createDownloads`.
 - A story opens once its first picture has arrived (`loadStory` in `features/on-this-day/day.ts`, its memory from the cached day or the recent days) and renders only pictures from the store. A picture fails only once none of it has arrived for `loadMilliseconds` (`mediaProgressed` in `story.ts`). A Live Photo video the server refuses plays from the network instead.
-- The tray of recent days reads `recentDays` (`src/api/flashbacks.ts`): one request for the first six days before today, and one for all the earlier pages shown (`features/on-this-day/use-recent-days.ts`). Closing a story reloads it.
+- The tray of recent days reads `recentDays` (`src/api/flashbacks.ts`): one request for the first page of days before today, and one for all the earlier pages shown (`features/on-this-day/use-recent-days.ts`). Closing a story reloads it.
 
 ## The event stream
 

@@ -17,7 +17,6 @@ public sealed record RecentDaysDto(IReadOnlyList<RecentDayDto> Days);
 
 public static class FlashbackEndpoints
 {
-    internal const int MostRecentDays = 366;
 
     public static IEndpointRouteBuilder MapFlashbackEndpoints(this IEndpointRouteBuilder app)
     {
@@ -71,13 +70,13 @@ public static class FlashbackEndpoints
         var start = Date(since);
         if (start is { Success: false })
             return InvalidDate(nameof(since));
-        if (!int.TryParse(limit, NumberStyles.None, CultureInfo.InvariantCulture, out var most) || most is < 1 or > MostRecentDays)
+        if (!int.TryParse(limit, NumberStyles.None, CultureInfo.InvariantCulture, out var most) || most is < 1 or > IFlashbackReader.MostRecentDays)
         {
             return ApiProblems.FieldProblem(
                 StatusCodes.Status400BadRequest,
                 ErrorCodes.InvalidLimit,
                 nameof(limit),
-                $"limit must be a whole number from 1 to {MostRecentDays}.");
+                $"limit must be a whole number from 1 to {IFlashbackReader.MostRecentDays}.");
         }
 
         var days = await reader.ReadRecentDaysAsync(userId, end.Value, start?.Value, most, ct);

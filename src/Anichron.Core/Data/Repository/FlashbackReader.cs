@@ -102,6 +102,9 @@ internal sealed record DayWindow(LocalDate Start, LocalDate End)
 /// </summary>
 public interface IFlashbackReader
 {
+    /// <summary>How many days before <c>before</c> the recent days reach back at most.</summary>
+    const int MostRecentDays = 366;
+
     /// <summary>The day's memories, years newest first, each year starred first and then by capture time.</summary>
     /// <param name="userId">The caller.</param>
     /// <param name="date">The day.</param>
@@ -109,7 +112,7 @@ public interface IFlashbackReader
     Task<IReadOnlyList<FlashbackYear>> ReadDayAsync(Guid userId, LocalDate date, CancellationToken ct);
 
     /// <summary>
-    /// The recent days in <c>[max(since, before − 366), before)</c>, newest first: each day whose On This Day has
+    /// The recent days in <c>[max(since, before − <see cref="MostRecentDays"/>), before)</c>, newest first: each day whose On This Day has
     /// memories, with its newest year and that year's first memory.
     /// </summary>
     /// <param name="userId">The caller.</param>
@@ -157,7 +160,7 @@ public sealed class EfFlashbackReader(AnichronDbContext db) : IFlashbackReader
     internal static async Task<IReadOnlyList<(LocalDate Date, FlashbackItem First)>> WalkAsync(
         LocalDate before, LocalDate? since, int limit, Func<DayWindow, Task<IReadOnlyList<FlashbackItem>>> read)
     {
-        var yearBack = before.PlusDays(-366);
+        var yearBack = before.PlusDays(-IFlashbackReader.MostRecentDays);
         var start = LocalDate.Max(since ?? yearBack, yearBack);
         var split = LocalDate.Max(start, before.PlusDays(-31));
         var found = new List<(LocalDate, FlashbackItem)>();

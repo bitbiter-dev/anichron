@@ -19,7 +19,7 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 - A burst is one key: its cover, chosen in SQL over all its shown members, found by burst id, with the burst's starred and liked state and count.
 - On This Day's rule is one predicate, `OnThisDay.Includes`: the same month and day in an earlier year. For 28 February it also matches 29 February in years without one; 29 February matches only itself.
 - A day's memories run years newest first, then starred first, by capture time and id. A recent day shows the first of them.
-- `GET /api/v1/flashbacks/days` (`ReadRecentDaysAsync`): SQL narrows the keys to the window's day ranges (`DayWindow.Covering`). `WalkAsync` reads the 31 days before `before` first, the rest of the year only when those are short, and takes each date's first key by `Includes` and the day's order.
+- `GET /api/v1/flashbacks/days` (`ReadRecentDaysAsync`): SQL narrows the keys to the window's day ranges (`DayWindow.Covering`). `WalkAsync` reads the days just before `before` first, the rest of the year only when those are short, and takes each date's first key by `Includes` and the day's order.
 
 ## Soft-deleted assets
 
