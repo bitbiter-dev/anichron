@@ -300,18 +300,9 @@ git_as_mira -C "$work/wt" push -q origin feature 2>/dev/null
 git_as_mira -C "$work/wt" pull -q --no-rebase --no-edit origin master 2>/dev/null
 printf 'resolved\n' >"$work/wt/shared.txt"
 git_as_mira -C "$work/wt" commit -q -am 'resolve master'
-touch "$work/state/no-runs-on-$head0"
-out=$(land); status=$?
-check 'an old head that conflicts with master, which GitHub starts no run on, is pushed before the PR is marked ready' "[ $status -eq 0 ] && [ \"\$(cat '$work/state/pushed-at-ready')\" = \"branch at ready: \$(git -C '$work/origin.git' rev-parse feature)\" ] && [[ \"\$(calls)\" != *'--commit $head0'* ]] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
-
-setup '{"number":7,"state":"OPEN","isDraft":true}' success conflict
-git_as_mira -C "$work/wt" push -q origin feature 2>/dev/null
-git_as_mira -C "$work/wt" pull -q --no-rebase --no-edit origin master 2>/dev/null
-printf 'resolved\n' >"$work/wt/shared.txt"
-git_as_mira -C "$work/wt" commit -q -am 'resolve master'
 touch "$work/state/no-runs-on-$head0" "$work/state/merge-tree-quiet-says-clean"
 out=$(land); status=$?
-check "an old head that conflicts with master is not marked ready, even where merge-tree --quiet says it is clean" "[ $status -eq 0 ] && [[ \"\$(calls)\" != *'--commit $head0'* ]] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
+check 'an old head that conflicts with master, which GitHub starts no run on, is pushed before the PR is marked ready, even where merge-tree --quiet says it is clean' "[ $status -eq 0 ] && [ \"\$(cat '$work/state/pushed-at-ready')\" = \"branch at ready: \$(git -C '$work/origin.git' rev-parse feature)\" ] && [[ \"\$(calls)\" != *'--commit $head0'* ]] && [[ \"\$(calls)\" == *'pr merge 7'* ]]" "exit $status: $out"
 
 setup '{"number":7,"state":"OPEN","isDraft":false}' success
 echo 1800000000 >"$work/state/clock"
