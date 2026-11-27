@@ -7,6 +7,7 @@ using Anichron.Worker.Settings;
 using Anichron.Worker.Work;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using NodaTime;
 using System.IO.Abstractions.TestingHelpers;
 
 namespace Anichron.Worker.Tests.Unit.Crawling;
@@ -347,6 +348,54 @@ public sealed class CrawlTests
             && r.Reconciliation == new ReconciliationCounts(2, 0, null));
         await repository.Received(1).SoftDeleteAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { throughLink, removed })), SoftDeleteReason.Missing, Ct);
+    }
+
+    [Fact]
+    public async Task RunAsync_LivePhotoSkippedAsFailing_KeepsBothActiveRowsThroughTheSweepAsync()
+    {
+        var photo = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var video = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var written = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+        var config = Config();
+        configs.FindByIdAsync(config.Id, Ct).Returns(config);
+        configs.GetActiveByUserIdAsync(MiraId, Ct).Returns([config]);
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/data/originals/mira/live.heic", new MockFileData([1]) { LastWriteTime = written });
+        fileSystem.AddFile("/data/originals/mira/live.mov", new MockFileData([1, 2]) { LastWriteTime = written });
+        var clock = Substitute.For<IClock>();
+        clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 11, 2, 0, 0));
+        ledger.LoadAsync(config, Ct).Returns(new FailingFiles(
+            new Dictionary<string, IngestionFailure>
+            {
+                ["live.heic"] = new()
+                {
+                    StorageConfigId = config.Id,
+                    FilePath = "live.heic",
+                    Fingerprint = $"1:{written.Ticks}|2:{written.Ticks}",
+                    Failures = 2,
+                    Reason = "IOException: locked",
+                    RetryAfter = Instant.FromUtc(2026, 11, 3, 0, 0),
+                },
+            },
+            fileSystem,
+            clock));
+        var repository = Substitute.For<IMediaAssetRepository>();
+        repository.GetActivePathsAsync(config.Id, Ct)
+            .Returns([new AssetPath(photo, "live.heic", video), new AssetPath(video, "live.mov")]);
+        var handler = new CrawlHandler(
+            new ActiveStorageConfigs(configs, activeLogger), configs,
+            FileIngestionPipelines.Build([], fileSystem, new WorkerSettings { MaxConcurrentFiles = 1 }),
+            new MissingFileSweep(repository, new FakeLogger<MissingFileSweep>()),
+            ledger,
+            new SharedContentReporter(Substitute.For<IMediaAssetRepository>(), new FakeLogger<SharedContentReporter>()),
+            queue, logger);
+
+        var result = await handler.RunAsync(new CrawlPayload(config.Id), new WorkRun(Guid.NewGuid(), progress), Ct);
+
+        result.Should().BeOfType<CrawlResult>().Which.Should().Match<CrawlResult>(r => r.Found == 0
+            && r.SkippedFailing == 1
+            && r.Reconciliation == new ReconciliationCounts(0, 0, null));
+        await repository.DidNotReceiveWithAnyArgs().SoftDeleteAsync(default!, default, Ct);
     }
 
     [Fact]

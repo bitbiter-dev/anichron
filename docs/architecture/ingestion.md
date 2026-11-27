@@ -18,10 +18,10 @@ How the Worker turns files on the NAS into assets. Code: `Anichron.Worker/Crawli
 
 `IngestionFailureLedger` is the one home of the fingerprint and the backoff. Its rows (`IngestionFailure`) are keyed by config and primary path.
 
-- **Load:** the crawl loads the config's rows once. The walk skips an item whose row is not due (`RetryAfter`) and whose fingerprint (length and last-write time of both halves) still matches. A skip logs a `Warning` and counts in `skippedFailing`, not `found`; its paths still go into `FoundPaths`.
+- **Load:** the crawl loads the config's rows once. The walk skips an item whose row is not due (`RetryAfter`) and whose fingerprint (`FailingFiles.Fingerprint`) still matches. A skip logs a `Warning` and counts in `skippedFailing`, not `found`; its paths still go into `FoundPaths`.
 - **Record:** after `MissingFileSweep`, in one save. A failed item's row counts one more failure on the same fingerprint, or starts again at 1. A succeeded item's row goes.
 - **Prune:** only when the sweep ran and the walk reached something, rows whose path is no item's primary path go. A cancelled crawl writes nothing.
-- **Backoff:** the n-th failure in a row is due again (2ⁿ⁻¹ − ½) crawl intervals later, capped at `Worker:IngestionRetryMaxDays`: the first failure retries at the next crawl.
+- **Backoff:** `IngestionFailureLedger.Backoff`, relative to the crawl's finish, so the first failure retries at the next crawl.
 
 ## One item, step by step
 

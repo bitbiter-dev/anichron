@@ -35,15 +35,8 @@ public sealed class IngestionFailureLedgerTests
 
     private void Now(Instant now) => clock.GetCurrentInstant().Returns(now);
 
-    private IngestionFailureLedger Ledger(AnichronDbContextLease lease, WorkerSettings? settings = null)
-        => new(new EfIngestionFailureRepository(lease.Db), lease.Db, fileSystem, clock, Options.Create(settings ?? new WorkerSettings()));
-
-    private sealed class AnichronDbContextLease(string database) : IAsyncDisposable
-    {
-        public AnichronDbContext Db { get; } = AnichronDbContexts.InMemory(database);
-
-        public ValueTask DisposeAsync() => Db.DisposeAsync();
-    }
+    private IngestionFailureLedger Ledger(AnichronDbContext db, WorkerSettings? settings = null)
+        => new(new EfIngestionFailureRepository(db), db, fileSystem, clock, Options.Create(settings ?? new WorkerSettings()));
 
     private static CrawlRun Run(
         IEnumerable<string>? reached = null,
@@ -65,8 +58,8 @@ public sealed class IngestionFailureLedgerTests
 
     private async Task RecordAsync(CrawlRun run, MissingFiles? missing = null, WorkerSettings? settings = null)
     {
-        await using var lease = new AnichronDbContextLease(database);
-        await Ledger(lease, settings).RecordAsync(config, run, missing ?? Swept, Ct);
+        await using var db = AnichronDbContexts.InMemory(database);
+        await Ledger(db, settings).RecordAsync(config, run, missing ?? Swept, Ct);
     }
 
     private Task FailAsync(string path, string reason = "IOException: locked", WorkerSettings? settings = null)
@@ -75,21 +68,21 @@ public sealed class IngestionFailureLedgerTests
 
     private async Task<List<IngestionFailure>> RowsAsync()
     {
-        await using var lease = new AnichronDbContextLease(database);
-        return await lease.Db.IngestionFailures.OrderBy(row => row.FilePath).ToListAsync(Ct);
+        await using var db = AnichronDbContexts.InMemory(database);
+        return await db.IngestionFailures.OrderBy(row => row.FilePath).ToListAsync(Ct);
     }
 
     private async Task<FailingFiles> LoadAsync()
     {
-        await using var lease = new AnichronDbContextLease(database);
-        return await Ledger(lease).LoadAsync(config, Ct);
+        await using var db = AnichronDbContexts.InMemory(database);
+        return await Ledger(db).LoadAsync(config, Ct);
     }
 
     private async Task SeedAsync(IngestionFailure row)
     {
-        await using var lease = new AnichronDbContextLease(database);
-        lease.Db.IngestionFailures.Add(row);
-        await lease.Db.SaveChangesAsync(Ct);
+        await using var db = AnichronDbContexts.InMemory(database);
+        db.IngestionFailures.Add(row);
+        await db.SaveChangesAsync(Ct);
     }
 
     private IngestionFailure Row(string path, Guid? configId = null, int failures = 1, string? fingerprint = null) => new()

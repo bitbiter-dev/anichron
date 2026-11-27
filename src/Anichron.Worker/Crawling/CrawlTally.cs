@@ -113,14 +113,11 @@ internal sealed class CrawlTally(IWorkProgress progress)
         Reached(item);
     });
 
-    public void SkippedFailing(IngestionItem item)
+    public void SkippedFailing(IngestionItem item) => Update(() =>
     {
-        lock (gate)
-        {
-            skippedFailing++;
-            Reached(item);
-        }
-    }
+        skippedFailing++;
+        Reached(item);
+    });
 
     private void Reached(IngestionItem item)
     {
