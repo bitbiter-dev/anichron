@@ -43,6 +43,7 @@ function pages(...all: Item[][]) {
     return {
       items: all[index] ?? [],
       next: index + 1 < all.length ? `page${String(index + 1)}` : null,
+      total: all.flat().length,
     };
   });
 }
@@ -106,7 +107,7 @@ describe('finding the screen', () => {
 });
 
 describe('the list', () => {
-  it('lists each memory by its file name over its folder, with why it went and when', async () => {
+  it('lists each memory by its file name, why it went and when, without its folder', async () => {
     server.use(
       onePage(
         removed(1, { reason: 'Missing', lastSeenOnNas: seen(2026, 11, 3) }),
@@ -117,18 +118,12 @@ describe('the list', () => {
     const { container } = await openRemoved();
 
     expect(rowNames()).toEqual([
-      `${name(1)}2019/TripNot found on your NAS · last seen Nov 3, 2026`,
-      `${name(2)}2019/TripAnother file took its place · last seen Oct 28, 2026`,
-      `${name(3)}2019/TripIts Live Photo has a newer video · removed around Feb 1, 2025`,
+      `${name(1)}Source file was removedLast seen Nov 3, 2026`,
+      `${name(2)}Source file was overwrittenLast seen Oct 28, 2026`,
+      `${name(3)}Live Photo got a newer videoRemoved around Feb 1, 2025`,
     ]);
+    expect(within(row(1)).getByText(name(1))).toHaveClass('font-semibold');
     expect(await axeResults(container)).toHaveNoViolations();
-  });
-
-  it('shows a file at the top of the storage folder without a folder', async () => {
-    server.use(onePage(removedMemory(id(1), name(1))));
-    await openRemoved();
-
-    expect(row(1)).toHaveTextContent(`${name(1)}Not found on your NAS`);
   });
 
   it('shows each thumbnail, a Live Photo with its badge, and a video with no thumbnail as a video glyph', async () => {
@@ -159,7 +154,7 @@ describe('the list', () => {
     expect(tile(1).querySelector('img')).toHaveAttribute('src', proxyUrl(id(1), 'thumbnail'));
     expect(tile(1).querySelector('svg')).toBeNull();
     expect(tile(2)).toHaveAccessibleName('Live Photo');
-    expect(tile(2).querySelector('svg')).not.toBeNull();
+    expect(tile(2).querySelector('svg')).toHaveClass('text-on-player', 'player-glass');
     expect(tile(3)).toHaveAccessibleName('Video');
     expect(tile(3).querySelector('svg')).not.toBeNull();
     expect(tile(3).querySelector('img')).toBeNull();
@@ -219,7 +214,7 @@ describe('the list', () => {
     expect(await screen.findByText('Nothing removed')).toBeVisible();
     expect(
       screen.getByText(
-        'Memories whose file went missing or was replaced on your NAS show up here.',
+        'Memories whose file went missing or was overwritten on your NAS show up here.',
       ),
     ).toBeVisible();
     expect(await axeResults(container)).toHaveNoViolations();
@@ -329,7 +324,7 @@ describe('the viewer', () => {
     await openViewer(2);
 
     expect(caption()).toHaveTextContent(
-      `2019/Trip/${name(2)}Another file took its place · last seen Nov 3, 2026`,
+      `2019/Trip/${name(2)}Source file was overwrittenLast seen Nov 3, 2026`,
     );
     expect(within(viewer()).getAllByRole('img', { name: 'Photo' })).toHaveLength(3);
     expect(await axeResults(container.ownerDocument.body)).toHaveNoViolations();
@@ -455,7 +450,7 @@ async function forgetSelected() {
 }
 
 describe('selecting', () => {
-  it('turns on from Select in the top bar, where Select all loaded and Cancel take the place of Back and Select', async () => {
+  it('turns on from Select in the top bar, where Select all and Cancel take the place of Back and Select', async () => {
     server.use(onePage(removed(1), removed(2)));
     const { container } = await openRemoved();
 
@@ -465,7 +460,7 @@ describe('selecting', () => {
       within(topBar())
         .getAllByRole('button')
         .map((button) => button.textContent),
-    ).toEqual(['Select all loaded', 'Cancel']);
+    ).toEqual(['Select all', 'Cancel']);
     expect(checkbox(1)).not.toBeChecked();
     expect(selectionBar()).toBeNull();
     expect(await axeResults(container)).toHaveNoViolations();
@@ -497,6 +492,7 @@ describe('selecting', () => {
     await user().click(checkbox(3));
     expect(checkedRows()).toEqual([name(1), name(3)]);
     expect(selectionBar()).toHaveTextContent('Forget 2');
+    expect(selectionBar()).toHaveClass('bg-accent', 'text-on-accent');
     expect(screen.getByText('2 memories selected')).toHaveAttribute('aria-live', 'polite');
 
     await user().click(checkbox(3));
@@ -506,18 +502,151 @@ describe('selecting', () => {
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('selects every loaded row with Select all loaded, and clears them when pressed again', async () => {
+  it('selects every row at once when all are loaded, then offers Deselect all, which clears them', async () => {
     server.use(onePage(removed(1), removed(2), removed(3)));
     await openRemoved();
     await startSelecting();
     await user().click(checkbox(2));
 
-    await user().click(within(topBar()).getByRole('button', { name: 'Select all loaded' }));
+    await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
     expect(checkedRows()).toEqual([name(1), name(2), name(3)]);
+    expect(screen.queryByRole('dialog')).toBeNull();
 
-    await user().click(within(topBar()).getByRole('button', { name: 'Select all loaded' }));
+    await user().click(within(topBar()).getByRole('button', { name: 'Deselect all' }));
     expect(checkedRows()).toEqual([]);
     expect(selectionBar()).toBeNull();
+    expect(within(topBar()).getByRole('button', { name: 'Select all' })).toBeVisible();
+  });
+
+  it('offers Deselect all once every row is selected by hand', async () => {
+    server.use(onePage(removed(1), removed(2)));
+    await openRemoved();
+    await startSelecting();
+
+    await user().click(checkbox(1));
+    expect(within(topBar()).getByRole('button', { name: 'Select all' })).toBeVisible();
+    await user().click(checkbox(2));
+    expect(within(topBar()).getByRole('button', { name: 'Deselect all' })).toBeVisible();
+  });
+
+  describe('with more still to load', () => {
+    const selectAllDialog = () => screen.getByRole('dialog', { name: /^Select all/ });
+
+    beforeEach(() => {
+      pageHeight(4000);
+    });
+
+    it('asks first, with the total and how many more need to load', async () => {
+      const all = Array.from({ length: 1240 }, (_, index) => removed(index + 1));
+      server.use(pages(all.slice(0, 50), all.slice(50)));
+      const { container } = await openRemoved();
+      await startSelecting();
+
+      await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
+
+      expect(selectAllDialog()).toHaveAccessibleName('Select all 1,240?');
+      expect(selectAllDialog()).toHaveTextContent('1,190 more need to load first.');
+      expect(
+        within(selectAllDialog())
+          .getAllByRole('button')
+          .map((button) => button.textContent),
+      ).toEqual(['Cancel', 'Load and select']);
+      expect(await axeResults(container.ownerDocument.body)).toHaveNoViolations();
+    }, 30_000);
+
+    it('says one more needs to load', async () => {
+      server.use(pages([removed(1), removed(2)], [removed(3)]));
+      await openRemoved();
+      await startSelecting();
+
+      await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
+
+      expect(selectAllDialog()).toHaveAccessibleName('Select all 3?');
+      expect(selectAllDialog()).toHaveTextContent('1 more needs to load first.');
+    });
+
+    it('changes nothing on Cancel', async () => {
+      server.use(pages([removed(1), removed(2)], [removed(3)]));
+      await openRemoved();
+      await startSelecting();
+      await user().click(checkbox(1));
+
+      await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
+      await user().click(within(selectAllDialog()).getByRole('button', { name: 'Cancel' }));
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(asked).toEqual([null]);
+      expect(checkedRows()).toEqual([name(1)]);
+    });
+
+    it('loads every page on Load and select, then selects them all', async () => {
+      server.use(pages([removed(1), removed(2)], [removed(3)], [removed(4)]));
+      await openRemoved();
+      await startSelecting();
+
+      await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
+      await user().click(
+        within(selectAllDialog()).getByRole('button', { name: 'Load and select' }),
+      );
+
+      await waitFor(() => {
+        expect(checkedRows()).toEqual([name(1), name(2), name(3), name(4)]);
+      });
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(asked).toEqual([null, 'page1', 'page2']);
+      expect(selectionBar()).toHaveTextContent('Forget 4');
+      expect(within(topBar()).getByRole('button', { name: 'Deselect all' })).toBeVisible();
+    });
+
+    it('says so when a page fails, and keeps everything that loaded selected', async () => {
+      server.use(
+        softDeletedAnswers((after) => {
+          asked.push(after);
+          if (after === null) return { items: [removed(1)], next: 'page1', total: 3 };
+          if (after === 'page1') return { items: [removed(2)], next: 'page2', total: 3 };
+          return fails();
+        }),
+      );
+      await openRemoved();
+      await startSelecting();
+
+      await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
+      await user().click(
+        within(selectAllDialog()).getByRole('button', { name: 'Load and select' }),
+      );
+      await advance(10_000);
+
+      expect(await screen.findByText("Couldn't load more removed memories.")).toBeVisible();
+      expect(checkedRows()).toEqual([name(1), name(2)]);
+      expect(asked).toContain('page2');
+      expect(within(topBar()).getByRole('button', { name: 'Select all' })).toBeVisible();
+    });
+
+    it('selects nothing when select mode ends while the rest loads', async () => {
+      let release = () => {};
+      server.use(
+        softDeletedAnswers(async (after) => {
+          if (after === null) return { items: [removed(1)], next: 'page1', total: 2 };
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          return { items: [removed(2)], next: null, total: 2 };
+        }),
+      );
+      await openRemoved();
+      await startSelecting();
+      await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
+      await user().click(
+        within(selectAllDialog()).getByRole('button', { name: 'Load and select' }),
+      );
+
+      await user().click(within(topBar()).getByRole('button', { name: 'Cancel' }));
+      release();
+      expect(await screen.findByText(name(2))).toBeVisible();
+      await startSelecting();
+
+      expect(checkedRows()).toEqual([]);
+    });
   });
 
   it('starts afresh after Cancel', async () => {
@@ -805,7 +934,7 @@ describe('forgetting', () => {
     );
     await openRemoved();
     await startSelecting();
-    await user().click(within(topBar()).getByRole('button', { name: 'Select all loaded' }));
+    await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
     items = [removed(1), removed(2), removed(3)];
 
     await forgetSelected();
@@ -828,7 +957,7 @@ describe('forgetting', () => {
     );
     await openRemoved();
     await startSelecting();
-    await user().click(within(topBar()).getByRole('button', { name: 'Select all loaded' }));
+    await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
 
     await forgetSelected();
 
@@ -900,7 +1029,7 @@ describe('forgetting', () => {
     server.use(onePage(...all), purgeAnswers(sent));
     await openRemoved();
     await startSelecting();
-    await user().click(within(topBar()).getByRole('button', { name: 'Select all loaded' }));
+    await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
     expect(selectionBar()).toHaveTextContent('Forget 1001');
 
     await forgetSelected();
@@ -920,7 +1049,7 @@ describe('forgetting', () => {
     );
     await openRemoved();
     await startSelecting();
-    await user().click(within(topBar()).getByRole('button', { name: 'Select all loaded' }));
+    await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
 
     await forgetSelected();
 
@@ -1026,7 +1155,7 @@ describe('dragging', () => {
 
   it('deselects instead when the drag starts on a selected row', async () => {
     await selectingFive();
-    await user().click(within(topBar()).getByRole('button', { name: 'Select all loaded' }));
+    await user().click(within(topBar()).getByRole('button', { name: 'Select all' }));
 
     const drag = dragFrom(2);
     drag.to(3);

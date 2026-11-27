@@ -116,16 +116,25 @@
   "removed": {
     "title": "Removed memories",
     "empty": "Nothing removed",
-    "emptyHint": "Memories whose file went missing or was replaced on your NAS show up here.",
+    "emptyHint": "Memories whose file went missing or was overwritten on your NAS show up here.",
     "failed": "Couldn't load your removed memories.",
     "failedMore": "Couldn't load more removed memories.",
     "reasons": {
-      "Missing": "Not found on your NAS · last seen {{date, datetime}}",
-      "Overwritten": "Another file took its place · last seen {{date, datetime}}",
-      "Superseded": "Its Live Photo has a newer video · removed around {{date, datetime}}"
+      "Missing": "Source file was removed",
+      "Overwritten": "Source file was overwritten",
+      "Superseded": "Live Photo got a newer video"
     },
+    "lastSeen": "Last seen {{date, datetime}}",
+    "removedAround": "Removed around {{date, datetime}}",
     "select": "Select",
-    "selectAll": "Select all loaded",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "loadAll": {
+      "title": "Select all {{total, number}}?",
+      "body_one": "{{count, number}} more needs to load first.",
+      "body_other": "{{count, number}} more need to load first.",
+      "confirm": "Load and select"
+    },
     "cancel": "Cancel",
     "selected_one": "{{count}} memory selected",
     "selected_other": "{{count}} memories selected",

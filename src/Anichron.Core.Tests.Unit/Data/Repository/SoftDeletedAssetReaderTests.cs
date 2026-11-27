@@ -361,6 +361,56 @@ public sealed class SoftDeletedAssetReaderTests
     }
 
     // ==========================================================================
+    // Total
+    // ==========================================================================
+
+    [Fact]
+    public async Task ReadPageAsync_TotalCountsOnlyTheCallersSoftDeletedAssetsInActiveConfigs()
+    {
+        var library = new Library();
+        library.Asset();
+        library.Asset();
+        library.Asset(reason: null);
+        library.Asset(library.AliceConfig);
+        library.Asset(library.MiraArchive);
+
+        var page = await ReadPageAsync(library);
+
+        page.Total.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ReadPageAsync_TotalCountsALivePhotoOnceAndLeavesOutTheVideoOfAnActivePhoto()
+    {
+        var library = new Library();
+        library.LivePhoto(library.Asset(type: MediaType.Video));
+        library.LivePhoto(library.Asset(type: MediaType.Video), reason: null);
+        var superseded = library.Asset(reason: SoftDeleteReason.Superseded, type: MediaType.Video);
+        superseded.IsLivePhotoVideo = true;
+
+        var page = await ReadPageAsync(library);
+
+        page.Total.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ReadPageAsync_TotalCountsTheWholeListOnEveryPage()
+    {
+        var library = new Library();
+        foreach (var n in Enumerable.Range(1, 3))
+            library.Asset(lastSeen: Monday + Duration.FromDays(n)).Id = Id(n);
+        var options = await library.SeedAsync();
+        await using var db = new AnichronDbContext(options);
+        var reader = new EfSoftDeletedAssetReader(db);
+
+        var first = await reader.ReadPageAsync(library.Mira.Id, null, 2, TestContext.Current.CancellationToken);
+        var last = await reader.ReadPageAsync(library.Mira.Id, first.Next, 2, TestContext.Current.CancellationToken);
+
+        first.Total.Should().Be(3);
+        last.Total.Should().Be(3);
+    }
+
+    // ==========================================================================
     // Purge rule
     // ==========================================================================
 

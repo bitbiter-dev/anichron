@@ -34,7 +34,10 @@ function Viewer({ screen, start }: RemovedViewerProps & { start: number }) {
           title={
             <>
               <span className="block truncate">{caption.path}</span>
-              <span className="block font-normal">{t(caption.reason.key, caption.reason)}</span>
+              <span className="block font-normal">{t(caption.reason.key)}</span>
+              <span className="block font-normal">
+                {t(caption.reason.when.key, caption.reason.when)}
+              </span>
             </>
           }
         >

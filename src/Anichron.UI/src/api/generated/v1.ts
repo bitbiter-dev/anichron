@@ -2887,6 +2887,8 @@ export interface components {
         SoftDeletedAssetsPageDto: {
             items: components["schemas"]["SoftDeletedAssetDto"][];
             next: null | string;
+            /** Format: int32 */
+            total: number;
         };
         /** @enum {string} */
         SoftDeleteReason: "Missing" | "Overwritten" | "Superseded";

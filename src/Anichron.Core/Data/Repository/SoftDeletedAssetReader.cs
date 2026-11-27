@@ -29,7 +29,8 @@ public sealed record SoftDeletedAssetView(
 /// <summary>A page of soft-deleted assets.</summary>
 /// <param name="Items">The page's assets, newest last seen first.</param>
 /// <param name="Next">The cursor of the next page, or <c>null</c> on the last page.</param>
-public sealed record SoftDeletedPage(IReadOnlyList<SoftDeletedAssetView> Items, AssetCursor? Next);
+/// <param name="Total">The assets on every page.</param>
+public sealed record SoftDeletedPage(IReadOnlyList<SoftDeletedAssetView> Items, AssetCursor? Next, int Total);
 
 /// <summary>An asset accepted for a purge.</summary>
 /// <param name="AssetId">The asset.</param>
@@ -42,7 +43,7 @@ public sealed record PurgeTarget(Guid AssetId, Guid StorageConfigId);
 /// </summary>
 public interface ISoftDeletedAssetReader
 {
-    /// <summary>One page, newest <see cref="MediaAsset.LastSeenOnNas"/> first, then by id descending.</summary>
+    /// <summary>One page, newest <see cref="MediaAsset.LastSeenOnNas"/> first, then by id descending, with the list's total.</summary>
     /// <param name="userId">The caller.</param>
     /// <param name="after">The last row of the previous page, or <c>null</c> for the first page.</param>
     /// <param name="size">The most assets on the page.</param>
@@ -65,9 +66,11 @@ public sealed class EfSoftDeletedAssetReader(AnichronDbContext db) : ISoftDelete
     {
         var views = await Query(db, userId, after, size + 1).ToListAsync(ct);
         var items = views.Take(size).ToList();
+        var total = await Listed(db.MediaAssets.IgnoreQueryFilters(), userId).CountAsync(ct);
         return new SoftDeletedPage(
             items,
-            views.Count > size ? new AssetCursor(items[^1].LastSeenOnNas, items[^1].Id) : null);
+            views.Count > size ? new AssetCursor(items[^1].LastSeenOnNas, items[^1].Id) : null,
+            total);
     }
 
     public async Task<IReadOnlyList<PurgeTarget>> ResolvePurgeAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct)

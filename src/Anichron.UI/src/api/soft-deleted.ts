@@ -8,6 +8,7 @@ export type RemovedMemory = Shown<components['schemas']['SoftDeletedAssetDto']>;
 export interface RemovedPage {
   items: RemovedMemory[];
   next: string | null;
+  total: number;
 }
 
 export interface SoftDeleted {
@@ -45,6 +46,7 @@ export function createSoftDeleted(
       return show((memoryOf) => ({
         items: page.items.filter(({ id }) => !forgotten.has(id)).map(memoryOf),
         next: page.next,
+        total: page.total,
       }));
     },
     async purge(ids) {
