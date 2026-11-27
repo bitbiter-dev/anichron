@@ -21,6 +21,7 @@ Fluent API only (`domain-has-no-data-annotations`). Columns are PascalCase. Tabl
 | `User`, `RefreshToken`, `Invite` | Identity; expired refresh tokens are deleted by the Worker's `TokenCleanup`; `ReplacedById` names the token a refresh rotated into, so a refresh recognises the token rotated last (ADR 0017) |
 | `WorkItem` | One unit of Worker work (`work-queue.md`) |
 | `ProxyOrphan` | A file a proxy sweep found with no `ProxyFile` row |
+| `IngestionFailure` | A file whose ingestion failed on its last attempted crawl, with its backoff; written only by the crawl, never read by the API (`ingestion.md`, "Failing files") |
 
 ## Decisions
 

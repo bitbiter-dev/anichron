@@ -114,6 +114,48 @@ namespace Anichron.Core.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Anichron.Core.Domain.IngestionFailure", b =>
+                {
+                    b.Property<Guid>("StorageConfigId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FilePath")
+                        .HasColumnType("text")
+                        .HasComment("The item's primary path relative to the storage config root, as MediaAssets.FilePath: a Live Photo's photo.");
+
+                    b.Property<int>("Failures")
+                        .HasColumnType("integer")
+                        .HasComment("Consecutive crawls whose attempt failed on this fingerprint; a changed fingerprint starts again at 1.");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasComment("Length and last-write time of each of the item's files, taken before the failed attempt read them. A crawl that sees another fingerprint tries the file at once.");
+
+                    b.Property<Instant>("FirstFailedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Instant>("LastFailedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasComment("The last failure's exception type and message, truncated.");
+
+                    b.Property<Instant>("RetryAfter")
+                        .HasColumnType("timestamp with time zone")
+                        .HasComment("A crawl before this time skips the file while its fingerprint holds. The delay doubles with each failure, up to Worker:IngestionRetryMaxDays.");
+
+                    b.HasKey("StorageConfigId", "FilePath");
+
+                    b.ToTable("IngestionFailures", t =>
+                        {
+                            t.HasComment("A file of a storage config whose ingestion failed on its last attempted crawl. Written only by the Worker's crawl, once per crawl: a success or a complete walk that no longer finds the file deletes the row. The API never reads it, since its paths are media data.");
+                        });
+                });
+
             modelBuilder.Entity("Anichron.Core.Domain.Invite", b =>
                 {
                     b.Property<Guid>("Id")
@@ -658,6 +700,15 @@ namespace Anichron.Core.Migrations
                         .IsRequired();
 
                     b.Navigation("Asset");
+                });
+
+            modelBuilder.Entity("Anichron.Core.Domain.IngestionFailure", b =>
+                {
+                    b.HasOne("Anichron.Core.Domain.UserStorageConfig", null)
+                        .WithMany()
+                        .HasForeignKey("StorageConfigId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Anichron.Core.Domain.Invite", b =>

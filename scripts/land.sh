@@ -180,7 +180,7 @@ ready_since() {
 # Whether <sha> merges into origin/master cleanly: GitHub starts no
 # pull_request run on a head that conflicts with its base.
 merges_cleanly() {
-  git merge-tree --write-tree --quiet origin/master "$1" >/dev/null 2>&1
+  git merge-tree --write-tree origin/master "$1" >/dev/null 2>&1
 }
 
 # Waits until <workflow> has a run on <sha> created since <since>.

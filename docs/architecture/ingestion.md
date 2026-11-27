@@ -11,7 +11,17 @@ How the Worker turns files on the NAS into assets. Code: `Anichron.Worker/Crawli
 - `MediaTypeDetector` decides what is ingested. A video format counts only when MetadataExtractor reads its size and duration (QuickTime, AVI; not `.mkv` or `.wmv`).
 - A file it finds no type for (an `.AAE` sidecar, a `.txt`) is logged at `Debug` and counted (`work-queue.md`, "Crawl result").
 - Files flow through a bounded `Channel<T>` to `Worker:MaxConcurrentFiles` consumers. Processing is idempotent.
-- A failed item counts in `failed`. A file whose bytes a decoder rejects (`BrokenFile`) logs one `Warning` with the reason and no stack trace; metadata extraction logs it only at `Debug`. Any other failure logs at `Error` with its exception.
+- A file whose bytes a decoder rejects (`BrokenFile`) logs one `Warning` with the reason and no stack trace; metadata extraction logs it only at `Debug`. It counts in `failed` at once.
+- Any other failure logs at `Information` and the item runs once more after the walk, through the same consumers. Only a second failure counts in `failed`, logged at `Error` with its exception.
+
+### Failing files
+
+`IngestionFailureLedger` is the one home of the fingerprint and the backoff. Its rows (`IngestionFailure`) are keyed by config and primary path.
+
+- **Load:** the crawl loads the config's rows once. The walk skips an item whose row is not due (`RetryAfter`) and whose fingerprint (`FailingFiles.Fingerprint`) still matches. A skip logs a `Warning` and counts in `skippedFailing`, not `found`; its paths still go into `FoundPaths`.
+- **Record:** after `MissingFileSweep`, in one save. A failed item's row counts one more failure on the same fingerprint, or starts again at 1. A succeeded item's row goes.
+- **Prune:** only when the sweep ran and the walk reached something, rows whose path is no item's primary path go. A cancelled crawl writes nothing.
+- **Backoff:** `IngestionFailureLedger.Backoff`, relative to the crawl's finish, so the first failure retries at the next crawl.
 
 ## One item, step by step
 
@@ -20,7 +30,7 @@ An item is one file, or both halves of a Live Photo.
 1. **Hash** the content (XXHash64).
 2. **Classify.** `IngestionClassifier` loads every relevant row in one query (`FindByHashesOrPathsAsync`) and gives each half a `FileOutcome`, the `Stored` row it acts on, the `Retired` row it soft-deletes, and a `PairingAction`. Nothing else asks the database whether content is known.
 3. **Process new content** (`New`, `ContentChanged`, `AutoRestoredContentChanged`): metadata, proxies, then the `IOutcomeWriter` for that outcome. Every other outcome stops after `LivePhotoPairer` and `KnownFileReconciler`.
-4. **Save once.** Steps only stage changes; `IngestionSaver.TrySaveItemAsync` commits the item in one save, so an item is atomic and a failed one is redone whole on the next crawl. A lost uniqueness race (`LostIngestionRace`) skips the item until the next crawl.
+4. **Save once.** Steps only stage changes; `IngestionSaver.TrySaveItemAsync` commits the item in one save, so an item is atomic and a failed one is redone whole: after the walk, then by a later crawl ("Failing files"). A lost uniqueness race (`LostIngestionRace`) skips the item until the next crawl.
 
 One home per rule: a row takes new content only through `StoredContent.TakeAsync`, is auto-restored only through `ReactivateAsync` (which clears its reason), and is retired only through `RetireAsync`.
 

@@ -62,6 +62,26 @@ COMMENT ON TABLE "StorageConfigs" IS 'A NAS root assigned to one user. This is t
 COMMENT ON COLUMN "StorageConfigs"."RootPath" IS 'GLOBALLY unique, not per user: a path cannot be assigned to two configs across all users. Two users indexing the same directory would duplicate every asset and let one user''s config removal cascade away the other''s rows.';
 
 
+CREATE TABLE "IngestionFailures" (
+    "StorageConfigId" uuid NOT NULL,
+    "FilePath" text NOT NULL,
+    "Fingerprint" text NOT NULL,
+    "Failures" integer NOT NULL,
+    "Reason" character varying(500) NOT NULL,
+    "FirstFailedAt" timestamp with time zone NOT NULL,
+    "LastFailedAt" timestamp with time zone NOT NULL,
+    "RetryAfter" timestamp with time zone NOT NULL,
+    CONSTRAINT "PK_IngestionFailures" PRIMARY KEY ("StorageConfigId", "FilePath"),
+    CONSTRAINT "FK_IngestionFailures_StorageConfigs_StorageConfigId" FOREIGN KEY ("StorageConfigId") REFERENCES "StorageConfigs" ("Id") ON DELETE CASCADE
+);
+COMMENT ON TABLE "IngestionFailures" IS 'A file of a storage config whose ingestion failed on its last attempted crawl. Written only by the Worker''s crawl, once per crawl: a success or a complete walk that no longer finds the file deletes the row. The API never reads it, since its paths are media data.';
+COMMENT ON COLUMN "IngestionFailures"."FilePath" IS 'The item''s primary path relative to the storage config root, as MediaAssets.FilePath: a Live Photo''s photo.';
+COMMENT ON COLUMN "IngestionFailures"."Fingerprint" IS 'Length and last-write time of each of the item''s files, taken before the failed attempt read them. A crawl that sees another fingerprint tries the file at once.';
+COMMENT ON COLUMN "IngestionFailures"."Failures" IS 'Consecutive crawls whose attempt failed on this fingerprint; a changed fingerprint starts again at 1.';
+COMMENT ON COLUMN "IngestionFailures"."Reason" IS 'The last failure''s exception type and message, truncated.';
+COMMENT ON COLUMN "IngestionFailures"."RetryAfter" IS 'A crawl before this time skips the file while its fingerprint holds. The delay doubles with each failure, up to Worker:IngestionRetryMaxDays.';
+
+
 CREATE TABLE "WorkItems" (
     "Id" uuid NOT NULL,
     "Kind" text NOT NULL,

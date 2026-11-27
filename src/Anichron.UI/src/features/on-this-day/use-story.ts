@@ -3,7 +3,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { YearGroup } from '../../api/flashbacks';
 import type { Memory } from '../../api/memories';
 import { framesShown } from './burst';
-import { framesOf, previewOf, startGroup } from './day';
+import { framesOf, previewOf, standInOf, startGroup } from './day';
 import { createGestures, listenToInput } from './navigation';
 import { kindOf } from '../../shared/memory-kinds';
 import { createPreload, createPreviews, nextVideo, wantedOf } from './prefetch';
@@ -79,6 +79,7 @@ export function useStory(years: readonly YearGroup[], year: number, close: () =>
     state,
     group,
     ...storyView(state, group),
+    standIn: standInOf(api, queryClient, memoryAt(state), state.load),
     nextVideo: preload(nextVideo(state, memoryAt), arrived.picturesSettled),
     source: arrived.sourceOf,
     hide: (place?: Place) => story.hide(place),

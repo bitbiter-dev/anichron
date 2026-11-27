@@ -14,6 +14,7 @@ public sealed class WorkerIniDefaultsTests
             ("Worker", "ExcludedDirectories", ""),
             ("Worker", "CrawlIntervalHours", "4"),
             ("Worker", "MaxConcurrentFiles", "4"),
+            ("Worker", "IngestionRetryMaxDays", "7"),
             ("Worker", "TokenCleanupIntervalHours", "24"),
             ("Worker", "WorkPollIntervalSeconds", "5"),
             ("Worker", "WorkHeartbeatSeconds", "2"),
