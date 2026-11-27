@@ -41,3 +41,17 @@ export function softDeletedAnswers(answer: (after: string | null) => Answer) {
     return page instanceof Response ? response.untyped(page) : response(200).json(page);
   });
 }
+
+export function purgeAnswers(
+  sent: string[][],
+  answer: (ids: string[]) => string[] | Response | Promise<string[]> = (ids) => ids,
+) {
+  return http.post('/api/v1/assets/purges', async ({ request, response }) => {
+    const { assetIds } = await request.json();
+    sent.push(assetIds);
+    const accepted = await answer(assetIds);
+    return accepted instanceof Response
+      ? response.untyped(accepted)
+      : response(202).json({ accepted });
+  });
+}

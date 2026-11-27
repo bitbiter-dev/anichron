@@ -131,6 +131,7 @@ describe('the work queue', () => {
       'ProxySweep',
       'ProxyDeletion',
       'CompactPreview',
+      'AssetPurge',
     ] as const;
     await openList({ items: all.map((kind, n) => workItem(n + 1, { kind })) });
 
@@ -142,6 +143,7 @@ describe('the work queue', () => {
       'Proxy sweep',
       'Proxy deletion',
       'Compact previews',
+      'Purge',
     ]);
   });
 

@@ -21,5 +21,6 @@ export function useViewer(screen: RemovedScreen, start: number) {
       current,
     ),
     caption: { path: row.memory.path, reason: row.reason },
+    current: row.memory.id,
   };
 }

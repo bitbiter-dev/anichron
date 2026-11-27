@@ -18,6 +18,8 @@ How the UI (`src/Anichron.UI`) calls the API.
 - `media.downloads` is the app's one download store: one download at a time, the first unfinished in the order a story wants (`wantedOf` in `features/on-this-day/prefetch.ts`), each into an object URL; an earlier one stops a later one. A `401` renews the media session and retries once, by the same rule. What arrived stays for the session, within the limits in `createDownloads`.
 - A story opens once its first picture has arrived (`loadStory` in `features/on-this-day/day.ts`) and renders only pictures from the store. A picture fails only once none of it has arrived for `loadMilliseconds` (`mediaProgressed` in `story.ts`). A Live Photo video the server refuses plays from the network instead.
 
+- `softDeleted.purge` (`src/api/soft-deleted.ts`) forgets removed memories; the caller sends them in chunks of `chunkSize`, one call after another (`features/removed/forget.ts`). The ids the server accepts stay out of every later page until the user changes, since the Worker deletes them later.
+
 ## The event stream
 
 - `src/api/event-stream.ts` reads a Server-Sent Events response with `fetch`, so the request carries the bearer token through `authorized`. An area module imports it lazily (`work-items.ts`).

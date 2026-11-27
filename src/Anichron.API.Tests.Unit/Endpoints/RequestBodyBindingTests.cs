@@ -23,6 +23,7 @@ public sealed class RequestBodyBindingTests
     private readonly IAssetInteractionWriter interactions = Substitute.For<IAssetInteractionWriter>();
     private readonly IWorkItemReader workItems = Substitute.For<IWorkItemReader>();
     private readonly IWorkQueue queue = Substitute.For<IWorkQueue>();
+    private readonly ISoftDeletedAssetReader softDeleted = Substitute.For<ISoftDeletedAssetReader>();
 
     private Task<AuthenticatedTestApp> StartAsync()
         => AuthenticatedTestApp.StartAsync(
@@ -41,6 +42,7 @@ public sealed class RequestBodyBindingTests
                 services.AddSingleton(storageConfigs);
                 services.AddSingleton(interactions);
                 services.AddSingleton(Substitute.For<IAssetViewReader>());
+                services.AddSingleton(softDeleted);
                 services.AddSingleton(workItems);
                 services.AddSingleton(Substitute.For<IProxyOrphanReader>());
                 services.AddSingleton(queue);
@@ -78,6 +80,8 @@ public sealed class RequestBodyBindingTests
         { "POST", "/api/v1/users", /*lang=json,strict*/ """{"username":"alice","email":null}""" },
         { "POST", $"/api/v1/users/{OtherId}/storage-configs", /*lang=json,strict*/ "{}" },
         { "POST", $"/api/v1/users/{OtherId}/storage-configs", /*lang=json,strict*/ """{"rootPath":null}""" },
+        { "POST", "/api/v1/assets/purges", /*lang=json,strict*/ "{}" },
+        { "POST", "/api/v1/assets/purges", /*lang=json,strict*/ """{"assetIds":null}""" },
     };
 
     [Theory]
@@ -92,6 +96,7 @@ public sealed class RequestBodyBindingTests
         auth.ReceivedCalls().Should().BeEmpty();
         adminUsers.ReceivedCalls().Should().BeEmpty();
         storageConfigs.ReceivedCalls().Should().BeEmpty();
+        softDeleted.ReceivedCalls().Should().BeEmpty();
     }
 
     [Fact]
