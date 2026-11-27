@@ -1,6 +1,6 @@
 import { animate, type PanInfo, useMotionValue, useTransform } from 'motion/react';
 import type { Gestures } from './navigation';
-import { reducesMotion } from './reduced-motion';
+import { reducesMotion } from '../../shared/reduced-motion';
 
 const cardScale = 0.6;
 const cardRadius = 24;

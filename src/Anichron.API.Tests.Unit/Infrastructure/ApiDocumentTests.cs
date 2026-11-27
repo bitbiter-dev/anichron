@@ -53,7 +53,9 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
         { "PATCH /api/v1/assets/{assetId}/interaction", Of(["200 application/json AssetInteractionDto", $"404 {Problem}"], User, Body) },
         { "GET /api/v1/assets/hidden", Of(["200 application/json HiddenAssetsPageDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/assets/soft-deleted", Of(["200 application/json SoftDeletedAssetsPageDto", $"400 {Invalid}"], User) },
+        { "POST /api/v1/assets/purges", Of(["202 application/json PurgeAcceptedDto", $"400 {Invalid}", $"415 {Problem}"], User) },
         { "GET /api/v1/flashbacks/on-this-day", Of(["200 application/json OnThisDayDto", $"400 {Invalid}"], User) },
+        { "GET /api/v1/flashbacks/days", Of(["200 application/json RecentDaysDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/bursts/{burstId}/assets", Of(["200 application/json AssetDto[]", $"404 {Problem}"], User) },
         { "GET /api/v1/admin/work-items", Of(["200 application/json WorkItemPageDto", $"400 {Invalid}"], User) },
         { "GET /api/v1/admin/work-items/events", Of(["200 text/event-stream SseItemOfWorkItemDto"], User) },
@@ -112,10 +114,12 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
             "account_locked",
             "cannot_modify_self",
             "email_taken",
+            "invalid_asset_count",
             "invalid_credentials",
             "invalid_cursor",
             "invalid_date",
             "invalid_email",
+            "invalid_limit",
             "invalid_orphan_count",
             "invalid_page",
             "invalid_page_size",
@@ -145,7 +149,7 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     [Fact]
     public void WorkKind_IsItsNames()
         => EnumNames("WorkKind").Should().Equal(
-            "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion", "CompactPreview");
+            "TokenCleanup", "WorkItemRetention", "Crawl", "BurstDetection", "ProxySweep", "ProxyDeletion", "CompactPreview", "AssetPurge");
 
     [Fact]
     public void PublishedMediaType_IsItsNames()

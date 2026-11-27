@@ -1,7 +1,7 @@
 import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
-import type { Day, YearGroup } from '../../api/flashbacks';
+import type { Day, RecentDay, RecentWindow, YearGroup } from '../../api/flashbacks';
 import type { Memory } from '../../api/memories';
 import type { User } from '../../api/session';
 import { burstsKey, daysKey } from '../../shared/memory-queries';
@@ -43,6 +43,17 @@ export function yearsAgo(date: string, year: number) {
 
 export function dayKey(date: string) {
   return [...daysKey(), date] as const;
+}
+
+export function recentDaysKey() {
+  return [...daysKey(), 'recent'] as const;
+}
+
+export function recentDaysQuery(api: ApiClient, window: RecentWindow) {
+  return queryOptions({
+    queryKey: [...recentDaysKey(), window],
+    queryFn: ({ signal }) => api.flashbacks.recentDays(window, signal),
+  });
 }
 
 export function dayQuery(api: ApiClient, date: string) {
@@ -127,10 +138,20 @@ export async function loadStory(
   year: number,
 ) {
   const day = queryClient.getQueryData<Day>(dayKey(date));
-  const group = day?.years[startGroup(day.years, year)];
-  if (!group) return;
-  const first = previewOf(api, queryClient, group.memories[0] as Memory);
+  const memory = day
+    ? day.years[startGroup(day.years, year)]?.memories[0]
+    : recentMemoryOf(queryClient, date);
+  const first = memory && previewOf(api, queryClient, memory);
   if (first) await api.media.downloads.picture(first);
+}
+
+function recentMemoryOf(queryClient: QueryClient, date: string) {
+  // Stryker disable next-line ObjectLiteral
+  const recentDays = { queryKey: recentDaysKey() };
+  return queryClient
+    .getQueriesData<RecentDay[]>(recentDays)
+    .flatMap(([, days]) => days)
+    .find((day) => day?.date === date)?.memory;
 }
 
 export function framesOf(api: ApiClient, queryClient: QueryClient, memory: Memory) {

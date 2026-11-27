@@ -9,4 +9,5 @@ public enum WorkKind
     ProxySweep = 5,
     ProxyDeletion = 6,
     CompactPreview = 7,
+    AssetPurge = 8,
 }

@@ -12,6 +12,10 @@ _Avoid_: Item, asset (in the UI), card
 The user's memories whose capture date falls on a given day and month in an earlier year: today's, or one of the recent days the user picks. In a year without 29 February, memories from 29 February fall on 28 February.
 _Avoid_: Today's memories, anniversary
 
+**Recent day**:
+A day before today whose On This Day has memories. Today's recent days run newest first and reach back at most a year.
+_Avoid_: Earlier day, past day
+
 **Story**:
 The full-screen player that shows memories one after another, each for a set time, until the user moves on or pauses.
 _Avoid_: Slideshow, carousel, reel

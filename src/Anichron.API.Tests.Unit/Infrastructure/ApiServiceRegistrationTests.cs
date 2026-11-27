@@ -79,6 +79,7 @@ public sealed class ApiServiceRegistrationTests
         { typeof(IMediaAssetReadRepository), typeof(EfMediaAssetReadRepository), ServiceLifetime.Scoped },
         { typeof(IAssetViewReader), typeof(EfAssetViewReader), ServiceLifetime.Scoped },
         { typeof(ISoftDeletedAssetReader), typeof(EfSoftDeletedAssetReader), ServiceLifetime.Scoped },
+        { typeof(IFlashbackReader), typeof(EfFlashbackReader), ServiceLifetime.Scoped },
         { typeof(IAssetInteractionWriter), typeof(EfAssetInteractionWriter), ServiceLifetime.Scoped },
         { typeof(IProxyStore), typeof(ProxyStore), ServiceLifetime.Singleton },
         { typeof(IOriginalStore), typeof(OriginalStore), ServiceLifetime.Singleton },

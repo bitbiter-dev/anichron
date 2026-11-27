@@ -10,17 +10,20 @@ namespace Anichron.API.Tests.Unit.Endpoints;
 public sealed class FlashbackEndpointsTests
 {
     private static readonly Guid UserId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+    private static readonly Guid BurstId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
 
     private sealed class TestFixture
     {
-        public IAssetViewReader Reader { get; } = Substitute.For<IAssetViewReader>();
+        public IFlashbackReader Reader { get; } = Substitute.For<IFlashbackReader>();
         public IClock Clock { get; } = Substitute.For<IClock>();
         public DateTimeZone Zone { get; init; } = DateTimeZone.Utc;
 
         public TestFixture()
         {
             Clock.GetCurrentInstant().Returns(Instant.FromUtc(2026, 7, 14, 23, 30));
-            Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>())
+            Reader.ReadDayAsync(Arg.Any<Guid>(), Arg.Any<LocalDate>(), Arg.Any<CancellationToken>()).Returns([]);
+            Reader.ReadRecentDaysAsync(
+                    Arg.Any<Guid>(), Arg.Any<LocalDate>(), Arg.Any<LocalDate?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
                 .Returns([]);
         }
 
@@ -36,8 +39,18 @@ public sealed class FlashbackEndpointsTests
     private static HttpRequestMessage Get(string query = "")
         => AuthenticatedTestApp.Get($"/api/v1/flashbacks/on-this-day{query}", UserId);
 
-    private static AssetView View(int year, bool starred = false)
-        => AssetViews.Image(Guid.NewGuid(), new LocalDateTime(year, 7, 14, 9, 0)) with { IsStarred = starred };
+    private static HttpRequestMessage GetDays(string query)
+        => AuthenticatedTestApp.Get($"/api/v1/flashbacks/days{query}", UserId);
+
+    private static FlashbackMemory Memory(int id, int year, bool starred = false, FlashbackBurst? burst = null)
+    {
+        var view = AssetViews.Image(Guid.Parse($"00000000-0000-0000-0000-{id:D12}"), new LocalDateTime(year, 7, 14, 9, 0));
+        return new(view with { IsStarred = starred, BurstId = burst?.BurstId }, burst);
+    }
+
+    // ==========================================================================
+    // On This Day
+    // ==========================================================================
 
     [Fact]
     public async Task OnThisDay_WithADate_ReadsThatDayForTheCallerAsync()
@@ -49,8 +62,7 @@ public sealed class FlashbackEndpointsTests
         using var response = await client.SendAsync(Get("?date=2026-03-09"), TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        await fixture.Reader.Received(1).ReadAsync(
-            UserId, new OnThisDay(new LocalDate(2026, 3, 9)), Arg.Any<CancellationToken>());
+        await fixture.Reader.Received(1).ReadDayAsync(UserId, new LocalDate(2026, 3, 9), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -65,16 +77,15 @@ public sealed class FlashbackEndpointsTests
         using var response = await client.SendAsync(Get(), TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        await fixture.Reader.Received(1).ReadAsync(
-            UserId, new OnThisDay(new LocalDate(year, month, day)), Arg.Any<CancellationToken>());
+        await fixture.Reader.Received(1).ReadDayAsync(UserId, new LocalDate(year, month, day), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task OnThisDay_ReturnsTheDayAndTheYearGroupsAsync()
+    public async Task OnThisDay_ReturnsTheDayAndTheYearsInTheReadersOrderAsync()
     {
         var fixture = new TestFixture();
-        AssetView[] views = [View(2015), View(2021, starred: true), View(2015, starred: true)];
-        fixture.Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>()).Returns(views);
+        fixture.Reader.ReadDayAsync(Arg.Any<Guid>(), Arg.Any<LocalDate>(), Arg.Any<CancellationToken>()).Returns(
+            [new FlashbackYear(2021, [Memory(1, 2021)]), new FlashbackYear(2015, [Memory(3, 2015, starred: true), Memory(2, 2015)])]);
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
 
@@ -84,90 +95,29 @@ public sealed class FlashbackEndpointsTests
         body.Should().NotBeNull();
         body.Date.Should().Be("2026-07-14");
         body.Years.Select(y => (y.Year, y.Assets.Count)).Should().Equal((2021, 1), (2015, 2));
-        body.Years[1].Assets[0].Id.Should().Be(views[2].Id);
+        body.Years[1].Assets.Select(a => (a.Id.ToString()[^1..], a.Interaction.Starred)).Should().Equal(("3", true), ("2", false));
+        body.Years[1].Assets[0].Burst.Should().BeNull();
     }
 
     [Fact]
-    public async Task OnThisDay_Burst_IsOneItemCarryingItsBurstOnTheRequestedDayOnlyAsync()
+    public async Task OnThisDay_Burst_IsItsCoverCarryingItsBurstAsync()
     {
         var fixture = new TestFixture();
-        var burstId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
-        var cover = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000001"), new LocalDateTime(2019, 7, 14, 23, 59)) with { BurstId = burstId };
-        var single = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000003"), new LocalDateTime(2019, 7, 14, 10, 0));
-        AssetView[] views =
-        [
-            cover,
-            AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000002"), new LocalDateTime(2019, 7, 15, 0, 1)) with { BurstId = burstId },
-            single,
-        ];
-        fixture.Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>()).Returns(views);
+        fixture.Reader.ReadDayAsync(Arg.Any<Guid>(), Arg.Any<LocalDate>(), Arg.Any<CancellationToken>()).Returns(
+            [new FlashbackYear(2019, [Memory(1, 2019, burst: new FlashbackBurst(BurstId, 2))])]);
         await using var app = await fixture.StartAsync();
         using var client = app.Client;
 
-        using var onTheDay = await client.SendAsync(Get("?date=2026-07-14"), TestContext.Current.CancellationToken);
-        using var nextDay = await client.SendAsync(Get("?date=2026-07-15"), TestContext.Current.CancellationToken);
+        using var response = await client.SendAsync(Get("?date=2026-07-14"), TestContext.Current.CancellationToken);
 
-        var json = await onTheDay.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         json.Should().Contain("\"burst\":{\"burstId\":\"bbbbbbbb-0000-0000-0000-000000000001\",\"isCover\":true,\"count\":2}");
-        var day = await onTheDay.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
-        day.Should().NotBeNull();
-        day.Years.Should().ContainSingle().Which.Assets.Select(a => (a.Id, a.Burst)).Should().Equal(
-            (single.Id, null),
-            (cover.Id, new AssetBurstDto(burstId, true, 2)));
-        var later = await nextDay.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
-        later.Should().NotBeNull();
-        later.Years.Should().ContainSingle().Which.Assets.Should().ContainSingle().Which.Id.Should().Be(single.Id);
-    }
-
-    [Fact]
-    public async Task OnThisDay_TwentyEighthOfFebruaryInAYearWithoutALeapDay_ShowsTheTwentyNinthInItsYearAsync()
-    {
-        var fixture = new TestFixture();
-        var leapDay = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000001"), new LocalDateTime(2024, 2, 29, 9, 0));
-        var twentyEighth = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000002"), new LocalDateTime(2025, 2, 28, 9, 0));
-        fixture.Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>())
-            .Returns([leapDay, twentyEighth]);
-        await using var app = await fixture.StartAsync();
-        using var client = app.Client;
-
-        using var response = await client.SendAsync(Get("?date=2027-02-28"), TestContext.Current.CancellationToken);
-
-        var body = await response.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
-        body.Should().NotBeNull();
-        body.Years.Select(y => (y.Year, y.Assets.Single().Id)).Should().Equal((2025, twentyEighth.Id), (2024, leapDay.Id));
-        await fixture.Reader.Received(1).ReadAsync(
-            UserId, new OnThisDay(new LocalDate(2027, 2, 28)), Arg.Any<CancellationToken>());
-    }
-
-    [Theory]
-    [InlineData("2027-02-28", true)]
-    [InlineData("2028-02-29", true)]
-    [InlineData("2028-02-28", false)]
-    public async Task OnThisDay_BurstCoveredOnTheTwentyNinthOfFebruary_IsShownOnTheTwentyEighthOnlyWithoutALeapDayAsync(
-        string date, bool shown)
-    {
-        var fixture = new TestFixture();
-        var burstId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
-        var cover = AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000001"), new LocalDateTime(2024, 2, 29, 23, 59)) with { BurstId = burstId };
-        AssetView[] views =
-        [
-            cover,
-            AssetViews.Image(Guid.Parse("00000000-0000-0000-0000-000000000002"), new LocalDateTime(2024, 3, 1, 0, 1)) with { BurstId = burstId },
-        ];
-        fixture.Reader.ReadAsync(Arg.Any<Guid>(), Arg.Any<IAssetSelection>(), Arg.Any<CancellationToken>()).Returns(views);
-        await using var app = await fixture.StartAsync();
-        using var client = app.Client;
-
-        using var response = await client.SendAsync(Get($"?date={date}"), TestContext.Current.CancellationToken);
-
-        var body = await response.Content.ReadFromJsonAsync<OnThisDayDto>(TestContext.Current.CancellationToken);
-        body.Should().NotBeNull();
-        body.Years.SelectMany(y => y.Assets).Select(a => a.Id).Should().Equal(shown ? [cover.Id] : []);
     }
 
     [Theory]
     [InlineData("2026-13-01")]
     [InlineData("14.07.2026")]
+    [InlineData("2025-02-29")]
     [InlineData("")]
     public async Task OnThisDay_InvalidDate_ReturnsBadRequestWithoutReadingAsync(string date)
     {
@@ -179,20 +129,7 @@ public sealed class FlashbackEndpointsTests
 
         await ProblemAssertions.AssertFieldProblemAsync(
             response, 400, "invalid_date", "date", "date must be a calendar date in the form YYYY-MM-DD.");
-        await fixture.Reader.DidNotReceiveWithAnyArgs().ReadAsync(Guid.Empty, null!, CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task OnThisDay_TwentyNinthOfFebruaryInANonLeapYear_IsNotADateSoNothingIsReadAsync()
-    {
-        var fixture = new TestFixture();
-        await using var app = await fixture.StartAsync();
-        using var client = app.Client;
-
-        using var response = await client.SendAsync(Get("?date=2025-02-29"), TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        await fixture.Reader.DidNotReceiveWithAnyArgs().ReadAsync(Guid.Empty, null!, CancellationToken.None);
+        await fixture.Reader.DidNotReceiveWithAnyArgs().ReadDayAsync(Guid.Empty, default, CancellationToken.None);
     }
 
     [Fact]
@@ -203,6 +140,124 @@ public sealed class FlashbackEndpointsTests
         using var client = app.Client;
 
         using var response = await client.GetAsync("/api/v1/flashbacks/on-this-day", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // ==========================================================================
+    // Recent days (#631)
+    // ==========================================================================
+
+    [Fact]
+    public async Task Days_ReadsTheWindowForTheCallerAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(
+            GetDays("?before=2026-07-14&since=2026-07-08&limit=6"), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await fixture.Reader.Received(1).ReadRecentDaysAsync(
+            UserId, new LocalDate(2026, 7, 14), new LocalDate(2026, 7, 8), 6, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("1", 1)]
+    [InlineData("366", 366)]
+    public async Task Days_WithoutSince_ReadsAYearBackUpToTheLimitAsync(string limit, int read)
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(
+            GetDays($"?before=2026-07-08&limit={limit}"), TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await fixture.Reader.Received(1).ReadRecentDaysAsync(
+            UserId, new LocalDate(2026, 7, 8), null, read, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Days_ReturnsEachDayWithItsNewestYearAndThatYearsFirstMemoryAsync()
+    {
+        var fixture = new TestFixture();
+        fixture.Reader.ReadRecentDaysAsync(
+                Arg.Any<Guid>(), Arg.Any<LocalDate>(), Arg.Any<LocalDate?>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(
+            [
+                new RecentDay(new LocalDate(2026, 7, 13), 2021, Memory(1, 2021, starred: true)),
+                new RecentDay(new LocalDate(2026, 6, 2), 2019, Memory(2, 2019, burst: new FlashbackBurst(BurstId, 3))),
+            ]);
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(GetDays("?before=2026-07-14&limit=6"), TestContext.Current.CancellationToken);
+
+        var body = await response.Content.ReadFromJsonAsync<RecentDaysDto>(TestContext.Current.CancellationToken);
+        body.Should().NotBeNull();
+        body.Days.Select(d => (d.Date, d.Year, d.Memory.Id.ToString()[^1..], d.Memory.Interaction.Starred, d.Memory.Burst))
+            .Should().Equal(
+                ("2026-07-13", 2021, "1", true, null),
+                ("2026-06-02", 2019, "2", false, new AssetBurstDto(BurstId, IsCover: true, Count: 3)));
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        json.Should().StartWith("{\"days\":[{\"date\":\"2026-07-13\",\"year\":2021,\"memory\":{");
+    }
+
+    [Theory]
+    [InlineData("?limit=6", "before")]
+    [InlineData("?before=&limit=6", "before")]
+    [InlineData("?before=2026-13-01&limit=6", "before")]
+    [InlineData("?before=2025-02-29&limit=6", "before")]
+    [InlineData("?before=2026-07-14&since=14.07.2026&limit=6", "since")]
+    [InlineData("?before=2026-07-14&since=&limit=6", "since")]
+    public async Task Days_InvalidDate_ReturnsBadRequestWithoutReadingAsync(string query, string field)
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(GetDays(query), TestContext.Current.CancellationToken);
+
+        await ProblemAssertions.AssertFieldProblemAsync(
+            response, 400, "invalid_date", field, $"{field} must be a calendar date in the form YYYY-MM-DD.");
+        await fixture.Reader.DidNotReceiveWithAnyArgs().ReadRecentDaysAsync(Guid.Empty, default, null, 0, CancellationToken.None);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("&limit=")]
+    [InlineData("&limit=0")]
+    [InlineData("&limit=367")]
+    [InlineData("&limit=-1")]
+    [InlineData("&limit=+6")]
+    [InlineData("&limit=1.5")]
+    [InlineData("&limit=six")]
+    [InlineData("&limit=99999999999")]
+    public async Task Days_LimitOutOfRange_ReturnsBadRequestWithoutReadingAsync(string limit)
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.SendAsync(GetDays($"?before=2026-07-14{limit}"), TestContext.Current.CancellationToken);
+
+        await ProblemAssertions.AssertFieldProblemAsync(
+            response, 400, "invalid_limit", "limit", "limit must be a whole number from 1 to 366.");
+        await fixture.Reader.DidNotReceiveWithAnyArgs().ReadRecentDaysAsync(Guid.Empty, default, null, 0, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Days_Anonymous_ReturnsUnauthorizedAsync()
+    {
+        var fixture = new TestFixture();
+        await using var app = await fixture.StartAsync();
+        using var client = app.Client;
+
+        using var response = await client.GetAsync(
+            "/api/v1/flashbacks/days?before=2026-07-14&limit=6", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

@@ -60,6 +60,7 @@ internal static class ErrorCodes
     public const string PathAlreadyAssigned = "path_already_assigned";
     public const string PathOverlaps = "path_overlaps";
     public const string InvalidDate = "invalid_date";
+    public const string InvalidLimit = "invalid_limit";
     public const string InvalidPage = "invalid_page";
     public const string InvalidPageSize = "invalid_page_size";
     public const string InvalidCursor = "invalid_cursor";
@@ -67,5 +68,6 @@ internal static class ErrorCodes
     public const string OrphanIdsOrAll = "orphan_ids_or_all";
     public const string InvalidOrphanCount = "invalid_orphan_count";
     public const string UnknownOrphans = "unknown_orphans";
+    public const string InvalidAssetCount = "invalid_asset_count";
     public const string ServiceUnavailable = "service_unavailable";
 }

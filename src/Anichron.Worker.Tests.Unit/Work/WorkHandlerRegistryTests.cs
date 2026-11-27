@@ -20,7 +20,7 @@ public sealed class WorkHandlerRegistryTests
     private static readonly Type[] RealPayloads =
         [
             typeof(TokenCleanupPayload), typeof(WorkItemRetentionPayload), typeof(CrawlPayload), typeof(BurstDetectionPayload),
-            typeof(ProxySweepPayload), typeof(ProxyDeletionPayload), typeof(CompactPreviewPayload),
+            typeof(ProxySweepPayload), typeof(ProxyDeletionPayload), typeof(CompactPreviewPayload), typeof(AssetPurgePayload),
         ];
 
     private static WorkHandlerRegistration[] RealHandlers
@@ -32,6 +32,7 @@ public sealed class WorkHandlerRegistryTests
             WorkHandlerRegistration.For<ProxySweepPayload>(),
             WorkHandlerRegistration.For<ProxyDeletionPayload>(),
             WorkHandlerRegistration.For<CompactPreviewPayload>(),
+            WorkHandlerRegistration.For<AssetPurgePayload>(),
         ];
 
     private static Action Building(IEnumerable<WorkHandlerRegistration> registrations, params Type[] payloads)
@@ -58,7 +59,8 @@ public sealed class WorkHandlerRegistryTests
                 "WorkKind.BurstDetection needs exactly one handler, found none.",
                 "WorkKind.ProxySweep needs exactly one handler, found none.",
                 "WorkKind.ProxyDeletion needs exactly one handler, found none.",
-                "WorkKind.CompactPreview needs exactly one handler, found none."));
+                "WorkKind.CompactPreview needs exactly one handler, found none.",
+                "WorkKind.AssetPurge needs exactly one handler, found none."));
     }
 
     [Fact]
@@ -93,7 +95,8 @@ public sealed class WorkHandlerRegistryTests
                 "WorkKind.BurstDetection needs exactly one handler, found none.",
                 "WorkKind.ProxySweep needs exactly one handler, found none.",
                 "WorkKind.ProxyDeletion needs exactly one handler, found none.",
-                "WorkKind.CompactPreview needs exactly one handler, found none."));
+                "WorkKind.CompactPreview needs exactly one handler, found none.",
+                "WorkKind.AssetPurge needs exactly one handler, found none."));
 
     [Fact]
     public async Task RunAsync_DispatchesTheDeserialisedPayloadToTheKindsHandlerAsync()

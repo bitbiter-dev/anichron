@@ -1760,6 +1760,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assets/purges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queues a purge of the caller's soft-deleted assets, one work item per storage config. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Cancels the request. */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PurgeRequest"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PurgeAcceptedDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unsupported Media Type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/flashbacks/on-this-day": {
         parameters: {
             query?: never;
@@ -1785,6 +1871,81 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["OnThisDayDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/flashbacks/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                    since?: string;
+                    limit?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecentDaysDto"];
                     };
                 };
                 /** @description Bad Request */
@@ -2571,7 +2732,7 @@ export interface components {
             rootPath: string;
         };
         /** @enum {string} */
-        ErrorCode: "account_disabled" | "account_locked" | "cannot_modify_self" | "email_taken" | "invalid_credentials" | "invalid_cursor" | "invalid_date" | "invalid_email" | "invalid_orphan_count" | "invalid_page" | "invalid_page_size" | "invalid_username" | "invite_token_invalid" | "orphan_ids_or_all" | "password_change_required" | "password_pwned" | "password_too_long" | "password_too_short" | "path_already_assigned" | "path_invalid" | "path_overlaps" | "pending_or_outcome" | "rate_limited" | "refresh_token_invalid" | "refresh_token_required" | "service_unavailable" | "unknown_orphans" | "username_taken";
+        ErrorCode: "account_disabled" | "account_locked" | "cannot_modify_self" | "email_taken" | "invalid_asset_count" | "invalid_credentials" | "invalid_cursor" | "invalid_date" | "invalid_email" | "invalid_limit" | "invalid_orphan_count" | "invalid_page" | "invalid_page_size" | "invalid_username" | "invite_token_invalid" | "orphan_ids_or_all" | "password_change_required" | "password_pwned" | "password_too_long" | "password_too_short" | "path_already_assigned" | "path_invalid" | "path_overlaps" | "pending_or_outcome" | "rate_limited" | "refresh_token_invalid" | "refresh_token_required" | "service_unavailable" | "unknown_orphans" | "username_taken";
         FlashbackYearDto: {
             /** Format: int32 */
             year: number;
@@ -2660,6 +2821,23 @@ export interface components {
         };
         /** @enum {string} */
         PublishedMediaType: "Image" | "Video" | "LivePhoto";
+        /** @description What a purge request queued. */
+        PurgeAcceptedDto: {
+            /** @description The requested ids that will be purged, plus the videos of accepted Live Photos. */
+            accepted: string[];
+        };
+        PurgeRequest: {
+            assetIds: string[];
+        };
+        RecentDayDto: {
+            date: string;
+            /** Format: int32 */
+            year: number;
+            memory: components["schemas"]["AssetDto"];
+        };
+        RecentDaysDto: {
+            days: components["schemas"]["RecentDayDto"][];
+        };
         RefreshRequest: {
             refreshToken: string;
         };
@@ -2766,7 +2944,7 @@ export interface components {
         /** @enum {string} */
         WorkItemStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {string} */
-        WorkKind: "TokenCleanup" | "WorkItemRetention" | "Crawl" | "BurstDetection" | "ProxySweep" | "ProxyDeletion" | "CompactPreview";
+        WorkKind: "TokenCleanup" | "WorkItemRetention" | "Crawl" | "BurstDetection" | "ProxySweep" | "ProxyDeletion" | "CompactPreview" | "AssetPurge";
         WorkProgressDto: {
             /** Format: int64 */
             done: number;

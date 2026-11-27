@@ -18,6 +18,8 @@ import {
   onThisDayAnswers,
   proxyPath,
   proxyUrl,
+  recentDaysAnswers,
+  recentDaysOf,
   todayAnd,
   yearGroup,
 } from '../../test/handlers/flashbacks';
@@ -3590,17 +3592,27 @@ describe('starring, liking and hiding', () => {
     await waitFor(() => {
       expect(router.options.context.queryClient.isFetching()).toBe(0);
     });
-    const reloads = new Map<string, (response: Response) => void>();
+    let reload: (response: Response) => void = () => undefined;
+    let recentDays: (days: ReturnType<typeof threeYears>) => void = () => undefined;
+    const recentAnswered = new Promise<ReturnType<typeof threeYears>>((resolve) => {
+      recentDays = resolve;
+    });
+    let reloading = false;
     server.use(
       onThisDayAnswers((date) =>
-        ['2026-11-11', '2026-11-10'].includes(date) && !reloads.has(date)
+        date === '2026-11-11' && !reloading
           ? new Promise<Response>((resolve) => {
-              reloads.set(date, resolve);
+              reloading = true;
+              reload = resolve;
             })
           : date === '2026-11-11'
             ? withSaved(years)
             : [],
       ),
+      recentDaysAnswers(async (window) => {
+        const days = await recentAnswered;
+        return recentDaysOf((date) => (date === '2026-11-10' ? days : []))(window);
+      }),
     );
     act(() => {
       becomes('visible');
@@ -3609,11 +3621,8 @@ describe('starring, liking and hiding', () => {
 
     fireEvent.click(button('Star'));
     await advance(0);
-    const answer = (date: string, days: ReturnType<typeof threeYears>) => {
-      reloads.get(date)?.(Response.json({ date, years: days }));
-    };
-    answer('2026-11-11', threeYears());
-    answer('2026-11-10', [yearGroup(2024, memory(ids.a2025, 2024))]);
+    reload(Response.json({ date: '2026-11-11', years: threeYears() }));
+    recentDays([yearGroup(2024, memory(ids.a2025, 2024))]);
     await advance(0);
 
     expect(button('Star')).toHaveAttribute('aria-pressed', 'true');
@@ -4497,6 +4506,25 @@ describe('a burst', () => {
 
     expect(await within(details()).findByText('1 / 3')).toBeVisible();
     expect(within(details()).queryByText("Couldn't load these frames")).toBeNull();
+  });
+
+  it('keeps loading its frames through a star given while they load', async () => {
+    const answered = hold();
+    server.use(
+      burstAnswers(async () => {
+        await answered.until;
+        return frameIds.map(frame);
+      }),
+    );
+    await openStory('/day/2026-11-11?year=2025');
+    await shown();
+    await user().click(middle());
+    await screen.findByRole('dialog', { name: 'Burst frames' });
+
+    await user().click(detailsButton('Star'));
+    answered.release();
+
+    expect(await within(details()).findByText('1 / 3')).toBeVisible();
   });
 
   it('shows its cover with +2 for its other frames for 5 s, as one memory', async () => {

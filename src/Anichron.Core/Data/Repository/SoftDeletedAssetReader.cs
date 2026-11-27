@@ -31,6 +31,11 @@ public sealed record SoftDeletedAssetView(
 /// <param name="Next">The cursor of the next page, or <c>null</c> on the last page.</param>
 public sealed record SoftDeletedPage(IReadOnlyList<SoftDeletedAssetView> Items, AssetCursor? Next);
 
+/// <summary>An asset accepted for a purge.</summary>
+/// <param name="AssetId">The asset.</param>
+/// <param name="StorageConfigId">Its storage config, which scopes the purge.</param>
+public sealed record PurgeTarget(Guid AssetId, Guid StorageConfigId);
+
 /// <summary>
 /// Reads the caller's soft-deleted assets in active configs: a Live Photo's video is folded into its photo, and a video
 /// whose photo is active is left out.
@@ -43,6 +48,15 @@ public interface ISoftDeletedAssetReader
     /// <param name="size">The most assets on the page.</param>
     /// <param name="ct">Cancels the query.</param>
     Task<SoftDeletedPage> ReadPageAsync(Guid userId, AssetCursor? after, int size, CancellationToken ct);
+
+    /// <summary>
+    /// The requested ids that the list holds, plus the soft-deleted video of each accepted Live Photo. Any other id is
+    /// left out, whoever it belongs to.
+    /// </summary>
+    /// <param name="userId">The caller.</param>
+    /// <param name="ids">The requested asset ids.</param>
+    /// <param name="ct">Cancels the query.</param>
+    Task<IReadOnlyList<PurgeTarget>> ResolvePurgeAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct);
 }
 
 public sealed class EfSoftDeletedAssetReader(AnichronDbContext db) : ISoftDeletedAssetReader
@@ -56,10 +70,24 @@ public sealed class EfSoftDeletedAssetReader(AnichronDbContext db) : ISoftDelete
             views.Count > size ? new AssetCursor(items[^1].LastSeenOnNas, items[^1].Id) : null);
     }
 
-    internal static IQueryable<SoftDeletedAssetView> Query(AnichronDbContext db, Guid userId, AssetCursor? after, int take)
+    public async Task<IReadOnlyList<PurgeTarget>> ResolvePurgeAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct)
+        => await PurgeQuery(db, userId, ids).ToListAsync(ct);
+
+    internal static IQueryable<PurgeTarget> PurgeQuery(AnichronDbContext db, Guid userId, IReadOnlyCollection<Guid> ids)
     {
         var assets = db.MediaAssets.IgnoreQueryFilters();
-        var listed = assets.SoftDeletedFor(userId).NotPairedMovOf(assets.OwnedBy(userId));
+        var requested = Listed(assets, userId).Where(a => ids.Contains(a.Id));
+        return assets.SoftDeletedFor(userId)
+            .Where(a => requested.Any(r => r.Id == a.Id || r.PairedAssetId == a.Id))
+            .Select(a => new PurgeTarget(a.Id, a.StorageConfigId));
+    }
+
+    private static IQueryable<MediaAsset> Listed(IQueryable<MediaAsset> assets, Guid userId)
+        => assets.SoftDeletedFor(userId).NotPairedMovOf(assets.OwnedBy(userId));
+
+    internal static IQueryable<SoftDeletedAssetView> Query(AnichronDbContext db, Guid userId, AssetCursor? after, int take)
+    {
+        var listed = Listed(db.MediaAssets.IgnoreQueryFilters(), userId);
         var page = after is { } cursor
             ? listed.Where(a => a.LastSeenOnNas < cursor.At
                 || (a.LastSeenOnNas == cursor.At && a.Id.CompareTo(cursor.AssetId) < 0))
