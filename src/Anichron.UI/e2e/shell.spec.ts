@@ -67,20 +67,16 @@ test('the top bar runs flat across the full width from the top edge, in the page
   request,
 }) => {
   await signInPage(page, await createAccount(request));
-  await page.emulateMedia({ colorScheme: 'light' });
   await page.getByRole('link', { name: 'Settings' }).click();
   const banner = page.getByRole('banner');
   const viewport = page.viewportSize() ?? { width: 0, height: 0 };
 
-  const box = await banner.boundingBox();
-
-  expect(box).toMatchObject({ x: 0, y: 0, width: viewport.width });
-  expect(
-    await banner.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return { background: style.backgroundColor, radius: style.borderBottomLeftRadius };
-    }),
-  ).toEqual({ background: surface.light, radius: '0px' });
+  expect(await banner.boundingBox()).toMatchObject({ x: 0, y: 0, width: viewport.width });
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await expect(banner).toHaveCSS('background-color', surface[scheme]);
+    await expect(banner).toHaveCSS('border-bottom-left-radius', '0px');
+  }
 });
 
 test('choosing a theme in Settings applies it and sets the theme colour', async ({

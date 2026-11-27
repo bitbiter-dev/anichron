@@ -176,7 +176,7 @@ describe('Settings', () => {
   });
 
   it('has a top bar in the page colour at rest, turning to glass once content scrolls under it', async () => {
-    const { router } = await openHome();
+    const { router, container } = await openHome();
     await openSettings(router);
     const banner = () => screen.getByRole('banner');
     expect(banner()).not.toHaveAttribute('data-scrolled');
@@ -189,6 +189,7 @@ describe('Settings', () => {
 
     scrollTo(-20);
     expect(banner()).not.toHaveAttribute('data-scrolled');
+    expect(await axeResults(container)).toHaveNoViolations();
   });
 
   it('leads back to Home through the bottom bar', async () => {

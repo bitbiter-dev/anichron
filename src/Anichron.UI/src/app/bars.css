@@ -18,9 +18,6 @@
 }
 
 @utility toast-region {
-  bottom: var(--above-bottom-bar);
-  transition: bottom var(--duration-base) var(--default-transition-timing-function);
-
   :root:has([data-floating='page']) & {
     bottom: calc(var(--above-bottom-bar) + var(--pill-height) + var(--floating-gap));
   }
