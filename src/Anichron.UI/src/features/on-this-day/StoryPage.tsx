@@ -157,6 +157,7 @@ function Player({ date, year, years, day, close }: PlayerProps) {
             blurhash={blurhash}
             image={image}
             src={story.source(cover.proxies.preview)}
+            standIn={story.standIn}
             onDecoded={mediaReady}
             onFailed={mediaFailed}
           />

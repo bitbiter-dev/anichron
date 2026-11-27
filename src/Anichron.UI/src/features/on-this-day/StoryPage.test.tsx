@@ -31,6 +31,7 @@ import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { becomes } from '../../test/visibility';
 import { advance, user } from '../../test/time';
+import { holdPicture } from '../../test/pictures';
 
 const ids = {
   a2025: '0199a1b2-c3d4-7e5f-8a9b-0000000a2025',
@@ -41,6 +42,7 @@ const ids = {
   b2021: '0199a1b2-c3d4-7e5f-8a9b-0000000b2021',
 };
 const preview = (id: string) => proxyUrl(id, 'preview');
+const thumbnail = (id: string) => proxyUrl(id, 'thumbnail');
 const storyName = 'Memories of November 11, 2026';
 
 const threeYears = () => [
@@ -89,12 +91,14 @@ async function swipe(x: number, y: number, from = middle(), stepMilliseconds = 1
 const failure = "Couldn't load this memory";
 const segment = (index: number) => story().querySelectorAll('ol > li > span')[index] as HTMLElement;
 const middle = () => button('Previous').nextElementSibling as HTMLElement;
-const picture = () => story().querySelector('img') as HTMLImageElement;
+const fromStore = 'img[src^="memory:"]';
+const picture = () => story().querySelector(fromStore) as HTMLImageElement;
+const standIn = () => story().querySelector('img:not([src^="memory:"])');
 
 async function shown() {
   await waitFor(() => {
-    if (!story().querySelector('img')) waiting.shift()?.();
-    expect(story().querySelector('img')).not.toBeNull();
+    if (!story().querySelector(fromStore)) waiting.shift()?.();
+    expect(story().querySelector(fromStore)).not.toBeNull();
   });
   const image = picture();
   fireEvent.load(image);
@@ -186,14 +190,13 @@ describe('opening a story', () => {
 
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
     expect(router.state.location.href).toBe('/day/2026-11-11?year=2023');
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(await shown()).toBe(preview(ids.a2023));
     expect(within(story()).getByText('3 years ago · 2023')).toBeVisible();
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  it('keeps the tapped year busy until its first picture is loaded, then opens on it', async () => {
+  function holdFirstPreview(received: string[] = []) {
     let answerFirst: (answer: undefined) => void = () => undefined;
-    const received: string[] = [];
     server.use(
       proxyAnswers(received, (url) =>
         url === preview(ids.a2023)
@@ -203,6 +206,15 @@ describe('opening a story', () => {
           : undefined,
       ),
     );
+    return () => {
+      answerFirst(undefined);
+    };
+  }
+
+  it('keeps the tapped year busy until its first picture is loaded when its thumbnail was not', async () => {
+    const received: string[] = [];
+    const answerFirst = holdFirstPreview(received);
+    holdPicture(thumbnail(ids.a2023)).fail();
     await openLanding();
     const tapped = screen.getByRole('link', { name: '3 years ago · 2023' });
 
@@ -218,9 +230,78 @@ describe('opening a story', () => {
       'true',
     );
     expect(received).not.toContain(preview(ids.a2021));
-    answerFirst(undefined);
+    answerFirst();
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
     expect(showing()).toBe(preview(ids.a2023));
+  });
+
+  it('opens at once on the thumbnail the landing screen showed, then on its picture', async () => {
+    const answerFirst = holdFirstPreview();
+    const { container } = await openLanding();
+
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+    expect(standIn()).toHaveAttribute('src', thumbnail(ids.a2023));
+    expect(picture()).toBeNull();
+    await advance(5000);
+    expect(segment(0).getAttribute('data-state')).toBe('playing');
+    expect(segment(0).style.animationPlayState).toBe('paused');
+    expect(await axeResults(container)).toHaveNoViolations();
+
+    answerFirst();
+    await waitFor(() => {
+      expect(picture()).not.toBeNull();
+    });
+    expect(standIn()).toHaveAttribute('src', thumbnail(ids.a2023));
+    fireEvent.load(picture());
+    await advance(0);
+
+    expect(showing()).toBe(preview(ids.a2023));
+    expect(standIn()).toBeNull();
+    expect(segment(0).style.animationPlayState).toBe('running');
+  });
+
+  it('drops the thumbnail when its picture cannot be loaded, and says so', async () => {
+    const answerFirst = holdFirstPreview();
+    await openLanding();
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    await screen.findByRole('dialog', { name: storyName });
+    expect(standIn()).not.toBeNull();
+
+    await advance(10_000);
+
+    expect(within(story()).getByText(failure)).toBeVisible();
+    expect(story().querySelector('img')).toBeNull();
+    answerFirst();
+  });
+
+  it('keeps a tapped video busy until its preview is loaded, and opens on no thumbnail', async () => {
+    years = [
+      yearGroup(
+        2023,
+        memory(ids.a2023, 2023, {
+          mediaType: 'Video',
+          durationSeconds: 12,
+          proxies: {
+            thumbnail: proxyPath(ids.a2023, 'thumbnail'),
+            preview: proxyPath(ids.a2023, 'preview'),
+            compactPreview: null,
+            video: proxyPath(ids.a2023, 'video'),
+          },
+        }),
+      ),
+    ];
+    const answerFirst = holdFirstPreview();
+    await openLanding2023();
+
+    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    await advance(5000);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    answerFirst();
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+    expect(story().querySelector('img')).toBeNull();
   });
 
   it('loads the first picture only on opening, not again when the session renews', async () => {
@@ -4387,6 +4468,36 @@ describe('a burst', () => {
 
     expect(await shown()).toBe(preview(frameIds[1] as string));
     expect(within(story()).getByText('+1')).toBeVisible();
+  });
+
+  it('keeps a tapped year busy when its cover changed to a frame whose thumbnail was not shown', async () => {
+    const newCover = preview(frameIds[1] as string);
+    let answerCover: (answer: undefined) => void = () => undefined;
+    server.use(
+      proxyAnswers([], (url) =>
+        url === newCover
+          ? new Promise<undefined>((resolve) => {
+              answerCover = resolve;
+            })
+          : undefined,
+      ),
+    );
+    await openLanding();
+    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    await screen.findByRole('dialog', { name: storyName });
+    await user().click(button('Pause'));
+    await user().click(button('Hide'));
+    await advance(0);
+    await user().click(button('Close'));
+    await screen.findByRole('link', { name: '1 year ago · 2025' });
+
+    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    await advance(5000);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    answerCover(undefined);
+    expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
+    expect(await shown()).toBe(newCover);
   });
 
   it('keeps a burst query only for a memory that is a burst', async () => {

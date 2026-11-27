@@ -260,14 +260,31 @@ describe('the recent days', () => {
 
     const story = await screen.findByRole('dialog', { name: 'Memories of December 31, 2026' });
     expect(router.state.location.href).toBe('/day/2026-12-31?year=2024');
-    expect(within(story).getByText('2 years ago · 2024')).toBeVisible();
-    expect(story.querySelector('img')?.getAttribute('src')).toBe(
-      keptSource(proxyUrl(id('2026-12-31'), 'preview')),
-    );
+    expect(await within(story).findByText('2 years ago · 2024')).toBeVisible();
+    await vi.waitFor(() => {
+      expect(story.querySelector('img[src^="memory:"]')?.getAttribute('src')).toBe(
+        keptSource(proxyUrl(id('2026-12-31'), 'preview')),
+      );
+    });
+  });
+
+  it('opens a tapped day at once on the thumbnail it showed, while its first picture loads', async () => {
+    days = { '2026-11-10': [onDay('2026-11-10', 2024)] };
+    renderApp('/');
+    const tapped = await (await shownTray()).findByRole('link', { name: 'Yesterday' });
+    const pictureHeld = holdPreview(id('2026-11-10'));
+
+    fireEvent.click(tapped);
+
+    const story = await screen.findByRole('dialog');
+    await within(story).findByText('2 years ago · 2024');
+    expect(story.querySelector('img')).toHaveAttribute('src', thumbnail(id('2026-11-10')));
+    pictureHeld.load();
   });
 
   it('shows a tapped day loading until its first picture is loaded, then opens on it', async () => {
     days = { '2026-11-10': [onDay('2026-11-10', 2024)], '2026-11-09': [onDay('2026-11-09', 2023)] };
+    holdPicture(thumbnail(id('2026-11-10'))).fail();
     renderApp('/');
     const tapped = await (await shownTray()).findByRole('link', { name: 'Yesterday' });
     expect(tapped).toHaveAttribute('aria-busy', 'false');
@@ -290,6 +307,7 @@ describe('the recent days', () => {
 
   it('shows an earlier day loading until its first picture is loaded', async () => {
     days = { '2026-11-10': [onDay('2026-11-10', 2024)], '2026-10-31': [onDay('2026-10-31', 2023)] };
+    holdPicture(thumbnail(id('2026-10-31'))).fail();
     renderApp('/');
     fireEvent.click(await (await shownTray()).findByRole('button', { name: /Earlier days/ }));
     const tapped = await within(tray()).findByRole('link', { name: 'Sat 31 Oct' });
