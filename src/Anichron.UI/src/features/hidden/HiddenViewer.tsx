@@ -32,7 +32,10 @@ function Viewer({ screen, start }: HiddenViewerProps & { start: number }) {
           moves={{ previous: t('viewer.previous'), next: t('viewer.next') }}
           title={t('hidden.caption', caption)}
         >
-          <div className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] mx-auto w-fit rounded-full p-1 player-glass">
+          <div
+            data-floating="player"
+            className="absolute inset-x-0 bottom-(--player-pill-bottom) mx-auto w-fit rounded-full p-1 player-glass"
+          >
             <Button
               onPress={unhide}
               className="flex min-h-11 items-center gap-2 rounded-full px-4 font-semibold outline-none focus-visible:focus-ring"

@@ -19,6 +19,10 @@ public sealed record WorkerSettings : IValidatableObject
     [Range(1, int.MaxValue)]
     public int MaxConcurrentFiles { get; init; } = 4;
 
+    /// <summary>The longest a crawl waits before it tries a file that keeps failing again.</summary>
+    [Range(0.0, 3650.0, MinimumIsExclusive = true)]
+    public double IngestionRetryMaxDays { get; init; } = 7;
+
     [Range(0.0, double.MaxValue, MinimumIsExclusive = true)]
     public double TokenCleanupIntervalHours { get; init; } = 24;
 

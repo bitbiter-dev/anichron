@@ -11,6 +11,7 @@ internal sealed partial class CrawlHandler(
     IUserStorageConfigRepository configs,
     IFileIngestionPipeline pipeline,
     IMissingFileSweep sweep,
+    IIngestionFailureLedger ledger,
     ISharedContentReporter reporter,
     IWorkQueue queue,
     ILogger<CrawlHandler> logger) : IWorkHandler<CrawlPayload>
@@ -21,8 +22,11 @@ internal sealed partial class CrawlHandler(
             return StorageConfigSkipped.MissingOrInactive;
 
         Log.Crawling(logger, config.RootPath, config.UserId);
-        var crawl = await pipeline.RunAsync(config, run.Progress, ct);
-        var reconciliation = await ReconcileAsync(config, crawl, ct);
+        var failing = await ledger.LoadAsync(config, ct);
+        var crawl = await pipeline.RunAsync(config, failing, run.Progress, ct);
+        var missing = await sweep.SweepAsync(config, crawl, ct);
+        var reconciliation = Reconcile(config, crawl, missing);
+        await ledger.RecordAsync(config, crawl, missing, ct);
         var result = crawl.Result with
         {
             Duplicates = await ReportDuplicatesAsync(config, crawl.DuplicateCopies, ct),
@@ -34,9 +38,8 @@ internal sealed partial class CrawlHandler(
         return result;
     }
 
-    private async Task<ReconciliationCounts> ReconcileAsync(UserStorageConfig config, CrawlRun run, CancellationToken ct)
+    private ReconciliationCounts Reconcile(UserStorageConfig config, CrawlRun run, MissingFiles missing)
     {
-        var missing = await sweep.SweepAsync(config, run, ct);
         var counts = new ReconciliationCounts(run.SoftDeleted + missing.SoftDeleted, run.AutoRestored, missing.SkippedBecause);
         if (counts.SkippedBecause is { } reason)
             Log.ReconciledWithoutSweep(logger, config.Id, counts.SoftDeleted, counts.AutoRestored, reason);

@@ -52,6 +52,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
             services.AddScoped<IMediaAssetRepository, EfMediaAssetRepository>();
             services.AddScoped<IBurstRepository, EfBurstRepository>();
+            services.AddScoped<IIngestionFailureRepository, EfIngestionFailureRepository>();
             services.AddScoped<IProxyOrphanStore, EfProxyOrphanStore>();
             services.AddScoped<IAssetPurgeStore, EfAssetPurgeStore>();
             services.AddScoped<ActiveStorageConfigs>();
@@ -96,6 +97,7 @@ internal static class WorkerServiceCollectionExtensions
             services.AddSingleton<IFileIngestionPipeline, FileIngestionPipeline>();
             services.AddScoped<ISharedContentReporter, SharedContentReporter>();
             services.AddScoped<IMissingFileSweep, MissingFileSweep>();
+            services.AddScoped<IIngestionFailureLedger, IngestionFailureLedger>();
             services.AddSingleton<IOriginalPhotoReader, OriginalPhotoReader>();
             services.AddScoped<IThumbnailMatcher, OrbThumbnailMatcher>();
             services.AddSingleton<IProxyDirectoryStrategy, TwoLevelHexShardStrategy>();
