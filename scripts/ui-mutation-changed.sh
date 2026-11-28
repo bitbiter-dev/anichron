@@ -37,7 +37,7 @@ while [ "$#" -gt 0 ]; do
     --all) all=true; shift ;;
     --print) print=true; shift ;;
     --setup) setup_only=true; shift ;;
-    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done

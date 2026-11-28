@@ -29,8 +29,10 @@ finish() {
   exit 0
 }
 
+mapfile -t setup < <("$here/ui-mutation-changed.sh" --setup)
+[ "${#setup[@]}" -gt 0 ] || { echo 'ui-mutation-changed.sh --setup listed nothing' >&2; exit 1; }
 if git -C "$root" rev-parse -q --verify 'HEAD^' >/dev/null \
-  && ! git -C "$root" diff --quiet 'HEAD^' HEAD -- $("$here/ui-mutation-changed.sh" --setup); then
+  && ! git -C "$root" diff --quiet 'HEAD^' HEAD -- "${setup[@]}"; then
   finish "the push changed the measurement setup; a full run re-measures every mutant" remeasure
 fi
 
