@@ -1403,6 +1403,15 @@ describe('a video', () => {
       await gone();
     });
 
+    it('flashes no play when the story opens on it and it first plays', async () => {
+      await openVideo();
+
+      fireEvent.playing(video());
+
+      expect(circleOf()).not.toBe('resumed');
+      await gone();
+    });
+
     it('shows the loading circle while it stalls, and none once it plays on', async () => {
       await openVideo();
       await fire('playing');
