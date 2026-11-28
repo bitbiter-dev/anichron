@@ -1447,18 +1447,18 @@ describe('a video', () => {
       expect(video()).toBeVisible();
     });
 
-    it('keeps its play flash for 0.5 s of the story running, then fades it', async () => {
+    it('keeps its play flash for 0.25 s of the story running, then fades it', async () => {
       await openVideo();
       await fire('playing');
       await user().click(middle());
       await user().click(middle());
-      await advance(300);
+      await advance(150);
       await fire('waiting');
       await advance(60_000);
       expect(circleOf()).toBe('loading');
       await fire('playing');
 
-      await advance(199);
+      await advance(99);
       expect(circleOf()).toBe('resumed');
       await advance(1);
       await gone();
@@ -1516,7 +1516,7 @@ describe('a video', () => {
       expect(circleOf()).toBe('loading');
 
       await fire('playing');
-      await advance(499);
+      await advance(249);
       expect(circleOf()).toBe('resumed');
       await advance(1);
       await gone();

@@ -3,7 +3,7 @@ import { type Kind, type Load, memoryKind } from '../../shared/memory-kinds';
 const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
 const videoMilliseconds = 120_000;
-const resumedMilliseconds = 500;
+const resumedMilliseconds = 250;
 const upcomingCount = 2;
 
 type PlayedBy = 'hold' | 'button';

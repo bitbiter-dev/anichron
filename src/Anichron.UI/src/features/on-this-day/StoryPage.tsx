@@ -88,7 +88,7 @@ function StoryCircle({ circle }: StoryCircleProps) {
       {Icon && (
         <m.div
           key="circle"
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, transition: { duration: 0.15 } }}
           aria-hidden
           data-circle={circle}
           className="group pointer-events-none absolute inset-0 m-auto flex size-20 items-center justify-center rounded-full bg-player/40"
