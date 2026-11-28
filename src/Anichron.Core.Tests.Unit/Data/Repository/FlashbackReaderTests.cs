@@ -151,7 +151,7 @@ public sealed class FlashbackReaderTests
 
         Ids(years).Should().BeEquivalentTo([heic.Id, video.Id]);
         var livePhoto = years.SelectMany(year => year.Memories).Single(memory => memory.View.Id == heic.Id).View;
-        (livePhoto.PairedMovId, livePhoto.PairedMovHasVideo).Should().Be((mov.Id, true));
+        (livePhoto.Media.PairedMovId, livePhoto.Media.PairedMovHasVideo).Should().Be((mov.Id, true));
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class FlashbackReaderTests
 
         var view = Single(await DayAsync(library, July14)).View;
 
-        (view.Id, view.MediaType).Should().Be((mov.Id, MediaType.Video));
+        (view.Id, view.Media.MediaType).Should().Be((mov.Id, MediaType.Video));
     }
 
     [Fact]
@@ -179,13 +179,16 @@ public sealed class FlashbackReaderTests
         memory.View.Should().BeEquivalentTo(new
         {
             photo.Id,
-            photo.ContentHash,
+            Media = new
+            {
+                photo.ContentHash,
+                HasThumbnail = true,
+                HasPreview = true,
+                HasCompactPreview = false,
+            },
             Year = 2019,
             Month = 7,
             Day = 14,
-            HasThumbnail = true,
-            HasPreview = true,
-            HasCompactPreview = false,
             IsStarred = true,
             IsLiked = true,
             BurstId = (Guid?)null,

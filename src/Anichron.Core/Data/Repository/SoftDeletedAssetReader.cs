@@ -4,27 +4,16 @@ using Microsoft.EntityFrameworkCore;
 namespace Anichron.Core.Data.Repository;
 
 public sealed record SoftDeletedAssetView(
-    Guid Id,
-    string ContentHash,
-    MediaType MediaType,
+    AssetMedia Media,
     int? Year,
     int? Month,
     int? Day,
-    int? Width,
-    int? Height,
-    int? Orientation,
-    int? DurationInSeconds,
-    string? Blurhash,
-    bool HasThumbnail,
-    bool HasPreview,
-    bool HasCompactPreview,
-    bool HasVideo,
-    Guid? PairedMovId,
-    string? PairedMovContentHash,
-    bool PairedMovHasVideo,
     string FilePath,
     Instant LastSeenOnNas,
-    SoftDeleteReason Reason) : IAssetMedia;
+    SoftDeleteReason Reason)
+{
+    public Guid Id => Media.Id;
+}
 
 /// <summary>A page of soft-deleted assets.</summary>
 /// <param name="Items">The page's assets, newest last seen first.</param>
@@ -64,13 +53,12 @@ public sealed class EfSoftDeletedAssetReader(AnichronDbContext db) : ISoftDelete
 {
     public async Task<SoftDeletedPage> ReadPageAsync(Guid userId, AssetCursor? after, int size, CancellationToken ct)
     {
-        var views = await Query(db, userId, after, size + 1).ToListAsync(ct);
-        var items = views.Take(size).ToList();
+        var page = await AssetPage.ReadAsync<SoftDeletedAssetView>(
+            size,
+            async take => await Query(db, userId, after, take).ToListAsync(ct),
+            view => new AssetCursor(view.LastSeenOnNas, view.Id));
         var total = await Listed(db.MediaAssets.IgnoreQueryFilters(), userId).CountAsync(ct);
-        return new SoftDeletedPage(
-            items,
-            views.Count > size ? new AssetCursor(items[^1].LastSeenOnNas, items[^1].Id) : null,
-            total);
+        return new SoftDeletedPage(page.Items, page.Next, total);
     }
 
     public async Task<IReadOnlyList<PurgeTarget>> ResolvePurgeAsync(Guid userId, IReadOnlyCollection<Guid> ids, CancellationToken ct)
@@ -99,27 +87,15 @@ public sealed class EfSoftDeletedAssetReader(AnichronDbContext db) : ISoftDelete
             .OrderByDescending(a => a.LastSeenOnNas)
             .ThenByDescending(a => a.Id)
             .Take(take)
-            .Select(a => new SoftDeletedAssetView(
-                a.Id,
-                a.ContentHash,
-                a.MediaType,
-                a.Year,
-                a.Month,
-                a.Day,
-                a.Metadata!.Description.Width,
-                a.Metadata.Description.Height,
-                a.Metadata.Description.Orientation,
-                a.Metadata.Description.DurationInSeconds,
-                a.Metadata.Blurhash,
-                a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail),
-                a.ProxyFiles.Any(p => p.ProxyType == ProxyType.FullPreview),
-                a.ProxyFiles.Any(p => p.ProxyType == ProxyType.CompactPreview),
-                a.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
-                a.PairedAsset!.Id,
-                a.PairedAsset.ContentHash,
-                a.PairedAsset.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
-                a.FilePath,
-                a.LastSeenOnNas,
-                a.SoftDeleteReason!.Value));
+            .Select(AssetMedia.Into<MediaAsset, SoftDeletedAssetView>(
+                a => a,
+                (a, media) => new SoftDeletedAssetView(
+                    media,
+                    a.Year,
+                    a.Month,
+                    a.Day,
+                    a.FilePath,
+                    a.LastSeenOnNas,
+                    a.SoftDeleteReason!.Value)));
     }
 }

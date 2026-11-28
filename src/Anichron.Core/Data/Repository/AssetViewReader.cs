@@ -3,50 +3,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Anichron.Core.Data.Repository;
 
-/// <summary>What an asset view carries to show the asset's media.</summary>
-public interface IAssetMedia
-{
-    Guid Id { get; }
-    string ContentHash { get; }
-    MediaType MediaType { get; }
-    int? Width { get; }
-    int? Height { get; }
-    int? Orientation { get; }
-    int? DurationInSeconds { get; }
-    string? Blurhash { get; }
-    bool HasThumbnail { get; }
-    bool HasPreview { get; }
-    bool HasCompactPreview { get; }
-    bool HasVideo { get; }
-    Guid? PairedMovId { get; }
-    string? PairedMovContentHash { get; }
-    bool PairedMovHasVideo { get; }
-}
-
 public sealed record AssetView(
-    Guid Id,
-    string ContentHash,
-    MediaType MediaType,
+    AssetMedia Media,
     int Year,
     int Month,
     int Day,
     LocalDateTime DateCaptured,
-    int? Width,
-    int? Height,
-    int? Orientation,
-    int? DurationInSeconds,
-    string? Blurhash,
-    bool HasThumbnail,
-    bool HasPreview,
-    bool HasCompactPreview,
-    bool HasVideo,
-    Guid? PairedMovId,
-    string? PairedMovContentHash,
-    bool PairedMovHasVideo,
     bool IsStarred,
     bool IsLiked,
     Guid? BurstId,
-    Instant? HiddenAt) : IAssetMedia;
+    Instant? HiddenAt)
+{
+    public Guid Id => Media.Id;
+}
 
 public enum AssetSet
 {
@@ -108,6 +77,22 @@ public sealed record HiddenAssets(AssetCursor? After, int Take) : IAssetSelectio
     }
 }
 
+public static class HiddenPages
+{
+    /// <summary>The caller's hidden assets as one page after a cursor, newest hidden first.</summary>
+    /// <param name="reader">Reads the page's views.</param>
+    /// <param name="userId">The caller.</param>
+    /// <param name="after">The last row of the previous page, or <c>null</c> for the first page.</param>
+    /// <param name="size">The most assets on the page.</param>
+    /// <param name="ct">Cancels the query.</param>
+    public static Task<AssetPage<AssetView>> ReadHiddenPageAsync(
+        this IAssetViewReader reader, Guid userId, AssetCursor? after, int size, CancellationToken ct)
+        => AssetPage.ReadAsync(
+            size,
+            take => reader.ReadAsync(userId, new HiddenAssets(after, take), ct),
+            view => new AssetCursor(view.HiddenAt!.Value, view.Id));
+}
+
 /// <summary>
 /// Reads the caller's visible assets in the set a selection declares and matching it, with the caller's own
 /// interaction state, in one query.
@@ -135,32 +120,17 @@ public sealed class EfAssetViewReader(AnichronDbContext db) : IAssetViewReader
                    join i in db.Interactions.Where(i => i.UserId == userId) on a.Id equals i.AssetId into interactions
                    from i in interactions.DefaultIfEmpty()
                    select new InteractedAsset { Asset = a, Interaction = i };
-        return from r in selection.Page(rows)
-               let a = r.Asset
-               let i = r.Interaction
-               select new AssetView(
-                   a.Id,
-                   a.ContentHash,
-                   a.MediaType,
-                   a.Year!.Value,
-                   a.Month!.Value,
-                   a.Day!.Value,
-                   a.DateCaptured!.Value,
-                   a.Metadata!.Description.Width,
-                   a.Metadata.Description.Height,
-                   a.Metadata.Description.Orientation,
-                   a.Metadata.Description.DurationInSeconds,
-                   a.Metadata.Blurhash,
-                   a.ProxyFiles.Any(p => p.ProxyType == ProxyType.Thumbnail),
-                   a.ProxyFiles.Any(p => p.ProxyType == ProxyType.FullPreview),
-                   a.ProxyFiles.Any(p => p.ProxyType == ProxyType.CompactPreview),
-                   a.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
-                   a.PairedAsset!.Id,
-                   a.PairedAsset.ContentHash,
-                   a.PairedAsset.ProxyFiles.Any(p => p.ProxyType == ProxyType.WebVideo),
-                   i != null && i.IsStarred,
-                   i != null && i.IsLiked,
-                   a.BurstId,
-                   i.HiddenAt);
+        return selection.Page(rows).Select(AssetMedia.Into<InteractedAsset, AssetView>(
+            r => r.Asset,
+            (r, media) => new AssetView(
+                media,
+                r.Asset.Year!.Value,
+                r.Asset.Month!.Value,
+                r.Asset.Day!.Value,
+                r.Asset.DateCaptured!.Value,
+                r.Interaction != null && r.Interaction.IsStarred,
+                r.Interaction != null && r.Interaction.IsLiked,
+                r.Asset.BurstId,
+                r.Interaction!.HiddenAt)));
     }
 }

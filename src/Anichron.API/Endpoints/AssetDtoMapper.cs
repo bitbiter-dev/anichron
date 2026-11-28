@@ -11,7 +11,7 @@ internal static class AssetDtoMapper
 
     internal static AssetDto ToDto(AssetView view, AssetBurstDto? burst)
     {
-        var media = MediaOf(view);
+        var media = MediaOf(view.Media);
         return new AssetDto(
             view.Id,
             media.MediaType,
@@ -22,7 +22,7 @@ internal static class AssetDtoMapper
             media.Height,
             media.DurationSeconds,
             media.Proxies,
-            view.Blurhash,
+            view.Media.Blurhash,
             media.LivePhotoVideoUrl,
             ToDto(new InteractionState(view.IsStarred, view.IsLiked, view.HiddenAt is not null)),
             burst);
@@ -33,7 +33,7 @@ internal static class AssetDtoMapper
 
     internal static SoftDeletedAssetDto ToDto(SoftDeletedAssetView view)
     {
-        var media = MediaOf(view);
+        var media = MediaOf(view.Media);
         return new SoftDeletedAssetDto(
             view.Id,
             media.MediaType,
@@ -44,7 +44,7 @@ internal static class AssetDtoMapper
             media.Height,
             media.DurationSeconds,
             media.Proxies,
-            view.Blurhash,
+            view.Media.Blurhash,
             media.LivePhotoVideoUrl,
             view.FilePath,
             AssetCursors.FormatInstant(view.LastSeenOnNas),
@@ -54,7 +54,7 @@ internal static class AssetDtoMapper
     internal static AssetInteractionDto ToDto(InteractionState state)
         => new(state.Starred, state.Liked, state.Hidden, FlashbackWeight.For(state.Liked));
 
-    private static Media MediaOf(IAssetMedia view)
+    private static Media MediaOf(AssetMedia view)
     {
         var swapsAxes = view.Orientation is { } orientation && ExifOrientation.SwapsAxes(orientation);
         var liveVideoUrl = view is { PairedMovHasVideo: true, PairedMovId: { } movId, PairedMovContentHash: { } movHash }
