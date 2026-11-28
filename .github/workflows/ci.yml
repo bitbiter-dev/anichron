@@ -323,14 +323,14 @@ jobs:
         run: scripts/ui-mutation-promote.sh | tee -a "$GITHUB_OUTPUT"
 
       - uses: pnpm/setup@v3
-        if: steps.promote.outputs.baseline == 'stale' || steps.promote.outputs.baseline == 'missing'
+        if: contains(fromJSON('["stale","missing","remeasure"]'), steps.promote.outputs.baseline)
         with:
           working-directory: src/Anichron.UI
           require-lockfile: true
           cache: true
 
       - name: Mutation test
-        if: steps.promote.outputs.baseline == 'stale' || steps.promote.outputs.baseline == 'missing'
+        if: contains(fromJSON('["stale","missing","remeasure"]'), steps.promote.outputs.baseline)
         env:
           COMMIT: ${{ steps.promote.outputs.commit }}
           GH_TOKEN: ${{ github.token }}
