@@ -31,7 +31,7 @@ Stryker.NET (backend) and StrykerJS (UI), both gated at 100%. How to work with s
 - No `TMPDIR` hazard: each worktree has its own sandbox, and the mutant is passed in process.
 - **`vitest.related` is off.** Per-test coverage already picks a mutant's tests; the related filter also drops a test file whose import of the mutated file Vitest cannot trace, such as a fresh-copy import with a query, and its mutants survive.
 - **Test files share a worker** (`isolate: false`), so a leak between tests would count as a kill. The suite runs in shuffled order everywhere and must pass in any order.
-- Both scoped scripts run their heavy commands under the machine-wide `heavy` lock (`scripts/with-lock.sh`), so parallel worktrees queue instead of competing for CPU.
+- Both scoped scripts run their heavy commands under the machine-wide `heavy` lock (`scripts/with-lock.sh`), so parallel worktrees take turns in arrival order instead of competing for CPU.
 - **Keep code out of import time.** Code run outside a test (module scope, a test file's top level, a request still in flight when a test ends) makes its mutants static: each one runs the whole suite. Build values in a function; ESLint rejects module-scope functions and literals in the scope.
 - **A static mutant that tests also cover aborts the run** after the dry run, listing its lines: something outlived its test. The reporter is `src/Anichron.UI/stryker/static-leaks.ts`. `src/test/setup.ts` settles `renderApp`'s queries and mutations before a test ends.
 - **`timeoutMS` is generous on purpose.** A timeout restarts the runner, and the next mutant then runs on a cold Vitest and can time out too. Loops are caught by Stryker's hit limit, not by the timeout.

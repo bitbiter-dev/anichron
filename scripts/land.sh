@@ -2,7 +2,7 @@
 # Usage: scripts/land.sh
 #
 # Lands the current worktree's branch on master, one PR at a time on this
-# machine (the `land` lock, scripts/with-lock.sh):
+# machine, in the order callers arrive (the `land` lock, scripts/with-lock.sh):
 #   1. merges origin/master, aborting on a conflict;
 #   2. marks the branch's open PR ready, waits for the runs that starts on the
 #      old head, then pushes (with no PR, it pushes and opens one ready; with
@@ -10,22 +10,22 @@
 #      no run, it pushes first and then marks the PR ready);
 #   3. waits for both runs and every required check, and squash-merges. A
 #      ready PR with nothing to merge in or push, whose head already passed
-#      `CI gate` and `CodeQL` and is not BEHIND, is merged without a new run;
+#      `CI gate` and `CodeQL` and is not BEHIND, is merged without a new run.
+#      When master moved while CI ran, it goes back to 1 keeping its turn;
 #   4. removes the worktree and the local branch. GitHub deletes the remote
 #      branch on merge.
 # Every message starts with `land: `: one line per phase and per finished CI or
 # CodeQL job. A failing `gh` call (GitHub unreachable) is retried until it
-# answers, and the state read again then; only a failed run or check, the
-# timeout, the outage cap, a signal, or master moving during CI stops it, with
-# the reason. LAND_POLL_SECONDS is the wait between checks (default 30),
-# LAND_TIMEOUT_MINUTES the longest wait for CI and the required checks, not
-# counting time asleep or with `gh` failing (default 120), LAND_OUTAGE_MINUTES
-# the longest one `gh` call is retried while it keeps failing, not counting
-# time asleep (default 360), LAND_MERGE_SECONDS how long a merge GitHub refuses
-# while it still reports the PR BLOCKED or UNKNOWN is tried again (default
-# 300), and LAND_MERGE_CALL_SECONDS how long one merge call may take (default
-# 120). After a merge call fails or times out, the PR's state decides: a merged
-# PR is cleaned up, a closed one stops it.
+# answers, and the state read again then; only a conflict with master, a failed
+# run or check, the timeout, a refused merge, or a signal stops it, with the
+# reason, and gives up its turn. LAND_POLL_SECONDS is the wait between checks
+# (default 30), LAND_TIMEOUT_MINUTES the longest wait for one round of CI and
+# the required checks, not counting time asleep or with `gh` failing (default
+# 120), LAND_MERGE_SECONDS how long a merge GitHub refuses while it still
+# reports the PR BLOCKED or UNKNOWN is tried again (default 300), and
+# LAND_MERGE_CALL_SECONDS how long one merge call may take (default 120). After
+# a merge call fails or times out, the PR's state decides: a merged PR is
+# cleaned up, a closed one stops it.
 #
 # Exit: 0 merged and cleaned up; 1 not merged, the reason on stderr, and the PR
 # a draft again if it had been marked ready and is still open, or still ready
@@ -37,7 +37,6 @@ poll="${LAND_POLL_SECONDS:-30}"
 timeout_minutes="${LAND_TIMEOUT_MINUTES:-120}"
 merge_seconds="${LAND_MERGE_SECONDS:-300}"
 merge_call_seconds="${LAND_MERGE_CALL_SECONDS:-120}"
-outage_minutes="${LAND_OUTAGE_MINUTES:-360}"
 slack_seconds=120
 passed_fields=isDraft,headRefOid,mergeStateStatus,statusCheckRollup
 stop_by=''
@@ -59,19 +58,12 @@ gh_call() {
 }
 
 # Runs gh until it succeeds and sets `answer` to its output, saying when it
-# stops and starts answering. It gives up once the gaps between failing calls,
-# each counted up to one poll and the slack, add up to the outage cap, or once
-# `stop_by` passes. It waits in the calling shell, so a signal to the main
-# shell stops it within one poll.
+# stops and starts answering. It gives up only once `stop_by` passes. It waits
+# in the calling shell, so a signal to the main shell stops it within one poll.
 gh_retry() {
-  local failed='' outage=0 then now
-  then=$(date +%s)
+  local failed=''
   until answer=$(gh_call "$@"); do
-    now=$(date +%s)
-    outage=$((outage + (now - then < poll + slack_seconds ? now - then : poll + slack_seconds)))
-    then=$now
-    [ -z "$stop_by" ] || [ "$now" -lt "$stop_by" ] || { say "gh $1 $2 still failing; giving up"; return 1; }
-    [ "$outage" -lt $((outage_minutes * 60)) ] || { say "gh $1 $2 still failing after ${outage_minutes} minutes"; return 1; }
+    [ -z "$stop_by" ] || [ "$(date +%s)" -lt "$stop_by" ] || { say "gh $1 $2 still failing; giving up"; return 1; }
     [ -n "$failed" ] || say "gh $1 $2 failed; trying again every ${poll}s"
     failed=1
     sleep "$poll"
@@ -261,25 +253,7 @@ main() {
     LAND_LOCKED=1 exec "$here/with-lock.sh" land "$here/land.sh"
   fi
 
-  local head_before_merge
-  head_before_merge=$(git rev-parse HEAD)
-  git fetch --quiet origin master || die 'cannot fetch origin/master'
-  if ! git merge --quiet --no-edit origin/master; then
-    git merge --abort 2>/dev/null || true
-    die 'merging origin/master failed (see above): resolve it yourself, commit, and run land.sh again'
-  fi
-  say "merged origin/master into $branch"
-
-  last=$(date +%s)
-  deadline=$((last + timeout_minutes * 60))
-  local pr number draft url='' sha remote events seen
-  sha=$(git rev-parse HEAD)
-  remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1) || die "cannot read origin's $branch"
-  gh_retry pr list --head "$branch" --state open --json number,isDraft || die 'cannot list the open PRs'
-  pr=$answer
-  number=$(jq -r '.[0].number // empty' <<<"$pr")
-  draft=$(jq -r '.[0].isDraft // false' <<<"$pr")
-
+  local pr number='' draft url sha remote events seen head_before_merge ci codeql state view
   merging=''
   back_to_draft() {
     trap - TERM HUP INT
@@ -295,16 +269,8 @@ main() {
     gh_retry pr ready "$number" --undo || say "PR #$number could not be made a draft again"
     die "not merged, PR #$number is a draft again. $1"
   }
-
-  since=''
-  if [ -z "$number" ]; then
-    git push --quiet --set-upstream origin "$branch" || die "cannot push $branch"
-    say "pushed $branch"
-    url=$(gh pr create --fill --base master --head "$branch") || die 'cannot open a PR'
-    number="${url##*/}"
-    [[ "$number" =~ ^[0-9]+$ ]] || die "cannot read the PR number from '$url'"
-  fi
-  trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
+  # Stops before the PR is known, and puts it back to draft once it is.
+  stop() { if [ -n "$number" ]; then back_to_draft "$1"; else die "$1"; fi; }
   make_ready() {
     ready_events "$number" || back_to_draft "Its events could not be read."
     seen=$(grep -c . <<<"$events" || true)
@@ -315,51 +281,80 @@ main() {
     ready_since "$number" "$seen" || back_to_draft 'Its ready event could not be read.'
   }
 
-  local ci codeql state view
-  view='{}'
-  if [ -z "$url" ] && [ "$draft" = false ] && [ "$head_before_merge" = "$sha" ] && [ "$remote" = "$sha" ]; then
-    if gh_retry pr view "$number" --json "$passed_fields"; then view=$answer; fi
-  fi
-  if passes "$view" "$sha"; then
-    say "PR #$number already passed CI at $sha; merging"
-  else
-    if [ -z "$url" ] && [ "$remote" != "$sha" ]; then
-      if [ "$draft" = true ] && merges_cleanly "$remote"; then
-        make_ready
-        await_started ci.yml "$remote" "$since" && await_started codeql.yml "$remote" "$since" \
-          || back_to_draft 'Its ready runs on the old head never started.'
-        since=''
-        draft=false
-      fi
-      git push --quiet --set-upstream origin "$branch" || back_to_draft "Pushing $branch failed."
+  while :; do
+    head_before_merge=$(git rev-parse HEAD)
+    git fetch --quiet origin master || stop 'cannot fetch origin/master'
+    if ! git merge --quiet --no-edit origin/master; then
+      git merge --abort 2>/dev/null || true
+      stop 'merging origin/master failed (see above): resolve it yourself, commit, and run land.sh again'
+    fi
+    say "merged origin/master into $branch"
+
+    last=$(date +%s)
+    deadline=$((last + timeout_minutes * 60))
+    url=''
+    sha=$(git rev-parse HEAD)
+    remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1) || stop "cannot read origin's $branch"
+    gh_retry pr list --head "$branch" --state open --json number,isDraft || stop 'cannot list the open PRs'
+    pr=$answer
+    number=$(jq -r '.[0].number // empty' <<<"$pr")
+    draft=$(jq -r '.[0].isDraft // false' <<<"$pr")
+
+    since=''
+    if [ -z "$number" ]; then
+      git push --quiet --set-upstream origin "$branch" || die "cannot push $branch"
       say "pushed $branch"
-      [ "$draft" != true ] || make_ready
-    elif [ -z "$url" ]; then
-      make_ready
+      url=$(gh pr create --fill --base master --head "$branch") || die 'cannot open a PR'
+      number="${url##*/}"
+      [[ "$number" =~ ^[0-9]+$ ]] || die "cannot read the PR number from '$url'"
     fi
-    say "PR #$number is ready at $sha; waiting for CI and CodeQL"
+    trap 'back_to_draft "land.sh was stopped by a signal."' TERM HUP INT
 
-    outcome=''
-    await_run ci.yml "$sha" "$since" Changes
-    ci="$outcome"
-    await_run codeql.yml "$sha" "$since" 'Analyze (C#)'
-    codeql="$outcome"
-    if [ "${ci%% *}" != success ] || [ "${codeql%% *}" != success ]; then
-      back_to_draft "CI: $ci. CodeQL: $codeql"
+    view='{}'
+    if [ -z "$url" ] && [ "$draft" = false ] && [ "$head_before_merge" = "$sha" ] && [ "$remote" = "$sha" ]; then
+      if gh_retry pr view "$number" --json "$passed_fields"; then view=$answer; fi
     fi
-    failing=''
-    await_required "$number"
-    [ -z "$failing" ] || back_to_draft "Required checks: $failing"
-    say 'every required check passed'
-  fi
+    if passes "$view" "$sha"; then
+      say "PR #$number already passed CI at $sha; merging"
+    else
+      if [ -z "$url" ] && [ "$remote" != "$sha" ]; then
+        if [ "$draft" = true ] && merges_cleanly "$remote"; then
+          make_ready
+          await_started ci.yml "$remote" "$since" && await_started codeql.yml "$remote" "$since" \
+            || back_to_draft 'Its ready runs on the old head never started.'
+          since=''
+          draft=false
+        fi
+        git push --quiet --set-upstream origin "$branch" || back_to_draft "Pushing $branch failed."
+        say "pushed $branch"
+        [ "$draft" != true ] || make_ready
+      elif [ -z "$url" ]; then
+        make_ready
+      fi
+      say "PR #$number is ready at $sha; waiting for CI and CodeQL"
 
-  gh_retry pr view "$number" --json mergeStateStatus || back_to_draft 'Its merge state could not be read.'
-  state=$(jq -r .mergeStateStatus <<<"$answer")
-  [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'
-  if ! merge_pr "$number" "$sha"; then
-    [ "$state" != BEHIND ] || back_to_draft 'master moved while CI ran; run land.sh again to merge it in.'
-    back_to_draft "GitHub refused the merge (merge state $state, gh's reason above)."
-  fi
+      outcome=''
+      await_run ci.yml "$sha" "$since" Changes
+      ci="$outcome"
+      await_run codeql.yml "$sha" "$since" 'Analyze (C#)'
+      codeql="$outcome"
+      if [ "${ci%% *}" != success ] || [ "${codeql%% *}" != success ]; then
+        back_to_draft "CI: $ci. CodeQL: $codeql"
+      fi
+      failing=''
+      await_required "$number"
+      [ -z "$failing" ] || back_to_draft "Required checks: $failing"
+      say 'every required check passed'
+    fi
+
+    gh_retry pr view "$number" --json mergeStateStatus || back_to_draft 'Its merge state could not be read.'
+    state=$(jq -r .mergeStateStatus <<<"$answer")
+    if [ "$state" != BEHIND ]; then
+      merge_pr "$number" "$sha" && break
+      [ "$state" = BEHIND ] || back_to_draft "GitHub refused the merge (merge state $state, gh's reason above)."
+    fi
+    say 'master moved while CI ran; merging it in and running CI again'
+  done
   trap - TERM HUP INT
   say "merged PR #$number"
 

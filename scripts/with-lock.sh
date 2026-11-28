@@ -2,10 +2,13 @@
 # Usage: scripts/with-lock.sh <name> <command> [args...]
 #
 # Runs <command> holding the machine-wide lock <name>, shared by every worktree
-# of this repository: a symlink under the common git dir naming the holder's
-# PID and start time. Waits while that process lives, and takes over a lock
-# whose process has gone, one waiter at a time. TERM, HUP and INT go to the
-# command, and the lock is released only once it has exited.
+# of this repository and handed out in the order callers arrive. Each caller
+# takes the next ticket in a queue under the common git dir: a symlink naming
+# its PID and start time, beside a file naming its command. It waits while a
+# live ticket is ahead of it, saying its place and the holder whenever they
+# change, and removes the tickets of processes that have gone. Its own ticket
+# goes when it exits, so a caller that runs again joins the back. TERM, HUP and
+# INT go to the command, and the lock is released only once it has exited.
 # WITH_LOCK_POLL_SECONDS is the wait between checks (default 10).
 #
 # Exit: the command's status; 2 on a usage error.
@@ -15,56 +18,70 @@ identity() { printf '%s@%s' "$1" "$(ps -o lstart= -p "$1" 2>/dev/null | tr -s ' 
 
 alive() { [ "$(identity "${1%%@*}")" = "$1" ]; }
 
+# The queue's tickets, oldest first.
+tickets() { find "$queue" -mindepth 1 -maxdepth 1 -type l -name '[0-9]*' -exec basename {} \; | sort -n; }
+
+# Takes the ticket after the newest one; sets `ticket`.
+take_ticket() {
+  local newest
+  while :; do
+    newest=$(tickets | tail -n 1)
+    ticket=$(printf '%010d' $((10#${newest:-0} + 1)))
+    if ln -s "$me" "$queue/$ticket" 2>/dev/null; then
+      return
+    fi
+  done
+}
+
+# Sets `ahead` to the live tickets before ours, removing those of processes
+# that have gone.
+read_ahead() {
+  local t holder
+  ahead=()
+  for t in $(tickets); do
+    [ "$t" != "$ticket" ] || return 0
+    holder=$(readlink "$queue/$t" 2>/dev/null) || continue
+    if alive "$holder"; then
+      ahead+=("$t")
+    elif rm "$queue/$t" 2>/dev/null; then
+      rm -f "$queue/$t.command"
+      echo "with-lock: skipped process ${holder%%@*} in the $name queue, which has exited" >&2
+    fi
+  done
+}
+
 main() {
   if [ "$#" -lt 2 ]; then
     echo 'usage: with-lock.sh <name> <command> [args...]' >&2
     exit 2
   fi
-  local name="$1"
+  name="$1"
   shift
   case "$name" in
     '' | *[!A-Za-z0-9_-]*) echo "with-lock: invalid lock name: '$name'" >&2; exit 2 ;;
   esac
 
-  local dir lock poll="${WITH_LOCK_POLL_SECONDS:-10}" me holder announced=''
-  dir="$(git rev-parse --path-format=absolute --git-common-dir)/anichron-locks"
-  lock="$dir/$name"
-  mkdir -p "$dir"
+  local poll="${WITH_LOCK_POLL_SECONDS:-10}" announced='' place holder
+  queue="$(git rev-parse --path-format=absolute --git-common-dir)/anichron-locks/$name.queue"
+  mkdir -p "$queue"
   me=$(identity $$)
+  ticket=''
 
-  until ln -s "$me" "$lock" 2>/dev/null; do
-    if ! holder=$(readlink "$lock" 2>/dev/null); then
-      if [ -e "$lock" ]; then
-        echo "with-lock: $lock is not a lock this script made; remove it" >&2
-        exit 2
-      fi
-      continue
-    fi
-    if ! alive "$holder"; then
-      if mkdir "$lock.takeover" 2>/dev/null; then
-        if [ "$(readlink "$lock" 2>/dev/null)" = "$holder" ]; then
-          rm -f "$lock"
-          echo "with-lock: took over the $name lock from process ${holder%%@*}, which has exited" >&2
-        fi
-        rmdir "$lock.takeover"
-      elif [ -n "$(find "$lock.takeover" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
-        rmdir "$lock.takeover" 2>/dev/null || true
-        echo "with-lock: removed a takeover of the $name lock left by a waiter that has exited" >&2
-      else
-        sleep "$poll"
-      fi
-      continue
-    fi
-    if [ "$announced" != "$holder" ]; then
-      echo "with-lock: waiting for the $name lock, held by process ${holder%%@*}: $(cat "$lock.command" 2>/dev/null)" >&2
-      announced="$holder"
+  trap '[ -z "$ticket" ] || rm -f "$queue/$ticket" "$queue/$ticket.command"' EXIT
+  trap 'exit 143' TERM HUP INT
+  printf '%s\n' "$*" >"$queue/.command.$$"
+  take_ticket
+  mv "$queue/.command.$$" "$queue/$ticket.command"
+
+  while read_ahead; [ "${#ahead[@]}" -gt 0 ]; do
+    holder=$(readlink "$queue/${ahead[0]}" 2>/dev/null) || continue
+    place="behind ${#ahead[@]}, held by process ${holder%%@*}: $(cat "$queue/${ahead[0]}.command" 2>/dev/null || true)"
+    if [ "$announced" != "$place" ]; then
+      echo "with-lock: waiting for the $name lock, $place" >&2
+      announced="$place"
     fi
     sleep "$poll"
   done
-
-  trap 'rm -f "$lock" "$lock.command"' EXIT
-  trap 'exit 143' TERM HUP INT
-  printf '%s\n' "$*" >"$lock.command"
 
   local child status=0
   "$@" &
