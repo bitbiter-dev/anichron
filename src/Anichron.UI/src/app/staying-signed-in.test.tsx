@@ -10,6 +10,7 @@ import {
   refreshRespondsWith,
 } from '../test/handlers/auth';
 import {
+  assetIdOf,
   everyoneHasMemories,
   hold,
   memoriesOf,
@@ -52,7 +53,7 @@ const rateLimited = (headers: Record<string, string> = {}) =>
 const ends = (code: 'refresh_token_invalid' | 'refresh_token_required' | 'account_disabled') =>
   problemResponse(401, code);
 
-const miraDay = () => [yearGroup(2023, memory('0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b', 2023))];
+const miraDay = () => [yearGroup(2023, memory(assetIdOf('mira'), 2023))];
 const unauthorized = () => HttpResponse.json({ status: 401 }, { status: 401 });
 
 function dayRespondsWith(

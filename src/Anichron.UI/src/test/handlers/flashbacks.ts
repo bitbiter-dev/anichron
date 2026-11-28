@@ -153,8 +153,9 @@ export function eachSeesTheirOwn(answered: string[], holds = new Map<string, Pro
   });
 }
 
-export const memoriesOf = (username: string) => ({
-  name: new RegExp(` · ${String(yearOfUser.get(username))}$`),
-});
-
 export const assetIdOf = (username: string) => memoryIdOf(yearOfUser.get(username) ?? 0);
+
+export const memoriesOf = (username: string) => ({
+  name: (_: string, link: Element) =>
+    link.querySelector('img')?.getAttribute('src')?.includes(assetIdOf(username)) === true,
+});

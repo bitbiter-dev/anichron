@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
@@ -24,6 +25,30 @@ export function daysBefore(date: string, count: number) {
   const day = utcDay(date);
   day.setUTCDate(day.getUTCDate() - count);
   return day.toISOString().slice(0, 10);
+}
+
+function inUtc(options: Intl.DateTimeFormatOptions) {
+  return { ...options, timeZone: 'UTC' };
+}
+
+export function dayLabel(t: TFunction, date: string) {
+  const day = utcDay(date);
+  return t('onThisDay.recentDay', {
+    weekdayOf: day,
+    dayOf: day,
+    monthOf: day,
+    formatParams: {
+      weekdayOf: inUtc({ weekday: 'short' }),
+      dayOf: inUtc({ day: 'numeric' }),
+      monthOf: inUtc({ month: 'short' }),
+    },
+  });
+}
+
+export function dayAfterAYearBefore(date: string) {
+  const year = String(Number(date.slice(0, 4)) - 1);
+  const sameDay = `${year}${date.slice(4)}`;
+  return isCalendarDate(sameDay) ? daysBefore(sameDay, -1) : `${year}-03-01`;
 }
 
 export function hasPhotos(user: User) {

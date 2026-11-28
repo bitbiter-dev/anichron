@@ -7,12 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Skeleton } from '../../shared/ui/Skeleton';
 import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { Ring } from '../../shared/ui/Ring';
-import {
-  type DayWithMemories,
-  type FailedPage,
-  hasMemories,
-  useRecentDays,
-} from './use-recent-days';
+import { type DayWithMemories, type FailedPage, hasMemories, type Tray } from './use-recent-days';
 import { useOpening } from './use-opening';
 
 const item =
@@ -20,9 +15,8 @@ const item =
 const circle = 'relative flex size-16 items-center justify-center rounded-full';
 const ring = '-inset-1 hidden group-aria-busy:block group-data-pending:block';
 
-export function RecentDays({ today }: { today: string }) {
+export function RecentDays({ tray: { loading, ...tray } }: { tray: Tray }) {
   const { t } = useTranslation();
-  const { loading, ...tray } = useRecentDays(today);
   return (
     <ul
       aria-label={t('onThisDay.recentDays')}
@@ -34,7 +28,7 @@ export function RecentDays({ today }: { today: string }) {
   );
 }
 
-type DaysProps = Omit<ReturnType<typeof useRecentDays>, 'loading'>;
+type DaysProps = Omit<Tray, 'loading'>;
 
 function Days({ days, empty, earlierLabel, exhausted, loadingEarlier, showEarlier }: DaysProps) {
   const { t } = useTranslation();

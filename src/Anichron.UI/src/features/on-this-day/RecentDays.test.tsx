@@ -48,7 +48,7 @@ const items = () =>
     .map((item) => item.textContent);
 const pictureIn = (element: HTMLElement) => element.querySelector('img');
 const firstPage = { before: '2026-11-11', since: '2026-11-05', limit: 6 };
-const later = (limit: number) => ({ before: '2026-11-05', since: null, limit });
+const later = (limit: number) => ({ before: '2026-11-05', since: '2025-11-12', limit });
 const together = (...windows: RecentWindow[]) => {
   expect(requested.toSorted((a, b) => a.before.localeCompare(b.before))).toEqual(
     windows.toSorted((a, b) => a.before.localeCompare(b.before)),
@@ -375,6 +375,41 @@ describe('earlier days', () => {
     expect(earlier()).toHaveAccessibleName('Earlier days');
   });
 
+  it("goes back as far as the day after today's date a year ago, so no day and month shows twice", async () => {
+    for (const date of ['2026-11-01', '2026-01-01', '2025-12-31', '2025-11-12'])
+      days[date] = [onDay(date, 2020)];
+    for (const date of ['2025-11-11', '2025-11-10']) days[date] = [onDay(date, 2019)];
+    await openLanding();
+
+    fireEvent.click(earlier());
+
+    expect(await within(tray()).findByRole('button', { name: 'Nothing earlier' })).toBeVisible();
+    expect(items()).toEqual([
+      'Yesterday',
+      'Sun 1 Nov',
+      'Thu 1 Jan',
+      'Wed 31 Dec',
+      'Wed 12 Nov',
+      'Nothing earlier',
+    ]);
+  });
+
+  it.each([
+    ['2028-02-29', '2028-02-28', '2028-02-23', '2027-03-01'],
+    ['2027-03-01', '2027-02-28', '2027-02-23', '2026-03-02'],
+    ['2027-01-01', '2026-12-31', '2026-12-26', '2026-01-02'],
+  ])(
+    'on %s, goes back as far as the day after a year before',
+    async (today, yesterday, before, since) => {
+      vi.setSystemTime(new Date(`${today}T08:00`));
+      days[yesterday] = [onDay(yesterday, 2020)];
+      renderApp('/?earlier=2');
+      await (await shownTray()).findByRole('link', { name: 'Yesterday' });
+
+      expect(requested).toContainEqual({ before, since, limit: 6 });
+    },
+  );
+
   it('becomes a disabled Nothing earlier that stays when a page comes back short', async () => {
     days['2026-10-18'] = [onDay('2026-10-18', 2023)];
     const { container } = await openLanding();
@@ -411,7 +446,7 @@ describe('earlier days', () => {
     const { container } = await openLanding();
     expect(earlier()).not.toHaveAttribute('data-pending');
     answer = async (window) => {
-      if (window.since !== null) return null;
+      if (window.before === firstPage.before) return null;
       await held.until;
       return Response.json({ days: recentDaysOf((date) => days[date] ?? [])(window) });
     };

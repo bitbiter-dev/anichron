@@ -54,8 +54,8 @@ const threeYears = () => [
 let requested: string[];
 let years: ReturnType<typeof threeYears>;
 
-const galleryOf = (name: string) =>
-  screen.getByRole('link', { name }).closest('ul') as HTMLUListElement;
+const landingName = 'Wed 11 Nov';
+const todayCard = () => screen.getByRole('link', { name: landingName });
 const story = () => screen.getByRole('dialog', { name: storyName });
 const button = (name: string) => within(story()).getByRole('button', { name });
 function fromMemory(source: string | null) {
@@ -120,13 +120,13 @@ function reduceMotion() {
 
 async function openLanding() {
   const rendered = renderApp('/');
-  await screen.findByRole('link', { name: '1 year ago · 2025' });
+  await screen.findByRole('link', { name: landingName });
   return rendered;
 }
 
 async function openLanding2023() {
   const rendered = renderApp('/');
-  await screen.findByRole('link', { name: '3 years ago · 2023' });
+  await screen.findByRole('link', { name: landingName });
   return rendered;
 }
 
@@ -183,20 +183,20 @@ function previewsNotPrefetched() {
 }
 
 describe('opening a story', () => {
-  it('opens a dialog at the year group tapped', async () => {
+  it('opens a dialog at the newest year group', async () => {
     const { router, container } = await openLanding();
 
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
 
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
-    expect(router.state.location.href).toBe('/day/2026-11-11?year=2023');
-    expect(await shown()).toBe(preview(ids.a2023));
-    expect(within(story()).getByText('3 years ago · 2023')).toBeVisible();
+    expect(router.state.location.href).toBe('/day/2026-11-11?year=2025');
+    expect(await shown()).toBe(preview(ids.a2025));
+    expect(within(story()).getByText('1 year ago · 2025')).toBeVisible();
     expect(await axeResults(container)).toHaveNoViolations();
   });
 
-  function holdFirstPreview(received: string[] = []) {
-    const { handler, release } = holdProxy(preview(ids.a2023), received);
+  function holdFirstPreview(received: string[] = [], id = ids.a2025) {
+    const { handler, release } = holdProxy(preview(id), received);
     server.use(handler);
     return release;
   }
@@ -204,35 +204,32 @@ describe('opening a story', () => {
   it('keeps the tapped year busy until its first picture is loaded when its thumbnail was not decoded', async () => {
     const received: string[] = [];
     const answerFirst = holdFirstPreview(received);
-    holdPicture(thumbnail(ids.a2023)).fail();
+    holdPicture(thumbnail(ids.a2025)).fail();
     await openLanding();
-    const tapped = screen.getByRole('link', { name: '3 years ago · 2023' });
+    const tapped = todayCard();
 
     fireEvent.click(tapped);
     await waitFor(() => {
-      expect(received).toContain(preview(ids.a2023));
+      expect(received).toContain(preview(ids.a2025));
     });
     await advance(5000);
 
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('link', { name: '3 years ago · 2023' })).toHaveAttribute(
-      'aria-busy',
-      'true',
-    );
-    expect(received).not.toContain(preview(ids.a2021));
+    expect(todayCard()).toHaveAttribute('aria-busy', 'true');
+    expect(received).not.toContain(preview(ids.b2025));
     answerFirst();
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(showing()).toBe(preview(ids.a2025));
   });
 
   it('opens at once on the thumbnail the landing screen showed, then on its picture', async () => {
     const answerFirst = holdFirstPreview();
     const { container } = await openLanding();
 
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
 
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
-    expect(standIn()).toHaveAttribute('src', thumbnail(ids.a2023));
+    expect(standIn()).toHaveAttribute('src', thumbnail(ids.a2025));
     expect(picture()).toBeNull();
     await advance(5000);
     expect(segment(0).getAttribute('data-state')).toBe('playing');
@@ -243,11 +240,11 @@ describe('opening a story', () => {
     await waitFor(() => {
       expect(picture()).not.toBeNull();
     });
-    expect(standIn()).toHaveAttribute('src', thumbnail(ids.a2023));
+    expect(standIn()).toHaveAttribute('src', thumbnail(ids.a2025));
     fireEvent.load(picture());
     await advance(0);
 
-    expect(showing()).toBe(preview(ids.a2023));
+    expect(showing()).toBe(preview(ids.a2025));
     expect(standIn()).toBeNull();
     expect(segment(0).style.animationPlayState).toBe('running');
   });
@@ -255,7 +252,7 @@ describe('opening a story', () => {
   it('drops the thumbnail when its picture cannot be loaded, and says so', async () => {
     const answerFirst = holdFirstPreview();
     await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
     expect(standIn()).not.toBeNull();
 
@@ -282,10 +279,10 @@ describe('opening a story', () => {
         }),
       ),
     ];
-    const answerFirst = holdFirstPreview();
+    const answerFirst = holdFirstPreview([], ids.a2023);
     await openLanding2023();
 
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await advance(5000);
 
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -298,7 +295,7 @@ describe('opening a story', () => {
     const received: string[] = [];
     server.use(proxyAnswers(received));
     await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
 
     await advance(900_000);
@@ -322,7 +319,7 @@ describe('opening a story', () => {
     server.events.on('request:start', record);
     await openLanding2023();
 
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
 
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
     server.events.removeListener('request:start', record);
@@ -337,7 +334,7 @@ describe('opening a story', () => {
     );
     await openLanding();
 
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
 
     expect(await screen.findByRole('dialog', { name: storyName })).toBeVisible();
   });
@@ -475,7 +472,7 @@ describe('a story playing', () => {
 
   it('plays year group after year group, and rests on the last memory until moved on', async () => {
     const { router } = await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
 
     const played: (string | null)[] = [];
@@ -509,7 +506,7 @@ describe('a story playing', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(router.state.location.href).toBe('/');
     expect(router.history.canGoBack()).toBe(false);
-    expect(screen.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+    expect(todayCard()).toBeVisible();
   });
 
   it('rests on the last memory of a reloaded story too', async () => {
@@ -2327,7 +2324,21 @@ describe('the next memories', () => {
     );
     await shown();
 
-    await arrived(preview(ids.a2025), preview(ids.b2025), preview(ids.a2023), preview(ids.a2021));
+    const previews = [
+      preview(ids.a2025),
+      preview(ids.b2025),
+      preview(ids.a2023),
+      preview(ids.a2021),
+    ];
+    const isPreview = (url: string) => url.includes('/preview?');
+    await waitFor(() => {
+      expect(decoded.filter(isPreview)).toEqual(previews);
+    });
+    expect(received.filter(isPreview)).toEqual(previews);
+    expect(received.filter((url) => !isPreview(url))).toEqual([
+      thumbnail(ids.a2023),
+      thumbnail(ids.a2021),
+    ]);
   });
 
   it('downloads ahead of a failed memory too', async () => {
@@ -2667,7 +2678,7 @@ describe('closing a story', () => {
     ],
   ])('with %s goes back to the landing screen', async (_, close) => {
     const { router } = await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
 
     close();
@@ -2694,7 +2705,7 @@ describe('closing a story', () => {
 
   it("with the browser's back button closes it", async () => {
     const { router } = await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
 
     act(() => {
@@ -2708,7 +2719,7 @@ describe('closing a story', () => {
 
   it('reloads the day for the landing screen', async () => {
     await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
     years = [yearGroup(2023, memory(ids.a2023, 2023))];
     expect(requested).toEqual(['2026-11-11']);
@@ -2718,9 +2729,8 @@ describe('closing a story', () => {
     await advance(0);
     expect(requested).toEqual(['2026-11-11', '2026-11-11']);
     await waitFor(() => {
-      expect(screen.queryByRole('link', { name: '1 year ago · 2025' })).toBeNull();
+      expect(todayCard().querySelector('img')).toHaveAttribute('src', thumbnail(ids.a2023));
     });
-    expect(screen.getByRole('link', { name: '3 years ago · 2023' })).toBeVisible();
   });
 
   it('stops its clock', async () => {
@@ -2752,21 +2762,21 @@ describe('closing a story', () => {
 
   it('leaves the landing screen scrolled where it was', async () => {
     await openLanding();
-    const gallery = galleryOf('3 years ago · 2023');
-    gallery.scrollLeft = 120;
+    const tray = screen.getByRole('list', { name: 'Recent days' });
+    tray.scrollLeft = 120;
     Object.defineProperty(window, 'scrollY', { value: 300, configurable: true });
     fireEvent.scroll(document);
     const scrollTo = vi.spyOn(window, 'scrollTo');
 
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
     expect(scrollTo).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await advance(0);
 
-    expect(galleryOf('3 years ago · 2023')).toBe(gallery);
-    expect(gallery.scrollLeft).toBe(120);
+    expect(screen.getByRole('list', { name: 'Recent days' })).toBe(tray);
+    expect(tray.scrollLeft).toBe(120);
     expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ top: 300 }));
   });
 });
@@ -3132,7 +3142,7 @@ describe('pulling a story down', () => {
 describe('pausing a story', () => {
   it('focuses the pause button when the story opens', async () => {
     await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '3 years ago · 2023' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
     await advance(0);
 
@@ -3727,24 +3737,20 @@ describe('starring, liking and hiding', () => {
 
   it('reloads the landing screen again once a hide made just before closing is saved', async () => {
     await openLanding();
-    const first = () =>
-      screen
-        .getByRole('link', { name: '5 years ago · 2021' })
-        .querySelector('img')
-        ?.getAttribute('src');
-    fireEvent.click(screen.getByRole('link', { name: '5 years ago · 2021' }));
+    const first = () => todayCard().querySelector('[data-shown] img')?.getAttribute('src');
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
     const respond = later();
     fireEvent.click(button('Hide'));
     fireEvent.click(button('Close'));
     await advance(0);
-    expect(first()).toContain(ids.a2021);
+    expect(first()).toContain(ids.a2025);
 
     respond();
     await advance(0);
 
     await waitFor(() => {
-      expect(first()).toContain(ids.b2021);
+      expect(first()).toContain(ids.b2025);
     });
   });
 
@@ -3997,7 +4003,7 @@ describe('starring, liking and hiding', () => {
       ),
     ];
     const { router } = await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
     const respond = later();
     fireEvent.click(button('Hide'));
@@ -4147,7 +4153,7 @@ describe('a burst', () => {
 
   it('opens again on the frame now its cover, once that is loaded', async () => {
     renderApp('/');
-    fireEvent.click(await screen.findByRole('link', { name: '1 year ago · 2025' }));
+    fireEvent.click(await screen.findByRole('link', { name: landingName }));
     await screen.findByRole('dialog', { name: storyName });
     await shown();
     await openDetails();
@@ -4168,7 +4174,7 @@ describe('a burst', () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    fireEvent.click(todayCard());
     await waitFor(() => {
       expect(received).toContain(preview(frameIds[1] as string));
     });
@@ -4465,15 +4471,15 @@ describe('a burst', () => {
     const { handler, release: answerCover } = holdProxy(newCover);
     server.use(handler);
     await openLanding();
-    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    fireEvent.click(todayCard());
     await screen.findByRole('dialog', { name: storyName });
     await user().click(button('Pause'));
     await user().click(button('Hide'));
     await advance(0);
     await user().click(button('Close'));
-    await screen.findByRole('link', { name: '1 year ago · 2025' });
+    await screen.findByRole('link', { name: landingName });
 
-    fireEvent.click(screen.getByRole('link', { name: '1 year ago · 2025' }));
+    fireEvent.click(todayCard());
     await advance(5000);
 
     expect(screen.queryByRole('dialog')).toBeNull();

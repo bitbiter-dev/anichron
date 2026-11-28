@@ -9,7 +9,7 @@ export function useDayView(date: string) {
   const day = useQuery(dayQuery(api, date));
   const view = dayView(day);
   const shown = useGroupsShown([
-    { settled: !day.isPending, pictures: (view.years ?? []).map(thumbnailOf) },
+    { settled: !day.isPending, pictures: (view.years ?? []).slice(0, 1).map(thumbnailOf) },
   ]);
   const loading = shown === 0;
   return { view: loading ? {} : view, loading, retry: () => void day.refetch() };

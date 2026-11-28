@@ -18,3 +18,7 @@ export function dayView({ data, error }: UseQueryResult<Day>): DayView {
 export function thumbnailOf(group: YearGroup) {
   return (group.memories[0] as Memory).proxies.thumbnail;
 }
+
+export function cardKey(years: readonly YearGroup[]) {
+  return years.map(thumbnailOf).join(' ');
+}
