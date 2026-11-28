@@ -24,7 +24,7 @@ function scriptUrl() {
   );
 }
 
-function checkOnVisible(registration: ServiceWorkerRegistration) {
+function checkAtStartAndWhenVisible(registration: ServiceWorkerRegistration) {
   const check = () => {
     registration.update().catch(() => undefined);
   };
@@ -65,7 +65,7 @@ export function registerServiceWorker(production: boolean, reload: () => void): 
       registered.addEventListener('updatefound', watchInstalling);
       watchInstalling();
       offer();
-      checkOnVisible(registered);
+      checkAtStartAndWhenVisible(registered);
     })
     .catch(() => undefined);
   return updates;
