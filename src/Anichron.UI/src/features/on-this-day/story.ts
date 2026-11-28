@@ -3,7 +3,7 @@ import { type Kind, type Load, memoryKind } from '../../shared/memory-kinds';
 const memoryMilliseconds = 5000;
 const loadMilliseconds = 10_000;
 const videoMilliseconds = 120_000;
-const hintMilliseconds = 1000;
+const resumedMilliseconds = 500;
 const upcomingCount = 2;
 
 type PlayedBy = 'hold' | 'button';
@@ -19,9 +19,8 @@ export interface StoryMemory {
 interface KindInStory {
   length: (load: Load, durationSeconds: number | null) => number;
   timeLimit: (load: Load) => number;
-  middle: 'sound' | 'details' | 'next';
+  middle: 'pause' | 'details' | 'next';
   holdPlays: boolean;
-  hint: boolean;
   loadsPreview: boolean;
   warmsVideo: boolean;
   downloadsVideo: boolean;
@@ -33,7 +32,6 @@ export function kindInStory(kind: Kind): KindInStory {
     timeLimit: () => memoryMilliseconds,
     middle: 'next',
     holdPlays: false,
-    hint: false,
     loadsPreview: true,
     warmsVideo: false,
     downloadsVideo: false,
@@ -49,8 +47,7 @@ export function kindInStory(kind: Kind): KindInStory {
           ? memoryMilliseconds
           : Math.min((durationSeconds ?? Infinity) * 1000, videoMilliseconds),
       timeLimit: (load) => (load === 'failed' ? memoryMilliseconds : videoMilliseconds),
-      middle: 'sound',
-      hint: true,
+      middle: 'pause',
       loadsPreview: false,
       warmsVideo: true,
     },
@@ -73,6 +70,8 @@ export interface StoryPosition {
   shown: readonly number[];
   playId: number;
   play: LivePlay;
+  canPlay: boolean;
+  buffering: boolean;
 }
 
 export type Place = Pick<StoryPosition, 'group' | 'memory'>;
@@ -84,7 +83,7 @@ export interface StoryState extends StoryPosition {
   ended: boolean;
   running: boolean;
   muted: boolean;
-  hint: boolean;
+  resumed: boolean;
   playsMedia: boolean;
   length: number;
   upcoming: readonly Place[];
@@ -101,6 +100,9 @@ export type Story = Record<
   state: () => StoryState;
   subscribe: (listener: () => void) => () => void;
   mediaReady: (visit: number) => void;
+  mediaCanPlay: () => void;
+  mediaPlaying: (visit: number) => void;
+  mediaWaiting: (visit: number) => void;
   mediaProgressed: () => void;
   mediaEnded: (visit: number) => void;
   mediaFailed: (visit: number) => void;
@@ -169,6 +171,8 @@ export function createStory(
       shown: shown(group),
       playId: visit,
       play: still(),
+      canPlay: false,
+      buffering: false,
     };
   };
   const first = (group: number) => at(group, shown(group)[0] as number);
@@ -186,17 +190,15 @@ export function createStory(
   let details = false;
   let ended = false;
   let muted = true;
-  let hinted = kindInStory(position.kind).hint;
-  let hint = hinted;
+  let resumed = false;
   let state = stateOf();
   const clock = createClock(expire);
-  const hintClock = createClock(() => {
+  const resumedClock = createClock(() => {
     update(() => {
-      hint = false;
+      resumed = false;
     });
   });
   clock.set(timeLimitOf(position));
-  hintClock.set(hintMilliseconds);
   let notify: (() => void) | undefined;
 
   function playingLive() {
@@ -209,7 +211,13 @@ export function createStory(
 
   function stateOf(): StoryState {
     const running =
-      position.load !== 'loading' && !paused && !held && !details && !ended && !playingLive();
+      position.load !== 'loading' &&
+      !position.buffering &&
+      !paused &&
+      !held &&
+      !details &&
+      !ended &&
+      !playingLive();
     const playsMedia = held ? playsBy('hold') : !paused && (playsBy('button') || !ended);
     const { group, memory, kind, load } = position;
     const { durationSeconds } = memories(group)[memory] as StoryMemory;
@@ -221,7 +229,7 @@ export function createStory(
       ended,
       running,
       muted,
-      hint,
+      resumed,
       playsMedia,
       length: kindInStory(kind).length(load, durationSeconds),
       upcoming: upcoming(position),
@@ -230,13 +238,14 @@ export function createStory(
 
   function stop() {
     clock.stop();
-    hintClock.stop();
+    resumedClock.stop();
   }
 
   function start() {
-    if (!notify || paused || held || details || ended || playingLive()) return;
+    if (!notify || paused || held || details || ended || playingLive() || position.buffering)
+      return;
     clock.start();
-    if (hint && position.load !== 'loading') hintClock.start();
+    if (resumed && position.load !== 'loading') resumedClock.start();
   }
 
   function expire() {
@@ -256,16 +265,15 @@ export function createStory(
     update(() => {
       position = to;
       ended = false;
+      resumed = false;
       clock.set(timeLimitOf(to));
-      hint = kindInStory(to.kind).hint && !hinted;
-      hinted ||= hint;
     });
   }
 
   function settle(visit: number, load: Load, from: readonly Load[] = ['loading']) {
     if (visit === position.visit && from.includes(position.load))
       update(() => {
-        position = { ...position, load };
+        position = { ...position, load, buffering: false };
         clock.set(timeLimitOf(position));
       });
   }
@@ -279,7 +287,21 @@ export function createStory(
     if (memoryKind(position.kind).sound)
       update(() => {
         muted = !muted;
-        hint = false;
+      });
+  }
+
+  function togglePause() {
+    update(() => {
+      paused = !paused;
+      resumed = !paused;
+      resumedClock.set(resumedMilliseconds);
+    });
+  }
+
+  function buffer(visit: number, buffering: boolean) {
+    if (visit === position.visit && position.load === 'shown')
+      update(() => {
+        position = { ...position, buffering };
       });
   }
 
@@ -319,7 +341,7 @@ export function createStory(
   }
 
   const middles = {
-    sound: toggleSound,
+    pause: togglePause,
     details: () => {
       setDetails(true);
     },
@@ -340,6 +362,18 @@ export function createStory(
     },
     mediaReady(visit) {
       settle(visit, 'shown');
+    },
+    mediaCanPlay() {
+      update(() => {
+        position = { ...position, canPlay: true };
+      });
+    },
+    mediaPlaying(visit) {
+      settle(visit, 'shown');
+      buffer(visit, false);
+    },
+    mediaWaiting(visit) {
+      buffer(visit, true);
     },
     mediaProgressed() {
       if (position.load !== 'loading' || !kindInStory(position.kind).loadsPreview) return;
@@ -371,11 +405,7 @@ export function createStory(
         play('button');
       });
     },
-    togglePause() {
-      update(() => {
-        paused = !paused;
-      });
-    },
+    togglePause,
     hold() {
       update(() => {
         held = true;

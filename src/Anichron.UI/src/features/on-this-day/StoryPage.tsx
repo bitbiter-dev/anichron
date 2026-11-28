@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Navigate, useRouter } from '@tanstack/react-router';
 import { Pause, Play } from 'lucide-react';
-import { domMax, LazyMotion, m, MotionConfig } from 'motion/react';
+import { AnimatePresence, domMax, LazyMotion, m, MotionConfig } from 'motion/react';
 import type { ComponentProps } from 'react';
 import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import { MemoryActions } from './MemoryActions';
 import { MemoryImage } from '../../shared/ui/MemoryImage';
 import { PlayerDialog } from '../../shared/ui/PlayerDialog';
 import type { Gestures } from './navigation';
+import type { Circle } from './story-view';
 import { type Move, segmentState, type Tap } from './story';
 import { useCover } from './use-cover';
 import { useInteractions } from './use-interactions';
@@ -74,6 +75,28 @@ function PauseButton({ label, toggle }: PauseButtonProps) {
   );
 }
 
+const circleIcons = { loading: Pause, paused: Pause, resumed: Play };
+
+function StoryCircle({ circle }: { circle: Circle | null }) {
+  const Icon = circle && circleIcons[circle];
+  return (
+    <AnimatePresence>
+      {Icon && (
+        <m.div
+          key="circle"
+          exit={{ opacity: 0 }}
+          aria-hidden
+          data-circle={circle}
+          className="group pointer-events-none absolute inset-0 m-auto flex size-20 items-center justify-center rounded-full bg-player/40"
+        >
+          <span className="absolute -inset-px hidden live-ring rounded-full group-data-[circle=loading]:block" />
+          <Icon className="size-1/2" />
+        </m.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 interface FallbackProps {
   state: DayView;
   close: () => void;
@@ -115,6 +138,7 @@ function Player({ date, year, years, day, close }: PlayerProps) {
     name,
     pause,
     controls,
+    circle,
     blurhash,
     failed,
     image,
@@ -206,6 +230,7 @@ function Player({ date, year, years, day, close }: PlayerProps) {
             </div>
           </div>
           <div style={{ visibility: controls }}>
+            <StoryCircle circle={circle} />
             <MemoryActions
               interaction={interactionOf(day, cover)}
               onToggle={interactions.toggle}

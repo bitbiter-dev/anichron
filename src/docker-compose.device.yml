@@ -21,6 +21,11 @@
 # Every time (from the repository root):
 #   docker compose -f src/docker-compose.device.yml pull
 #   docker compose -f src/docker-compose.device.yml up -d --wait
+# To try a branch's UI or API instead, build its API image
+# (README, "Build the images") and, in place of `pull`:
+#   export DEVICE_API_IMAGE=anichron-api:local
+#   docker compose -f src/docker-compose.device.yml pull anichron-worker
+# then `up` as above. Unset it to go back to edge.
 #   tailscale serve --bg http://127.0.0.1:${DEVICE_PORT:-8090}
 # and open https://<laptop>.<tailnet>.ts.net on the phone
 # (`tailscale serve status` prints it).
@@ -75,7 +80,7 @@ services:
     extends:
       file: docker-compose.yml
       service: anichron-migrate
-    image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge
+    image: ${DEVICE_API_IMAGE:-${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge}
     container_name: !reset null
     environment: !override
       - POSTGRES_CONNECTION__HOST=anichron-db
@@ -89,7 +94,7 @@ services:
     extends:
       file: docker-compose.yml
       service: anichron-api
-    image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge
+    image: ${DEVICE_API_IMAGE:-${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge}
     container_name: !reset null
     restart: !reset null
     ports: !override
