@@ -26,6 +26,12 @@ export function daysBefore(date: string, count: number) {
   return day.toISOString().slice(0, 10);
 }
 
+export function dayAfterAYearBefore(date: string) {
+  const year = String(Number(date.slice(0, 4)) - 1);
+  const sameDay = `${year}${date.slice(4)}`;
+  return isCalendarDate(sameDay) ? daysBefore(sameDay, -1) : `${year}-03-01`;
+}
+
 export function hasPhotos(user: User) {
   return user.hasStorageConfig;
 }

@@ -4,7 +4,7 @@ import type { ParseKeys, TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RecentDay as Summary } from '../../api/flashbacks';
-import { daysBefore, recentDaysQuery, utcDay } from './day';
+import { dayAfterAYearBefore, daysBefore, recentDaysQuery, utcDay } from './day';
 import { useGroupsShown } from './use-groups-shown';
 
 const daysPerPage = 6;
@@ -61,13 +61,14 @@ export function useRecentDays(today: string) {
   const { earlier: pages = 1 } = home.useSearch();
   const navigate = home.useNavigate();
   const before = daysBefore(today, daysPerPage);
+  const since = dayAfterAYearBefore(today);
   const limit = (pages - 1) * daysPerPage;
   const first = useQuery(
     recentDaysQuery(api, { before: today, since: before, limit: daysPerPage }),
   );
-  const later = useQuery({ ...recentDaysQuery(api, { before, limit }), enabled: pages > 1 });
+  const later = useQuery({ ...recentDaysQuery(api, { before, since, limit }), enabled: pages > 1 });
   const previous = useQuery({
-    ...recentDaysQuery(api, { before, limit: limit - daysPerPage }),
+    ...recentDaysQuery(api, { before, since, limit: limit - daysPerPage }),
     enabled: false,
   });
   const laterDays = later.data ?? previous.data ?? [];
