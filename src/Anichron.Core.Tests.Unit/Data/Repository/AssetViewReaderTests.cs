@@ -152,10 +152,11 @@ public sealed partial class AssetViewReaderTests
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
         view.Should().Be(new AssetView(
-            asset.Id, asset.ContentHash, MediaType.Video, 2019, 7, 14, new LocalDateTime(2019, 7, 14, 9, 30),
-            4032, 3024, 6, 12, "LEHV6nWB2yk8",
-            HasThumbnail: true, HasPreview: false, HasCompactPreview: false, HasVideo: true,
-            PairedMovId: null, PairedMovContentHash: null, PairedMovHasVideo: false,
+            new AssetMedia(
+                asset.Id, asset.ContentHash, MediaType.Video, 4032, 3024, 6, 12, "LEHV6nWB2yk8",
+                HasThumbnail: true, HasPreview: false, HasCompactPreview: false, HasVideo: true,
+                PairedMovId: null, PairedMovContentHash: null, PairedMovHasVideo: false),
+            2019, 7, 14, new LocalDateTime(2019, 7, 14, 9, 30),
             IsStarred: false, IsLiked: false, BurstId: null, HiddenAt: null));
     }
 
@@ -179,7 +180,7 @@ public sealed partial class AssetViewReaderTests
             .ReadAsync(library.Mira.Id, new Everything(), TestContext.Current.CancellationToken);
 
         var view = views.Should().ContainSingle().Which;
-        (view.Id, view.ContentHash).Should().Be((asset.Id, "n3wn3wn3wn3wn3wn"));
+        (view.Id, view.Media.ContentHash).Should().Be((asset.Id, "n3wn3wn3wn3wn3wn"));
     }
 
     [Fact]
@@ -190,7 +191,7 @@ public sealed partial class AssetViewReaderTests
 
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
-        (view.HasThumbnail, view.HasPreview, view.HasCompactPreview, view.HasVideo).Should().Be((false, true, false, false));
+        (view.Media.HasThumbnail, view.Media.HasPreview, view.Media.HasCompactPreview, view.Media.HasVideo).Should().Be((false, true, false, false));
     }
 
     [Fact]
@@ -201,7 +202,7 @@ public sealed partial class AssetViewReaderTests
 
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
-        (view.HasThumbnail, view.HasPreview, view.HasCompactPreview, view.HasVideo).Should().Be((false, false, true, false));
+        (view.Media.HasThumbnail, view.Media.HasPreview, view.Media.HasCompactPreview, view.Media.HasVideo).Should().Be((false, false, true, false));
     }
 
     [Fact]
@@ -212,7 +213,7 @@ public sealed partial class AssetViewReaderTests
 
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
-        (view.HasThumbnail, view.HasPreview, view.HasCompactPreview, view.HasVideo).Should().Be((false, false, false, false));
+        (view.Media.HasThumbnail, view.Media.HasPreview, view.Media.HasCompactPreview, view.Media.HasVideo).Should().Be((false, false, false, false));
     }
 
     [Fact]
@@ -223,11 +224,11 @@ public sealed partial class AssetViewReaderTests
 
         var view = (await ReadAsync(library, library.Mira)).Should().ContainSingle().Which;
 
-        view.Width.Should().BeNull();
-        view.Height.Should().BeNull();
-        view.Orientation.Should().BeNull();
-        view.DurationInSeconds.Should().BeNull();
-        view.Blurhash.Should().BeNull();
+        view.Media.Width.Should().BeNull();
+        view.Media.Height.Should().BeNull();
+        view.Media.Orientation.Should().BeNull();
+        view.Media.DurationInSeconds.Should().BeNull();
+        view.Media.Blurhash.Should().BeNull();
     }
 
     [Fact]
@@ -275,9 +276,9 @@ public sealed partial class AssetViewReaderTests
     {
         var view = await LivePhotoAsync(movSoftDeleted: false, ProxyType.WebVideo);
 
-        view.PairedMovId.Should().NotBeNull();
-        view.PairedMovContentHash.Should().Be(MovHash);
-        view.PairedMovHasVideo.Should().BeTrue();
+        view.Media.PairedMovId.Should().NotBeNull();
+        view.Media.PairedMovContentHash.Should().Be(MovHash);
+        view.Media.PairedMovHasVideo.Should().BeTrue();
     }
 
     [Fact]
@@ -285,8 +286,8 @@ public sealed partial class AssetViewReaderTests
     {
         var view = await LivePhotoAsync(movSoftDeleted: false, ProxyType.Thumbnail);
 
-        view.PairedMovId.Should().NotBeNull();
-        view.PairedMovHasVideo.Should().BeFalse();
+        view.Media.PairedMovId.Should().NotBeNull();
+        view.Media.PairedMovHasVideo.Should().BeFalse();
     }
 
     [Fact]
@@ -294,9 +295,9 @@ public sealed partial class AssetViewReaderTests
     {
         var view = await LivePhotoAsync(movSoftDeleted: true, ProxyType.WebVideo);
 
-        view.PairedMovId.Should().BeNull();
-        view.PairedMovContentHash.Should().BeNull();
-        view.PairedMovHasVideo.Should().BeFalse();
+        view.Media.PairedMovId.Should().BeNull();
+        view.Media.PairedMovContentHash.Should().BeNull();
+        view.Media.PairedMovHasVideo.Should().BeFalse();
     }
 
     [Fact]
@@ -310,7 +311,7 @@ public sealed partial class AssetViewReaderTests
         var views = await ReadAsync(library, library.Mira);
 
         views.Select(v => v.Id).Should().BeEquivalentTo([heic.Id, video.Id]);
-        views.Single(v => v.Id == heic.Id).PairedMovId.Should().Be(mov.Id);
+        views.Single(v => v.Id == heic.Id).Media.PairedMovId.Should().Be(mov.Id);
     }
 
     [Fact]
@@ -401,7 +402,15 @@ public sealed partial class AssetViewReaderTests
 
     private static Guid Id(int n) => Guid.Parse($"00000000-0000-0000-0000-{n:D12}");
 
-    private static async Task<List<AssetView>> AllPagesAsync(AssetLibrary library, User caller, int take)
+    private static async Task<AssetPage<AssetView>> HiddenPageAsync(AssetLibrary library, AssetCursor? after, int size)
+    {
+        var options = await library.SeedAsync();
+        await using var db = new AnichronDbContext(options);
+        return await new EfAssetViewReader(db)
+            .ReadHiddenPageAsync(library.Mira.Id, after, size, TestContext.Current.CancellationToken);
+    }
+
+    private static async Task<List<AssetView>> AllPagesAsync(AssetLibrary library, User caller, int size)
     {
         var options = await library.SeedAsync();
         await using var db = new AnichronDbContext(options);
@@ -410,14 +419,61 @@ public sealed partial class AssetViewReaderTests
         AssetCursor? after = null;
         for (var pages = 0; pages < 10; pages++)
         {
-            var page = await reader.ReadAsync(caller.Id, new HiddenAssets(after, take), TestContext.Current.CancellationToken);
-            all.AddRange(page);
-            if (page.Count < take)
+            var page = await reader.ReadHiddenPageAsync(caller.Id, after, size, TestContext.Current.CancellationToken);
+            all.AddRange(page.Items);
+            if (page.Next is not { } next)
                 return all;
-            after = new AssetCursor(page[^1].HiddenAt!.Value, page[^1].Id);
+            after = next;
         }
 
         throw new InvalidOperationException("The pages never ended.");
+    }
+
+    [Fact]
+    public async Task ReadHiddenPageAsync_FitsOnOnePage_HasNoNextCursor()
+    {
+        var library = new AssetLibrary();
+        foreach (var day in Enumerable.Range(0, 2))
+            library.Interaction(library.Mira, library.Asset(library.MiraConfig), hiddenAt: Monday + Duration.FromDays(day));
+
+        var page = await HiddenPageAsync(library, after: null, size: 2);
+
+        page.Items.Should().HaveCount(2);
+        page.Next.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadHiddenPageAsync_MoreThanAPage_TakesThePageSizeAndPointsAtItsLastRow()
+    {
+        var library = new AssetLibrary();
+        foreach (var n in Enumerable.Range(1, 3))
+        {
+            var asset = library.Asset(library.MiraConfig);
+            asset.Id = Id(n);
+            library.Interaction(library.Mira, asset, hiddenAt: Monday + Duration.FromDays(n));
+        }
+
+        var page = await HiddenPageAsync(library, after: null, size: 2);
+
+        page.Items.Select(v => v.Id).Should().Equal(Id(3), Id(2));
+        page.Next.Should().Be(new AssetCursor(Monday + Duration.FromDays(2), Id(2)));
+    }
+
+    [Fact]
+    public async Task ReadHiddenPageAsync_AfterACursor_StartsWithTheNextRowInOrder()
+    {
+        var library = new AssetLibrary();
+        foreach (var n in Enumerable.Range(1, 3))
+        {
+            var asset = library.Asset(library.MiraConfig);
+            asset.Id = Id(n);
+            library.Interaction(library.Mira, asset, hiddenAt: Monday + Duration.FromDays(n));
+        }
+
+        var page = await HiddenPageAsync(library, new AssetCursor(Monday + Duration.FromDays(2), Id(2)), size: 2);
+
+        page.Items.Select(v => v.Id).Should().Equal(Id(1));
+        page.Next.Should().BeNull();
     }
 
     [Fact]
@@ -497,7 +553,7 @@ public sealed partial class AssetViewReaderTests
             library.Interaction(library.Mira, asset, hiddenAt: Monday + Duration.FromHours(hours));
         }
 
-        var all = await AllPagesAsync(library, library.Mira, take: 2);
+        var all = await AllPagesAsync(library, library.Mira, size: 2);
 
         all.Select(v => v.Id).Should().Equal(Id(5), Id(4), Id(3), Id(7), Id(6), Id(2), Id(1));
     }
@@ -535,7 +591,7 @@ public sealed partial class AssetViewReaderTests
         var views = await ReadAsync(library, library.Mira, new HiddenAssets(After: null, Take: 10));
 
         var view = views.Should().ContainSingle().Which;
-        (view.Id, view.PairedMovId).Should().Be((heic.Id, mov.Id));
+        (view.Id, view.Media.PairedMovId).Should().Be((heic.Id, mov.Id));
     }
 
     [Fact]

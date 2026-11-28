@@ -260,14 +260,11 @@ export function createAppRouter(
       toasts,
     },
   });
-  let userId: string | undefined;
+  api.session.onUserChange(() => {
+    queryClient.clear();
+    toasts.clear();
+  });
   api.session.onChange(() => {
-    const changedTo = api.session.user()?.id;
-    if (changedTo !== userId) {
-      queryClient.clear();
-      toasts.clear();
-    }
-    userId = changedTo;
     void router.invalidate();
   });
   return router;

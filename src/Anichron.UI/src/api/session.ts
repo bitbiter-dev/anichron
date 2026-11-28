@@ -40,6 +40,7 @@ export interface Session {
   isSignedIn: () => boolean;
   signedOut: () => boolean;
   onChange: (listener: () => void) => () => void;
+  onUserChange: (listener: () => void) => () => void;
   watch(): () => void;
 }
 
@@ -72,28 +73,34 @@ export function createSession(
   let signedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const changes = createChanges();
+  const userChanges = createChanges();
 
   function wakeIn(milliseconds: number) {
     clearTimeout(timer);
     timer = setTimeout(() => void refresh(), milliseconds);
   }
 
+  function hold(next: User | undefined) {
+    const otherUser = next?.id !== user?.id;
+    user = next;
+    if (otherUser) userChanges.notify();
+    changes.notify();
+  }
+
   function open(session: Schemas['SessionResponse']) {
     const renewIn = session.expiresIn * 1000 * renewAtShare;
     accessToken = session.accessToken;
-    user = session.user;
     renewAt = Date.now() + renewIn;
     backoff.reset();
     wakeIn(renewIn);
-    changes.notify();
+    hold(session.user);
   }
 
   function end() {
     clearTimeout(timer);
     accessToken = '';
-    user = undefined;
     renewAt = Infinity;
-    changes.notify();
+    hold(undefined);
   }
 
   async function sendRefresh() {
@@ -194,6 +201,7 @@ export function createSession(
     isSignedIn: () => user !== undefined,
     signedOut: () => signedOut,
     onChange: changes.subscribe,
+    onUserChange: userChanges.subscribe,
     watch() {
       const stopRenewing = onVisible(renewIfDue);
       const stopListening = tabs.listen((message) => {

@@ -6,5 +6,5 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["*.config.ts", "stryker/**/*.ts", "lint/**/*.ts"]
+  "include": ["*.config.ts", "stryker/**/*.ts", "lint/**/*.ts", "openapi/**/*.ts"]
 }

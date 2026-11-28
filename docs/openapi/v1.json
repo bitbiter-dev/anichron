@@ -1938,7 +1938,9 @@
             "name": "limit",
             "in": "query",
             "schema": {
-              "type": "string"
+              "maximum": 366,
+              "minimum": 1,
+              "type": "integer"
             }
           }
         ],

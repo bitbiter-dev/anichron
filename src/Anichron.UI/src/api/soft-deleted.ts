@@ -16,24 +16,16 @@ export interface SoftDeleted {
   purge(ids: readonly string[]): Promise<string[]>;
 }
 
-function forgottenFor(session: Pick<Session, 'user' | 'onChange'>) {
-  const forgotten = new Set<string>();
-  let owner = session.user()?.id;
-  session.onChange(() => {
-    const changedTo = session.user()?.id;
-    if (changedTo !== owner) forgotten.clear();
-    owner = changedTo;
-  });
-  return forgotten;
-}
-
 export function createSoftDeleted(
   client: Client<paths>,
   authorized: Authorized,
   show: ShowMemories,
-  session: Pick<Session, 'user' | 'onChange'>,
+  session: Pick<Session, 'onUserChange'>,
 ): SoftDeleted {
-  const forgotten = forgottenFor(session);
+  const forgotten = new Set<string>();
+  session.onUserChange(() => {
+    forgotten.clear();
+  });
   return {
     async page(after, signal) {
       const page = await authorized((init) =>

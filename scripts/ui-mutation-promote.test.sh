@@ -25,7 +25,11 @@ fixture() {
   git -C "$repo" init -q -b master
   git -C "$repo" add -A
   git_as_mira -C "$repo" commit -qm first
-  if [ "$2" = ui ]; then echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/a.ts"; else echo 'more' >> "$repo/README.md"; fi
+  case "$2" in
+    ui) echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/a.ts" ;;
+    setup) echo '{"name":"ui"}' > "$repo/src/Anichron.UI/package.json" ;;
+    *) echo 'more' >> "$repo/README.md" ;;
+  esac
   git -C "$repo" add -A
   git_as_mira -C "$repo" commit -qm second
   printf '%s' "$repo"
@@ -88,6 +92,11 @@ check "master's baseline behind the UI files is stale, with its commit" "$repo" 
   $'commit='"$(first_of "$repo")"$'\nbaseline=stale' '{"from":"master"}'
 recorded=$(cat "$repo/src/Anichron.UI/reports/stryker-incremental.commit" 2>/dev/null)
 if [ "$recorded" = "$(first_of "$repo")" ]; then pass 'a stale baseline records its commit for the run'; else fail 'a stale baseline records its commit for the run' "$(first_of "$repo")" "$recorded"; fi
+
+repo=$(fixture remeasure setup)
+pr_artifact "$repo" '{"from":"pr"}'
+master_artifact "$repo"
+check "a push that changed the measurement setup is re-measured, not promoted" "$repo" 'baseline=remeasure' '<missing>'
 
 repo=$(fixture missing ui)
 pr_artifact "$repo" none

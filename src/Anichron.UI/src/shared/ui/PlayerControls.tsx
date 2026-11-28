@@ -1,5 +1,4 @@
 import { Volume2, VolumeX } from 'lucide-react';
-import { m } from 'motion/react';
 import { Button } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 import { LivePhotoIcon } from './LivePhotoIcon';
@@ -38,28 +37,21 @@ const soundIcons = { 'story.soundOn': VolumeX, 'story.soundOff': Volume2 };
 
 interface SoundProps {
   shown: boolean;
-  hint: boolean;
   label: keyof typeof soundIcons;
   toggle: () => void;
 }
 
-export function Sound({ shown, hint, label, toggle }: SoundProps) {
+export function Sound({ shown, label, toggle }: SoundProps) {
   const { t } = useTranslation();
   const Icon = soundIcons[label];
   if (!shown) return null;
   return (
-    <m.div
-      layout
-      data-hint={hint}
-      className="group absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] size-11 data-[hint=true]:inset-0 data-[hint=true]:m-auto data-[hint=true]:size-32"
+    <Button
+      aria-label={t(label)}
+      onPress={toggle}
+      className="absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] flex size-11 items-center justify-center rounded-full bg-player/40 outline-none focus-visible:focus-ring"
     >
-      <Button
-        aria-label={t(label)}
-        onPress={toggle}
-        className="flex size-full items-center justify-center rounded-full bg-player/40 outline-none focus-visible:focus-ring"
-      >
-        <Icon aria-hidden className="size-1/2 group-data-[hint=true]:opacity-60" />
-      </Button>
-    </m.div>
+      <Icon aria-hidden className="size-1/2" />
+    </Button>
   );
 }

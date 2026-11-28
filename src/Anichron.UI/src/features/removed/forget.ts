@@ -1,6 +1,5 @@
+import { mostPurgedAssets } from '../../api/generated/limits';
 import type { ToastMessage } from '../../shared/toasts';
-
-export const chunkSize = 1000;
 
 export interface Forgotten {
   sent: readonly string[];
@@ -14,8 +13,8 @@ export async function forgetInChunks(
   onSent: (chunk: readonly string[]) => void,
 ): Promise<Forgotten> {
   const accepted = new Set<string>();
-  for (let start = 0; start < ids.length; start += chunkSize) {
-    const chunk = ids.slice(start, start + chunkSize);
+  for (let start = 0; start < ids.length; start += mostPurgedAssets) {
+    const chunk = ids.slice(start, start + mostPurgedAssets);
     try {
       for (const id of await purge(chunk)) accepted.add(id);
     } catch {

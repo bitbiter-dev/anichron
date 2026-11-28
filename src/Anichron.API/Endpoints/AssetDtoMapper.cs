@@ -11,7 +11,7 @@ internal static class AssetDtoMapper
 
     internal static AssetDto ToDto(AssetView view, AssetBurstDto? burst)
     {
-        var media = MediaOf(view);
+        var media = MediaOf(view.Media);
         return new AssetDto(
             view.Id,
             media.MediaType,
@@ -22,7 +22,7 @@ internal static class AssetDtoMapper
             media.Height,
             media.DurationSeconds,
             media.Proxies,
-            view.Blurhash,
+            view.Media.Blurhash,
             media.LivePhotoVideoUrl,
             ToDto(new InteractionState(view.IsStarred, view.IsLiked, view.HiddenAt is not null)),
             burst);
@@ -33,7 +33,7 @@ internal static class AssetDtoMapper
 
     internal static SoftDeletedAssetDto ToDto(SoftDeletedAssetView view)
     {
-        var media = MediaOf(view);
+        var media = MediaOf(view.Media);
         return new SoftDeletedAssetDto(
             view.Id,
             media.MediaType,
@@ -44,7 +44,7 @@ internal static class AssetDtoMapper
             media.Height,
             media.DurationSeconds,
             media.Proxies,
-            view.Blurhash,
+            view.Media.Blurhash,
             media.LivePhotoVideoUrl,
             view.FilePath,
             AssetCursors.FormatInstant(view.LastSeenOnNas),
@@ -54,23 +54,23 @@ internal static class AssetDtoMapper
     internal static AssetInteractionDto ToDto(InteractionState state)
         => new(state.Starred, state.Liked, state.Hidden, FlashbackWeight.For(state.Liked));
 
-    private static Media MediaOf(IAssetMedia view)
+    private static Media MediaOf(AssetMedia media)
     {
-        var swapsAxes = view.Orientation is { } orientation && ExifOrientation.SwapsAxes(orientation);
-        var liveVideoUrl = view is { PairedMovHasVideo: true, PairedMovId: { } movId, PairedMovContentHash: { } movHash }
+        var swapsAxes = media.Orientation is { } orientation && ExifOrientation.SwapsAxes(orientation);
+        var liveVideoUrl = media is { PairedMovHasVideo: true, PairedMovId: { } movId, PairedMovContentHash: { } movHash }
             ? ProxyKinds.UrlOf(movId, ProxyType.WebVideo, movHash)
             : null;
 
         return new Media(
-            Published(view.MediaType, liveVideoUrl is not null).ToString(),
-            swapsAxes ? view.Height : view.Width,
-            swapsAxes ? view.Width : view.Height,
-            view.MediaType == MediaType.Video ? view.DurationInSeconds : null,
+            Published(media.MediaType, liveVideoUrl is not null).ToString(),
+            swapsAxes ? media.Height : media.Width,
+            swapsAxes ? media.Width : media.Height,
+            media.MediaType == MediaType.Video ? media.DurationInSeconds : null,
             new AssetProxyUrls(
-                view.HasThumbnail ? ProxyKinds.UrlOf(view.Id, ProxyType.Thumbnail, view.ContentHash) : null,
-                view.HasPreview ? ProxyKinds.UrlOf(view.Id, ProxyType.FullPreview, view.ContentHash) : null,
-                view.HasCompactPreview ? ProxyKinds.UrlOf(view.Id, ProxyType.CompactPreview, view.ContentHash) : null,
-                view.HasVideo ? ProxyKinds.UrlOf(view.Id, ProxyType.WebVideo, view.ContentHash) : null),
+                media.HasThumbnail ? ProxyKinds.UrlOf(media.Id, ProxyType.Thumbnail, media.ContentHash) : null,
+                media.HasPreview ? ProxyKinds.UrlOf(media.Id, ProxyType.FullPreview, media.ContentHash) : null,
+                media.HasCompactPreview ? ProxyKinds.UrlOf(media.Id, ProxyType.CompactPreview, media.ContentHash) : null,
+                media.HasVideo ? ProxyKinds.UrlOf(media.Id, ProxyType.WebVideo, media.ContentHash) : null),
             liveVideoUrl);
     }
 

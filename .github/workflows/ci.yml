@@ -116,6 +116,7 @@ jobs:
         run: |
           scripts/mutation-report.test.sh
           scripts/mutation-merge-parts.test.sh
+          scripts/mutation-stage-part.test.sh
           scripts/publish-badges.test.sh
           scripts/assemble-pages.test.sh
           scripts/derive-db-docs.test.sh
@@ -323,14 +324,14 @@ jobs:
         run: scripts/ui-mutation-promote.sh | tee -a "$GITHUB_OUTPUT"
 
       - uses: pnpm/setup@v3
-        if: steps.promote.outputs.baseline == 'stale' || steps.promote.outputs.baseline == 'missing'
+        if: contains(fromJSON('["stale","missing","remeasure"]'), steps.promote.outputs.baseline)
         with:
           working-directory: src/Anichron.UI
           require-lockfile: true
           cache: true
 
       - name: Mutation test
-        if: steps.promote.outputs.baseline == 'stale' || steps.promote.outputs.baseline == 'missing'
+        if: contains(fromJSON('["stale","missing","remeasure"]'), steps.promote.outputs.baseline)
         env:
           COMMIT: ${{ steps.promote.outputs.commit }}
           GH_TOKEN: ${{ github.token }}
@@ -528,11 +529,7 @@ jobs:
         if: always()
         env:
           NAME: ${{ matrix.name }}
-        run: |
-          if [ -f mutation/reports/mutation-report.json ]; then
-            mkdir -p "part/mutation-part-$NAME"
-            cp mutation/reports/mutation-report.json "part/mutation-part-$NAME/"
-          fi
+        run: scripts/mutation-stage-part.sh mutation/reports "$NAME" part
 
       - name: Upload project report
         if: always()

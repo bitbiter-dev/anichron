@@ -1,5 +1,7 @@
 import { createOpenApiHttp } from 'openapi-msw';
+import { mostPurgedAssets } from '../../api/generated/limits';
 import type { components, paths } from '../../api/generated/v1';
+import { problemResponse } from './auth';
 import { proxyPath } from './flashbacks';
 
 type Schemas = components['schemas'];
@@ -50,6 +52,8 @@ export function purgeAnswers(
 ) {
   return http.post('/api/v1/assets/purges', async ({ request, response }) => {
     const { assetIds } = await request.json();
+    if (assetIds.length > mostPurgedAssets)
+      return response.untyped(problemResponse(400, 'invalid_asset_count'));
     sent.push(assetIds);
     const accepted = await answer(assetIds);
     return accepted instanceof Response

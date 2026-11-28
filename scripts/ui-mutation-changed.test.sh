@@ -137,15 +137,15 @@ repo=$(fixture config)
 local_baseline "$repo" "$(head_of "$repo")"
 echo '{ "mutate": ["src/**/*.ts"] }' > "$repo/src/Anichron.UI/stryker.config.json"
 echo '{"name":"ui"}' > "$repo/src/Anichron.UI/package.json"
-check 'a measurement setup changed since the baseline runs every mutant' "$repo" \
-  $'running every mutant; the measurement setup changed since the baseline\'s commit: package.json stryker.config.json\n--force'
+check 'a measurement setup changed since the baseline runs incrementally and names it' "$repo" \
+  $'the measurement setup changed since the baseline\'s commit: package.json stryker.config.json; incremental here, the master push re-measures every mutant'
 
 repo=$(fixture lockfile)
 local_baseline "$repo" "$(head_of "$repo")"
 echo 'lock' > "$repo/src/Anichron.UI/pnpm-lock.yaml"
 echo 'export {};' > "$repo/src/Anichron.UI/vite.config.ts"
-check 'a new lockfile or Vite config runs every mutant' "$repo" \
-  $'running every mutant; the measurement setup changed since the baseline\'s commit: pnpm-lock.yaml vite.config.ts\n--force'
+check 'a new lockfile or Vite config runs incrementally and names them' "$repo" \
+  $'the measurement setup changed since the baseline\'s commit: pnpm-lock.yaml vite.config.ts; incremental here, the master push re-measures every mutant'
 
 repo=$(fixture behind)
 measured=$(head_of "$repo")
@@ -154,8 +154,8 @@ commit_all "$repo" 'master moves on'
 git -C "$repo" checkout -q -b topic
 echo 'export const a = 2;' > "$repo/src/Anichron.UI/src/shared/a.ts"
 local_baseline "$repo" "$measured"
-check 'a setup change between the baseline and the merge-base runs every mutant' "$repo" \
-  $'running every mutant; the measurement setup changed since the baseline\'s commit: package.json\n--force'
+check 'a setup change between the baseline and the merge-base runs incrementally' "$repo" \
+  $'the measurement setup changed since the baseline\'s commit: package.json; incremental here, the master push re-measures every mutant'
 
 repo=$(fixture measured)
 git -C "$repo" checkout -q -b topic
@@ -181,6 +181,10 @@ check 'a baseline whose commit is not here is replaced from master' "$repo" \
   $'discarding the local baseline; the commit it was measured on is unknown\nseeded the incremental baseline from master\'s artifact at '"$(head_of "$repo")"
 file_is 'the replacement is master'\''s' "$repo/src/Anichron.UI/reports/stryker-incremental.json" '{"from":"master"}'
 
+repo=$(fixture setup)
+check '--setup prints the measurement setup' "$repo" \
+  $'src/Anichron.UI/stryker.config.json\nsrc/Anichron.UI/vite.config.ts\nsrc/Anichron.UI/package.json\nsrc/Anichron.UI/pnpm-lock.yaml' --setup
+
 repo=$(fixture all)
 check '--all runs every mutant with no changes' "$repo" '--force' --all
 
@@ -201,7 +205,7 @@ artifacts "$repo" \
   8 "$first" '{"from":"first"}' \
   7 "$second" '{"from":"second"}'
 check 'a seed from master is the newest ancestor, and its commit drives the setup check' "$repo" \
-  $'seeded the incremental baseline from master\'s artifact at '"$second"$'\nrunning every mutant; the measurement setup changed since the baseline\'s commit: package.json\n--force'
+  $'seeded the incremental baseline from master\'s artifact at '"$second"$'\nthe measurement setup changed since the baseline\'s commit: package.json; incremental here, the master push re-measures every mutant'
 file_is 'the seed lands where Stryker reads it' "$repo/src/Anichron.UI/reports/stryker-incremental.json" '{"from":"second"}'
 file_is 'the seed records its commit' "$repo/src/Anichron.UI/reports/stryker-incremental.commit" "$second"
 
@@ -220,7 +224,7 @@ file_is 'a run records HEAD as its baseline'\''s commit' "$repo/src/Anichron.UI/
 repo=$(fixture dirty)
 local_baseline "$repo" "$(head_of "$repo")"
 echo '{"name":"ui"}' > "$repo/src/Anichron.UI/package.json"
-run_check 'a run on an uncommitted setup' "$repo" 0 'stryker:run --force'
+run_check 'a run on an uncommitted setup' "$repo" 0 'stryker:run'
 file_is 'records no commit' "$repo/src/Anichron.UI/reports/stryker-incremental.commit" '<missing>'
 
 repo=$(fixture crashed)

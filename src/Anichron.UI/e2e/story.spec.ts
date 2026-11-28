@@ -30,7 +30,10 @@ async function expectShown(shown: Locator) {
     .poll(() =>
       shown
         .locator('img')
-        .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+        .evaluateAll(
+          (images: HTMLImageElement[]) =>
+            images.length > 0 && images.every((image) => image.complete && image.naturalWidth > 0),
+        ),
     )
     .toBe(true);
 }
