@@ -82,7 +82,8 @@ public static class MediaEndpoints
         var page = await reader.ReadPageAsync(userId, cursor, PageSize, ct);
         return Results.Ok(new SoftDeletedAssetsPageDto(
             [.. page.Items.Select(AssetDtoMapper.ToDto)],
-            page.Next is { } next ? AssetCursors.Format(next) : null));
+            page.Next is { } next ? AssetCursors.Format(next) : null,
+            page.Total));
     }
 
     private static IResult InvalidCursor()

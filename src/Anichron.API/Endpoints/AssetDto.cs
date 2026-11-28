@@ -41,4 +41,4 @@ public sealed record SoftDeletedAssetDto(
     string LastSeenOnNas,
     string Reason);
 
-public sealed record SoftDeletedAssetsPageDto(IReadOnlyList<SoftDeletedAssetDto> Items, string? Next);
+public sealed record SoftDeletedAssetsPageDto(IReadOnlyList<SoftDeletedAssetDto> Items, string? Next, int Total);

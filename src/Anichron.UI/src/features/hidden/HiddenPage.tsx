@@ -5,7 +5,7 @@ import type { HiddenMemory } from '../../api/hidden';
 import { useBlurhash } from '../../shared/use-blurhash';
 import { Blurhash } from '../../shared/ui/BlurhashCanvas';
 import { Failed } from '../../shared/ui/Failed';
-import { LivePhotoIcon } from '../../shared/ui/LivePhotoIcon';
+import { LiveBadge } from '../../shared/ui/LiveBadge';
 import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { Skeleton } from '../../shared/ui/Skeleton';
 import { monthFormat, type Section, takenFormat, tileOf } from './hidden';
@@ -102,9 +102,7 @@ function Tile({ item: { memory }, onPress }: TileProps) {
         onDecoded={onDecoded}
         className="relative size-full object-cover"
       />
-      {tile.live && (
-        <LivePhotoIcon className="absolute top-1 right-1 size-5 rounded-full p-0.5 player-glass" />
-      )}
+      {tile.live && <LiveBadge className="absolute top-1 right-1 size-5" />}
     </Button>
   );
 }

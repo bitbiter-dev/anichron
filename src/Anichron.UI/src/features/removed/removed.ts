@@ -22,17 +22,18 @@ export function removedQuery(api: ApiClient) {
 export function reasonOf({ reason, lastSeenOnNas }: RemovedMemory) {
   return {
     key: `removed.reasons.${reason}`,
-    date: new Date(lastSeenOnNas),
-    formatParams: { date: { dateStyle: 'medium' } },
+    when: {
+      key: reason === 'Superseded' ? 'removed.removedAround' : 'removed.lastSeen',
+      date: new Date(lastSeenOnNas),
+      formatParams: { date: { dateStyle: 'medium' } },
+    },
   } as const;
 }
 
 export function rowOf(memory: RemovedMemory) {
-  const slash = memory.path.lastIndexOf('/');
   return {
     memory,
-    name: memory.path.slice(slash + 1),
-    folder: memory.path.slice(0, Math.max(slash, 0)),
+    name: memory.path.slice(memory.path.lastIndexOf('/') + 1),
     kind: memoryKind(kindOf(memory)).name(memory),
     glyph: !memory.proxies.thumbnail && memory.mediaType === 'Video',
     live: memory.mediaType === 'LivePhoto',

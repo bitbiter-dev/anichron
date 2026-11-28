@@ -5,11 +5,12 @@ import { useBlurhash } from '../../shared/use-blurhash';
 import { Blurhash } from '../../shared/ui/BlurhashCanvas';
 import { Button as TextButton } from '../../shared/ui/Button';
 import { Failed } from '../../shared/ui/Failed';
-import { LivePhotoIcon } from '../../shared/ui/LivePhotoIcon';
+import { LiveBadge } from '../../shared/ui/LiveBadge';
 import { ProxyImage } from '../../shared/ui/ProxyImage';
 import { Skeleton } from '../../shared/ui/Skeleton';
 import { TopBarActions } from '../../shared/ui/TopBarActions';
 import { ForgetDialog } from './ForgetDialog';
+import { SelectAllDialog } from './SelectAllDialog';
 import type { RemovedRow } from './removed';
 import { RemovedViewer } from './RemovedViewer';
 import { type RemovedScreen, useRemoved } from './use-removed';
@@ -28,6 +29,7 @@ export function RemovedPage() {
       <SelectionBar screen={screen} />
       <Announcement screen={screen} />
       <PageDialog screen={screen} />
+      <SelectAllDialog selectAll={screen.selectAll} />
       <RemovedViewer screen={screen} />
     </main>
   );
@@ -39,7 +41,8 @@ function RowSkeletons({ count }: { count: number }) {
       <Skeleton className="rounded-sm size-14 shrink-0" />
       <div className="flex flex-1 flex-col gap-2">
         <Skeleton className="h-4 w-40 rounded-full" />
-        <Skeleton className="h-3 w-56 rounded-full" />
+        <Skeleton className="h-3 w-48 rounded-full" />
+        <Skeleton className="h-3 w-36 rounded-full" />
       </div>
     </div>
   ));
@@ -97,8 +100,10 @@ function RowView({ screen, row, index }: RowViewProps) {
         <span id={nameId} className="truncate font-semibold">
           {row.name}
         </span>
-        {row.folder && <span className="truncate text-small text-fg-muted">{row.folder}</span>}
-        <span className="text-small text-fg-muted">{t(row.reason.key, row.reason)}</span>
+        <span className="truncate text-small text-fg-muted">{t(row.reason.key)}</span>
+        <span className="truncate text-small text-fg-muted">
+          {t(row.reason.when.key, row.reason.when)}
+        </span>
       </span>
     </div>
   );
@@ -136,8 +141,8 @@ function SelectControls({ screen }: { screen: RemovedScreen }) {
   return (
     <>
       <TopBarActions side="leading">
-        <TextButton variant="secondary" onPress={select.toggleAll} className="px-3">
-          {t('removed.selectAll')}
+        <TextButton variant="secondary" onPress={screen.selectAll.press} className="px-3">
+          {t(screen.selectAll.deselects ? 'removed.deselectAll' : 'removed.selectAll')}
         </TextButton>
       </TopBarActions>
       <TopBarActions side="trailing">
@@ -158,7 +163,7 @@ function SelectionBar({ screen }: { screen: RemovedScreen }) {
       data-floating="page"
       className="fixed inset-x-4 above-bottom-bar z-10 mx-auto flex max-w-xs justify-center rounded-full bg-surface-raised p-1 shadow-(--shadow-glass)"
     >
-      <TextButton variant="danger" onPress={forget.ask(select.selected)}>
+      <TextButton onPress={forget.ask(select.selected)}>
         {t('removed.forgetCount', { count: select.count })}
       </TextButton>
     </div>
@@ -187,9 +192,7 @@ function Tile({ row }: { row: RemovedRow }) {
       className="rounded-sm relative flex size-14 shrink-0 items-center justify-center overflow-hidden bg-surface-raised"
     >
       {row.glyph ? <Film aria-hidden className="size-6 text-fg-muted" /> : <Thumbnail row={row} />}
-      {row.live && (
-        <LivePhotoIcon className="absolute top-0.5 right-0.5 size-4 rounded-full p-0.5 player-glass" />
-      )}
+      {row.live && <LiveBadge className="absolute top-0.5 right-0.5 size-4" />}
     </span>
   );
 }

@@ -6,6 +6,7 @@ import { failureOf, removedQuery, rowOf } from './removed';
 import { useDragSelect } from './use-drag-select';
 import { useForget } from './use-forget';
 import { useSelect } from './use-select';
+import { useSelectAll } from './use-select-all';
 
 export function useRemoved() {
   const { api } = useRouter().options.context;
@@ -17,6 +18,7 @@ export function useRemoved() {
     .map(rowOf);
   const select = useSelect(rows.map(({ memory }) => memory.id));
   const drag = useDragSelect(select);
+  const selectAll = useSelectAll(query, select, rows.length);
   const forget = useForget({
     sent: (sent) => {
       if (rows.length === sent.length) setOpened(null);
@@ -46,6 +48,7 @@ export function useRemoved() {
     },
     nearing,
     select,
+    selectAll,
     drag,
     forget,
     press: (index: number, range: boolean) => {

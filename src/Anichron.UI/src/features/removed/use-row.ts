@@ -28,6 +28,6 @@ export function useRow(
   return mergeProps(pressProps, longPressProps, role, {
     tabIndex: 0,
     'data-index': index,
-    onKeyDown: select.selectAllKey,
+    onKeyDown: screen.selectAll.key,
   });
 }
