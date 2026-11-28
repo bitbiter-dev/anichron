@@ -77,7 +77,7 @@ public sealed record HiddenAssets(AssetCursor? After, int Take) : IAssetSelectio
     }
 }
 
-public static class HiddenPages
+public static class AssetViewReaderExtensions
 {
     /// <summary>The caller's hidden assets as one page after a cursor, newest hidden first.</summary>
     /// <param name="reader">Reads the page's views.</param>

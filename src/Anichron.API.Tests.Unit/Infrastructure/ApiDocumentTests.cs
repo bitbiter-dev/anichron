@@ -207,10 +207,13 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     [Fact]
     public void RecentDaysLimit_IsAWholeNumberUpToTheMostRecentDays()
     {
-        var limit = composed.Value.Paths["/api/v1/flashbacks/days"].Operations![HttpMethod.Get].Parameters!
-            .Should().ContainSingle(parameter => parameter.Name == "limit").Which.Schema!;
+        var parameters = composed.Value.Paths["/api/v1/flashbacks/days"].Operations![HttpMethod.Get].Parameters!;
 
-        (limit.Type, limit.Minimum, limit.Maximum).Should().Be((JsonSchemaType.Integer, "1", "366"));
+        parameters.Select(parameter => (parameter.Name, parameter.Schema!.Type, parameter.Schema.Minimum, parameter.Schema.Maximum))
+            .Should().Equal(
+                ("before", JsonSchemaType.String, null, null),
+                ("since", JsonSchemaType.String, null, null),
+                ("limit", JsonSchemaType.Integer, "1", "366"));
     }
 
     [Fact]

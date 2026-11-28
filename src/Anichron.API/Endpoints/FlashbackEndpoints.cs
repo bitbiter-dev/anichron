@@ -60,13 +60,16 @@ public static class FlashbackEndpoints
 
     private static Task DescribeLimitAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken ct)
     {
-        var limit = operation.Parameters!.OfType<OpenApiParameter>().Single(parameter => parameter.Name == "limit");
-        limit.Schema = new OpenApiSchema
+        foreach (var limit in operation.Parameters!.OfType<OpenApiParameter>().Where(parameter => parameter.Name == "limit"))
         {
-            Type = JsonSchemaType.Integer,
-            Minimum = "1",
-            Maximum = IFlashbackReader.MostRecentDays.ToString(CultureInfo.InvariantCulture),
-        };
+            limit.Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.Integer,
+                Minimum = "1",
+                Maximum = IFlashbackReader.MostRecentDays.ToString(CultureInfo.InvariantCulture),
+            };
+        }
+
         return Task.CompletedTask;
     }
 
