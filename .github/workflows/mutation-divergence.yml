@@ -184,12 +184,22 @@ jobs:
             cat mutation-default/reports/mutation-report.md >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Stage project report
+        if: always()
+        env:
+          NAME: ${{ matrix.name }}
+        run: |
+          if [ -f mutation-default/reports/mutation-report.json ]; then
+            mkdir -p "part/mutation-part-$NAME"
+            cp mutation-default/reports/mutation-report.json "part/mutation-part-$NAME/"
+          fi
+
       - name: Upload project report
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: mutation-part-${{ matrix.name }}
-          path: mutation-default/reports/mutation-report.json
+          path: part/
           if-no-files-found: ignore
           retention-days: 1
 
@@ -217,6 +227,7 @@ jobs:
         with:
           pattern: mutation-part-*
           path: parts
+          merge-multiple: true
 
       - name: Merge project reports
         id: merge

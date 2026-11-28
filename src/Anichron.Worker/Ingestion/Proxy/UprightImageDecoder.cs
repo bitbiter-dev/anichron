@@ -21,6 +21,8 @@ internal sealed class UprightImageDecoder(MagickHeifDecoder heif, ImageSharpUpri
 
         if (original is [0xFF, 0xD8, ..])
             ImageCompleteness.EnsureJpeg(original);
+        if (IsWebp(original))
+            ImageCompleteness.EnsureWebp(original);
         return imageSharp.DecodeAsync(original, ct);
     }
 
@@ -29,6 +31,9 @@ internal sealed class UprightImageDecoder(MagickHeifDecoder heif, ImageSharpUpri
            && brand is [(byte)'h', (byte)'e', (byte)'i', (byte)'c', ..]
                or [(byte)'h', (byte)'e', (byte)'i', (byte)'x', ..]
                or [(byte)'m', (byte)'i', (byte)'f', (byte)'1', ..];
+
+    private static bool IsWebp(byte[] original)
+        => original is [(byte)'R', (byte)'I', (byte)'F', (byte)'F', _, _, _, _, (byte)'W', (byte)'E', (byte)'B', (byte)'P', ..];
 }
 
 internal sealed class ImageSharpUprightDecoder : IUprightImageDecoder

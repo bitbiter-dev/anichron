@@ -30,6 +30,7 @@ public sealed class UprightImageDecoderTests
     [Theory]
     [InlineData("iphone-4732.heic")]
     [InlineData("burst-4386.jpg")]
+    [InlineData("exif-image.webp")]
     public async Task DecodeAsync_SampleCutToHalf_ThrowsThatItsDataIsIncompleteAsync(string fixture)
     {
         var original = EmbeddedFixtures.Read(fixture);
