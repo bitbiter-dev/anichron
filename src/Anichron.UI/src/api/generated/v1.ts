@@ -1931,7 +1931,7 @@ export interface paths {
                 query?: {
                     before?: string;
                     since?: string;
-                    limit?: string;
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;

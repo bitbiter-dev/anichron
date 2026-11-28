@@ -52,7 +52,7 @@ export function createFlashbacks(
         client.GET('/api/v1/flashbacks/days', {
           ...init,
           signal,
-          params: { query: { before, since, limit: String(limit) } },
+          params: { query: { before, since, limit } },
         }),
       );
       return show((memoryOf) =>

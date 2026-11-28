@@ -15,8 +15,8 @@
     "e2e": "playwright test",
     "size": "size-limit",
     "mutate": "stryker run",
-    "openapi": "openapi-typescript ../../docs/openapi/v1.json -o src/api/generated/v1.ts",
-    "openapi:check": "pnpm openapi --check"
+    "openapi": "openapi-typescript ../../docs/openapi/v1.json -o src/api/generated/v1.ts && node openapi/limits.ts",
+    "openapi:check": "openapi-typescript ../../docs/openapi/v1.json -o src/api/generated/v1.ts --check && node openapi/limits.ts --check"
   },
   "packageManager": "pnpm@12.16.1",
   "engines": {

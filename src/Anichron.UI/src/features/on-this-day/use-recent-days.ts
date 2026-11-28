@@ -4,10 +4,8 @@ import type { ParseKeys, TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RecentDay as Summary } from '../../api/flashbacks';
-import { daysBefore, recentDaysQuery, utcDay } from './day';
+import { daysBefore, daysPerPage, recentDaysQuery, utcDay } from './day';
 import { useGroupsShown } from './use-groups-shown';
-
-const daysPerPage = 6;
 
 export interface DayWithMemories {
   date: string;
