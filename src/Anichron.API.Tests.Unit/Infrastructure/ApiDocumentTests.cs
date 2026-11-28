@@ -205,6 +205,18 @@ public sealed partial class ApiDocumentTests(RouteTableTests.RouteTable table, A
     }
 
     [Fact]
+    public void RecentDaysLimit_IsAWholeNumberUpToTheMostRecentDays()
+    {
+        var parameters = composed.Value.Paths["/api/v1/flashbacks/days"].Operations![HttpMethod.Get].Parameters!;
+
+        parameters.Select(parameter => (parameter.Name, parameter.Schema!.Type, parameter.Schema.Minimum, parameter.Schema.Maximum))
+            .Should().Equal(
+                ("before", JsonSchemaType.String, null, null),
+                ("since", JsonSchemaType.String, null, null),
+                ("limit", JsonSchemaType.Integer, "1", "366"));
+    }
+
+    [Fact]
     public void Document_IsTitledAfterTheApi()
         => composed.Value.Info.Title.Should().Be("Anichron.API | v1");
 

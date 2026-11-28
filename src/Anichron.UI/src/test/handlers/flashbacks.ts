@@ -1,4 +1,5 @@
 import { createOpenApiHttp } from 'openapi-msw';
+import { mostRecentDays } from '../../api/generated/limits';
 import type { components, paths } from '../../api/generated/v1';
 import { problemResponse } from './auth';
 
@@ -78,11 +79,14 @@ export function recentDaysAnswers(
 ) {
   return http.get('/api/v1/flashbacks/days', async ({ request, response }) => {
     const query = new URL(request.url).searchParams;
+    const limit = Number(query.get('limit'));
+    if (!Number.isInteger(limit) || limit < 1 || limit > mostRecentDays)
+      return response.untyped(problemResponse(400, 'invalid_limit'));
     const days = await answer(
       {
         before: query.get('before') ?? '',
         since: query.get('since'),
-        limit: Number(query.get('limit')),
+        limit,
       },
       request.headers.get('Authorization'),
     );
@@ -101,7 +105,7 @@ const dayBefore = (date: string) => {
 export function recentDaysOf(yearsOn: (date: string) => Years) {
   return ({ before, since, limit }: RecentWindow): RecentDays => {
     let yearBack = before;
-    for (let day = 0; day < 366; day++) yearBack = dayBefore(yearBack);
+    for (let day = 0; day < mostRecentDays; day++) yearBack = dayBefore(yearBack);
     const start = since !== null && since > yearBack ? since : yearBack;
     const days: RecentDays = [];
     for (

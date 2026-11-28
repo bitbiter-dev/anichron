@@ -1,6 +1,8 @@
 using Anichron.API.Infrastructure;
 using Anichron.Core.Data.Repository;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.OpenApi;
 using NodaTime.Text;
 using System.Globalization;
 using System.Security.Claims;
@@ -26,7 +28,8 @@ public static class FlashbackEndpoints
              .ProducesValidationProblem();
         group.MapGet(ApiPaths.Flashbacks.Days, GetRecentDaysAsync)
              .Produces<RecentDaysDto>()
-             .ProducesValidationProblem();
+             .ProducesValidationProblem()
+             .AddOpenApiOperationTransformer(DescribeLimitAsync);
         return app;
     }
 
@@ -53,6 +56,21 @@ public static class FlashbackEndpoints
         return Results.Ok(new OnThisDayDto(
             LocalDatePattern.Iso.Format(day),
             [.. years.Select(year => new FlashbackYearDto(year.Year, [.. year.Memories.Select(AssetDtoMapper.ToDto)]))]));
+    }
+
+    private static Task DescribeLimitAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken ct)
+    {
+        foreach (var limit in operation.Parameters!.OfType<OpenApiParameter>().Where(parameter => parameter.Name == "limit"))
+        {
+            limit.Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.Integer,
+                Minimum = "1",
+                Maximum = IFlashbackReader.MostRecentDays.ToString(CultureInfo.InvariantCulture),
+            };
+        }
+
+        return Task.CompletedTask;
     }
 
     internal static async Task<IResult> GetRecentDaysAsync(

@@ -4,14 +4,16 @@ How the API reads a user's assets. Code: `Anichron.Core/Data/Repository/AssetVie
 
 ## Asset lists
 
-- **Every list of visible assets goes through `IAssetViewReader`**, in one SQL statement projected into a flat `AssetView`. No API type touches a media entity (`api-reads-media-through-views`).
+- **Every list of visible assets goes through `IAssetViewReader`**, in one SQL statement projected into an `AssetView`. No API type touches a media entity (`api-reads-media-through-views`).
+- Every view carries its media as an `AssetMedia`, projected only by `AssetMedia.Into`. A new media field or proxy type goes there.
 - Ownership is `OwnedBy` (owner, active config). `VisibleTo` is `OwnedBy` plus active; `SoftDeletedFor` is `OwnedBy` plus soft-deleted. Both hold under `IgnoreQueryFilters()`.
 - Each selection declares the set it reads: **shown** (`NotHiddenFor`) or **hidden** (`HiddenFor`). The reader applies `VisibleTo` and that set's rule for the caller, and leaves out:
   - a Live Photo's paired MOV, which reaches the client only as the photo's `PairedMovId`;
   - undated assets.
 - **A new list view is a new `IAssetSelection`** (e.g. `AssetsById`, `BurstMembers`, `HiddenAssets`): its set, its filter on entity columns (`Apply`), and optionally its order and page over the joined rows (`Page`). The reader never changes.
-- Grouping and ordering happen in memory, except `HiddenAssets`, which orders by `HiddenAt` then id, newest first, and pages by keyset on that pair in SQL (`AssetCursor`, encoded by `AssetCursors`).
-- The published `mediaType` is `LivePhoto` only when the paired video is visible and has a `WebVideo`; otherwise `Image` (`AssetDtoMapper`, for every view through `IAssetMedia`).
+- Grouping and ordering happen in memory, except `HiddenAssets`, which orders by `HiddenAt` then id, newest first, and pages by keyset on that pair in SQL (`AssetCursor`, encoded by `AssetCursors`). `ReadHiddenPageAsync` reads that page.
+- **A keyset page is read by `AssetPage.ReadAsync`** in Core: one row more than the page, and the next cursor from its last row. Endpoints only format it.
+- The published `mediaType` is `LivePhoto` only when the paired video is visible and has a `WebVideo`; otherwise `Image` (`AssetDtoMapper`, for every view through its `AssetMedia`).
 
 ## Flashbacks
 

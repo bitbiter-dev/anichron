@@ -1,6 +1,7 @@
 import { mutationOptions, queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { Change } from '../../api/assets';
 import type { ApiClient } from '../../api/client';
+import { mostRecentDays } from '../../api/generated/limits';
 import type { Day, RecentDay, RecentWindow, YearGroup } from '../../api/flashbacks';
 import type { Memory } from '../../api/memories';
 import type { User } from '../../api/session';
@@ -180,7 +181,8 @@ export function standInOf(api: ApiClient, queryClient: QueryClient, memory: Memo
   return loadsPicture && pictureDecoded(api, queryClient, thumbnail) ? thumbnail : null;
 }
 
-const mostPages = 61;
+export const daysPerPage = 6;
+const mostPages = Math.floor(mostRecentDays / daysPerPage);
 
 export function homeSearch(search: Record<string, unknown>): { earlier?: number } {
   const earlier = Math.min(Math.floor(Number(search.earlier)), mostPages);

@@ -102,11 +102,10 @@ public static class MediaEndpoints
         if (after is not null && (cursor = AssetCursors.Parse(after)) is null)
             return InvalidCursor();
 
-        var views = await reader.ReadAsync(userId, new HiddenAssets(cursor, PageSize + 1), ct);
-        var page = views.Take(PageSize).ToList();
+        var page = await reader.ReadHiddenPageAsync(userId, cursor, PageSize, ct);
         return Results.Ok(new HiddenAssetsPageDto(
-            [.. page.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), AssetCursors.FormatInstant(view.HiddenAt!.Value)))],
-            views.Count > PageSize ? AssetCursors.Format(new AssetCursor(page[^1].HiddenAt!.Value, page[^1].Id)) : null));
+            [.. page.Items.Select(view => new HiddenAssetDto(AssetDtoMapper.ToDto(view, burst: null), AssetCursors.FormatInstant(view.HiddenAt!.Value)))],
+            page.Next is { } next ? AssetCursors.Format(next) : null));
     }
 
     internal static async Task<IResult> PatchInteractionAsync(

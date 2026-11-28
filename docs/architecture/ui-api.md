@@ -21,7 +21,7 @@ How the UI (`src/Anichron.UI`) calls the API.
 - A picture fails only once none of it has arrived for `loadMilliseconds` (`mediaProgressed` in `story.ts`). A Live Photo video the server refuses plays from the network instead.
 - The tray of recent days reads `recentDays` (`src/api/flashbacks.ts`): one request for the first page of days before today, and one for all the earlier pages shown (`features/on-this-day/use-recent-days.ts`). Closing a story reloads it.
 
-- `softDeleted.purge` (`src/api/soft-deleted.ts`) forgets removed memories; the caller sends them in chunks of `chunkSize`, one call after another (`features/removed/forget.ts`). The ids the server accepts stay out of every later page until the user changes, since the Worker deletes them later.
+- `softDeleted.purge` (`src/api/soft-deleted.ts`) forgets removed memories; the caller sends them in chunks of `mostPurgedAssets` (`api/generated/limits.ts`), one call after another (`features/removed/forget.ts`). The ids the server accepts stay out of every later page until the user changes, since the Worker deletes them later.
 
 ## The event stream
 
@@ -32,7 +32,8 @@ How the UI (`src/Anichron.UI`) calls the API.
 ## The signed-in user
 
 - The session holds the `user` from every session response and clears it with the session.
-- A change of user, signing out included, in this tab or from another, clears the query cache and the shell's toasts (`createAppRouter`), and `SignedIn` remounts its views per user, so the next user never sees the previous one's data.
+- **`session.onUserChange` is the one signal that the user changed**, heard before `onChange`. Per-user client state clears on it, never by comparing ids itself.
+- A change of user, signing out included, in this tab or from another, clears the query cache and the shell's toasts (`createAppRouter`) and the forgotten ids (`soft-deleted.ts`), and `SignedIn` remounts its views per user, so the next user never sees the previous one's data.
 - `session.user()` is synchronous and stable between changes. Views read it through `useUser()` (`src/shared/use-user.ts`).
 - Signed in means a user is held. The `signed-in` route's `beforeLoad` puts it in the route context, so a guard below it reads `context.user`; the login route calls `isSignedIn()`.
 - A user without photos (`hasPhotos` in `src/features/on-this-day/day.ts`) gets no flashback request: Today shows the no-photos message in place of the memories, and the day route redirects to `/`.

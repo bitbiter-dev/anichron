@@ -10,20 +10,20 @@ public sealed class AssetDtoMapperTests
     private static readonly Guid MovId = Guid.Parse("0199a1b2-c3d4-7e5f-8a9b-ffffffffffff");
     private const string MovHash = "cafebabecafebabe";
 
-    private static AssetView Photo => AssetViews.Image(AssetId, new LocalDateTime(2019, 7, 14, 9, 30)) with
+    private static AssetView Photo => AssetViews.Image(AssetId, new LocalDateTime(2019, 7, 14, 9, 30)).WithMedia(media => media with
     {
         Width = 4032,
         Height = 3024,
         Orientation = ExifOrientation.Upright,
         DurationInSeconds = 3,
-    };
+    });
 
     private static AssetDto ToDto(AssetView view) => AssetDtoMapper.ToDto(view, null);
 
     [Fact]
     public void Photo_MapsItsFieldsAndProxyUrls()
     {
-        var view = Photo with { HasThumbnail = true, HasPreview = true, Blurhash = "LEHV6nWB2yk8" };
+        var view = Photo.WithMedia(media => media with { HasThumbnail = true, HasPreview = true, Blurhash = "LEHV6nWB2yk8" });
 
         ToDto(view).Should().BeEquivalentTo(new AssetDto(
             AssetId,
@@ -56,7 +56,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void Video_ReportsItsDurationAndVideoProxy()
     {
-        var dto = ToDto(Photo with { MediaType = MediaType.Video, HasThumbnail = true, HasVideo = true });
+        var dto = ToDto(Photo.WithMedia(media => media with { MediaType = MediaType.Video, HasThumbnail = true, HasVideo = true }));
 
         dto.MediaType.Should().Be("Video");
         dto.DurationSeconds.Should().Be(3);
@@ -70,9 +70,9 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void AssetThatTookNewContent_KeepsItsIdButEveryProxyUrlChanges()
     {
-        var before = Photo with { MediaType = MediaType.Video, HasThumbnail = true, HasPreview = true, HasCompactPreview = true, HasVideo = true };
+        var before = Photo.WithMedia(media => media with { MediaType = MediaType.Video, HasThumbnail = true, HasPreview = true, HasCompactPreview = true, HasVideo = true });
 
-        var after = ToDto(before with { ContentHash = "fedcba9876543210" });
+        var after = ToDto(before.WithMedia(media => media with { ContentHash = "fedcba9876543210" }));
 
         after.Id.Should().Be(ToDto(before).Id);
         after.Proxies.Should().Be(new AssetProxyUrls(
@@ -85,14 +85,14 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void LivePhoto_PointsAtThePairedMovsVideoProxy()
     {
-        var dto = ToDto(Photo with
+        var dto = ToDto(Photo.WithMedia(media => media with
         {
             MediaType = MediaType.LivePhoto,
             HasThumbnail = true,
             PairedMovId = MovId,
             PairedMovContentHash = MovHash,
             PairedMovHasVideo = true,
-        });
+        }));
 
         dto.MediaType.Should().Be("LivePhoto");
         dto.DurationSeconds.Should().BeNull();
@@ -103,7 +103,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void LivePhoto_WhosePairedMovHasNoVideoProxy_IsPublishedAsAStillImage()
     {
-        var dto = ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovId = MovId, PairedMovContentHash = MovHash });
+        var dto = ToDto(Photo.WithMedia(media => media with { MediaType = MediaType.LivePhoto, PairedMovId = MovId, PairedMovContentHash = MovHash }));
 
         dto.LivePhotoVideoUrl.Should().BeNull();
         dto.MediaType.Should().Be("Image");
@@ -112,7 +112,7 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void LivePhoto_WithoutAPairedMov_IsPublishedAsAStillImage()
     {
-        var dto = ToDto(Photo with { MediaType = MediaType.LivePhoto, PairedMovHasVideo = true });
+        var dto = ToDto(Photo.WithMedia(media => media with { MediaType = MediaType.LivePhoto, PairedMovHasVideo = true }));
 
         dto.LivePhotoVideoUrl.Should().BeNull();
         dto.MediaType.Should().Be("Image");
@@ -121,14 +121,14 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void MissingOptionalProxiesAndMetadata_MapToNulls()
     {
-        var dto = ToDto(Photo with
+        var dto = ToDto(Photo.WithMedia(media => media with
         {
             MediaType = MediaType.Video,
             Width = null,
             Height = null,
             Orientation = null,
             DurationInSeconds = null,
-        });
+        }));
 
         dto.Proxies.Should().Be(new AssetProxyUrls(null, null, null, null));
         dto.Blurhash.Should().BeNull();
@@ -145,7 +145,7 @@ public sealed class AssetDtoMapperTests
     [InlineData(8, 3024, 4032)]
     public void Dimensions_AreReportedUpright(int orientation, int width, int height)
     {
-        var dto = ToDto(Photo with { Orientation = orientation });
+        var dto = ToDto(Photo.WithMedia(media => media with { Orientation = orientation }));
 
         dto.Width.Should().Be(width);
         dto.Height.Should().Be(height);
@@ -181,7 +181,7 @@ public sealed class AssetDtoMapperTests
             .Should().Be(new AssetInteractionDto(starred, liked, hidden, weight));
 
     private static AssetView WithLiveVideo(MediaType type)
-        => Photo with { MediaType = type, PairedMovId = MovId, PairedMovContentHash = MovHash, PairedMovHasVideo = true };
+        => Photo.WithMedia(media => media with { MediaType = type, PairedMovId = MovId, PairedMovContentHash = MovHash, PairedMovHasVideo = true });
 
     [Theory]
     [InlineData(MediaType.Image, "Image")]
@@ -201,7 +201,7 @@ public sealed class AssetDtoMapperTests
 
     private static readonly Instant LastSeen = Instant.FromUtc(2026, 11, 3, 18, 4, 5);
 
-    private static SoftDeletedAssetView SoftDeletedPhoto => AssetViews.SoftDeleted(AssetId, LastSeen) with
+    private static SoftDeletedAssetView SoftDeletedPhoto => AssetViews.SoftDeleted(AssetId, LastSeen).WithMedia(media => media with
     {
         Width = 4032,
         Height = 3024,
@@ -211,6 +211,8 @@ public sealed class AssetDtoMapperTests
         HasPreview = true,
         HasCompactPreview = true,
         Blurhash = "LEHV6nWB2yk8",
+    }) with
+    {
         Reason = SoftDeleteReason.Overwritten,
     };
 
@@ -249,13 +251,13 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void SoftDeletedLivePhotoWithItsVideo_IsALivePhotoThatPlaysIt()
     {
-        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen) with
+        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen).WithMedia(media => media with
         {
             MediaType = MediaType.LivePhoto,
             PairedMovId = MovId,
             PairedMovContentHash = MovHash,
             PairedMovHasVideo = true,
-        });
+        }));
 
         (dto.MediaType, dto.LivePhotoVideoUrl).Should().Be(
             ("LivePhoto", "proxies/0199a1b2-c3d4-7e5f-8a9b-ffffffffffff/video?v=cafebabecafebabe"));
@@ -264,12 +266,12 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void SoftDeletedLivePhotoWithoutAPlayableVideo_IsAnImage()
     {
-        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen) with
+        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen).WithMedia(media => media with
         {
             MediaType = MediaType.LivePhoto,
             PairedMovId = MovId,
             PairedMovContentHash = MovHash,
-        });
+        }));
 
         (dto.MediaType, dto.LivePhotoVideoUrl).Should().Be(("Image", null));
     }
@@ -277,11 +279,13 @@ public sealed class AssetDtoMapperTests
     [Fact]
     public void SupersededVideo_IsAVideoWithItsDurationAndNoPicture()
     {
-        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen) with
+        var dto = AssetDtoMapper.ToDto(AssetViews.SoftDeleted(AssetId, LastSeen).WithMedia(media => media with
         {
             MediaType = MediaType.Video,
             DurationInSeconds = 3,
             HasVideo = true,
+        }) with
+        {
             Reason = SoftDeleteReason.Superseded,
         });
 

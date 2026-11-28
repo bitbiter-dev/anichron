@@ -149,21 +149,24 @@ public sealed class SoftDeletedAssetReaderTests
 
         page.Items.Should().ContainSingle().Which.Should().BeEquivalentTo(new
         {
-            gone.ContentHash,
-            MediaType = MediaType.Video,
+            Media = new
+            {
+                gone.ContentHash,
+                MediaType = MediaType.Video,
+                Width = 1920,
+                Height = 1080,
+                Orientation = 6,
+                DurationInSeconds = 12,
+                Blurhash = "LKO2?U",
+                HasThumbnail = true,
+                HasPreview = false,
+                HasCompactPreview = true,
+                HasVideo = true,
+                PairedMovId = (Guid?)null,
+            },
             Year = 2019,
             Month = 7,
             Day = 14,
-            Width = 1920,
-            Height = 1080,
-            Orientation = 6,
-            DurationInSeconds = 12,
-            Blurhash = "LKO2?U",
-            HasThumbnail = true,
-            HasPreview = false,
-            HasCompactPreview = true,
-            HasVideo = true,
-            PairedMovId = (Guid?)null,
         });
     }
 
@@ -175,7 +178,7 @@ public sealed class SoftDeletedAssetReaderTests
 
         var page = await ReadPageAsync(library);
 
-        page.Items.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        page.Items.Should().ContainSingle().Which.Media.Should().BeEquivalentTo(new
         {
             HasThumbnail = true,
             HasPreview = true,
@@ -231,7 +234,7 @@ public sealed class SoftDeletedAssetReaderTests
 
         var page = await ReadPageAsync(library);
 
-        page.Items.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        page.Items.Should().ContainSingle().Which.Media.Should().BeEquivalentTo(new
         {
             photo.Id,
             PairedMovId = video.Id,
@@ -248,7 +251,7 @@ public sealed class SoftDeletedAssetReaderTests
 
         var page = await ReadPageAsync(library);
 
-        page.Items.Should().ContainSingle().Which.PairedMovHasVideo.Should().BeFalse();
+        page.Items.Should().ContainSingle().Which.Media.PairedMovHasVideo.Should().BeFalse();
     }
 
     [Fact]
@@ -276,8 +279,7 @@ public sealed class SoftDeletedAssetReaderTests
         {
             superseded.Id,
             Reason = SoftDeleteReason.Superseded,
-            HasThumbnail = false,
-            HasVideo = true,
+            Media = new { HasThumbnail = false, HasVideo = true },
         });
     }
 
