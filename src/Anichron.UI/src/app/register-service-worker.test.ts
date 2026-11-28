@@ -142,31 +142,17 @@ it('checks for a new version at start', async () => {
   expect(registration.update).toHaveBeenCalledOnce();
 });
 
-it('checks again when the page becomes visible an hour after the last check', async () => {
+it('checks again every time the page becomes visible', async () => {
   await registered();
-  await advance(hour);
 
-  becomes('visible');
-
-  expect(registration.update).toHaveBeenCalledTimes(2);
-});
-
-it('checks no more than once an hour', async () => {
-  await registered();
-  await advance(hour - 1);
-  becomes('visible');
-  expect(registration.update).toHaveBeenCalledOnce();
-
-  await advance(1);
   becomes('visible');
   becomes('visible');
 
-  expect(registration.update).toHaveBeenCalledTimes(2);
+  expect(registration.update).toHaveBeenCalledTimes(3);
 });
 
 it('checks only when the page becomes visible, not when it is hidden', async () => {
   await registered();
-  await advance(hour);
 
   becomes('hidden');
 
@@ -176,7 +162,6 @@ it('checks only when the page becomes visible, not when it is hidden', async () 
 it('carries on when a check cannot reach the server', async () => {
   registration.update.mockRejectedValue(new TypeError('Failed to fetch'));
   await registered();
-  await advance(hour);
 
   becomes('visible');
   await advance(0);
