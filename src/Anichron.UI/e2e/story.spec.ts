@@ -18,9 +18,17 @@ async function signIn(page: Page) {
   await signInPage(page, mediaUser);
 }
 
-async function open(page: Page, group: string) {
+const todayCard = (page: Page) => page.getByRole('link', { name: 'Mon 15 Jun' });
+
+async function open(page: Page) {
   await signIn(page);
-  await page.getByRole('link', { name: group }).click();
+  await todayCard(page).click();
+  await expect(story(page)).toBeVisible();
+}
+
+async function openAt(page: Page, year: number) {
+  await signIn(page);
+  await page.goto(`/day/2026-06-15?year=${String(year)}`);
   await expect(story(page)).toBeVisible();
 }
 
@@ -49,11 +57,10 @@ async function swipe(page: Page, dx: number, dy: number) {
 
 const touch = { pointerType: 'touch', pointerId: 7, isPrimary: true, button: 0, buttons: 1 };
 
-test('the landing screen offers both year groups and a recent day', async ({ page }) => {
+test("the landing screen offers today's card and a recent day", async ({ page }) => {
   await signIn(page);
 
-  await expect(page.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
-  await expect(page.getByRole('link', { name: '2 years ago · 2024' })).toBeVisible();
+  await expect(todayCard(page)).toBeVisible();
   const recent = page.getByRole('list', { name: 'Recent days' });
   await expect(recent.getByRole('link', { name: 'Sat 13 Jun' })).toBeVisible();
   await expectAccessible(page);
@@ -66,7 +73,7 @@ test('the landing screen offers both year groups and a recent day', async ({ pag
 test('the story advances on its own, a burst shows as its cover, and taps skip', async ({
   page,
 }) => {
-  await open(page, '1 year ago · 2025');
+  await open(page);
 
   await expect(story(page).getByRole('status')).toHaveText('1 year ago · 2025');
   await expect(button(page, 'Pause')).toBeFocused();
@@ -89,7 +96,7 @@ test('the story advances on its own, a burst shows as its cover, and taps skip',
 });
 
 test('a hold pauses the story without the system menu', async ({ page }) => {
-  await open(page, '1 year ago · 2025');
+  await open(page);
   await expectShown(memory(page, 'Photo, 2025, 1 of 2'));
   await freezeClock(page);
   const zone = button(page, 'Next');
@@ -114,7 +121,7 @@ test('a hold pauses the story without the system menu', async ({ page }) => {
 test('a Live Photo plays its video and a video starts muted until the speaker is tapped', async ({
   page,
 }) => {
-  await open(page, '2 years ago · 2024');
+  await openAt(page, 2024);
   await expectShown(memory(page, 'Live Photo, 2024, 1 of 2'));
   await freezeClock(page);
   const live = button(page, 'Play Live Photo');
@@ -137,7 +144,7 @@ test('a Live Photo plays its video and a video starts muted until the speaker is
 });
 
 test('a swipe changes year group and a swipe down closes the story', async ({ page }) => {
-  await open(page, '1 year ago · 2025');
+  await open(page);
   await expectShown(memory(page, 'Photo, 2025, 1 of 2'));
   await button(page, 'Pause').click();
   await expectAccessible(page, { waitForAnimations: false });
@@ -152,5 +159,5 @@ test('a swipe changes year group and a swipe down closes the story', async ({ pa
   await swipe(page, 0, height / 2);
 
   await expect(story(page)).toBeHidden();
-  await expect(page.getByRole('link', { name: '1 year ago · 2025' })).toBeVisible();
+  await expect(todayCard(page)).toBeVisible();
 });

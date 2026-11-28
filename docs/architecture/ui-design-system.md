@@ -53,6 +53,8 @@ The signed-in frame, a layout route in `src/app/` (`Shell.tsx`). Login and the f
 - Transition durations are tokens that become `0ms` under `prefers-reduced-motion`; looping animations are `none` there, and the story's progress fill (`--animate-story-fill`) steps.
 - Motion, which only the story loads, follows it through `MotionConfig reducedMotion="user"`. The pull to close reads it itself (`src/shared/reduced-motion.ts`) and only fades the backdrop; the removed list's drag-select jumps instead of gliding. A Live Photo never plays by itself, only from its button or a hold.
 - A loading ring stops spinning (`motion-reduce:`).
+- Today's card (`turning.ts`) crossfades over `--duration-crossfade` to the next older year's first thumbnail, wrapping round. It waits for a picture still on its way and leaves out one that failed.
+- It stands still on the newest year under reduced motion, and where it is while the tab is hidden, the card has keyboard focus or a story is open; a hover never stops it.
 - The Live pill and the years-ago line stay visible through a hold that hides the other controls. The pill shows a turning `player-accent` arc while its video loads (`live-ring`), faded in after `--delay-live-ring` so a quick load shows none, and pulses its icon while it plays (`live-blink`). Under reduced motion the arc stands still and the icon dims.
 - A skeleton (`skeleton` utility) fades in after `--delay-skeleton`, so a quick load shows none, then pulses through `--animate-skeleton`; under reduced motion it stands still.
 - Focus is an accent ring on keyboard focus only; the story's full-screen tap zones and rows draw it inside. A `tv` state takes it from `focusVariant` (`tv.ts`). A control with the ring does not transition its colours.

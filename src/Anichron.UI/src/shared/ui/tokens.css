@@ -45,6 +45,7 @@
 
   --duration-fast: 150ms;
   --duration-base: 250ms;
+  --duration-crossfade: 800ms;
   --duration-blink: 800ms;
   --duration-spin: 1s;
   --duration-pulse: 1s;
@@ -64,6 +65,7 @@
   :root {
     --duration-fast: 0ms;
     --duration-base: 0ms;
+    --duration-crossfade: 0ms;
     --animate-story-fill: story-fill steps(5) forwards;
     --animate-live-blink: none;
     --animate-live-ring: none;

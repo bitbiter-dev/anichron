@@ -21,7 +21,14 @@ import {
   type Connection,
   type Listed,
 } from '../../test/handlers/work-items';
-import { hold, memory, onThisDayAnswers, yearGroup } from '../../test/handlers/flashbacks';
+import {
+  assetIdOf,
+  hold,
+  memoriesOf,
+  memory,
+  onThisDayAnswers,
+  yearGroup,
+} from '../../test/handlers/flashbacks';
 import { renderApp } from '../../test/render-app';
 import { server } from '../../test/server';
 import { sharedTabs } from '../../test/tabs';
@@ -673,19 +680,19 @@ describe('the stream', () => {
         asked.add(date);
         return HttpResponse.json({
           date,
-          years: [yearGroup(2023, memory('0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b', 2023))],
+          years: [yearGroup(2023, memory(assetIdOf('mira'), 2023))],
         });
       }),
     );
     lists({ items: [workItem(1)] });
     const { router } = renderApp('/');
-    expect(await screen.findByRole('link', { name: / · 2023$/ })).toBeVisible();
+    expect(await screen.findByRole('link', memoriesOf('mira'))).toBeVisible();
 
     await act(() => router.navigate({ to: '/admin/work-items' }));
     await screen.findByRole('list');
     await act(() => router.navigate({ to: '/' }));
 
-    expect(screen.getByRole('link', { name: / · 2023$/ })).toBeVisible();
+    expect(screen.getByRole('link', memoriesOf('mira'))).toBeVisible();
   });
 
   it('closes when the admin is signed out in another tab', async () => {
