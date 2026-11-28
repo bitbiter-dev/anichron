@@ -42,10 +42,10 @@ within_seconds 10 '[ "$(tickets)" -eq 2 ]' || fail 'the first caller takes the l
 mkfifo "$work/release-second"
 locked "$work/other" heavy sh -c "cat '$work/release-second' >/dev/null; echo second >>'$work/order'" 2>"$work/waiting-second" &
 second=$!
-within_seconds 10 "grep -q 'waiting for the heavy lock' '$work/waiting-second' 2>/dev/null"
+within_seconds 10 "grep -q 'waiting for the heavy lock' '$work/waiting-second' 2>/dev/null" || fail 'a waiter says it waits' 'waiting for the heavy lock' 'nothing'
 locked "$work/repo" heavy sh -c "echo third >>'$work/order'" 2>"$work/waiting-third" &
 third=$!
-within_seconds 10 "grep -q 'waiting for the heavy lock' '$work/waiting-third' 2>/dev/null"
+within_seconds 10 "grep -q 'waiting for the heavy lock' '$work/waiting-third' 2>/dev/null" || fail 'a waiter says it waits' 'waiting for the heavy lock' 'nothing'
 if [ ! -e "$work/order" ]; then pass 'another worktree waits while the lock is held'; else fail 'another worktree waits while the lock is held' 'no second run yet' "$(cat "$work/order")"; fi
 if grep -Eq "behind 1, held by process [0-9]+: sh -c cat '$work/release'" "$work/waiting-second"; then pass 'the wait names its place and the holding command'; else fail 'the wait names its place and the holding command' "behind 1, held by process <pid>: sh -c cat '$work/release'" "$(cat "$work/waiting-second")"; fi
 if grep -Eq "behind 2, held by process [0-9]+: sh -c cat" "$work/waiting-third"; then pass 'a later caller counts everyone ahead'; else fail 'a later caller counts everyone ahead' 'behind 2' "$(cat "$work/waiting-third")"; fi
@@ -59,13 +59,13 @@ if [ "$(tr '\n' ' ' <"$work/order" 2>/dev/null)" = 'second third ' ]; then pass 
 rm -f "$work/order"
 locked "$work/repo" heavy sh -c "cat '$work/release' >/dev/null" &
 first=$!
-within_seconds 10 '[ "$(tickets)" -eq 2 ]'
+within_seconds 10 '[ "$(tickets)" -eq 2 ]' || fail 'the holder takes a ticket' 'a ticket' 'none'
 locked "$work/other" heavy sh -c "echo failed >>'$work/order'; exit 1" 2>/dev/null &
 second=$!
-within_seconds 10 '[ "$(tickets)" -eq 4 ]'
+within_seconds 10 '[ "$(tickets)" -eq 4 ]' || fail 'the second caller queues' 'a ticket' 'none'
 locked "$work/repo" heavy sh -c "echo waiting >>'$work/order'" 2>/dev/null &
 third=$!
-within_seconds 10 '[ "$(tickets)" -eq 6 ]'
+within_seconds 10 '[ "$(tickets)" -eq 6 ]' || fail 'the third caller queues' 'a ticket' 'none'
 echo go 1<>"$work/release"
 wait "$first"
 wait "$second"
@@ -85,6 +85,11 @@ else
   fail 'a ticket whose process has exited is skipped and removed' "skipped $dead, then ran" "exit $status, $out"
 fi
 
+touch "$queue/0000000007"
+out=$(locked "$work/repo" heavy sh -c 'ls "$1"' sh "$queue" 2>&1); status=$?
+if [ "$status" -eq 0 ] && [[ "$out" == *0000000008* ]]; then pass 'a file in the queue that is not a ticket is passed over'; else fail 'a file in the queue that is not a ticket is passed over' 'ran with ticket 0000000008' "exit $status, $out"; fi
+rm "$queue/0000000007"
+
 ln -s "$$@another-start" "$queue/0000000001"
 out=$(locked "$work/repo" heavy echo ran 2>&1); status=$?
 if [ "$status" -eq 0 ] && [[ "$out" == *"skipped process $$ in the heavy queue"* ]]; then
@@ -95,10 +100,10 @@ fi
 
 locked "$work/repo" heavy sh -c "cat '$work/release' >/dev/null" &
 first=$!
-within_seconds 10 '[ "$(tickets)" -eq 2 ]'
+within_seconds 10 '[ "$(tickets)" -eq 2 ]' || fail 'the holder takes a ticket' 'a ticket' 'none'
 (cd "$work/other" && WITH_LOCK_POLL_SECONDS=0 exec "$script" heavy echo never) 2>/dev/null &
 waiter=$!
-within_seconds 10 '[ "$(tickets)" -eq 4 ]'
+within_seconds 10 '[ "$(tickets)" -eq 4 ]' || fail 'the second caller queues' 'a ticket' 'none'
 kill -TERM "$waiter"
 wait "$waiter"; status=$?
 if [ "$status" -eq 143 ] && [ "$(tickets)" -eq 2 ]; then pass 'a waiter stopped by a signal leaves the queue'; else fail 'a waiter stopped by a signal leaves the queue' 'exit 143, only the holder left' "exit $status, $(ls "$queue")"; fi

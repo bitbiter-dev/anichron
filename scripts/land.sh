@@ -17,8 +17,8 @@
 # Every message starts with `land: `: one line per phase and per finished CI or
 # CodeQL job. A failing `gh` call (GitHub unreachable) is retried until it
 # answers, and the state read again then; only a conflict with master, a failed
-# run or check, the timeout, a refused merge, or a signal stops it, with the
-# reason, and gives up its turn. LAND_POLL_SECONDS is the wait between checks
+# fetch, push or PR create, a failed run or check, the timeout, a refused merge,
+# or a signal stops it, with the reason, and gives up its turn. LAND_POLL_SECONDS is the wait between checks
 # (default 30), LAND_TIMEOUT_MINUTES the longest wait for one round of CI and
 # the required checks, not counting time asleep or with `gh` failing (default
 # 120), LAND_MERGE_SECONDS how long a merge GitHub refuses while it still
@@ -58,7 +58,8 @@ gh_call() {
 }
 
 # Runs gh until it succeeds and sets `answer` to its output, saying when it
-# stops and starts answering. It gives up only once `stop_by` passes. It waits
+# stops and starts answering. It gives up only once `stop_by` passes, which
+# only back_to_draft sets. It waits
 # in the calling shell, so a signal to the main shell stops it within one poll.
 gh_retry() {
   local failed=''
@@ -98,11 +99,11 @@ passes() {
 ready_run() {
   local workflow="$1" sha="$2" since="$3" root_job="$4" skip="$5" runs id
   found=''
-  gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json databaseId,createdAt || return 1
+  gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json databaseId,createdAt
   runs=$answer
   for id in $(jq -r --arg since "$since" '[.[] | select(.createdAt >= $since)] | sort_by(.createdAt) | reverse | .[].databaseId' <<<"$runs"); do
     [[ " $skip " != *" $id "* ]] || continue
-    gh_retry run view "$id" --json jobs || return 1
+    gh_retry run view "$id" --json jobs
     if jq -e --arg job "$root_job" 'any(.jobs[]; .name == $job and .conclusion != "skipped")' <<<"$answer" >/dev/null; then
       found=$id
       return
@@ -111,17 +112,18 @@ ready_run() {
 }
 
 # Waits for the ready run of <workflow> until `deadline`, past runs a newer one
-# cancelled: a run created after the cancelled one. Sets `outcome` to its conclusion and url, `gh-failing`, or
-# `timed-out`. Runs in the main shell, so a signal stops it within one poll.
+# cancelled: a run created after the cancelled one. Sets `outcome` to its
+# conclusion and url, or `timed-out`. Runs in the main shell, so a signal stops
+# it within one poll.
 await_run() {
   local workflow="$1" sha="$2" since="$3" root_job="$4" id='' skip='' run newer reported='' job
   while :; do
     if [ -z "$id" ]; then
-      ready_run "$workflow" "$sha" "$since" "$root_job" "$skip" || { outcome=gh-failing; return; }
+      ready_run "$workflow" "$sha" "$since" "$root_job" "$skip"
       id=$found
     fi
     if [ -n "$id" ]; then
-      gh_retry run view "$id" --json status,conclusion,url,jobs,createdAt || { outcome="gh-failing $id"; return; }
+      gh_retry run view "$id" --json status,conclusion,url,jobs,createdAt
       run=$answer
       while IFS= read -r job; do
         [ -n "$job" ] || continue
@@ -129,7 +131,7 @@ await_run() {
       done < <(jq -r '.jobs[] | select(.status == "completed" and .conclusion != "skipped") | "\(.name): \(.conclusion)"' <<<"$run")
       if [ "$(jq -r .status <<<"$run")" = completed ]; then
         if [ "$(jq -r .conclusion <<<"$run")" = cancelled ]; then
-          ready_run "$workflow" "$sha" "$(jq -r .createdAt <<<"$run")" "$root_job" "$skip $id" || { outcome="gh-failing $id"; return; }
+          ready_run "$workflow" "$sha" "$(jq -r .createdAt <<<"$run")" "$root_job" "$skip $id"
           newer=$found
           if [ -n "$newer" ]; then
             skip="$skip $id"
@@ -149,7 +151,7 @@ await_run() {
 
 # Sets `events` to the PR's ready_for_review events, oldest first.
 ready_events() {
-  gh_retry api --paginate "repos/{owner}/{repo}/issues/$1/events" || return 1
+  gh_retry api --paginate "repos/{owner}/{repo}/issues/$1/events"
   events=$(jq -r '.[] | select(.event == "ready_for_review") | .created_at' <<<"$answer")
 }
 
@@ -179,7 +181,7 @@ merges_cleanly() {
 await_started() {
   local workflow="$1" sha="$2" since="$3"
   while :; do
-    gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json createdAt || return 1
+    gh_retry run list --workflow "$workflow" --commit "$sha" --event pull_request --json createdAt
     jq -e --arg since "$since" 'any(.[]; .createdAt >= $since)' <<<"$answer" >/dev/null && return
     tick
     [ "$last" -lt "$deadline" ] || { say "$workflow never started on $sha"; return 1; }
@@ -213,7 +215,7 @@ merge_once() {
 merge_pr() {
   local number="$1" sha="$2" refuse_by=$(($(date +%s) + merge_seconds)) refused=''
   until merge_once "$number" "$sha"; do
-    gh_retry pr view "$number" --json state,mergeStateStatus || return 1
+    gh_retry pr view "$number" --json state,mergeStateStatus
     [ "$(jq -r .state <<<"$answer")" != MERGED ] || return 0
     state=$(jq -r .mergeStateStatus <<<"$answer")
     case "$state" in BLOCKED | UNKNOWN) ;; *) return 1 ;; esac
@@ -229,7 +231,7 @@ merge_pr() {
 await_required() {
   local number="$1"
   while :; do
-    gh_retry pr checks "$number" --required --json name,bucket || { failing='gh is failing'; return; }
+    gh_retry pr checks "$number" --required --json name,bucket
     if jq -e 'length > 0 and all(.[]; .bucket != "pending")' <<<"$answer" >/dev/null; then
       failing=$(jq -r '.[] | select(.bucket == "fail" or .bucket == "cancel") | "\(.name): \(.bucket)"' <<<"$answer")
       return
@@ -272,12 +274,12 @@ main() {
   # Stops before the PR is known, and puts it back to draft once it is.
   stop() { if [ -n "$number" ]; then back_to_draft "$1"; else die "$1"; fi; }
   make_ready() {
-    ready_events "$number" || back_to_draft "Its events could not be read."
+    ready_events "$number"
     seen=$(grep -c . <<<"$events" || true)
     if [ "$draft" != true ]; then
-      gh_retry pr ready "$number" --undo || back_to_draft "Making it a draft failed."
+      gh_retry pr ready "$number" --undo
     fi
-    gh_retry pr ready "$number" || back_to_draft "Marking it ready failed."
+    gh_retry pr ready "$number"
     ready_since "$number" "$seen" || back_to_draft 'Its ready event could not be read.'
   }
 
@@ -295,16 +297,16 @@ main() {
     url=''
     sha=$(git rev-parse HEAD)
     remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1) || stop "cannot read origin's $branch"
-    gh_retry pr list --head "$branch" --state open --json number,isDraft || stop 'cannot list the open PRs'
+    gh_retry pr list --head "$branch" --state open --json number,isDraft
     pr=$answer
     number=$(jq -r '.[0].number // empty' <<<"$pr")
     draft=$(jq -r '.[0].isDraft // false' <<<"$pr")
 
     since=''
     if [ -z "$number" ]; then
-      git push --quiet --set-upstream origin "$branch" || die "cannot push $branch"
+      git push --quiet --set-upstream origin "$branch" || stop "cannot push $branch"
       say "pushed $branch"
-      url=$(gh pr create --fill --base master --head "$branch") || die 'cannot open a PR'
+      url=$(gh pr create --fill --base master --head "$branch") || stop 'cannot open a PR'
       number="${url##*/}"
       [[ "$number" =~ ^[0-9]+$ ]] || die "cannot read the PR number from '$url'"
     fi
@@ -312,7 +314,8 @@ main() {
 
     view='{}'
     if [ -z "$url" ] && [ "$draft" = false ] && [ "$head_before_merge" = "$sha" ] && [ "$remote" = "$sha" ]; then
-      if gh_retry pr view "$number" --json "$passed_fields"; then view=$answer; fi
+      gh_retry pr view "$number" --json "$passed_fields"
+      view=$answer
     fi
     if passes "$view" "$sha"; then
       say "PR #$number already passed CI at $sha; merging"
@@ -347,7 +350,7 @@ main() {
       say 'every required check passed'
     fi
 
-    gh_retry pr view "$number" --json mergeStateStatus || back_to_draft 'Its merge state could not be read.'
+    gh_retry pr view "$number" --json mergeStateStatus
     state=$(jq -r .mergeStateStatus <<<"$answer")
     if [ "$state" != BEHIND ]; then
       merge_pr "$number" "$sha" && break

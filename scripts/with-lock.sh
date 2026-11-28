@@ -4,7 +4,7 @@
 # Runs <command> holding the machine-wide lock <name>, shared by every worktree
 # of this repository and handed out in the order callers arrive. Each caller
 # takes the next ticket in a queue under the common git dir: a symlink naming
-# its PID and start time, beside a file naming its command. It waits while a
+# its PID and start time, beside a <pid>.command file naming its command. It waits while a
 # live ticket is ahead of it, saying its place and the holder whenever they
 # change, and removes the tickets of processes that have gone. Its own ticket
 # goes when it exits, so a caller that runs again joins the back. TERM, HUP and
@@ -19,15 +19,16 @@ identity() { printf '%s@%s' "$1" "$(ps -o lstart= -p "$1" 2>/dev/null | tr -s ' 
 alive() { [ "$(identity "${1%%@*}")" = "$1" ]; }
 
 # The queue's tickets, oldest first.
-tickets() { find "$queue" -mindepth 1 -maxdepth 1 -type l -name '[0-9]*' -exec basename {} \; | sort -n; }
+tickets() { ls "$queue" | { grep -E '^[0-9]+$' || true; } | sort -n; }
 
 # Takes the ticket after the newest one; sets `ticket`.
 take_ticket() {
-  local newest
+  local newest next
   while :; do
     newest=$(tickets | tail -n 1)
-    ticket=$(printf '%010d' $((10#${newest:-0} + 1)))
-    if ln -s "$me" "$queue/$ticket" 2>/dev/null; then
+    next=$(printf '%010d' $((10#${newest:-0} + 1)))
+    if ln -s "$me" "$queue/$next" 2>/dev/null; then
+      ticket=$next
       return
     fi
   done
@@ -44,7 +45,7 @@ read_ahead() {
     if alive "$holder"; then
       ahead+=("$t")
     elif rm "$queue/$t" 2>/dev/null; then
-      rm -f "$queue/$t.command"
+      rm -f "$queue/${holder%%@*}.command"
       echo "with-lock: skipped process ${holder%%@*} in the $name queue, which has exited" >&2
     fi
   done
@@ -67,15 +68,14 @@ main() {
   me=$(identity $$)
   ticket=''
 
-  trap '[ -z "$ticket" ] || rm -f "$queue/$ticket" "$queue/$ticket.command"' EXIT
+  trap 'rm -f "$queue/$$.command"; [ -z "$ticket" ] || rm -f "$queue/$ticket"' EXIT
   trap 'exit 143' TERM HUP INT
-  printf '%s\n' "$*" >"$queue/.command.$$"
+  printf '%s\n' "$*" >"$queue/$$.command"
   take_ticket
-  mv "$queue/.command.$$" "$queue/$ticket.command"
 
   while read_ahead; [ "${#ahead[@]}" -gt 0 ]; do
     holder=$(readlink "$queue/${ahead[0]}" 2>/dev/null) || continue
-    place="behind ${#ahead[@]}, held by process ${holder%%@*}: $(cat "$queue/${ahead[0]}.command" 2>/dev/null || true)"
+    place="behind ${#ahead[@]}, held by process ${holder%%@*}: $(cat "$queue/${holder%%@*}.command" 2>/dev/null || true)"
     if [ "$announced" != "$place" ]; then
       echo "with-lock: waiting for the $name lock, $place" >&2
       announced="$place"
