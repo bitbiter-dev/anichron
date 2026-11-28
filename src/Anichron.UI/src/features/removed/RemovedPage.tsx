@@ -161,9 +161,9 @@ function SelectionBar({ screen }: { screen: RemovedScreen }) {
   return (
     <div
       data-floating="page"
-      className="fixed inset-x-4 above-bottom-bar z-10 mx-auto flex max-w-xs justify-center rounded-full bg-surface-raised p-1 shadow-(--shadow-glass)"
+      className="pointer-events-none fixed inset-x-4 above-bottom-bar z-10 flex justify-center"
     >
-      <TextButton onPress={forget.ask(select.selected)}>
+      <TextButton onPress={forget.ask(select.selected)} className="pointer-events-auto">
         {t('removed.forgetCount', { count: select.count })}
       </TextButton>
     </div>
