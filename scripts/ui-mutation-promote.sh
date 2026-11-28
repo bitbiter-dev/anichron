@@ -4,6 +4,9 @@
 # For a master push whose tree passed on its pull request: puts the UI
 # incremental baseline describing HEAD in src/Anichron.UI/reports/, for CI to
 # publish as `ui-mutation-incremental`. Prints, for $GITHUB_OUTPUT:
+#   baseline=remeasure the push changed the measurement setup
+#                      (ui-mutation-changed.sh --setup) since HEAD^: a full
+#                      run re-measures every mutant, whatever the PR measured;
 #   baseline=promoted  the pull request's file, the artifact
 #                      `ui-mutation-pr-<tree>` measured on HEAD's tree;
 #   baseline=carried   master's baseline (scripts/ui-mutation-seed.sh), whose
@@ -25,6 +28,11 @@ finish() {
   echo "baseline=$2"
   exit 0
 }
+
+if git -C "$root" rev-parse -q --verify 'HEAD^' >/dev/null \
+  && ! git -C "$root" diff --quiet 'HEAD^' HEAD -- $("$here/ui-mutation-changed.sh" --setup); then
+  finish "the push changed the measurement setup; a full run re-measures every mutant" remeasure
+fi
 
 id=$(gh api "repos/{owner}/{repo}/actions/artifacts?name=$artifact&per_page=100" 2>/dev/null \
   | jq -r '[.artifacts[] | select(.expired | not)][0].id // empty' 2>/dev/null || true)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/ui-mutation-changed.sh [--base <ref>] [--all] [--print]
+# Usage: scripts/ui-mutation-changed.sh [--base <ref>] [--all] [--print | --setup]
 #
 # Runs StrykerJS over the UI's whole mutation scope (src/Anichron.UI) in
 # incremental mode: a mutant whose code and covering tests are unchanged since
@@ -12,9 +12,10 @@
 #   - A local baseline whose commit is unknown is discarded. Without a local
 #     baseline, one is seeded from master (scripts/ui-mutation-seed.sh);
 #     without one, every mutant runs.
-#   - A measurement setup (the `setup` list below) changed since the
-#     baseline's commit: every mutant runs again (--force).
-#   - Anything else: an incremental run.
+#   - Otherwise an incremental run, also when the measurement setup (the
+#     `setup` list below, printed by --setup) changed since the baseline's
+#     commit: it says so, and the master push re-measures every mutant
+#     (scripts/ui-mutation-promote.sh).
 # --all runs every mutant regardless (--force) and writes a fresh baseline.
 # A run that writes the baseline records HEAD as its commit, or no commit when
 # the setup differs from HEAD. --print prints the Stryker arguments instead of
@@ -28,12 +29,14 @@ set -euo pipefail
 base='origin/master'
 all=false
 print=false
+setup_only=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --base) base="${2:?--base needs a ref}"; shift 2 ;;
     --all) all=true; shift ;;
     --print) print=true; shift ;;
+    --setup) setup_only=true; shift ;;
     -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -46,6 +49,11 @@ baseline="$ui/reports/stryker-incremental.json"
 commit_file="$ui/reports/stryker-incremental.commit"
 setup=(src/Anichron.UI/stryker.config.json src/Anichron.UI/vite.config.ts src/Anichron.UI/package.json src/Anichron.UI/pnpm-lock.yaml)
 cd "$root"
+
+if $setup_only; then
+  printf '%s\n' "${setup[@]}"
+  exit 0
+fi
 
 args=()
 if $all; then
@@ -95,8 +103,7 @@ else
       } | sed 's#^src/Anichron.UI/##' | sort -u
     )
     if [ -n "$drift" ]; then
-      echo "running every mutant; the measurement setup changed since the baseline's commit: $(tr '\n' ' ' <<<"$drift" | sed 's/ $//')"
-      args=(--force)
+      echo "the measurement setup changed since the baseline's commit: $(tr '\n' ' ' <<<"$drift" | sed 's/ $//'); incremental here, the master push re-measures every mutant"
     fi
   fi
 fi
