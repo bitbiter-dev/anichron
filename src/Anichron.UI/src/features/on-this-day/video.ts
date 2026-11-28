@@ -6,7 +6,14 @@ import type { Story, StoryState } from './story';
 
 type StoryMedia = Pick<
   Story,
-  'state' | 'mediaReady' | 'mediaEnded' | 'mediaFailed' | 'livePlaying' | 'liveEnded'
+  | 'state'
+  | 'mediaCanPlay'
+  | 'mediaPlaying'
+  | 'mediaWaiting'
+  | 'mediaEnded'
+  | 'mediaFailed'
+  | 'livePlaying'
+  | 'liveEnded'
 >;
 
 type InMemory = Pick<Downloads, 'sourceOf' | 'failed'>;
@@ -18,7 +25,9 @@ interface Source {
 }
 
 interface MediaEvents {
+  canPlay: () => void;
   playing: () => void;
+  waiting: () => void;
   ended: () => void;
   error: () => void;
 }
@@ -104,13 +113,19 @@ export function createVideoPlayer(
   }
 
   const liveEvents: MediaEvents = {
+    canPlay: () => undefined,
     playing: story.livePlaying,
+    waiting: () => undefined,
     ended: story.liveEnded,
     error: story.liveEnded,
   };
   const videoEvents: MediaEvents = {
+    canPlay: story.mediaCanPlay,
     playing: () => {
-      story.mediaReady(visit);
+      story.mediaPlaying(visit);
+    },
+    waiting: () => {
+      story.mediaWaiting(visit);
     },
     ended: () => {
       story.mediaEnded(visit);
@@ -125,8 +140,14 @@ export function createVideoPlayer(
         element = video;
         sync();
       },
+      onCanPlay: () => {
+        events.canPlay();
+      },
       onPlaying: () => {
         events.playing();
+      },
+      onWaiting: () => {
+        events.waiting();
       },
       onEnded: () => {
         events.ended();

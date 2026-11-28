@@ -17,7 +17,7 @@ A day before today whose On This Day has memories. Today's recent days run newes
 _Avoid_: Earlier day, past day
 
 **Story**:
-The full-screen player that shows memories one after another, each for a set time, until the user moves on or pauses.
+The full-screen player that shows memories one after another, each photo for a set time and each video while it plays, until the user moves on or pauses.
 _Avoid_: Slideshow, carousel, reel
 
 **Year group**:
