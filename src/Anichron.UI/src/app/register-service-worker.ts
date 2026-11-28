@@ -14,8 +14,6 @@ export interface Updates {
   reload: () => void;
 }
 
-const checkMilliseconds = 60 * 60 * 1000;
-
 function scriptUrl() {
   const url = '/sw.js';
   const { trustedTypes } = globalThis as { trustedTypes?: TrustedTypesFactory };
@@ -26,11 +24,8 @@ function scriptUrl() {
   );
 }
 
-function checkHourly(registration: ServiceWorkerRegistration) {
-  let checked = -Infinity;
+function checkAtStartAndWhenVisible(registration: ServiceWorkerRegistration) {
   const check = () => {
-    if (Date.now() - checked < checkMilliseconds) return;
-    checked = Date.now();
     registration.update().catch(() => undefined);
   };
   check();
@@ -70,7 +65,7 @@ export function registerServiceWorker(production: boolean, reload: () => void): 
       registered.addEventListener('updatefound', watchInstalling);
       watchInstalling();
       offer();
-      checkHourly(registered);
+      checkAtStartAndWhenVisible(registered);
     })
     .catch(() => undefined);
   return updates;
