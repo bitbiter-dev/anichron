@@ -77,7 +77,11 @@ function PauseButton({ label, toggle }: PauseButtonProps) {
 
 const circleIcons = { loading: Pause, paused: Pause, resumed: Play };
 
-function StoryCircle({ circle }: { circle: Circle | null }) {
+interface StoryCircleProps {
+  circle: Circle | null;
+}
+
+function StoryCircle({ circle }: StoryCircleProps) {
   const Icon = circle && circleIcons[circle];
   return (
     <AnimatePresence>

@@ -20,7 +20,7 @@ export type Circle = 'loading' | 'paused' | 'resumed';
 function circleOf(state: StoryState): Circle | null {
   const { kind, load, ended, buffering, canPlay, paused, resumed } = state;
   if (kindInStory(kind).middle !== 'pause' || load === 'failed' || ended) return null;
-  if (buffering || (load === 'loading' && !canPlay)) return 'loading';
+  if (buffering || (load === 'loading' && !(canPlay && paused))) return 'loading';
   if (paused) return 'paused';
   return resumed ? 'resumed' : null;
 }

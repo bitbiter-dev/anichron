@@ -209,15 +209,12 @@ export function createStory(
     return position.play.by === by;
   }
 
+  function stopped() {
+    return paused || held || details || ended || playingLive() || position.buffering;
+  }
+
   function stateOf(): StoryState {
-    const running =
-      position.load !== 'loading' &&
-      !position.buffering &&
-      !paused &&
-      !held &&
-      !details &&
-      !ended &&
-      !playingLive();
+    const running = position.load !== 'loading' && !stopped();
     const playsMedia = held ? playsBy('hold') : !paused && (playsBy('button') || !ended);
     const { group, memory, kind, load } = position;
     const { durationSeconds } = memories(group)[memory] as StoryMemory;
@@ -242,8 +239,7 @@ export function createStory(
   }
 
   function start() {
-    if (!notify || paused || held || details || ended || playingLive() || position.buffering)
-      return;
+    if (!notify || stopped()) return;
     clock.start();
     if (resumed && position.load !== 'loading') resumedClock.start();
   }

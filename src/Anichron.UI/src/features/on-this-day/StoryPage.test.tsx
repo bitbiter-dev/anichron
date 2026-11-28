@@ -1491,6 +1491,14 @@ describe('a video', () => {
       expect(circleOf()).toBe('paused');
     });
 
+    it('keeps its ring once it can play until it plays', async () => {
+      await openVideo();
+
+      await fire('canPlay');
+
+      expect(circleOf()).toBe('loading');
+    });
+
     it('flashes play from its first play when played on while it loads', async () => {
       await openVideo();
       await user().click(middle());
