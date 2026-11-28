@@ -935,7 +935,7 @@ describe('a video', () => {
     return rendered;
   }
 
-  async function fire(event: 'playing' | 'ended' | 'error') {
+  async function fire(event: 'canPlay' | 'playing' | 'waiting' | 'ended' | 'error') {
     fireEvent[event](video());
     await advance(0);
   }
@@ -1317,8 +1317,283 @@ describe('a video', () => {
     await pointer.pointer({ keys: '[/MouseLeft]', target: button('Next') });
   });
 
+  it('stops its progress while it stalls, for as long as it stalls, and fills on once it plays', async () => {
+    await openVideo();
+    await fire('playing');
+    await advance(2000);
+
+    await fire('waiting');
+    expect(segment(0).style.animationPlayState).toBe('paused');
+    await advance(600_000);
+    expect(video()).toBeVisible();
+    expect(within(story()).queryByText(failure)).toBeNull();
+    await fire('playing');
+
+    expect(segment(0).style.animationPlayState).toBe('running');
+    expect(segment(0).style.animationDuration).toBe('12000ms');
+  });
+
+  it('counts only the time it played towards its 120 s', async () => {
+    years = [
+      yearGroup(2025, film(ids.a2025, 2025, { durationSeconds: null }), memory(ids.b2025, 2025)),
+    ];
+    await openVideo();
+    await fire('playing');
+    await advance(20_000);
+    await fire('waiting');
+    await advance(300_000);
+    await fire('playing');
+
+    await advance(99_999);
+    expect(video()).toBeVisible();
+    await advance(1);
+    expect(showing()).toBe(preview(ids.b2025));
+  });
+
+  it('keeps its 10 s to start playing through a stall reported while it loads', async () => {
+    await openVideo();
+
+    await fire('waiting');
+    await advance(10_000);
+
+    expect(video()).not.toBeVisible();
+    expect(showing()).toBe(preview(ids.a2025));
+  });
+
+  it('starts filling on its first play after a stall reported while it loads', async () => {
+    await openVideo();
+
+    await fire('waiting');
+    await fire('playing');
+
+    expect(segment(0).style.animationPlayState).toBe('running');
+  });
+
+  it('ignores a stall reported once the story moved on from it', async () => {
+    previewsNotPrefetched();
+    await openVideo();
+    await fire('playing');
+    await fire('ended');
+    await shown();
+
+    await fire('waiting');
+
+    expect(segment(1).style.animationPlayState).toBe('running');
+    await advance(5000);
+    expect(video().getAttribute('src')).toBe(clip(ids.c2025));
+  });
+
+  describe('its circle', () => {
+    const circle = () => story().querySelector('[data-circle]');
+    const circleOf = () => circle()?.getAttribute('data-circle');
+
+    async function gone() {
+      await advance(1000);
+      expect(circle()).toBeNull();
+    }
+
+    it('shows a pause circle with its ring while it loads, and none once it plays', async () => {
+      const { container } = await openVideo();
+
+      expect(circleOf()).toBe('loading');
+      expect(circle()?.querySelector('.live-ring')).not.toBeNull();
+      expect(await axeResults(container)).toHaveNoViolations();
+      await fire('playing');
+
+      await gone();
+    });
+
+    it('flashes no play when the story opens on it and it first plays', async () => {
+      await openVideo();
+
+      fireEvent.playing(video());
+
+      expect(circleOf()).not.toBe('resumed');
+      await gone();
+    });
+
+    it('shows the loading circle while it stalls, and none once it plays on', async () => {
+      await openVideo();
+      await fire('playing');
+      await gone();
+
+      await fire('waiting');
+      expect(circleOf()).toBe('loading');
+      await fire('playing');
+
+      await gone();
+    });
+
+    it('pauses the story from a tap in the middle, and plays it on from another, flashing play', async () => {
+      const { container } = await openVideo();
+      await fire('playing');
+      await advance(2000);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
+      const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
+
+      await user().click(middle());
+      expect(circleOf()).toBe('paused');
+      expect(button('Play')).toBeVisible();
+      expect(segment(0).style.animationPlayState).toBe('paused');
+      expect(pause).toHaveBeenCalled();
+      expect(video().muted).toBe(true);
+      expect(await axeResults(container)).toHaveNoViolations();
+
+      await user().click(middle());
+      expect(circleOf()).toBe('resumed');
+      expect(button('Pause')).toBeVisible();
+      expect(segment(0).style.animationPlayState).toBe('running');
+      expect(play).toHaveBeenCalled();
+      expect(video()).toBeVisible();
+    });
+
+    it('keeps its play flash for 0.25 s of the story running, then fades it', async () => {
+      await openVideo();
+      await fire('playing');
+      await user().click(middle());
+      await user().click(middle());
+      await advance(150);
+      await fire('waiting');
+      await advance(60_000);
+      expect(circleOf()).toBe('loading');
+      await fire('playing');
+
+      await advance(99);
+      expect(circleOf()).toBe('resumed');
+      await advance(1);
+      await gone();
+    });
+
+    it('pauses and plays on alike from the top button, Space and Enter', async () => {
+      await openVideo();
+      await fire('playing');
+
+      await user().click(button('Pause'));
+      expect(circleOf()).toBe('paused');
+      await user().keyboard(' ');
+      expect(circleOf()).toBe('resumed');
+      expect(button('Pause')).toBeVisible();
+      await user().click(story());
+      await user().keyboard('{Enter}');
+      expect(circleOf()).toBe('paused');
+      expect(button('Play')).toBeVisible();
+    });
+
+    it('toggles once on Enter on the focused pause button', async () => {
+      await openVideo();
+      await fire('playing');
+
+      await user().keyboard('{Enter}');
+
+      expect(circleOf()).toBe('paused');
+      expect(button('Play')).toBeVisible();
+    });
+
+    it('keeps its ring when paused while it loads, until it can play', async () => {
+      await openVideo();
+
+      await user().click(middle());
+      expect(circleOf()).toBe('loading');
+      expect(button('Play')).toBeVisible();
+      await fire('canPlay');
+
+      expect(circleOf()).toBe('paused');
+    });
+
+    it('keeps its ring once it can play until it plays', async () => {
+      await openVideo();
+
+      await fire('canPlay');
+
+      expect(circleOf()).toBe('loading');
+    });
+
+    it('flashes play from its first play when played on while it loads', async () => {
+      await openVideo();
+      await user().click(middle());
+      await user().click(middle());
+      await advance(1000);
+      expect(circleOf()).toBe('loading');
+
+      await fire('playing');
+      await advance(249);
+      expect(circleOf()).toBe('resumed');
+      await advance(1);
+      await gone();
+    });
+
+    it('flashes play no more once the story moves on', async () => {
+      await openVideo();
+      await fire('playing');
+      await user().click(middle());
+      await user().click(middle());
+
+      await user().click(button('Previous'));
+      await fire('playing');
+
+      expect(circleOf()).toBe('loading');
+      await gone();
+    });
+
+    it('hides while the story is held', async () => {
+      await openVideo();
+      await fire('playing');
+      await user().click(middle());
+      const pointer = user();
+
+      await pointer.pointer({ keys: '[MouseLeft>]', target: button('Next') });
+      await advance(1000);
+
+      expect(circle()).not.toBeVisible();
+      await pointer.pointer({ keys: '[/MouseLeft]', target: button('Next') });
+      expect(circle()).toBeVisible();
+    });
+
+    it('shows none once the last video ended and the story rests on it', async () => {
+      years = [yearGroup(2025, film(ids.a2025, 2025))];
+      await openVideo();
+      await fire('playing');
+      await fire('ended');
+
+      await user().click(middle());
+
+      expect(button('Play')).toBeVisible();
+      await gone();
+    });
+
+    it('shows none on the poster of a video that failed while paused', async () => {
+      await openVideo();
+      await user().click(middle());
+
+      await fire('error');
+      await fire('error');
+
+      expect(showing()).toBe(preview(ids.a2025));
+      await gone();
+    });
+
+    it('shows none on a photo, which pauses from the top button', async () => {
+      await openVideo();
+      await fire('ended');
+      await shown();
+
+      await user().click(button('Pause'));
+
+      await gone();
+    });
+  });
+
   describe('its sound', () => {
     const sound = (name: string) => within(story()).getByRole('button', { name });
+
+    it('keeps its button in the corner, also before the first video plays', async () => {
+      await openVideo();
+
+      expect(sound('Turn sound on')).toHaveClass('right-2');
+      await fire('playing');
+      await advance(5000);
+      expect(sound('Turn sound on')).toHaveClass('right-2');
+    });
 
     it('is off at first, and the speaker button turns it on and off', async () => {
       const { container } = await openVideo();
@@ -1344,17 +1619,6 @@ describe('a video', () => {
       expect(video().getAttribute('src')).toBe(clip(ids.c2025));
       expect(video().muted).toBe(false);
       expect(sound('Turn sound off')).toBeVisible();
-    });
-
-    it('turns on and off from a tap in the middle third, without moving on', async () => {
-      await openVideo();
-      await fire('playing');
-
-      await user().click(middle());
-      expect(video().muted).toBe(false);
-      await user().click(middle());
-      expect(video().muted).toBe(true);
-      expect(video()).toBeVisible();
     });
 
     it('turns on and off with M', async () => {
@@ -1400,126 +1664,6 @@ describe('a video', () => {
       expect(within(story()).queryByRole('button', { name: 'Turn sound on' })).toBeNull();
     });
   });
-
-  describe('the first one', () => {
-    const hint = () => story().querySelector('[data-hint]') as HTMLElement;
-
-    it('shows where the sound is in the middle until 1 s after it plays, then in the corner', async () => {
-      const { container } = await openVideo();
-
-      expect(hint().getAttribute('data-hint')).toBe('true');
-      expect(within(hint()).getByRole('button', { name: 'Turn sound on' })).toBeVisible();
-      expect(await axeResults(container)).toHaveNoViolations();
-      await advance(5000);
-      expect(hint().getAttribute('data-hint')).toBe('true');
-      await fire('playing');
-      await advance(999);
-      expect(hint().getAttribute('data-hint')).toBe('true');
-      await advance(1);
-      expect(hint().getAttribute('data-hint')).toBe('false');
-      expect(within(hint()).getByRole('button', { name: 'Turn sound on' })).toBeVisible();
-    });
-
-    it('keeps showing in the middle while the story is paused', async () => {
-      await openVideo();
-      await fire('playing');
-      await advance(400);
-
-      await user().click(button('Pause'));
-      await advance(30_000);
-      expect(hint().getAttribute('data-hint')).toBe('true');
-      await user().click(button('Play'));
-      await advance(599);
-      expect(hint().getAttribute('data-hint')).toBe('true');
-      await advance(1);
-      expect(hint().getAttribute('data-hint')).toBe('false');
-    });
-
-    it('shrinks into the corner 1 s after its video fails', async () => {
-      await openVideo();
-      await fire('error');
-      await fire('error');
-
-      await advance(999);
-      expect(hint().getAttribute('data-hint')).toBe('true');
-      await advance(1);
-      expect(hint().getAttribute('data-hint')).toBe('false');
-    });
-
-    it('turns the sound on when tapped', async () => {
-      await openVideo();
-
-      await user().click(within(hint()).getByRole('button'));
-
-      expect(video().muted).toBe(false);
-      expect(hint().getAttribute('data-hint')).toBe('false');
-    });
-
-    it('is the only one shown where the sound is', async () => {
-      await openVideo();
-      await fire('playing');
-      await advance(1000);
-      await fire('ended');
-      await shown();
-      await advance(5000);
-
-      expect(hint().getAttribute('data-hint')).toBe('false');
-    });
-
-    it('is not shown again when returning to it', async () => {
-      await openVideo();
-      await fire('playing');
-      await advance(1000);
-
-      await user().click(button('Previous'));
-
-      expect(hint().getAttribute('data-hint')).toBe('false');
-    });
-
-    it('may come after photos', async () => {
-      years = [yearGroup(2025, memory(ids.a2025, 2025), film(ids.b2025, 2025))];
-      renderApp('/day/2026-11-11?year=2025');
-      await within(await screen.findByRole('dialog', { name: storyName })).findByRole('button', {
-        name: 'Previous',
-      });
-      await waitFor(() => {
-        expect(picture()).not.toBeNull();
-      });
-      expect(hint()).toBeNull();
-      await shown();
-      await advance(5000);
-
-      expect(hint().getAttribute('data-hint')).toBe('true');
-    });
-
-    it('waits for the first video past several photos', async () => {
-      years = [
-        yearGroup(2025, memory(ids.a2025, 2025), memory(ids.b2025, 2025), film(ids.c2025, 2025)),
-      ];
-      renderApp('/day/2026-11-11?year=2025');
-      await within(await screen.findByRole('dialog', { name: storyName })).findByRole('button', {
-        name: 'Previous',
-      });
-      await waitFor(() => {
-        expect(picture()).not.toBeNull();
-      });
-      await user().click(button('Next'));
-      await user().click(button('Next'));
-
-      expect(hint().getAttribute('data-hint')).toBe('true');
-    });
-
-    it('stops showing once the story moves on', async () => {
-      years = [
-        yearGroup(2025, film(ids.a2025, 2025), film(ids.b2025, 2025)),
-        yearGroup(2023, memory(ids.a2023, 2023)),
-      ];
-      await openVideo();
-      await user().click(button('Next'));
-
-      expect(hint().getAttribute('data-hint')).toBe('false');
-    });
-  });
 });
 
 describe('a Live Photo', () => {
@@ -1532,7 +1676,7 @@ describe('a Live Photo', () => {
       livePhotoVideoUrl: proxyPath(movId, 'video'),
     });
 
-  async function fire(event: 'playing' | 'ended' | 'error') {
+  async function fire(event: 'canPlay' | 'playing' | 'waiting' | 'ended' | 'error') {
     fireEvent[event](video());
     await advance(0);
   }
@@ -1927,6 +2071,22 @@ describe('a Live Photo', () => {
 
       expect(video()).not.toBeVisible();
       expect(segment(0).style.animationPlayState).toBe('running');
+      await advance(2999);
+      expect(showing()).toBe(preview(ids.a2025));
+      await advance(1);
+      expect(showing()).toBe(preview(ids.b2025));
+    });
+
+    it('lets the story play on after its video stalled, and shows no circle', async () => {
+      await watched();
+      await replay();
+      await fire('playing');
+
+      await fire('waiting');
+      await fire('ended');
+
+      expect(segment(0).style.animationPlayState).toBe('running');
+      expect(story().querySelector('[data-circle]')).toBeNull();
       await advance(2999);
       expect(showing()).toBe(preview(ids.a2025));
       await advance(1);

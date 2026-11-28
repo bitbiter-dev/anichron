@@ -25,6 +25,12 @@
 # and open https://<laptop>.<tailnet>.ts.net on the phone
 # (`tailscale serve status` prints it).
 #
+# To try a branch's UI or API instead, build its API image
+# (README, "Build the images") and, in place of `pull`:
+#   export DEVICE_API_IMAGE=anichron-api:local
+#   docker compose -f src/docker-compose.device.yml pull anichron-worker
+# then the rest as above. Unset it to go back to edge.
+#
 # Every `up` runs anichron-migrate first. The first one creates
 # the admin "admin" with the bootstrap passphrase below, which
 # must be changed before anything else. The UI cannot do that
@@ -75,7 +81,7 @@ services:
     extends:
       file: docker-compose.yml
       service: anichron-migrate
-    image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge
+    image: ${DEVICE_API_IMAGE:-${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge}
     container_name: !reset null
     environment: !override
       - POSTGRES_CONNECTION__HOST=anichron-db
@@ -89,7 +95,7 @@ services:
     extends:
       file: docker-compose.yml
       service: anichron-api
-    image: ${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge
+    image: ${DEVICE_API_IMAGE:-${DOCKERHUB_USERNAME:-bitbiterdev}/anichron-api:edge}
     container_name: !reset null
     restart: !reset null
     ports: !override

@@ -45,7 +45,7 @@ function SlideControls({ replay, live, sound }: SlideState) {
           }}
         />
       </div>
-      {sound && <Sound shown hint={false} label={sound.label} toggle={sound.toggle} />}
+      {sound && <Sound shown label={sound.label} toggle={sound.toggle} />}
     </>
   );
 }
